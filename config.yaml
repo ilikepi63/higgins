@@ -1,0 +1,21 @@
+schema: 
+  update_customer_event:
+    id: string
+    first_name: string
+    last_name: string
+    age: int32
+  customer:
+    id: string
+    first_name: string
+    last_name: string
+    age: int32
+
+topics: 
+  update_customer:
+    schema: customer
+    partition_key: id
+  customer:
+    derived: update_customer
+    type: reduce
+    partition_key: id
+    schema: customer
