@@ -158,8 +158,6 @@ impl ReduceFunction {
 
             while let Ok(value) = rx.recv().await {
 
-                println!("Received a record batch from {:#?}", value);
-
                 let result = func(&last_value, &value);
 
                 if let Err(e) = tx.send(result) {
