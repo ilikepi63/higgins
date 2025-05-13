@@ -1,4 +1,4 @@
-schema: 
+schema:
   update_customer_event:
     id: string
     first_name: string
@@ -10,9 +10,9 @@ schema:
     last_name: string
     age: int32
 
-topics: 
+topics:
   update_customer:
-    schema: customer
+    schema: update_customer_event
     partition_key: id
   customer:
     derived: update_customer
