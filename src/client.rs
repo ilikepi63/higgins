@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let tokens = tokens.take(3).map(|s| s.to_string()).collect::<Vec<_>>();
 
-            let command = tokens.get(0).expect("NO Command Given.");
+            let command = tokens.first().expect("NO Command Given.");
 
             match command.as_ref() {
                 "produce" => {
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     println!("Finding stream for name: {name}");
 
-                    let (schema, tx, rx) = broker
+                    let (schema, _tx, _rx) = broker
                         .get_stream(name)
                         .expect("Could not find stream for stream_name.");
 

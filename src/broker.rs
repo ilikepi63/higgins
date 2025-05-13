@@ -74,7 +74,7 @@ impl Broker {
                                 derived_from,
                                 topic_defintion.schema.as_str(),
                                 schema.clone(),
-                                |a, b| RecordBatch::new_empty(b.schema()),
+                                |_a, b| RecordBatch::new_empty(b.schema()),
                             );
                         }
                         _ => unimplemented!(),
