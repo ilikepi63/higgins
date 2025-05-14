@@ -34,9 +34,9 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
         })
         .collect::<Vec<_>>();
 
-    let schema = arrow::datatypes::Schema::new(fields);
+    
 
-    schema
+    arrow::datatypes::Schema::new(fields)
 }
 
 type Topics = BTreeMap<String, TopicsDefinition>;

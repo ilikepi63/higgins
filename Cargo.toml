@@ -13,6 +13,7 @@ path = "src/client.rs"
 
 [dependencies]
 arrow = "55.0.0"
+arrow-json = "55.1.0"
 easy-repl = "0.2.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"

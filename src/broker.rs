@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, marker::PhantomData, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 
@@ -11,6 +11,12 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 #[derive(Debug)]
 pub struct Broker {
     streams: BTreeMap<String, (Arc<Schema>, Sender, Receiver)>,
+}
+
+impl Default for Broker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Broker {
@@ -40,13 +46,11 @@ impl Broker {
             match &topic_defintion.derived {
                 Some(_derived_from) => unreachable!(),
                 None => {
-                    /// Create just normal schema.
-                    let schema = schema.get(&topic_defintion.schema).expect(&format!(
-                        "No Schema defined for key {}",
-                        topic_defintion.schema
-                    ));
+                    // Create just normal schema.
+                    let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| panic!("No Schema defined for key {}",
+                        topic_defintion.schema));
 
-                    broker.create_stream(&stream_name, schema.clone());
+                    broker.create_stream(stream_name, schema.clone());
                 }
             }
         }
@@ -58,18 +62,16 @@ impl Broker {
         {
             match &topic_defintion.derived {
                 Some(derived_from) => {
-                    /// Create just normal schema.
-                    let schema = schema.get(&topic_defintion.schema).expect(&format!(
-                        "No Schema defined for key {}",
-                        topic_defintion.schema
-                    ));
+                    // Create just normal schema.
+                    let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| panic!("No Schema defined for key {}",
+                        topic_defintion.schema));
 
                     let topic_type = topic_defintion.fn_type.as_ref().unwrap();
 
                     match topic_type.as_ref() {
                         "reduce" => {
                             broker.reduce(
-                                &derived_from,
+                                derived_from,
                                 topic_defintion.schema.as_str(),
                                 schema.clone(),
                                 |a, b| RecordBatch::new_empty(b.schema()),
@@ -78,13 +80,17 @@ impl Broker {
                         _ => unimplemented!(),
                     }
 
-                    broker.create_stream(&stream_name, schema.clone());
+                    broker.create_stream(stream_name, schema.clone());
                 }
                 None => unreachable!(),
             }
         }
 
         broker
+    }
+
+    pub fn get_stream(&self, stream_name: &str) -> Option<&(Arc<Schema>, Sender, Receiver)> {
+        self.streams.get(stream_name)
     }
 
     /// Produce a data set onto the named stream.
@@ -151,6 +157,9 @@ impl ReduceFunction {
             let last_value: Option<RecordBatch> = None;
 
             while let Ok(value) = rx.recv().await {
+
+                println!("Received a record batch from {:#?}", value);
+
                 let result = func(&last_value, &value);
 
                 if let Err(e) = tx.send(result) {
