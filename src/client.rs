@@ -1,41 +1,52 @@
 use std::{collections::BTreeMap, fs};
 
+use broker::Broker;
+use config::Configuration;
 use serde::{Deserialize, Serialize};
 
 pub mod broker;
+pub mod config;
 
-#[derive(Serialize, Deserialize, Debug)] 
-pub struct Configuration {
-    schema: BTreeMap<String, BTreeMap<String, String>>,
-}
-
-use easy_repl::{Repl, CommandStatus, command};
-
+use easy_repl::{CommandStatus, Repl, command};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Configuration::from_env();
+
+    let broker = Broker::from_config(config);
+
+    println!("Created Broker: {:#?}", broker);
 
     let mut repl = Repl::builder()
-        .add("produce", command! {
-            "Produce JSON to a given stream",
-            (stream_name: String, data: String) => |name, data| {
-                println!("Hello {}!", name);
-                println!("data: {:#?}", data);
+        .add(
+            "produce",
+            command! {
+                "Produce JSON to a given stream",
+                (stream_name: String, data: String) => |name, data| {
+                    tracing::info!("Hello {}!", name);
+                    tracing::info!("data: {:#?}", data);
 
-                Ok(CommandStatus::Done)
-            }
-        })
-        .add("consume", command! {
-            "Consume from a Stream.",
-            (stream_name: String) => |name| {
 
-                Ok(CommandStatus::Done)
-            }
-        })
-        .build().expect("Failed to create repl");
-    
+                    // broker.produce(stream_name, record);
+
+                    Ok(CommandStatus::Done)
+                }
+            },
+        )
+        .add(
+            "consume",
+            command! {
+                "Consume from a Stream.",
+                (stream_name: String) => |name| {
+
+                    Ok(CommandStatus::Done)
+                }
+            },
+        )
+        .build()
+        .expect("Failed to create repl");
+
     repl.run().expect("CriHI Hi tical REPL error");
-
 
     Ok(())
 }
