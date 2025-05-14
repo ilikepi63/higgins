@@ -6,7 +6,6 @@ use config::Configuration;
 pub mod broker;
 pub mod config;
 pub mod storage;
-pub mod index;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
