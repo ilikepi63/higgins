@@ -3,18 +3,12 @@ name = "higgins"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "main"
-path = "src/main.rs"
-
-[[bin]]
-name = "client"
-path = "src/client.rs"
-
 [dependencies]
 arrow = "55.0.0"
 arrow-json = "55.1.0"
+bytes = "1.10.1"
 easy-repl = "0.2.1"
+riskless = "0.5.2"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
 tokio = { version = "1.45.0", features = ["full"] }
