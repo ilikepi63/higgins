@@ -8,11 +8,21 @@ pub mod config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    tracing_subscriber::fmt()
+        .pretty()
+        .with_thread_names(true)
+        // enable everything
+        .with_max_level(tracing::Level::TRACE)
+        // sets this to be the default, global collector for this application.
+        .init();
+
+
     let config = Configuration::from_env();
 
     let broker = Broker::from_config(config);
 
-    println!("Created Broker: {:#?}", broker);
+    tracing::info!("Created Broker: {:#?}", broker);
 
     loop {
         print!("> ");
