@@ -16,14 +16,29 @@
  * under the License.
  */
 
- /***
-  * THIS IS NOT MY WORK -> THIS IS BORROWED FROM THE APACHE IGGY PROJECT.
-  */
+/***
+ * THIS IS NOT MY WORK -> THIS IS BORROWED FROM THE APACHE IGGY PROJECT.
+ */
 
 use std::fmt;
 use std::ops::{Deref, Index as StdIndex};
 
 use bytes::{Buf, BufMut, BytesMut};
+
+mod index_reader;
+mod index_writer;
+
+pub struct Index(u32, u32, u64);
+
+impl Index {
+    pub fn timestamp(&self) -> u64 {
+        self.2
+    }
+
+    pub fn position(&self) -> u32 {
+        self.1
+    }
+}
 
 pub struct IndexView<'a>(&'a [u8]);
 
@@ -38,22 +53,23 @@ impl<'a> IndexView<'a> {
         Self(data)
     }
 
-    /// Gets the offset value from the view
     pub fn offset(&self) -> u32 {
         let mut buf = &self.0[0..4];
         buf.get_u32()
     }
 
-    /// Gets the position value from the view
     pub fn position(&self) -> u32 {
         let mut buf = &self.0[4..8];
         buf.get_u32()
     }
 
-    /// Gets the timestamp value from the view
     pub fn timestamp(&self) -> u64 {
         let mut buf = &self.0[8..16];
         buf.get_u64()
+    }
+
+    pub fn to_index(self) -> Index {
+        Index(self.offset(), self.position(), self.timestamp())
     }
 }
 
@@ -73,13 +89,13 @@ const INDEX_SIZE: usize = 16;
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
 #[derive(Default)]
-pub struct IggyIndexesMut {
+pub struct IndexesMut {
     buffer: BytesMut,
     saved_count: u32,
     base_position: u32,
 }
 
-impl IggyIndexesMut {
+impl IndexesMut {
     /// Creates a new empty container
     pub fn empty() -> Self {
         Self {
@@ -281,11 +297,7 @@ impl IggyIndexesMut {
     }
 
     /// Slices the container to return a view of a specific range of indexes
-    pub fn slice_by_offset(
-        &self,
-        relative_start_offset: u32,
-        count: u32,
-    ) -> Option<IggyIndexesMut> {
+    pub fn slice_by_offset(&self, relative_start_offset: u32, count: u32) -> Option<IndexesMut> {
         let available_count = self.count().saturating_sub(relative_start_offset);
         let actual_count = std::cmp::min(count, available_count);
 
@@ -300,15 +312,15 @@ impl IggyIndexesMut {
         let slice = BytesMut::from(&self.buffer[start_byte..end_byte]);
 
         if relative_start_offset == 0 {
-            Some(IggyIndexesMut::from_bytes(slice, self.base_position))
+            Some(IndexesMut::from_bytes(slice, self.base_position))
         } else {
             let position_offset = self.get(relative_start_offset - 1).unwrap().position();
-            Some(IggyIndexesMut::from_bytes(slice, position_offset))
+            Some(IndexesMut::from_bytes(slice, position_offset))
         }
     }
 
     /// Loads indexes from cache based on timestamp
-    pub fn slice_by_timestamp(&self, timestamp: u64, count: u32) -> Option<IggyIndexesMut> {
+    pub fn slice_by_timestamp(&self, timestamp: u64, count: u32) -> Option<IndexesMut> {
         if self.count() == 0 {
             return None;
         }
@@ -334,7 +346,7 @@ impl IggyIndexesMut {
             0
         };
 
-        Some(IggyIndexesMut::from_bytes(slice, base_position))
+        Some(IndexesMut::from_bytes(slice, base_position))
     }
 
     /// Find the position of the index with timestamp closest to (but not exceeding) the target
@@ -377,7 +389,7 @@ impl IggyIndexesMut {
     }
 }
 
-impl StdIndex<usize> for IggyIndexesMut {
+impl StdIndex<usize> for IndexesMut {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -387,7 +399,7 @@ impl StdIndex<usize> for IggyIndexesMut {
     }
 }
 
-impl Deref for IggyIndexesMut {
+impl Deref for IndexesMut {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -395,15 +407,15 @@ impl Deref for IggyIndexesMut {
     }
 }
 
-impl fmt::Debug for IggyIndexesMut {
+impl fmt::Debug for IndexesMut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let count = self.count();
 
         if count == 0 {
-            return write!(f, "IggyIndexesMut {{ count: 0, indexes: [] }}");
+            return write!(f, "IndexesMut {{ count: 0, indexes: [] }}");
         }
 
-        writeln!(f, "IggyIndexesMut {{")?;
+        writeln!(f, "IndexesMut {{")?;
         writeln!(f, "    count: {},", count)?;
         writeln!(f, "    indexes: [")?;
 
@@ -421,5 +433,271 @@ impl fmt::Debug for IggyIndexesMut {
 
         writeln!(f, "    ]")?;
         write!(f, "}}")
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BytesMut;
+    
+    fn create_index_view(offset: u32, position: u32, timestamp: u64) -> IndexView<'static> {
+        // Use a Vec<u8> to hold the data and leak it to get a 'static lifetime
+        let mut buffer = Vec::with_capacity(INDEX_SIZE);
+        buffer.extend_from_slice(&offset.to_be_bytes());
+        buffer.extend_from_slice(&position.to_be_bytes());
+        buffer.extend_from_slice(&timestamp.to_be_bytes());
+        let buffer: &'static [u8] = Box::leak(Box::new(buffer)).as_slice();
+        IndexView::new(buffer)
+    }
+
+    #[test]
+    fn test_index_methods() {
+        let index = Index(1, 100, 1234567890);
+        assert_eq!(index.timestamp(), 1234567890);
+        assert_eq!(index.position(), 100);
+    }
+
+    #[test]
+    fn test_index_view_new() {
+        let mut buffer = BytesMut::with_capacity(INDEX_SIZE);
+        buffer.put_u32(1);
+        buffer.put_u32(100);
+        buffer.put_u64(1234567890);
+
+        let view = IndexView::new(&buffer[..]);
+        assert_eq!(view.offset(), 1);
+        assert_eq!(view.position(), 100);
+        assert_eq!(view.timestamp(), 1234567890);
+    }
+
+    #[test]
+    fn test_index_view_to_index() {
+        let view = create_index_view(1, 100, 1234567890);
+        let index = view.to_index();
+        assert_eq!(index.0, 1);
+        assert_eq!(index.1, 100);
+        assert_eq!(index.2, 1234567890);
+    }
+
+    #[test]
+    fn test_index_view_display() {
+        let view = create_index_view(1, 100, 1234567890);
+        let display = format!("{}", view);
+        assert_eq!(display, "offset: 1, position: 100, timestamp: 1234567890");
+    }
+
+    #[test]
+    fn test_indexes_mut_empty() {
+        let indexes = IndexesMut::empty();
+        assert_eq!(indexes.count(), 0);
+        assert!(indexes.is_empty());
+        assert_eq!(indexes.size(), 0);
+        assert_eq!(indexes.base_position(), 0);
+        assert_eq!(indexes.last_position(), 0);
+        assert!(indexes.get(0).is_none());
+        assert!(indexes.last().is_none());
+    }
+
+    #[test]
+    fn test_indexes_mut_with_capacity() {
+        let indexes = IndexesMut::with_capacity(10, 100);
+        assert_eq!(indexes.capacity(), 10 * INDEX_SIZE);
+        assert_eq!(indexes.base_position(), 100);
+        assert_eq!(indexes.count(), 0);
+    }
+
+    #[test]
+    fn test_indexes_mut_insert_and_get() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1234567890);
+        indexes.insert(2, 200, 1234567891);
+
+        assert_eq!(indexes.count(), 2);
+        assert_eq!(indexes.size(), 2 * INDEX_SIZE as u32);
+        assert!(!indexes.is_empty());
+
+        let view1 = indexes.get(0).unwrap();
+        assert_eq!(view1.offset(), 1);
+        assert_eq!(view1.position(), 100);
+        assert_eq!(view1.timestamp(), 1234567890);
+
+        let view2 = indexes.get(1).unwrap();
+        assert_eq!(view2.offset(), 2);
+        assert_eq!(view2.position(), 200);
+        assert_eq!(view2.timestamp(), 1234567891);
+
+        assert!(indexes.get(2).is_none());
+    }
+
+    #[test]
+    fn test_indexes_mut_set_methods() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1234567890);
+
+        indexes.set_offset_at(0, 10);
+        indexes.set_position_at(0, 200);
+        indexes.set_timestamp_at(0, 9876543210);
+
+        let view = indexes.get(0).unwrap();
+        assert_eq!(view.offset(), 10);
+        assert_eq!(view.position(), 200);
+        assert_eq!(view.timestamp(), 9876543210);
+    }
+
+    #[test]
+    fn test_indexes_mut_append_slice() {
+        let mut indexes = IndexesMut::empty();
+        let mut buffer = BytesMut::with_capacity(INDEX_SIZE);
+        buffer.put_u32(1);
+        buffer.put_u32(100);
+        buffer.put_u64(1234567890);
+
+        indexes.append_slice(&buffer[..]);
+        assert_eq!(indexes.count(), 1);
+
+        let view = indexes.get(0).unwrap();
+        assert_eq!(view.offset(), 1);
+        assert_eq!(view.position(), 100);
+        assert_eq!(view.timestamp(), 1234567890);
+    }
+
+    #[test]
+    fn test_indexes_mut_last() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1234567890);
+        indexes.insert(2, 200, 1234567891);
+
+        let last = indexes.last().unwrap();
+        assert_eq!(last.offset(), 2);
+        assert_eq!(last.position(), 200);
+        assert_eq!(last.timestamp(), 1234567891);
+    }
+
+    #[test]
+    fn test_indexes_mut_find_by_timestamp() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1000);
+        indexes.insert(2, 200, 2000);
+        indexes.insert(3, 300, 3000);
+        indexes.insert(4, 400, 4000);
+
+        // Exact match
+        let view = indexes.find_by_timestamp(2000).unwrap();
+        assert_eq!(view.timestamp(), 2000);
+
+        // Find closest greater or equal
+        let view = indexes.find_by_timestamp(2500).unwrap();
+        assert_eq!(view.timestamp(), 3000);
+
+        // Before first
+        let view = indexes.find_by_timestamp(500).unwrap();
+        assert_eq!(view.timestamp(), 1000);
+
+        // After last
+        assert!(indexes.find_by_timestamp(5000).is_none());
+
+        // Empty indexes
+        let empty = IndexesMut::empty();
+        assert!(empty.find_by_timestamp(1000).is_none());
+    }
+
+    #[test]
+    fn test_indexes_mut_slice_by_offset() {
+        let mut indexes = IndexesMut::with_capacity(3, 100);
+        indexes.insert(1, 100, 1000);
+        indexes.insert(2, 200, 2000);
+        indexes.insert(3, 300, 3000);
+
+        // Valid slice
+        let slice = indexes.slice_by_offset(1, 2).unwrap();
+        assert_eq!(slice.count(), 2);
+        assert_eq!(slice.base_position(), 100);
+        let view = slice.get(0).unwrap();
+        assert_eq!(view.offset(), 2);
+        assert_eq!(view.position(), 200);
+
+        // Invalid offset
+        assert!(indexes.slice_by_offset(4, 1).is_none());
+
+        // Zero count
+        assert!(indexes.slice_by_offset(1, 0).is_none());
+    }
+
+    #[test]
+    fn test_indexes_mut_slice_by_timestamp() {
+        let mut indexes = IndexesMut::with_capacity(3, 100);
+        indexes.insert(1, 100, 1000);
+        indexes.insert(2, 200, 2000);
+        indexes.insert(3, 300, 3000);
+
+        // Valid slice
+        let slice = indexes.slice_by_timestamp(1500, 2).unwrap();
+        assert_eq!(slice.count(), 2);
+        assert_eq!(slice.base_position(), 100);
+        let view = slice.get(0).unwrap();
+        assert_eq!(view.timestamp(), 2000);
+
+        // Timestamp after last
+        let slice = indexes.slice_by_timestamp(3500, 1).unwrap();
+        assert_eq!(slice.count(), 1);
+        assert_eq!(slice.get(0).unwrap().timestamp(), 3000);
+
+        // Empty indexes
+        let empty = IndexesMut::empty();
+        assert!(empty.slice_by_timestamp(1000, 1).is_none());
+    }
+
+    #[test]
+    fn test_indexes_mut_clear() {
+        let mut indexes = IndexesMut::with_capacity(2, 100);
+        indexes.insert(1, 100, 1000);
+        indexes.insert(2, 200, 2000);
+
+        indexes.clear();
+        assert_eq!(indexes.count(), 0);
+        assert!(indexes.is_empty());
+        assert_eq!(indexes.capacity(), 2 * INDEX_SIZE);
+        assert_eq!(indexes.base_position(), 100);
+    }
+
+    #[test]
+    fn test_indexes_mut_unsaved() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1000);
+        indexes.insert(2, 200, 2000);
+
+        assert_eq!(indexes.unsaved_count(), 2);
+        assert_eq!(indexes.unsaved_slice().len(), 2 * INDEX_SIZE);
+
+        indexes.mark_saved();
+        assert_eq!(indexes.unsaved_count(), 0);
+        assert_eq!(indexes.unsaved_slice().len(), 0);
+    }
+
+    #[test]
+    fn test_indexes_mut_decompose() {
+        let mut indexes = IndexesMut::with_capacity(1, 100);
+        indexes.insert(1, 100, 1000);
+
+        let (base_position, buffer) = indexes.decompose();
+        assert_eq!(base_position, 100);
+        assert_eq!(buffer.len(), INDEX_SIZE);
+    }
+
+    #[test]
+    fn test_indexes_mut_index_and_deref() {
+        let mut indexes = IndexesMut::empty();
+        indexes.insert(1, 100, 1000);
+
+        let slice = &indexes[0];
+        let view = IndexView::new(slice);
+        assert_eq!(view.offset(), 1);
+        assert_eq!(view.position(), 100);
+        assert_eq!(view.timestamp(), 1000);
+
+        let deref_slice: &[u8] = &indexes;
+        assert_eq!(deref_slice.len(), INDEX_SIZE);
     }
 }
