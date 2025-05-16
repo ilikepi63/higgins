@@ -6,10 +6,10 @@ use config::Configuration;
 pub mod broker;
 pub mod config;
 pub mod storage;
+pub mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     tracing_subscriber::fmt()
         .pretty()
         .with_thread_names(true)
@@ -17,7 +17,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(tracing::Level::TRACE)
         // sets this to be the default, global collector for this application.
         .init();
-
 
     let config = Configuration::from_env();
 
@@ -64,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     println!("You are producing! {:#?}", batch);
 
-                    broker.produce(name, batch).await;
+                    broker.produce(name, "partition_key", batch).await;
                 }
                 "listen" => {
                     let name = tokens.get(1).expect("Invalid Message.").clone();

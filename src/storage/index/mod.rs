@@ -25,8 +25,8 @@ use std::ops::{Deref, Index as StdIndex};
 
 use bytes::{Buf, BufMut, BytesMut};
 
-mod index_reader;
-mod index_writer;
+pub mod index_reader;
+pub mod index_writer;
 
 pub struct Index {
     pub offset: u32,
@@ -46,6 +46,17 @@ impl Index {
 
     pub fn position(&self) -> u32 {
         self.position
+    }
+
+    pub fn to_bytes(&self) -> BytesMut {
+        let mut buf = BytesMut::with_capacity(INDEX_SIZE);
+
+        buf.put_u32(self.offset);
+        buf.put_slice(&self.object_key);
+        buf.put_u32(self.position);
+        buf.put_u64(self.timestamp);
+
+        buf
     }
 }
 
