@@ -7,7 +7,10 @@ use std::{
 };
 
 use riskless::{
-    batch_coordinator::{CommitBatchResponse, CommitFile, TopicIdPartition},
+    batch_coordinator::{
+        CommitBatchResponse, CommitFile, FindBatchRequest, FindBatchResponse, FindBatches,
+        TopicIdPartition,
+    },
     messages::CommitBatchRequest,
 };
 
@@ -100,18 +103,31 @@ impl CommitFile for IndexDirectory {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            index_writer.save_indexes(&index).await.unwrap();
+            let result = index_writer.save_indexes(&index).await.unwrap();
+
+            tracing::info!("Successfully saved Index: {:#?}", index);
 
             responses.push(CommitBatchResponse {
                 errors: vec![],
-                assigned_base_offset: 1,
-                log_append_time: 1,
-                log_start_offset: 1,
+                assigned_base_offset: 0,
+                log_append_time: timestamp,
+                log_start_offset: offset.into(),
                 is_duplicate: false,
                 request: batch.clone(),
             });
         }
 
-        vec![]
+        responses
+    }
+}
+
+#[async_trait::async_trait]
+impl FindBatches for IndexDirectory {
+    async fn find_batches(
+        &self,
+        batch_requests: Vec<FindBatchRequest>,
+        size: u32,
+    ) -> Vec<FindBatchResponse> {
+        todo!();
     }
 }

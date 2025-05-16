@@ -116,11 +116,12 @@ impl std::fmt::Display for IndexView<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "offset: {}, position: {}, timestamp: {}",
+            "offset: {}, position: {}, timestamp: {}, object_key: {}",
             self.offset(),
             self.position(),
-            self.timestamp()
-        )
+            self.timestamp(),
+            uuid::Uuid::from_bytes(self.object_key())
+            )
     }
 }
 const INDEX_SIZE: usize = std::mem::size_of::<u32>() // offset
