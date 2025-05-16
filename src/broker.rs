@@ -23,6 +23,13 @@ use crate::{
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
 type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 
+type MutableCollection = Arc<
+    RwLock<(
+        ProduceRequestCollection,
+        Vec<Request<ProduceRequest, ProduceResponse>>,
+    )>,
+>;
+
 /// This is a pretty naive implementation of what the broker might look like.
 #[derive(Debug)]
 pub struct Broker {
@@ -31,7 +38,8 @@ pub struct Broker {
     indexes: Arc<IndexDirectory>,
     pub flush_interval_in_ms: u64,
     pub segment_size_in_bytes: u64,
-    produce_request_tx: tokio::sync::mpsc::Sender<Request<ProduceRequest, ProduceResponse>>,
+    collection: MutableCollection,
+    flush_tx: tokio::sync::mpsc::Sender<()>,
 }
 
 impl Default for Broker {
@@ -66,8 +74,8 @@ impl Broker {
         let (tx, mut rx) =
             tokio::sync::mpsc::channel::<Request<ProduceRequest, ProduceResponse>>(100);
 
-        let buffer: Arc<RwLock<ProduceRequestCollection>> =
-            Arc::new(RwLock::new(ProduceRequestCollection::new()));
+        let buffer: MutableCollection =
+            Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
 
         let cloned_buffer_ref = buffer.clone();
 
@@ -88,37 +96,53 @@ impl Broker {
 
                 let mut buffer_lock = buffer.write().await;
 
-                if buffer_lock.size() > 0 {
+                if buffer_lock.0.size() > 0 {
                     let mut new_ref = ProduceRequestCollection::new();
-
-                    std::mem::swap(&mut *buffer_lock, &mut new_ref);
+                    let mut new_collection_vec = vec![];
+                    std::mem::swap(&mut buffer_lock.0, &mut new_ref);
+                    std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
 
                     drop(buffer_lock); // Explicitly drop the lock.
 
-                    if let Err(err) =
-                        riskless::flush(new_ref, object_store_ref.clone(), indexes_ref).await
-                    {
-                        tracing::error!("Error occurred when trying to flush buffer: {:#?}", err);
+                    tracing::info!("This is actually happening!");
+
+                    match riskless::flush(new_ref, object_store_ref.clone(), indexes_ref).await {
+                        Ok(responses) => {
+                            tracing::info!("We received responses: {:#?}", responses);
+
+                            // let mut iter = new_collection_vec.into_iter();
+
+                            for response in new_collection_vec {
+
+                                let req_id = response.inner().request_id;
+
+                                response.respond(ProduceResponse { request_id: req_id, errors: vec![] }).unwrap();
+                            }
+
+                            // We need to fix riskless here.
+                            // for response in responses {
+                            //     // TODO: O(n^2) here
+                            //     let res = iter
+                            //         .find(|r| r.inner().request_id == response.request_id)
+                            //         .take()
+                            //         .unwrap();
+
+                            //     res.respond(ProduceResponse {
+                            //         request_id: response.request_id,
+                            //         errors: response.errors,
+                            //     })
+                            //     .unwrap();
+                            // }
+                        }
+                        Err(err) => {
+                            tracing::error!(
+                                "Error occurred when trying to flush buffer: {:#?}",
+                                err
+                            );
+                        }
                     }
                 }
             }
-        });
-
-        // Accumulator task.
-        tokio::spawn(async move {
-            while let Some(req) = rx.recv().await {
-                tracing::info!("Received request: {:#?}", req);
-                let buffer_lock = cloned_buffer_ref.read().await;
-
-                let _ = buffer_lock.collect(req.inner().clone());
-
-                // TODO: This is currently hardcoded to 50kb, but we possibly want to make
-                if buffer_lock.size() > segment_size_in_bytes {
-                    let _ = flush_tx.send(()).await;
-                }
-            }
-
-            // TODO: what here if there is None?
         });
 
         Self {
@@ -127,7 +151,8 @@ impl Broker {
             indexes,
             segment_size_in_bytes,
             flush_interval_in_ms,
-            produce_request_tx: tx,
+            collection: cloned_buffer_ref,
+            flush_tx,
         }
     }
 
@@ -200,7 +225,7 @@ impl Broker {
     }
 
     /// Produce a data set onto the named stream.
-    pub async fn produce(&self, topic_name: &str, partition: &str, record_batch: RecordBatch) {
+    pub async fn produce(&mut self, topic_name: &str, partition: &str, record_batch: RecordBatch) {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
@@ -210,13 +235,22 @@ impl Broker {
             data,
         };
 
-        tracing::info!("Producing Request {:#?}.", request);
+        let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
 
-        let (request, response) = Request::new(request);
+        // self.produce_request_tx.send(request).await.unwrap();
 
-        // let (produce_response_tx, produce_response_rx) = tokio::sync::oneshot::channel();
+        let mut buffer_lock = self.collection.write().await;
 
-        self.produce_request_tx.send(request).await.unwrap();
+        let _ = buffer_lock.0.collect(request.inner().clone());
+
+        let _ = buffer_lock.1.push(request);
+
+        // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+        if buffer_lock.0.size() > 50_000 {
+            let _ = self.flush_tx.send(()).await;
+        }
+
+        drop(buffer_lock);
 
         let message = response.recv().await.unwrap();
 
