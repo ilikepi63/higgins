@@ -9,7 +9,7 @@ use std::{
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{ConsumeRequest, ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self, ObjectStore},
 };
 use tokio::sync::RwLock;
@@ -65,7 +65,7 @@ impl Broker {
         let flush_interval_in_ms: u64 = 500;
         let segment_size_in_bytes: u64 = 50_000;
 
-        let object_store = Arc::new(object_store::memory::InMemory::new());
+        let object_store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix("data").unwrap());
         let object_store_ref = object_store.clone();
 
         let indexes = Arc::new(IndexDirectory::new(index_dir));
@@ -104,35 +104,24 @@ impl Broker {
 
                     drop(buffer_lock); // Explicitly drop the lock.
 
-                    tracing::info!("This is actually happening!");
-
                     match riskless::flush(new_ref, object_store_ref.clone(), indexes_ref).await {
                         Ok(responses) => {
-                            tracing::info!("We received responses: {:#?}", responses);
-
-                            // let mut iter = new_collection_vec.into_iter();
-
-                            for response in new_collection_vec {
-
-                                let req_id = response.inner().request_id;
-
-                                response.respond(ProduceResponse { request_id: req_id, errors: vec![] }).unwrap();
-                            }
+                            let mut iter = new_collection_vec.into_iter();
 
                             // We need to fix riskless here.
-                            // for response in responses {
-                            //     // TODO: O(n^2) here
-                            //     let res = iter
-                            //         .find(|r| r.inner().request_id == response.request_id)
-                            //         .take()
-                            //         .unwrap();
+                            for response in responses {
+                                // TODO: O(n^2) here
+                                let res = iter
+                                    .find(|r| r.inner().request_id == response.request_id)
+                                    .take()
+                                    .unwrap();
 
-                            //     res.respond(ProduceResponse {
-                            //         request_id: response.request_id,
-                            //         errors: response.errors,
-                            //     })
-                            //     .unwrap();
-                            // }
+                                res.respond(ProduceResponse {
+                                    request_id: response.request_id,
+                                    errors: response.errors,
+                                })
+                                .unwrap();
+                            }
                         }
                         Err(err) => {
                             tracing::error!(
@@ -267,6 +256,19 @@ impl Broker {
             .unwrap();
 
         tx.send(record_batch).unwrap(); // This should change to a standard notification.
+    }
+
+    pub fn consume(&self) {
+        riskless::consume(
+            ConsumeRequest {
+                topic: todo!(),
+                partition: todo!(),
+                offset: todo!(),
+                max_partition_fetch_bytes: todo!(),
+            },
+            self.object_store,
+            self.indexes,
+        );
     }
 
     /// Retrieve the receiver for a named stream.

@@ -1,7 +1,11 @@
-use std::io::{BufReader, Write, stdin, stdout};
+use std::{
+    io::{BufReader, Write, stdin, stdout},
+    sync::{Arc, atomic::AtomicU64},
+};
 
 use broker::Broker;
 use config::Configuration;
+use storage::index::{Index, IndexView, index_reader::IndexReader};
 
 pub mod broker;
 pub mod config;
@@ -26,7 +30,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut args = std::env::args();
 
-    if args.nth(1).is_some_and(|first_arg| {
+    let first_arg = args.nth(1);
+
+    if first_arg.as_ref().is_some_and(|first_arg| first_arg == "L") {
+        let path = "update_customer/00000000000000000001.index";
+
+        let fs_md = std::fs::metadata(&path).unwrap();
+
+        let reader = IndexReader::new(path, Arc::new(AtomicU64::new(fs_md.len()))).await?;
+
+        let indexes = reader.load_all_indexes_from_disk().await.unwrap();
+
+        let mut current_index = 0;
+
+        while let Some(index) = indexes.get(current_index) {
+            tracing::info!("Found index: {}", index);
+
+            current_index += 1;
+        }
+
+        return Ok(());
+    }
+
+    if first_arg.is_some_and(|first_arg| {
         tracing::info!("First ARg: {first_arg}");
 
         first_arg == "P"
@@ -48,8 +74,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap();
 
         let batch = json.next().unwrap().unwrap();
-
-        println!("You are producing! {:#?}", batch);
 
         broker.produce(name, "partition_key", batch).await;
 
