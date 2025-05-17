@@ -29,13 +29,15 @@ impl IndexDirectory {
         Self(directory)
     }
 
-    pub fn create_topic_dir(&self, topic: &str) {
+    pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
         let mut topic_path = std::env::current_dir().unwrap();
         topic_path.push(topic);
 
         if !topic_path.exists() {
-            std::fs::create_dir(topic_path);
+            std::fs::create_dir(&topic_path).unwrap();
         }
+
+        topic_path
     }
 }
 
@@ -50,19 +52,21 @@ impl CommitFile for IndexDirectory {
     ) -> Vec<CommitBatchResponse> {
         let mut responses = vec![];
 
-        tracing::info!("We are here!");
-
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            self.create_topic_dir(&topic);
+            let mut topic_dir = self.create_topic_dir(&topic);
 
             let index_file_path = &format!("{:0>20}.index", partition);
 
-            let index_file_exists = std::fs::exists(index_file_path).unwrap();
+            topic_dir.push(index_file_path);
+
+            let index_file_path = topic_dir.to_string_lossy().to_string();
+
+            let index_file_exists = std::fs::exists(&index_file_path).unwrap();
 
             let mut index_writer = IndexWriter::new(
-                index_file_path,
+                &index_file_path,
                 Arc::new(AtomicU64::new(u64::max_value())),
                 true,
                 index_file_exists,
@@ -70,10 +74,10 @@ impl CommitFile for IndexDirectory {
             .await
             .unwrap();
 
-            let index_size_bytes = std::fs::metadata(index_file_path).unwrap().size();
+            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
             let index_reader =
-                IndexReader::new(index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
+                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
                     .await
                     .unwrap();
 
@@ -93,6 +97,8 @@ impl CommitFile for IndexDirectory {
                 timestamp,
             }
             .to_bytes();
+
+            tracing::info!("Saving Index: {:#?}", index);
 
             index_writer.save_indexes(&index).await.unwrap();
 

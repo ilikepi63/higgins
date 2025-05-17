@@ -20,9 +20,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Configuration::from_env();
 
-    let broker = Broker::from_config(config);
+    let mut broker = Broker::from_config(config);
 
     tracing::info!("Created Broker: {:#?}", broker);
+
+    let mut args = std::env::args();
+
+    if args.nth(1).is_some_and(|first_arg| {
+        tracing::info!("First ARg: {first_arg}");
+
+        first_arg == "P"
+    }) {
+        let name = "update_customer";
+
+        let data_file = "customer.json";
+
+        let data = std::fs::File::open(data_file).expect("No data found.");
+
+        println!("Finding stream for name: {name}");
+
+        let (schema, _tx, _rx) = broker
+            .get_stream(name)
+            .expect("Could not find stream for stream_name.");
+
+        let mut json = arrow_json::ReaderBuilder::new(schema.clone())
+            .build(BufReader::new(data))
+            .unwrap();
+
+        let batch = json.next().unwrap().unwrap();
+
+        println!("You are producing! {:#?}", batch);
+
+        broker.produce(name, "partition_key", batch).await;
+
+        return Ok(());
+    }
 
     loop {
         print!("> ");
