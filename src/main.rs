@@ -52,11 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    if first_arg.is_some_and(|first_arg| {
-        tracing::info!("First ARg: {first_arg}");
-
-        first_arg == "P"
-    }) {
+    if first_arg.as_ref().is_some_and(|first_arg| first_arg == "P") {
         let name = "update_customer";
 
         let data_file = "customer.json";
@@ -76,6 +72,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let batch = json.next().unwrap().unwrap();
 
         broker.produce(name, "partition_key", batch).await;
+
+        return Ok(());
+    }
+
+    if first_arg.is_some_and(|first_arg| first_arg == "C") {
+        let name = "update_customer";
+
+        let (schema, _tx, _rx) = broker
+            .get_stream(name)
+            .expect("Could not find stream for stream_name.");
+
+        let mut result = broker.consume(name, b"partition", 1, 1000).await;
+
+        while let Some(result) = result.recv().await {
+            tracing::info!("Result: {:#?}", result);
+        }
 
         return Ok(());
     }

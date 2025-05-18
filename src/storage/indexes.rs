@@ -8,8 +8,8 @@ use std::{
 
 use riskless::{
     batch_coordinator::{
-        CommitBatchResponse, CommitFile, FindBatchRequest, FindBatchResponse, FindBatches,
-        TopicIdPartition,
+        BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
+        FindBatchResponse, FindBatches, TopicIdPartition,
     },
     messages::CommitBatchRequest,
 };
@@ -98,6 +98,7 @@ impl CommitFile for IndexDirectory {
                 object_key,
                 position: position.try_into().unwrap(),
                 timestamp,
+                size: file_size,
             }
             .to_bytes();
 
@@ -128,6 +129,80 @@ impl FindBatches for IndexDirectory {
         batch_requests: Vec<FindBatchRequest>,
         size: u32,
     ) -> Vec<FindBatchResponse> {
-        todo!();
+        let mut responses = vec![];
+
+        for batch_request in batch_requests {
+            let FindBatchRequest {
+                topic_id_partition,
+                offset,
+                max_partition_fetch_bytes,
+            } = batch_request;
+
+            let TopicIdPartition(topic, partition) = topic_id_partition.clone();
+
+            let mut topic_dir = self.create_topic_dir(&topic);
+
+            let index_file_path = &format!("{:0>20}.index", partition);
+
+            topic_dir.push(index_file_path);
+
+            let index_file_path = topic_dir.to_string_lossy().to_string();
+
+            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
+
+            let index_reader =
+                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
+                    .await
+                    .unwrap();
+
+            let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+
+            let index = indexes.get(offset.try_into().unwrap());
+
+         tracing::info!("SIZE: {}", size);
+
+            match index {
+                Some(index) => {
+                    let batch = BatchInfo {
+                        batch_id: 1,
+                        object_key: uuid::Uuid::from_bytes(index.object_key()).to_string(),
+                        metadata: BatchMetadata {
+                            topic_id_partition,
+                            byte_offset: index.position().into(),
+                            byte_size: index.size().try_into().unwrap(),
+                            base_offset: 0,
+                            last_offset: 0,
+                            log_append_timestamp: 0,
+                            batch_max_timestamp: 0,
+                            timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                            producer_id: 0,
+                            producer_epoch: 0,
+                            base_sequence: 0,
+                            last_sequence: 0,
+                        },
+                    };
+
+                    let response = FindBatchResponse {
+                        errors: vec![],
+                        batches: vec![batch],
+                        log_start_offset: 0,
+                        high_watermark: 0,
+                    };
+
+                    responses.push(response);
+                }
+                None => {
+                    let response = FindBatchResponse {
+                        errors: vec!["Failed to find index for Topic and offset".to_string()],
+                        batches: vec![],
+                        log_start_offset: 0,
+                        high_watermark: 0,
+                    };
+                    responses.push(response);
+                }
+            }
+        }
+
+        responses
     }
 }
