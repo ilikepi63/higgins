@@ -98,7 +98,7 @@ impl CommitFile for IndexDirectory {
                 object_key,
                 position: position.try_into().unwrap(),
                 timestamp,
-                size: file_size,
+                size: batch.size.into(),
             }
             .to_bytes();
 
@@ -157,15 +157,23 @@ impl FindBatches for IndexDirectory {
 
             let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
 
-            let index = indexes.get(offset.try_into().unwrap());
+            tracing::info!("Reading at offset: {}", 0);
 
-         tracing::info!("SIZE: {}", size);
+            let index = indexes.get(0); // offset.try_into().unwrap());
+
+            tracing::info!("Reading index: {:#?}", index);
+
+            // tracing::info!("SIZE: {}", index.unwrap().size());
 
             match index {
                 Some(index) => {
+                    let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+
+                    tracing::info!("Reading from object: {:#?}", object_key);
+
                     let batch = BatchInfo {
                         batch_id: 1,
-                        object_key: uuid::Uuid::from_bytes(index.object_key()).to_string(),
+                        object_key,
                         metadata: BatchMetadata {
                             topic_id_partition,
                             byte_offset: index.position().into(),
@@ -192,6 +200,7 @@ impl FindBatches for IndexDirectory {
                     responses.push(response);
                 }
                 None => {
+                    tracing::error!("No Index found at offset {}", 0);
                     let response = FindBatchResponse {
                         errors: vec!["Failed to find index for Topic and offset".to_string()],
                         batches: vec![],

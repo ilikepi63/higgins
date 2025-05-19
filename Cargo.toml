@@ -9,7 +9,7 @@ arrow-json = "55.1.0"
 async-trait = "0.1.88"
 bytes = "1.10.1"
 easy-repl = "0.2.1"
-riskless = "0.6.2"
+riskless = "0.6.3"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
 tokio = { version = "1.45.0", features = ["full"] }
