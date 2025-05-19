@@ -139,7 +139,7 @@ impl Broker {
 
         Self {
             streams: BTreeMap::new(),
-            object_store: Arc::new(object_store::memory::InMemory::new()),
+            object_store,
             indexes,
             segment_size_in_bytes,
             flush_interval_in_ms,
