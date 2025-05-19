@@ -9,7 +9,9 @@ use std::{
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use riskless::{
-    messages::{ConsumeRequest, ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{
+        ConsumeRequest, ConsumeResponse, ProduceRequest, ProduceRequestCollection, ProduceResponse,
+    },
     object_store::{self, ObjectStore},
 };
 use tokio::sync::RwLock;
@@ -65,7 +67,8 @@ impl Broker {
         let flush_interval_in_ms: u64 = 500;
         let segment_size_in_bytes: u64 = 50_000;
 
-        let object_store = Arc::new(object_store::local::LocalFileSystem::new_with_prefix("data").unwrap());
+        let object_store =
+            Arc::new(object_store::local::LocalFileSystem::new_with_prefix("data").unwrap());
         let object_store_ref = object_store.clone();
 
         let indexes = Arc::new(IndexDirectory::new(index_dir));
@@ -258,17 +261,30 @@ impl Broker {
         tx.send(record_batch).unwrap(); // This should change to a standard notification.
     }
 
-    pub fn consume(&self) {
-        riskless::consume(
+    pub async fn consume(
+        &self,
+        topic: &str,
+        partition: &[u8],
+        offset: u64,
+        max_partition_fetch_bytes: u32,
+    ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
+        let object_store = self.object_store.clone();
+        let indexes = self.indexes.clone();
+
+        let consume_result = riskless::consume(
             ConsumeRequest {
-                topic: todo!(),
-                partition: todo!(),
-                offset: todo!(),
-                max_partition_fetch_bytes: todo!(),
+                topic: topic.to_string(),
+                partition: 1,
+                offset: offset,
+                max_partition_fetch_bytes: max_partition_fetch_bytes,
             },
-            self.object_store,
-            self.indexes,
-        );
+            object_store,
+            indexes,
+        )
+        .await
+        .unwrap();
+
+        consume_result
     }
 
     /// Retrieve the receiver for a named stream.
