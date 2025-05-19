@@ -56,7 +56,7 @@ impl IndexWriter {
             .open(file_path)
             .await?;
         if file_exists {
-            let _ = file.sync_all().await?;
+            file.sync_all().await?;
 
             let actual_index_size = file.metadata().await?.len();
 

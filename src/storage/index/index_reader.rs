@@ -75,7 +75,7 @@ impl IndexReader {
             return Ok(IndexesMut::empty());
         }
 
-        let buf = match self.read_at(0, file_size, false).await {
+        let buf = match self.read_at(0, file_size).await {
             Ok(buf) => buf,
             Err(error) if error.kind() == ErrorKind::UnexpectedEof => {
                 return Ok(IndexesMut::empty());
@@ -145,7 +145,7 @@ impl IndexReader {
         let end_byte = start_byte + (actual_count as usize * INDEX_SIZE);
 
         let indexes_bytes = match self
-            .read_at(start_byte as u32, (end_byte - start_byte) as u32, true)
+            .read_at(start_byte as u32, (end_byte - start_byte) as u32)
             .await
         {
             Ok(buf) => buf,
@@ -224,7 +224,7 @@ impl IndexReader {
         let end_byte = start_byte + (actual_count as usize * INDEX_SIZE);
 
         let indexes_bytes = match self
-            .read_at(start_byte as u32, (end_byte - start_byte) as u32, true)
+            .read_at(start_byte as u32, (end_byte - start_byte) as u32)
             .await
         {
             Ok(buf) => buf,
@@ -325,25 +325,13 @@ impl IndexReader {
     }
 
     /// Reads a specified number of bytes from the index file at a given offset.
-    async fn read_at(
-        &self,
-        offset: u32,
-        len: u32,
-        use_pool: bool,
-    ) -> Result<BytesMut, std::io::Error> {
+    async fn read_at(&self, offset: u32, len: u32) -> Result<BytesMut, std::io::Error> {
         let file = self.file.clone();
         spawn_blocking(move || {
-            if use_pool {
-                let mut buf = BytesMut::with_capacity(len as usize);
-                unsafe { buf.set_len(len as usize) };
-                file.read_exact_at(&mut buf, offset as u64)?;
-                Ok(buf)
-            } else {
-                let mut buf = BytesMut::with_capacity(len as usize);
-                unsafe { buf.set_len(len as usize) };
-                file.read_exact_at(&mut buf, offset as u64)?;
-                Ok(BytesMut::from(buf))
-            }
+            let mut buf = BytesMut::with_capacity(len as usize);
+            unsafe { buf.set_len(len as usize) };
+            file.read_exact_at(&mut buf, offset as u64)?;
+            Ok(buf)
         })
         .await?
     }
@@ -369,7 +357,7 @@ impl IndexReader {
 
         let offset = position * INDEX_SIZE as u32;
 
-        let buf = match self.read_at(offset, INDEX_SIZE as u32, true).await {
+        let buf = match self.read_at(offset, INDEX_SIZE as u32).await {
             Ok(buf) => buf,
             Err(error) if error.kind() == ErrorKind::UnexpectedEof => {
                 return Ok(None);

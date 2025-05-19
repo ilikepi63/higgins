@@ -5,7 +5,7 @@ use std::{
 
 use broker::Broker;
 use config::Configuration;
-use storage::index::{Index, IndexView, index_reader::IndexReader};
+use storage::index::index_reader::IndexReader;
 
 pub mod broker;
 pub mod config;
@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if first_arg.as_ref().is_some_and(|first_arg| first_arg == "L") {
         let path = "update_customer/00000000000000000001.index";
 
-        let fs_md = std::fs::metadata(&path).unwrap();
+        let fs_md = std::fs::metadata(path).unwrap();
 
         let reader = IndexReader::new(path, Arc::new(AtomicU64::new(fs_md.len()))).await?;
 
@@ -79,27 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if first_arg.is_some_and(|first_arg| first_arg == "C") {
         let name = "update_customer";
 
-        let data_file = "customer.json";
-
-        let data = std::fs::File::open(data_file).expect("No data found.");
-
-        println!("Finding stream for name: {name}");
-
-        let (schema, _tx, _rx) = broker
-            .get_stream(name)
-            .expect("Could not find stream for stream_name.");
-
-        let mut json = arrow_json::ReaderBuilder::new(schema.clone())
-            .build(BufReader::new(data))
-            .unwrap();
-
-        let batch = json.next().unwrap().unwrap();
-
-        broker.produce(name, "partition_key", batch).await;
-
-        let name = "update_customer";
-
-        let (schema, _tx, _rx) = broker
+        let (_schema, _tx, _rx) = broker
             .get_stream(name)
             .expect("Could not find stream for stream_name.");
 

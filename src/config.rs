@@ -34,8 +34,6 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
         })
         .collect::<Vec<_>>();
 
-    
-
     arrow::datatypes::Schema::new(fields)
 }
 
