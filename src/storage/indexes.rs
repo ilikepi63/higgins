@@ -1,7 +1,6 @@
 use std::{
-    alloc::System,
     os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, atomic::AtomicU64},
     time::SystemTime,
 };
@@ -14,16 +13,13 @@ use riskless::{
     messages::CommitBatchRequest,
 };
 
-use crate::storage::index::{
-    Index,
-    index_writer::{self, IndexWriter},
-};
+use crate::storage::index::{Index, index_writer::IndexWriter};
 
-use super::index::index_reader::{self, IndexReader};
+use super::index::index_reader::IndexReader;
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
-pub struct IndexDirectory(PathBuf);
+pub struct IndexDirectory(pub PathBuf);
 
 impl IndexDirectory {
     pub fn new(directory: PathBuf) -> Self {
@@ -49,8 +45,8 @@ impl CommitFile for IndexDirectory {
     async fn commit_file(
         &self,
         object_key: [u8; 16],
-        uploader_broker_id: u32,
-        file_size: u64,
+        _uploader_broker_id: u32,
+        _file_size: u64,
         batches: Vec<CommitBatchRequest>,
     ) -> Vec<CommitBatchResponse> {
         let mut responses = vec![];
@@ -70,7 +66,7 @@ impl CommitFile for IndexDirectory {
 
             let mut index_writer = IndexWriter::new(
                 &index_file_path,
-                Arc::new(AtomicU64::new(u64::max_value())),
+                Arc::new(AtomicU64::new(u64::MAX)),
                 true,
                 index_file_exists,
             )
@@ -104,7 +100,7 @@ impl CommitFile for IndexDirectory {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            let result = index_writer.save_indexes(&index).await.unwrap();
+            index_writer.save_indexes(&index).await.unwrap();
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 
@@ -127,15 +123,16 @@ impl FindBatches for IndexDirectory {
     async fn find_batches(
         &self,
         batch_requests: Vec<FindBatchRequest>,
-        size: u32,
+        _size: u32,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
         for batch_request in batch_requests {
             let FindBatchRequest {
                 topic_id_partition,
-                offset,
-                max_partition_fetch_bytes,
+                // offset,
+                // max_partition_fetch_bytes,
+                ..
             } = batch_request;
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();

@@ -67,7 +67,7 @@ impl Index {
 ///
 pub struct IndexView<'a>(&'a [u8]);
 
-impl<'a> Debug for IndexView<'a> {
+impl Debug for IndexView<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("IndexView")
             .field("offset", &self.offset())

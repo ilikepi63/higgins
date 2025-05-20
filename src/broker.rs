@@ -1,13 +1,6 @@
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 
 use arrow::{array::RecordBatch, datatypes::Schema};
-use bytes::BytesMut;
 use riskless::{
     messages::{
         ConsumeRequest, ConsumeResponse, ProduceRequest, ProduceRequestCollection, ProduceResponse,
@@ -74,9 +67,6 @@ impl Broker {
         let indexes = Arc::new(IndexDirectory::new(index_dir));
         let indexes_ref = indexes.clone();
 
-        let (tx, mut rx) =
-            tokio::sync::mpsc::channel::<Request<ProduceRequest, ProduceResponse>>(100);
-
         let buffer: MutableCollection =
             Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
 
@@ -116,7 +106,6 @@ impl Broker {
                                 // TODO: O(n^2) here
                                 let res = iter
                                     .find(|r| r.inner().request_id == response.request_id)
-                                    .take()
                                     .unwrap();
 
                                 res.respond(ProduceResponse {
@@ -217,7 +206,7 @@ impl Broker {
     }
 
     /// Produce a data set onto the named stream.
-    pub async fn produce(&mut self, topic_name: &str, partition: &str, record_batch: RecordBatch) {
+    pub async fn produce(&mut self, topic_name: &str, _partition: &str, record_batch: RecordBatch) {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
@@ -235,7 +224,7 @@ impl Broker {
 
         let _ = buffer_lock.0.collect(request.inner().clone());
 
-        let _ = buffer_lock.1.push(request);
+        buffer_lock.1.push(request);
 
         // TODO: This is currently hardcoded to 50kb, but we possibly want to make
         if buffer_lock.0.size() > 50_000 {
@@ -247,7 +236,7 @@ impl Broker {
         let message = response.recv().await.unwrap();
 
         // TODO: fix this to actually return the error?
-        if message.errors.len() > 0 {
+        if !message.errors.is_empty() {
             tracing::error!("Error when attempting to write out to producer.");
             return;
         }
@@ -264,27 +253,25 @@ impl Broker {
     pub async fn consume(
         &self,
         topic: &str,
-        partition: &[u8],
+        _partition: &[u8],
         offset: u64,
         max_partition_fetch_bytes: u32,
     ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
         let object_store = self.object_store.clone();
         let indexes = self.indexes.clone();
 
-        let consume_result = riskless::consume(
+        riskless::consume(
             ConsumeRequest {
                 topic: topic.to_string(),
                 partition: 1,
-                offset: offset,
-                max_partition_fetch_bytes: max_partition_fetch_bytes,
+                offset,
+                max_partition_fetch_bytes,
             },
             object_store,
             indexes,
         )
         .await
-        .unwrap();
-
-        consume_result
+        .unwrap()
     }
 
     /// Retrieve the receiver for a named stream.
@@ -335,7 +322,7 @@ pub struct ReduceFunction;
 
 impl ReduceFunction {
     /// Create a new instance of a reduction function.
-    pub fn new(func: ReductionFn, mut rx: Receiver, tx: Sender) {
+    pub fn new(func: ReductionFn, mut rx: Receiver, tx: Sender) -> Self {
         tokio::spawn(async move {
             let last_value: Option<RecordBatch> = None;
 
@@ -347,5 +334,7 @@ impl ReduceFunction {
                 };
             }
         });
+
+        Self
     }
 }
