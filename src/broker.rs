@@ -212,7 +212,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: topic_name.to_string(),
-            partition: 1,
+            partition: vec![],
             data,
         };
 
@@ -263,7 +263,7 @@ impl Broker {
         riskless::consume(
             ConsumeRequest {
                 topic: topic.to_string(),
-                partition: 1,
+                partition: vec![],
                 offset,
                 max_partition_fetch_bytes,
             },

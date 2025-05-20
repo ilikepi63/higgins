@@ -56,7 +56,10 @@ impl CommitFile for IndexDirectory {
 
             let mut topic_dir = self.create_topic_dir(&topic);
 
-            let index_file_path = &format!("{:0>20}.index", partition);
+            let index_file_path = &format!(
+                "{:0>20}.index",
+                partition.iter().map(|b| b.to_string()).collect::<String>()
+            );
 
             topic_dir.push(index_file_path);
 
@@ -139,7 +142,10 @@ impl FindBatches for IndexDirectory {
 
             let mut topic_dir = self.create_topic_dir(&topic);
 
-            let index_file_path = &format!("{:0>20}.index", partition);
+            let index_file_path = &format!(
+                "{:0>20}.index",
+                partition.iter().map(|b| b.to_string()).collect::<String>()
+            );
 
             topic_dir.push(index_file_path);
 
