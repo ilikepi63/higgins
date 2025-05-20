@@ -1436,9 +1436,9 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "riskless"
-version = "0.6.2"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d22016df9d1b0db12d96887d86401dc5ba7b237294c346202dacb7fbce109651"
+checksum = "2e4de4539f5e3ec26bbf5c5bb7e841152962f918a3096e1167b068428888e322"
 dependencies = [
  "async-trait",
  "bytes",

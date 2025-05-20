@@ -20,7 +20,7 @@
  * THIS IS NOT MY WORK -> THIS IS BORROWED FROM THE APACHE IGGY PROJECT.
  */
 
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::ops::{Deref, Index as StdIndex};
 
 use bytes::{Buf, BufMut, BytesMut};
@@ -66,6 +66,18 @@ impl Index {
 /// packed Index.
 ///
 pub struct IndexView<'a>(&'a [u8]);
+
+impl<'a> Debug for IndexView<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("IndexView")
+            .field("offset", &self.offset())
+            .field("object_key", &self.object_key())
+            .field("position", &self.position())
+            .field("timestamp", &self.timestamp())
+            .field("size", &self.size())
+            .finish()
+    }
+}
 
 impl<'a> IndexView<'a> {
     /// Creates a new index view from a byte slice
@@ -587,7 +599,7 @@ mod tests {
     fn test_indexes_mut_insert_and_get() {
         let mut indexes = IndexesMut::empty();
         indexes.insert(1, [0; 16], 100, 1234567890, 1);
-        indexes.insert(2, [0; 16], 200, 1234567891,1 );
+        indexes.insert(2, [0; 16], 200, 1234567891, 1);
 
         assert_eq!(indexes.count(), 2);
         assert_eq!(indexes.size(), 2 * INDEX_SIZE as u32);
@@ -640,7 +652,7 @@ mod tests {
     fn test_indexes_mut_last() {
         let mut indexes = IndexesMut::empty();
         indexes.insert(1, [0; 16], 100, 1234567890, 1);
-        indexes.insert(2, [0; 16], 200, 1234567891,1 );
+        indexes.insert(2, [0; 16], 200, 1234567891, 1);
 
         let last = indexes.last().unwrap();
         assert_eq!(last.offset(), 2);
@@ -651,10 +663,10 @@ mod tests {
     #[test]
     fn test_indexes_mut_find_by_timestamp() {
         let mut indexes = IndexesMut::empty();
-        indexes.insert(1, [0; 16], 100, 1000,1);
-        indexes.insert(2, [0; 16], 200, 2000,1);
-        indexes.insert(3, [0; 16], 300, 3000,1 );
-        indexes.insert(4, [0; 16], 400, 4000,1 );
+        indexes.insert(1, [0; 16], 100, 1000, 1);
+        indexes.insert(2, [0; 16], 200, 2000, 1);
+        indexes.insert(3, [0; 16], 300, 3000, 1);
+        indexes.insert(4, [0; 16], 400, 4000, 1);
 
         // Exact match
         let view = indexes.find_by_timestamp(2000).unwrap();
@@ -679,9 +691,9 @@ mod tests {
     #[test]
     fn test_indexes_mut_slice_by_offset() {
         let mut indexes = IndexesMut::with_capacity(3, 100);
-        indexes.insert(1, [0; 16], 100, 1000,1 );
-        indexes.insert(2, [0; 16], 200, 2000,1 );
-        indexes.insert(3, [0; 16], 300, 3000,1);
+        indexes.insert(1, [0; 16], 100, 1000, 1);
+        indexes.insert(2, [0; 16], 200, 2000, 1);
+        indexes.insert(3, [0; 16], 300, 3000, 1);
 
         // Valid slice
         let slice = indexes.slice_by_offset(1, 2).unwrap();
@@ -701,9 +713,9 @@ mod tests {
     #[test]
     fn test_indexes_mut_slice_by_timestamp() {
         let mut indexes = IndexesMut::with_capacity(3, 100);
-        indexes.insert(1, [0; 16], 100, 1000,1 );
-        indexes.insert(2, [0; 16], 200, 2000,1 );
-        indexes.insert(3, [0; 16], 300, 3000,1 );
+        indexes.insert(1, [0; 16], 100, 1000, 1);
+        indexes.insert(2, [0; 16], 200, 2000, 1);
+        indexes.insert(3, [0; 16], 300, 3000, 1);
 
         // Valid slice
         let slice = indexes.slice_by_timestamp(1500, 2).unwrap();
@@ -725,8 +737,8 @@ mod tests {
     #[test]
     fn test_indexes_mut_clear() {
         let mut indexes = IndexesMut::with_capacity(2, 100);
-        indexes.insert(1, [0; 16], 100, 1000,1 );
-        indexes.insert(2, [0; 16], 200, 2000,1 );
+        indexes.insert(1, [0; 16], 100, 1000, 1);
+        indexes.insert(2, [0; 16], 200, 2000, 1);
 
         indexes.clear();
         assert_eq!(indexes.count(), 0);
@@ -738,8 +750,8 @@ mod tests {
     #[test]
     fn test_indexes_mut_unsaved() {
         let mut indexes = IndexesMut::empty();
-        indexes.insert(1, [0; 16], 100, 1000,1 );
-        indexes.insert(2, [0; 16], 200, 2000,1);
+        indexes.insert(1, [0; 16], 100, 1000, 1);
+        indexes.insert(2, [0; 16], 200, 2000, 1);
 
         assert_eq!(indexes.unsaved_count(), 2);
         assert_eq!(indexes.unsaved_slice().len(), 2 * INDEX_SIZE);
@@ -752,7 +764,7 @@ mod tests {
     #[test]
     fn test_indexes_mut_decompose() {
         let mut indexes = IndexesMut::with_capacity(1, 100);
-        indexes.insert(1, [0; 16], 100, 1000,1);
+        indexes.insert(1, [0; 16], 100, 1000, 1);
 
         let (base_position, buffer) = indexes.decompose();
         assert_eq!(base_position, 100);
@@ -762,7 +774,7 @@ mod tests {
     #[test]
     fn test_indexes_mut_index_and_deref() {
         let mut indexes = IndexesMut::empty();
-        indexes.insert(1, [0; 16], 100, 1000,1 );
+        indexes.insert(1, [0; 16], 100, 1000, 1);
 
         let slice = &indexes[0];
         let view = IndexView::new(slice);

@@ -85,8 +85,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut result = broker.consume(name, b"partition", 1, 1000).await;
 
-        while let Some(result) = result.recv().await {
-            tracing::info!("Result: {:#?}", result);
+        match result.recv().await {
+            Some(result) => {
+                tracing::info!("Received: {:#?}", result);
+            },
+            None => {
+                tracing::error!("Did not receive any results for given key.");
+            }
         }
 
         return Ok(());
