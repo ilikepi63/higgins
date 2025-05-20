@@ -79,6 +79,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if first_arg.is_some_and(|first_arg| first_arg == "C") {
         let name = "update_customer";
 
+        let data_file = "customer.json";
+
+        let data = std::fs::File::open(data_file).expect("No data found.");
+
+        println!("Finding stream for name: {name}");
+
+        let (schema, _tx, _rx) = broker
+            .get_stream(name)
+            .expect("Could not find stream for stream_name.");
+
+        let mut json = arrow_json::ReaderBuilder::new(schema.clone())
+            .build(BufReader::new(data))
+            .unwrap();
+
+        let batch = json.next().unwrap().unwrap();
+
+        broker.produce(name, "partition_key", batch).await;
+
+        let name = "update_customer";
+
         let (schema, _tx, _rx) = broker
             .get_stream(name)
             .expect("Could not find stream for stream_name.");
@@ -88,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match result.recv().await {
             Some(result) => {
                 tracing::info!("Received: {:#?}", result);
-            },
+            }
             None => {
                 tracing::error!("Did not receive any results for given key.");
             }
