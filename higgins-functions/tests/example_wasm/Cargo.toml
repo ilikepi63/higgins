@@ -1,9 +1,9 @@
 [package]
-name = "higgins-functions"
+name = "example_wasm"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 arrow = { version = "55.1.0", features = ["ffi"] }
-bitflags = "2.9.1"
-wasmtime = "33.0.0"
+[lib]
+crate-type = ["cdylib"]
