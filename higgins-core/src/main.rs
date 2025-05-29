@@ -11,6 +11,7 @@ pub mod broker;
 pub mod config;
 pub mod storage;
 pub mod utils;
+pub mod functions;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
