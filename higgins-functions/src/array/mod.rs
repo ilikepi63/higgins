@@ -97,15 +97,13 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
         buffers: WasmPtr::new(buf_ptr),
         children: WasmPtr::new(children_ptr),
         dictionary: dictionary,
-        release: Some(release_array),
-        private_data: WasmPtr::null(), // Box::into_raw(private_data) as *mut c_void,
+        release: None,
+        private_data: WasmPtr::null(),
     };
 
-    let buffer: &[u8] = unsafe {
-        &std::mem::transmute::<WasmArrowArray, [u8; std::mem::size_of::<WasmArrowArray>()]>(array)
-    };
-
-    let ptr = allocator.copy(buffer);
+    // TODO: There might be some actual gnarly lifetime elision happening here. If you copy 
+    // over the inner logic of this function into this, the webassembly module will fail. 
+    let ptr = clone_array(array, allocator);
 
     WasmPtr::new(ptr)
 }
@@ -158,6 +156,3 @@ fn align_nulls(data_offset: usize, nulls: Option<&NullBuffer>) -> Option<Buffer>
     );
     Some(builder.into())
 }
-
-// callback used to drop [FFI_ArrowArray] when it is exported
-unsafe extern "C" fn release_array(_array: WasmPtr<WasmArrowArray>) {}
