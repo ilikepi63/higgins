@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 arrow = { version = "55.1.0", features = ["ffi"] }
+
 [lib]
 crate-type = ["cdylib"]
