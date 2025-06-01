@@ -3,10 +3,9 @@ use std::sync::Arc;
 use arrow::{
     array::{Array, Int32Array, RecordBatch},
     datatypes::{DataType, Field, Schema},
-    record_batch,
 };
 use higgins_functions::{
-    clone_record_batch, copy_array, copy_schema, record_batch_to_wasm, utils::WasmAllocator,
+    clone_record_batch, record_batch_to_wasm, utils::WasmAllocator,
 };
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
@@ -58,7 +57,7 @@ fn simple_record_batch() {
         .get_typed_func::<u32, u32>(&mut store, "run")
         .unwrap();
 
-    let result = wasm_run_fn.call(&mut store, ptr).unwrap();
+    let _result = wasm_run_fn.call(&mut store, ptr).unwrap();
 
     // TODO: this test basically just makes sure this does not panic. 
     // We need some more tests for this.
@@ -71,7 +70,7 @@ fn can_sum_int32_array() {
 
     let data = array.into_data();
 
-    let array = Int32Array::try_from(data).unwrap();
+    let array = Int32Array::from(data);
 
     let result = array.iter().fold(0_i32, |mut acc, curr| match curr {
         Some(i) => {

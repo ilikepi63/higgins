@@ -83,9 +83,9 @@ pub fn copy_schema(
     let children_box = children
         .into_iter()
         .map(|child_schema| {
-            let ptr = clone_struct(child_schema, allocator);
+            
 
-            ptr
+            clone_struct(child_schema, allocator)
         })
         .collect::<Box<_>>();
 
@@ -169,8 +169,8 @@ pub fn try_from(
     let children_box = children
         .into_iter()
         .map(|schema| {
-            let ptr = clone_struct(schema, allocator);
-            ptr
+            
+            clone_struct(schema, allocator)
         })
         .collect::<Box<_>>();
 

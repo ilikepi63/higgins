@@ -1,20 +1,15 @@
-
-use std::sync::Arc;
-
 use arrow::{
-    array::{RecordBatch, make_array},
-    datatypes::{DataType, Field, Schema},
-    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi},
+    array::RecordBatch,
+    ffi::{FFI_ArrowArray, FFI_ArrowSchema, to_ffi},
 };
 
 use super::{ArrowArray, ArrowSchema, FFIRecordBatch};
 
 pub fn record_batch_to_ffi(record_batch: RecordBatch) -> FFIRecordBatch {
-
     let mut arrays_vec = vec![];
     let mut schema_vec = vec![];
 
-    for columns in record_batch.columns().into_iter() {
+    for columns in record_batch.columns().iter() {
         let data = columns.to_data();
 
         let (array, schema) = to_ffi(&data).unwrap();

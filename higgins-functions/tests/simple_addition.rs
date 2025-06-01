@@ -72,7 +72,7 @@ fn can_sum_int32_array() {
 
     let data = array.into_data();
 
-    let array = Int32Array::try_from(data).unwrap();
+    let array = Int32Array::from(data);
 
     let result = array.iter().fold(0_i32, |mut acc, curr| match curr {
         Some(i) => {

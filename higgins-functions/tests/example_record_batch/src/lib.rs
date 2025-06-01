@@ -1,10 +1,4 @@
-use arrow::{
-    array::RecordBatch,
-    ffi::{FFI_ArrowArray, to_ffi},
-};
-use higgins_functions::{
-    FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi,
-};
+use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi};
 
 #[unsafe(no_mangle)]
 pub unsafe fn _malloc(len: u32) -> *mut u8 {
@@ -16,7 +10,7 @@ pub unsafe fn _malloc(len: u32) -> *mut u8 {
 
 #[unsafe(no_mangle)]
 pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
-    let record_batch = record_batch_from_ffi(*rb_ptr);
+    let record_batch = record_batch_from_ffi(unsafe { *rb_ptr });
 
     let result = record_batch_to_ffi(record_batch);
 
