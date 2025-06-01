@@ -4,21 +4,18 @@ use arrow::{
     array::{Array, Int32Array, RecordBatch},
     datatypes::{DataType, Field, Schema},
 };
-use higgins_functions::{
-    clone_record_batch, record_batch_to_wasm, utils::WasmAllocator,
-};
+use higgins_functions::{clone_record_batch, record_batch_to_wasm, utils::WasmAllocator};
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
 #[test]
 fn simple_record_batch() {
-
     let current_dir = std::env::current_dir();
 
     println!("{:#?}", current_dir);
 
-    let wasm =
-        std::fs::read("../target/wasm32-unknown-unknown/release/example_record_batch.wasm").unwrap();
+    let wasm = std::fs::read("../target/wasm32-unknown-unknown/release/example_record_batch.wasm")
+        .unwrap();
 
     let engine = Engine::new(
         Config::new()
@@ -59,9 +56,8 @@ fn simple_record_batch() {
 
     let _result = wasm_run_fn.call(&mut store, ptr).unwrap();
 
-    // TODO: this test basically just makes sure this does not panic. 
+    // TODO: this test basically just makes sure this does not panic.
     // We need some more tests for this.
-
 }
 
 #[test]

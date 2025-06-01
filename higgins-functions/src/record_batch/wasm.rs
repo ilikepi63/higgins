@@ -9,11 +9,7 @@ use crate::{
 pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> WasmRecordBatch {
     let len = rb.num_columns();
 
-    let data = rb.columns().iter().map(|array| {
-        
-
-        array.to_data()
-    });
+    let data = rb.columns().iter().map(|array| array.to_data());
 
     let arrays = data
         .clone() // hoping this clone is cheap somehow.
@@ -46,8 +42,6 @@ pub fn clone_record_batch(array: WasmRecordBatch, allocator: &mut WasmAllocator)
     let buffer: &[u8] = unsafe {
         &std::mem::transmute::<WasmRecordBatch, [u8; std::mem::size_of::<WasmRecordBatch>()]>(array)
     };
-
-    
 
     allocator.copy(buffer)
 }

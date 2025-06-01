@@ -15,8 +15,6 @@ pub fn clone_array(array: WasmArrowArray, allocator: &mut WasmAllocator) -> u32 
         &std::mem::transmute::<WasmArrowArray, [u8; std::mem::size_of::<WasmArrowArray>()]>(array)
     };
 
-    
-
     allocator.copy(buffer)
 }
 
@@ -101,8 +99,8 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
         private_data: WasmPtr::null(),
     };
 
-    // TODO: There might be some actual gnarly lifetime elision happening here. If you copy 
-    // over the inner logic of this function into this, the webassembly module will fail. 
+    // TODO: There might be some actual gnarly lifetime elision happening here. If you copy
+    // over the inner logic of this function into this, the webassembly module will fail.
     let ptr = clone_array(array, allocator);
 
     WasmPtr::new(ptr)
@@ -122,7 +120,6 @@ fn buffers_from_layout(data_layout: &DataTypeLayout, data: &ArrayData) -> Vec<Op
 
 fn count_buffers(data_layout: &DataTypeLayout) -> i64 {
     // `n_buffers` is the number of buffers by the spec.
-    
 
     ({
         data_layout.buffers.len() + {
