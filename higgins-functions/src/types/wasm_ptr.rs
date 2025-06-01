@@ -10,12 +10,12 @@ use std::marker::PhantomData;
 pub struct WasmPtr<T>(u32, PhantomData<T>);
 
 impl<T> WasmPtr<T> {
-    /// Wraps the given u32 in a WasmPtr struct. 
+    /// Wraps the given u32 in a WasmPtr struct.
     pub fn new(ptr: u32) -> Self {
         WasmPtr(ptr, PhantomData)
     }
 
-    /// Retrieves a nullptr. 
+    /// Retrieves a nullptr.
     pub const fn null() -> Self {
         Self(0, PhantomData)
     }

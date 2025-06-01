@@ -61,9 +61,7 @@ pub fn clone_struct<T>(array: T, allocator: &mut WasmAllocator) -> u32 {
         std::slice::from_raw_parts(&array as *const _ as *const u8, std::mem::size_of::<T>())
     };
 
-    let ptr = allocator.copy(buffer);
-
-    ptr
+    allocator.copy(buffer)
 }
 
 #[cfg(test)]
@@ -82,7 +80,10 @@ pub mod test {
         let test_array = array.buffer(0);
 
         let buffer: &[u8] = unsafe {
-            std::slice::from_raw_parts(&array as *const _ as *const u8, std::mem::size_of::<FFI_ArrowArray>())
+            std::slice::from_raw_parts(
+                &array as *const _ as *const u8,
+                std::mem::size_of::<FFI_ArrowArray>(),
+            )
         };
 
         let p: *const FFI_ArrowArray = buffer.as_ptr() as *const FFI_ArrowArray;
