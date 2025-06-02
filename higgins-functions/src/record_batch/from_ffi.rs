@@ -1,10 +1,9 @@
-
 use std::sync::Arc;
 
 use arrow::{
     array::{RecordBatch, make_array},
-    datatypes::{DataType, Field, Schema},
-    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi},
+    datatypes::{Field, Schema},
+    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi},
 };
 
 use super::FFIRecordBatch;
@@ -36,7 +35,7 @@ pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
 
     let schema = Schema::new(fields);
 
-    let batch = RecordBatch::try_new(Arc::new(schema), arrays).unwrap();
+    
 
-    batch
+    RecordBatch::try_new(Arc::new(schema), arrays).unwrap()
 }

@@ -1,11 +1,4 @@
-
-use std::sync::Arc;
-
-use arrow::{
-    array::{RecordBatch, make_array},
-    datatypes::{DataType, Field, Schema},
-    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi},
-};
+use arrow::array::RecordBatch;
 
 use crate::{
     copy_array, copy_schema,
@@ -17,9 +10,9 @@ pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> W
     let len = rb.num_columns();
 
     let data = rb.columns().iter().map(|array| {
-        let data = array.to_data();
+        
 
-        data
+        array.to_data()
     });
 
     let arrays = data
@@ -54,7 +47,7 @@ pub fn clone_record_batch(array: WasmRecordBatch, allocator: &mut WasmAllocator)
         &std::mem::transmute::<WasmRecordBatch, [u8; std::mem::size_of::<WasmRecordBatch>()]>(array)
     };
 
-    let ptr = allocator.copy(buffer);
+    
 
-    ptr
+    allocator.copy(buffer)
 }

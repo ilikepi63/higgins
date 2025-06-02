@@ -61,9 +61,9 @@ pub fn clone_struct<T>(array: T, allocator: &mut WasmAllocator) -> u32 {
         std::slice::from_raw_parts(&array as *const _ as *const u8, std::mem::size_of::<T>())
     };
 
-    let ptr = allocator.copy(buffer);
+    
 
-    ptr
+    allocator.copy(buffer)
 }
 
 #[cfg(test)]

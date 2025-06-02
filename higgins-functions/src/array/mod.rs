@@ -15,9 +15,9 @@ pub fn clone_array(array: WasmArrowArray, allocator: &mut WasmAllocator) -> u32 
         &std::mem::transmute::<WasmArrowArray, [u8; std::mem::size_of::<WasmArrowArray>()]>(array)
     };
 
-    let ptr = allocator.copy(buffer);
+    
 
-    ptr
+    allocator.copy(buffer)
 }
 
 pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<WasmArrowArray> {
@@ -96,7 +96,7 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
         n_children,
         buffers: WasmPtr::new(buf_ptr),
         children: WasmPtr::new(children_ptr),
-        dictionary: dictionary,
+        dictionary,
         release: None,
         private_data: WasmPtr::null(),
     };
@@ -122,16 +122,16 @@ fn buffers_from_layout(data_layout: &DataTypeLayout, data: &ArrayData) -> Vec<Op
 
 fn count_buffers(data_layout: &DataTypeLayout) -> i64 {
     // `n_buffers` is the number of buffers by the spec.
-    let n_buffers = {
+    
+
+    ({
         data_layout.buffers.len() + {
             // If the layout has a null buffer by Arrow spec.
             // Note that even the array doesn't have a null buffer because it has
             // no null value, we still need to count 1 here to follow the spec.
             usize::from(data_layout.can_contain_null_mask)
         }
-    } as i64;
-
-    n_buffers
+    }) as i64
 }
 
 /// Aligns the provided `nulls` to the provided `data_offset`
