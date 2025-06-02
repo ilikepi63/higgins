@@ -35,7 +35,5 @@ pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
 
     let schema = Schema::new(fields);
 
-    
-
     RecordBatch::try_new(Arc::new(schema), arrays).unwrap()
 }

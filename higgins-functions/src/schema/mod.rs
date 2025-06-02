@@ -7,7 +7,7 @@ use arrow::{
 
 use crate::{
     types::{WasmArrowSchema, WasmPtr},
-    utils::{clone_struct, u32_to_u8, WasmAllocator},
+    utils::{WasmAllocator, clone_struct, u32_to_u8},
 };
 
 // Bitflags for Arrow C Data Interface.
@@ -56,7 +56,6 @@ fn children_from_datatype(
     Ok(children)
 }
 
-
 pub fn copy_schema(
     dtype: &DataType,
     allocator: &mut WasmAllocator,
@@ -82,11 +81,7 @@ pub fn copy_schema(
     // Allocation happens here.
     let children_box = children
         .into_iter()
-        .map(|child_schema| {
-            
-
-            clone_struct(child_schema, allocator)
-        })
+        .map(|child_schema| clone_struct(child_schema, allocator))
         .collect::<Box<_>>();
 
     let n_children = children_box.len() as i64;
@@ -117,13 +112,14 @@ pub fn copy_schema(
     };
 
     let buffer: &[u8] = unsafe {
-        &std::mem::transmute::<WasmArrowSchema, [u8; std::mem::size_of::<WasmArrowSchema>()]>(schema)
+        &std::mem::transmute::<WasmArrowSchema, [u8; std::mem::size_of::<WasmArrowSchema>()]>(
+            schema,
+        )
     };
 
     let ptr = allocator.copy(buffer);
 
     Ok(WasmPtr::new(ptr))
-
 }
 
 pub fn try_from(
@@ -168,10 +164,7 @@ pub fn try_from(
 
     let children_box = children
         .into_iter()
-        .map(|schema| {
-            
-            clone_struct(schema, allocator)
-        })
+        .map(|schema| clone_struct(schema, allocator))
         .collect::<Box<_>>();
 
     let children_ptr = allocator.copy(u32_to_u8(&children_box));
@@ -282,7 +275,6 @@ fn try_from_field(
         flags |= Flags::DICTIONARY_ORDERED;
     }
 
-
     let mut schema = try_from(field.data_type(), allocator)?;
 
     // Copy the name from the field.
@@ -290,12 +282,10 @@ fn try_from_field(
     schema.name = WasmPtr::new(name_ptr);
 
     // Copy the bits.
-    schema.flags = flags.bits(); 
+    schema.flags = flags.bits();
 
     // Copy the metadata. -> TODO as this hashmap might be a little more difficult.
     // schema.metadata = field.metadata();
 
     Ok(schema)
 }
-
-

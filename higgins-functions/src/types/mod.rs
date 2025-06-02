@@ -1,9 +1,9 @@
 mod array;
+mod record_batch;
 mod schema;
 mod wasm_ptr;
-mod record_batch;
 
 pub use array::WasmArrowArray;
+pub use record_batch::WasmRecordBatch;
 pub use schema::WasmArrowSchema;
 pub use wasm_ptr::WasmPtr;
-pub use record_batch::WasmRecordBatch;

@@ -1,6 +1,6 @@
 //! The C Definition equivalent for Webassembly.
-//! 
-//! See https://arrow.apache.org/docs/format/CDataInterface.htmls 
+//!
+//! See https://arrow.apache.org/docs/format/CDataInterface.htmls
 use std::ffi::{c_char, c_void};
 
 use super::WasmPtr;
