@@ -1,14 +1,28 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use arrow::{
+    array::RecordBatch,
+    ffi::{FFI_ArrowArray, to_ffi},
+};
+use higgins_functions::{
+    FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi,
+};
+
+#[unsafe(no_mangle)]
+pub unsafe fn _malloc(len: u32) -> *mut u8 {
+    let mut buf = Vec::with_capacity(len.try_into().unwrap());
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    ptr
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[unsafe(no_mangle)]
+pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
+    let record_batch = record_batch_from_ffi(*rb_ptr);
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+    let result = record_batch_to_ffi(record_batch);
+
+    let heaped = Box::new(result);
+
+    let ptr = Box::leak(heaped) as *const FFIRecordBatch;
+
+    ptr
 }
