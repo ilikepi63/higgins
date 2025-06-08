@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
+    "higgins-cli",
+    "higgins-codec",
     "higgins-core",
     "higgins-functions",
     "higgins-functions/tests/example_wasm",
