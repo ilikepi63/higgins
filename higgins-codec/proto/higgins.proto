@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package higgins;
+
+service Higgins {
+  rpc Consume(ConsumeRequest) returns (ConsumeResponse) {}
+  rpc Produce(ConsumeRequest) returns (ConsumeResponse) {}
+  rpc RequestMetadata(MetadataRequest) returns (MetadataResponse) {}
+}
+
+message ConsumeRequest { string name = 1; }
+
+message ConsumeResponse { string message = 1; }
+
+message ProduceRequest { string name = 1; }
+
+message ProduceResponse { string message = 1; }
+
+message MetadataRequest { string name = 1; }
+
+message MetadataResponse { string message = 1; }
+
+message Ping {}
+
+message Pong {}
+
+message Message {
+
+  enum Type {
+    CONSUMEREQUEST = 0;
+    CONSUMERESPONSE = 1;
+    PRODUCEREQUEST = 2;
+    PRODUCERESPONSE = 3;
+    METADATAREQUEST = 4;
+    METADATAESPONSE = 5;
+    PING = 6;
+    PONG = 7;
+  }
+
+  Type type = 1;
+
+  optional ConsumeRequest consumeRequest = 2;
+  optional ConsumeResponse consumeResponse = 3;
+  optional ProduceRequest produceRequest = 4;
+  optional ProduceResponse produceResponse = 5;
+  optional MetadataRequest metadataRequest = 6;
+  optional MetadataResponse metadataResponse = 7;
+  optional Ping ping = 8;
+  optional Pong pong = 9;
+}
