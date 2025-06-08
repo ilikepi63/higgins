@@ -14,26 +14,27 @@ pub mod storage;
 pub mod utils;
 
 async fn process_socket(mut socket: TcpStream) {
-    let mut buffer = vec![0; 20];
-
     loop {
+        let mut buffer = vec![0; 20];
+
         match socket.read(&mut buffer).await {
             Ok(n) => {
-                tracing::info!("Read {n} bytes from tcp socket.");
-
-                println!("Data: {:#?}", buffer);
+                if n > 0 {
+                    tracing::info!("Received {n} bytes from client {}", socket.peer_addr().unwrap());
+                    tracing::info!("Buffer: {:#?}", buffer);
+                } else {
+                    break;
+                }
 
                 let slice = &buffer[0..n];
-
-                if n == 0 {
-                    tracing::info!("No bytes read, continuing.");
-                    continue;
-                }
 
                 let message = Message::decode(slice).unwrap();
 
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {
+
+                        tracing::info!("Received Ping, sending Pong.");
+
                         let mut result = BytesMut::new();
 
                         let pong = Pong::default();
@@ -51,6 +52,8 @@ async fn process_socket(mut socket: TcpStream) {
                         }
                         .encode(&mut result)
                         .unwrap();
+
+                        tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
                         socket.write_all(&result).await.unwrap();
                         socket.flush().await.unwrap();
