@@ -39,13 +39,12 @@ mod test {
 
         message.encode(&mut buf).unwrap();
 
-        println!("{:#?}", buf);
-
-
         let decode = Message::decode(buf.as_ref()).unwrap();
 
-        println!("Decoded: {:#?}", decode);
 
-        panic!();
+        assert_eq!(decode.r#type, Type::Ping as i32);
+        assert_eq!(decode.r#type, Type::Ping as i32);
+
+
     }
 }
