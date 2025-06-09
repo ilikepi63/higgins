@@ -38,7 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(cmd) if matches!(cmd, Commands::Ping {}) => {
             // Send a ping command to the server;
 
-            let mut buf = BytesMut::new();
+            let mut read_buf = BytesMut::zeroed(20);
+
+            let mut write_buf = BytesMut::new();
 
             let ping = Ping::default();
 
@@ -53,17 +55,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ping: Some(ping),
                 pong: None,
             }
-            .encode(&mut buf)
+            .encode(&mut write_buf)
             .unwrap();
 
-            tracing::info!("Sending: {:#?}", buf);
-            tracing::info!("Byte size: {:#?}", buf.len());
+            tracing::info!("Writing: {:#?}", write_buf);
 
-            let result = socket.write_all(&buf).await.unwrap();
+            let result = socket.write_all(&write_buf).await.unwrap();
 
-            let n = socket.read(&mut buf).await.unwrap();
+            let n = socket.read(&mut read_buf).await.unwrap();
 
-            let slice = &buf[0..n];
+            tracing::info!("Received: {:#?}", socket.peer_addr());
+
+            tracing::info!("Reading: {:#?}", read_buf.clone().to_vec());
+
+            let slice = &read_buf[0..n];
 
             if n == 0 {
                 tracing::info!("No bytes read, continuing.");
@@ -102,11 +107,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Type::Metadataesponse => todo!(),
                 Type::Pong => {
                     tracing::info!("Received Pong!")
-                },
+                }
+            }
+
+            let result = socket.write_all(&write_buf).await.unwrap();
+            let n = socket.read(&mut read_buf).await.unwrap();
+
+            let slice = &read_buf[0..n];
+
+                     let message = Message::decode(slice).unwrap();
+
+            match Type::try_from(message.r#type).unwrap() {
+                Type::Ping => {
+                    let mut result = BytesMut::new();
+
+                    let pong = Pong::default();
+
+                    Message {
+                        r#type: Type::Pong as i32,
+                        consume_request: None,
+                        consume_response: None,
+                        produce_request: None,
+                        produce_response: None,
+                        metadata_request: None,
+                        metadata_response: None,
+                        ping: None,
+                        pong: Some(pong),
+                    }
+                    .encode(&mut result)
+                    .unwrap();
+
+                    socket.write(&result).await.unwrap();
+                }
+                Type::Consumerequest => todo!(),
+                Type::Consumeresponse => todo!(),
+                Type::Producerequest => todo!(),
+                Type::Produceresponse => todo!(),
+                Type::Metadatarequest => todo!(),
+                Type::Metadataesponse => todo!(),
+                Type::Pong => {
+                    tracing::info!("Received Pong!")
+                }
             }
 
 
-            // tracing::info!("Wrote {} bytes to socket", result);
         }
         Some(_) => todo!(),
         None => todo!(),
