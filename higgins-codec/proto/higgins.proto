@@ -2,9 +2,27 @@ syntax = "proto3";
 
 package higgins;
 
-message ConsumeRequest { string name = 1; }
+enum ConsumerOffsetType {
+  FROM_TIMESTAMP = 0;
+  FROM_OFFSET = 1;
+  CURRENT = 2;
+  FROM_BEGINNING = 3;
+}
 
-message ConsumeResponse { string message = 1; }
+message CreateConsumerRequest {
+  string topic_name = 1;
+  ConsumerOffsetType offset_type = 2;
+  optional int64 timestamp = 3;
+  optional int64 offset = 4;
+}
+
+message CreateConsumerResponse { string consumer_id = 1; }
+
+message ConsumeRecordsRequest { int32 n_messages = 1; }
+
+message Record { bytes data = 1; }
+
+message ConsumeRecordsResponse { repeated Record records = 1; }
 
 message ProduceRequest {
   string topic = 1;
@@ -37,12 +55,14 @@ message Message {
 
   Type type = 1;
 
-  optional ConsumeRequest consumeRequest = 2;
-  optional ConsumeResponse consumeResponse = 3;
+  optional CreateConsumerRequest createConsumerRequest = 2;
+  optional CreateConsumerResponse createConsumerResponse = 3;
   optional ProduceRequest produceRequest = 4;
   optional ProduceResponse produceResponse = 5;
   optional MetadataRequest metadataRequest = 6;
   optional MetadataResponse metadataResponse = 7;
   optional Ping ping = 8;
   optional Pong pong = 9;
+  optional ConsumeRecordsRequest consumeRecordsRequest = 10;
+  optional ConsumeRecordsResponse consumeRecordsResponse = 11;
 }
