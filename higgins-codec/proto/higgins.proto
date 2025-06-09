@@ -2,19 +2,17 @@ syntax = "proto3";
 
 package higgins;
 
-service Higgins {
-  rpc Consume(ConsumeRequest) returns (ConsumeResponse) {}
-  rpc Produce(ConsumeRequest) returns (ConsumeResponse) {}
-  rpc RequestMetadata(MetadataRequest) returns (MetadataResponse) {}
-}
-
 message ConsumeRequest { string name = 1; }
 
 message ConsumeResponse { string message = 1; }
 
-message ProduceRequest { string name = 1; }
+message ProduceRequest {
+  string topic = 1;
+  bytes partition_key = 2;
+  bytes payload = 3;
+}
 
-message ProduceResponse { string message = 1; }
+message ProduceResponse { repeated string errors = 1; }
 
 message MetadataRequest { string name = 1; }
 
