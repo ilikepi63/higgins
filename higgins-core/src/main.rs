@@ -1,27 +1,35 @@
+use std::{io::Cursor, sync::Arc};
+
+use arrow_json::ReaderBuilder;
 use bytes::{Bytes, BytesMut};
 use higgins_codec::{
-    Message, Pong,
+    Message, Pong, ProduceRequest, ProduceResponse,
     message::{self, Type},
 };
 use prost::Message as _;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    sync::RwLock,
 };
+
+use crate::{broker::Broker, config::Configuration};
 pub mod broker;
 pub mod config;
 pub mod storage;
 pub mod utils;
 
-async fn process_socket(mut socket: TcpStream) {
+async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     loop {
-        let mut buffer = vec![0; 20];
+        let mut buffer = vec![0; 1024];
 
         match socket.read(&mut buffer).await {
             Ok(n) => {
                 if n > 0 {
-                    tracing::info!("Received {n} bytes from client {}", socket.peer_addr().unwrap());
-                    tracing::info!("Buffer: {:#?}", buffer);
+                    tracing::info!(
+                        "Received {n} bytes from client {}",
+                        socket.peer_addr().unwrap()
+                    );
                 } else {
                     break;
                 }
@@ -32,7 +40,6 @@ async fn process_socket(mut socket: TcpStream) {
 
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {
-
                         tracing::info!("Received Ping, sending Pong.");
 
                         let mut result = BytesMut::new();
@@ -60,14 +67,58 @@ async fn process_socket(mut socket: TcpStream) {
                     }
                     Type::Consumerequest => todo!(),
                     Type::Consumeresponse => todo!(),
-                    Type::Producerequest => todo!(),
-                    Type::Produceresponse => todo!(),
+                    Type::Producerequest => {
+                        let ProduceRequest {
+                            topic,
+                            partition_key,
+                            payload,
+                        } = message.produce_request.unwrap();
+
+                        let mut broker = broker.write().await;
+
+                        let (schema, _tx, _rx) = broker
+                            .get_stream(&topic)
+                            .expect("Could not find stream for stream_name.");
+
+                        let cursor = Cursor::new(payload);
+                        let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
+                        let batch = reader.next().unwrap().unwrap();
+
+                        println!("You are producing! {:#?}", batch);
+
+                        let _ = broker.produce(&topic, &partition_key, batch).await;
+
+                        drop(broker);
+
+                        let mut result = BytesMut::new();
+
+                        let resp = ProduceResponse::default();
+
+                        Message {
+                            r#type: Type::Produceresponse as i32,
+                            consume_request: None,
+                            consume_response: None,
+                            produce_request: None,
+                            produce_response: Some(resp),
+                            metadata_request: None,
+                            metadata_response: None,
+                            ping: None,
+                            pong: None,
+                        }
+                        .encode(&mut result)
+                        .unwrap();
+
+                        socket.write_all(&result).await.unwrap();
+                    }
+                    Type::Produceresponse => {}
                     Type::Metadatarequest => todo!(),
                     Type::Metadataesponse => todo!(),
                     Type::Pong => todo!(),
                 }
             }
-            Err(err) => {}
+            Err(err) => {
+                tracing::trace!("Received error when trying to process socket: {:#?}", err);
+            }
         }
     }
 }
@@ -84,6 +135,10 @@ async fn main() {
 
     let port = 8080;
 
+    let config = Configuration::from_env();
+
+    let mut broker = Arc::new(RwLock::new(Broker::from_config(config)));
+
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
         .await
         .unwrap();
@@ -93,7 +148,7 @@ async fn main() {
     loop {
         let (socket, addr) = listener.accept().await.unwrap();
         tracing::info!("Received connection from: {addr}");
-        process_socket(socket).await;
+        process_socket(socket, broker.clone()).await;
     }
 }
 // #[tokio::main]

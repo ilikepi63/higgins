@@ -54,7 +54,7 @@ pub struct TopicsDefinition {
 
 impl Configuration {
     pub fn from_env() -> Self {
-        let config = std::fs::read_to_string("config.yaml").unwrap();
+        let config = std::fs::read_to_string("tests/config.yaml").unwrap();
 
         let config: Configuration = serde_yaml::from_str(&config).unwrap();
 
