@@ -3,21 +3,11 @@ name = "higgins"
 version = "0.1.0"
 edition = "2024"
 
-
-[[bin]]
-name = "main"
-path = "src/main.rs"
-
-[[bin]]
-name = "wasm"
-path = "src/wasmtime.rs"
-
 [dependencies]
 arrow = { version = "55.0.0", features = ["ffi"] }
 arrow-json = "55.1.0"
 async-trait = "0.1.88"
 bytes = "1.10.1"
-easy-repl = "0.2.1"
 riskless = "0.7.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
@@ -25,4 +15,7 @@ tokio = { version = "1.45.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 uuid = { version = "1.16.0", features = ["v4"] }
-wasmtime = { version = "33.0.0", features = ["runtime"] }
+
+# Higgins 
+higgins-codec = {path = "../higgins-codec"}
+prost = "0.13.5"
