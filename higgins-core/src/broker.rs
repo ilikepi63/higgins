@@ -206,7 +206,7 @@ impl Broker {
     }
 
     /// Produce a data set onto the named stream.
-    pub async fn produce(&mut self, topic_name: &str, _partition: &str, record_batch: RecordBatch) {
+    pub async fn produce(&mut self, topic_name: &str, _partition: &[u8], record_batch: RecordBatch) {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
