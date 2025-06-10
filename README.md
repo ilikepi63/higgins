@@ -22,3 +22,7 @@ This will automatically interpret config.yaml as the initial configuration file 
 `update_customer`: ingests update customer events to adjust a customer's data. 
 `customer`: reduces update_customer's stream to the customer view. 
 
+
+## License
+
+This project is licensed under both an Apache 2.0 license.
