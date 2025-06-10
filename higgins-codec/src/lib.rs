@@ -41,10 +41,7 @@ mod test {
 
         let decode = Message::decode(buf.as_ref()).unwrap();
 
-
         assert_eq!(decode.r#type, Type::Ping as i32);
-        assert_eq!(decode.r#type, Type::Ping as i32);
-
-
+        assert!(matches!(decode.ping, Some(_)));
     }
 }
