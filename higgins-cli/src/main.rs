@@ -54,14 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             Message {
                 r#type: Type::Ping as i32,
-                consume_request: None,
-                consume_response: None,
-                produce_request: None,
-                produce_response: None,
-                metadata_request: None,
-                metadata_response: None,
                 ping: Some(ping),
-                pong: None,
+                ..Default::default()
             }
             .encode(&mut write_buf)
             .unwrap();
@@ -93,14 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     Message {
                         r#type: Type::Pong as i32,
-                        consume_request: None,
-                        consume_response: None,
-                        produce_request: None,
-                        produce_response: None,
-                        metadata_request: None,
-                        metadata_response: None,
-                        ping: None,
                         pong: Some(pong),
+                        ..Default::default()
                     }
                     .encode(&mut result)
                     .unwrap();
@@ -133,14 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     Message {
                         r#type: Type::Pong as i32,
-                        consume_request: None,
-                        consume_response: None,
-                        produce_request: None,
-                        produce_response: None,
-                        metadata_request: None,
-                        metadata_response: None,
-                        ping: None,
                         pong: Some(pong),
+                        ..Default::default()
                     }
                     .encode(&mut result)
                     .unwrap();
@@ -187,14 +169,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 Message {
                     r#type: Type::Producerequest as i32,
-                    consume_request: None,
-                    consume_response: None,
                     produce_request: Some(request),
-                    produce_response: None,
-                    metadata_request: None,
-                    metadata_response: None,
-                    ping: None,
-                    pong: None,
+                    ..Default::default()
                 }
                 .encode(&mut write_buf)
                 .unwrap();
@@ -212,8 +188,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {}
                     Type::Consumerequest => {
-                                                tracing::info!("Received Consume Response!");
-                    },
+                        tracing::info!("Received Consume Response!");
+                    }
                     Type::Consumeresponse => todo!(),
                     Type::Producerequest => {}
                     Type::Produceresponse => {

@@ -48,14 +48,8 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         Message {
                             r#type: Type::Pong as i32,
-                            consume_request: None,
-                            consume_response: None,
-                            produce_request: None,
-                            produce_response: None,
-                            metadata_request: None,
-                            metadata_response: None,
-                            ping: None,
                             pong: Some(pong),
+                            ..Default::default()                            
                         }
                         .encode(&mut result)
                         .unwrap();
@@ -96,14 +90,8 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         Message {
                             r#type: Type::Produceresponse as i32,
-                            consume_request: None,
-                            consume_response: None,
-                            produce_request: None,
                             produce_response: Some(resp),
-                            metadata_request: None,
-                            metadata_response: None,
-                            ping: None,
-                            pong: None,
+                            ..Default::default()                            
                         }
                         .encode(&mut result)
                         .unwrap();
