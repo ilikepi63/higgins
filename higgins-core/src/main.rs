@@ -18,6 +18,8 @@ pub mod broker;
 pub mod config;
 pub mod storage;
 pub mod utils;
+pub mod topography;
+
 
 async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     loop {
