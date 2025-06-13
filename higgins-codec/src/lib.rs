@@ -25,14 +25,8 @@ mod test {
 
         let message = Message {
             r#type: Type::Ping as i32,
-            consume_request: None,
-            consume_response: None,
-            produce_request: None,
-            produce_response: None,
-            metadata_request: None,
-            metadata_response: None,
             ping: Some(ping),
-            pong: None,
+            ..Default::default()
         };
 
         buf.reserve(message.encoded_len());
