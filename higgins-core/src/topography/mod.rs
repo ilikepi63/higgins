@@ -24,6 +24,7 @@ pub struct Key(Vec<u8>);
 pub struct Topography {
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
+    functions: BTreeMap<Key, Vec<u8>>,
 }
 
 impl Topography {
@@ -45,9 +46,27 @@ impl Topography {
         key: Key,
         stream: StreamDefinition,
     ) -> Result<(), TopographyError> {
+        // Check the schema exists.
+        if let None = self.schema.get(&stream.schema) {
+            return Err(TopographyError::SchemaNotFound(format!(
+                "{:#?}",
+                stream.schema
+            )));
+        }
 
-        // First check if the derivations exist inside of this topography.
-        
+        // Check if the derivations exist inside of this topography.
+        if let Some(key) = stream.derived.as_ref() {
+            if let None = self.streams.get(key) {
+                return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
+            }
+        }
+
+        // Check if the function exists.
+        if let Some(key) = stream.derived.as_ref() {
+            if let None = self.streams.get(key) {
+                return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
+            }
+        }
 
         let entry = self.streams.entry(key);
 
@@ -75,7 +94,7 @@ pub struct StreamDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-enum FunctionType {
+pub enum FunctionType {
     Reduce,
     Map,
     Aggregate,
