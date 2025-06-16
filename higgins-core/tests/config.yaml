@@ -10,7 +10,7 @@ schema:
     last_name: string
     age: int32
 
-topics:
+streams:
   update_customer:
     schema: update_customer_event
     partition_key: id

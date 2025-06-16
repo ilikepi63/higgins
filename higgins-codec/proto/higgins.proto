@@ -40,6 +40,14 @@ message Ping {}
 
 message Pong {}
 
+message CreateConfigurationRequest { bytes data = 1; }
+
+message CreateConfigurationResponse { repeated string errors = 1; }
+
+message DeleteConfigurationRequest { bytes key = 1; }
+
+message DeleteConfigurationResponse { repeated string errors = 1; }
+
 message Message {
 
   enum Type {
@@ -65,4 +73,8 @@ message Message {
   optional Pong pong = 9;
   optional ConsumeRecordsRequest consumeRecordsRequest = 10;
   optional ConsumeRecordsResponse consumeRecordsResponse = 11;
+  optional CreateConfigurationRequest createConfigurationRequest = 12;
+  optional CreateConfigurationResponse createConfigurationResponse = 13;
+  optional DeleteConfigurationRequest deleteConfigurationRequest = 14;
+  optional DeleteConfigurationResponse deleteConfigurationResponse = 15;
 }
