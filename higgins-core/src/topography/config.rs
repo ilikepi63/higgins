@@ -10,13 +10,13 @@ use crate::topography::{Key, StreamDefinition};
 /// Topography. A configuration itself is also a Topography once it has been applied.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Configuration {
-    streams: BTreeMap<String, ConfigurationStreamDefinition>,
-    schema: BTreeMap<String, Schema>,
+    pub streams: BTreeMap<String, ConfigurationStreamDefinition>,
+    pub schema: BTreeMap<String, Schema>,
     // functions: BTreeMap<String, Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ConfigurationStreamDefinition{
+pub struct ConfigurationStreamDefinition {
     /// From which this topic is derived.
     pub derived: Option<String>,
     /// The Function type for this derived function if it is a derived function.
@@ -56,11 +56,13 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
     arrow::datatypes::Schema::new(fields)
 }
 
+/// Deserializes the given byte array into a configuration.
 pub fn from_yaml(config: &[u8]) -> Configuration {
     let config: Configuration = serde_yaml::from_slice(config).unwrap();
 
     config
 }
+
 
 #[cfg(test)]
 mod test {
@@ -68,37 +70,8 @@ mod test {
 
     #[test]
     fn can_deserialize_basic_yaml() {
-
         let example_config = std::fs::read_to_string("tests/config.yaml").unwrap();
 
-
-//         let example_config = r#"        
-// schema:
-//   update_customer_event:
-//     id: string
-//     first_name: string
-//     last_name: string
-//     age: int32
-//   customer:
-//     id: string
-//     first_name: string
-//     last_name: string
-//     age: int32
-
-// topics:
-//   update_customer:
-//     schema: update_customer_event
-//     partition_key: id
-//   customer:
-//     derived: update_customer
-//     type: reduce
-//     partition_key: id
-//     schema: customer"#;
-
-       let _config = from_yaml(example_config.as_bytes());
-
-        
-
-
+        let _config = from_yaml(example_config.as_bytes());
     }
 }

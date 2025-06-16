@@ -11,15 +11,24 @@ use std::{
 use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
-use crate::topography::errors::TopographyError;
+use crate::topography::{
+    config::{Configuration, ConfigurationStreamDefinition, schema_to_arrow_schema},
+    errors::TopographyError,
+};
 
-pub mod errors;
 pub mod config;
+pub mod errors;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct Key(Vec<u8>);
+
+impl From<&str> for Key {
+    fn from(value: &str) -> Self {
+        Self(value.as_bytes().to_vec())
+    }
+}
 
 /// A topography explains all of the existing streams, schema and the associated keys within them.
 pub struct Topography {
@@ -89,9 +98,20 @@ pub struct StreamDefinition {
     #[serde(rename = "type")]
     pub fn_type: Option<FunctionType>,
     /// The partition key for this topic.
-    pub partition_key: String,
+    pub partition_key: Key,
     /// The schema for this, references a key in schema.
     pub schema: Key,
+}
+
+impl From<&ConfigurationStreamDefinition> for StreamDefinition {
+    fn from(value: &ConfigurationStreamDefinition) -> Self {
+        StreamDefinition {
+            derived: value.derived.as_ref().map(|s| s.as_str().into()),
+            fn_type: value.fn_type.as_ref().map(|s| s.as_str().into()),
+            partition_key: Key::from(value.partition_key.as_str()),
+            schema: value.schema.as_str().into(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -99,4 +119,92 @@ pub enum FunctionType {
     Reduce,
     Map,
     Aggregate,
+}
+
+impl From<&str> for FunctionType {
+    fn from(value: &str) -> Self {
+        match value {
+            "reduce" => FunctionType::Reduce,
+            "map" => FunctionType::Map,
+            "aggregate" => FunctionType::Aggregate,
+            _ => {
+                panic!("Unmplemented function type {value}. Options are reduce, map and aggregate.")
+            }
+        }
+    }
+}
+
+pub fn apply_configuration_to_topography(
+    configuration: Configuration,
+    topography: &mut Topography,
+) {
+    let schema = configuration
+        .schema
+        .iter()
+        .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
+        .for_each(|(key, schema)| {
+            topography
+                .add_schema(Key::from(key.as_str()), schema)
+                .unwrap();
+        });
+
+    // Create the non-derived streams first.
+    for (stream_name, topic_defintion) in configuration
+        .streams
+        .iter()
+        .filter(|(_, def)| def.derived.is_none())
+    {
+        match &topic_defintion.derived {
+            Some(_derived_from) => unreachable!(),
+            None => {
+                topography.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
+            }
+        }
+    }
+
+    for (stream_name, topic_defintion) in configuration
+        .streams
+        .iter()
+        .filter(|(_, def)| def.derived.is_some())
+    {
+        match &topic_defintion.derived {
+            Some(derived_from) => {
+                // Create just normal schema.
+                let schema = topography
+                    .schema
+                    .get(&Key::from(topic_defintion.schema.as_str()))
+                    .unwrap_or_else(|| {
+                        panic!("No Schema defined for key {}", topic_defintion.schema)
+                    });
+
+                let topic_type = FunctionType::from(
+                    topic_defintion
+                        .fn_type
+                        .as_ref()
+                        .expect("Derived stream without a function type.")
+                        .as_str(),
+                );
+
+                match topic_type {
+                    FunctionType::Reduce => {
+                        // broker.reduce(
+                        //     derived_from,
+                        //     topic_defintion.schema.as_str(),
+                        //     schema.clone(),
+                        //     |_a, b| RecordBatch::new_empty(b.schema()),
+                        // );
+                    }
+                    _ => unimplemented!(),
+                }
+
+                topography.add_stream(
+                    Key::from(stream_name.as_str()),
+                    StreamDefinition::from(topic_defintion),
+                );
+
+                // broker.create_stream(stream_name, schema.clone());
+            }
+            None => unreachable!(),
+        }
+    }
 }
