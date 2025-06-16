@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::topography::errors::TopographyError;
 
 pub mod errors;
+pub mod config;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
