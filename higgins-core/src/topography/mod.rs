@@ -21,7 +21,7 @@ pub mod errors;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
-#[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord, Clone)]
 pub struct Key(Vec<u8>);
 
 impl From<&str> for Key {
@@ -35,6 +35,7 @@ pub struct Topography {
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
     functions: BTreeMap<Key, Vec<u8>>,
+    configurations: BTreeMap<Key, Configuration>,
 }
 
 impl Topography {
@@ -137,7 +138,7 @@ impl From<&str> for FunctionType {
 pub fn apply_configuration_to_topography(
     configuration: Configuration,
     topography: &mut Topography,
-) {
+) -> Key {
     let schema = configuration
         .schema
         .iter()
@@ -197,14 +198,24 @@ pub fn apply_configuration_to_topography(
                     _ => unimplemented!(),
                 }
 
-                topography.add_stream(
-                    Key::from(stream_name.as_str()),
-                    StreamDefinition::from(topic_defintion),
-                );
+                topography
+                    .add_stream(
+                        Key::from(stream_name.as_str()),
+                        StreamDefinition::from(topic_defintion),
+                    )
+                    .unwrap();
 
                 // broker.create_stream(stream_name, schema.clone());
             }
             None => unreachable!(),
         }
     }
+
+    let config_id = uuid::Uuid::new_v4();
+
+    let config_id = Key(config_id.as_bytes().to_vec());
+
+    topography.configurations.insert(config_id.clone(), configuration);
+
+    config_id
 }
