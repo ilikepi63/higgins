@@ -1160,6 +1160,7 @@ dependencies = [
  "riskless",
  "serde",
  "serde_yaml",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1181,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "higgins-codec"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "prost",
  "prost-build",

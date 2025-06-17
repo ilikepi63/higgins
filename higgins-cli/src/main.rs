@@ -35,6 +35,12 @@ enum Commands {
         topic: String,
         // partitions?
     },
+    CreateConfiguration {
+        #[arg(long, require_equals = true)]
+        file: String,
+        // partitions?
+    },
+
 }
 
 #[tokio::main]
