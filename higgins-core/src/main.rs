@@ -13,13 +13,13 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::{broker::Broker, config::Configuration};
+use crate::{broker::Broker};
 pub mod broker;
-pub mod config;
 pub mod storage;
 pub mod utils;
 pub mod topography;
 
+use topography::config::Configuration;
 
 async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     loop {
@@ -125,9 +125,7 @@ async fn main() {
 
     let port = 8080;
 
-    let config = Configuration::from_env();
-
-    let mut broker = Arc::new(RwLock::new(Broker::from_config(config)));
+    let mut broker = Arc::new(RwLock::new(Broker::new()));
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
         .await

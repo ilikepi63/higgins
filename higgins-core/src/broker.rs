@@ -10,8 +10,8 @@ use riskless::{
 use tokio::sync::RwLock;
 
 use crate::{
-    config::{Configuration, schema_to_arrow_schema},
     storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
+    topography::config::{Configuration, schema_to_arrow_schema},
     utils::request_response::Request,
 };
 
@@ -138,75 +138,80 @@ impl Broker {
     }
 
     /// Create a new instance from a given configuration.
-    pub fn from_config(config: Configuration) -> Self {
-        let mut broker = Broker::new();
+    // pub fn from_config(config: Configuration) -> Self {
+    //     let mut broker = Broker::new();
 
-        let schema = config
-            .schema
-            .iter()
-            .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
-            .collect::<BTreeMap<String, Arc<arrow::datatypes::Schema>>>();
+    //     let schema = config
+    //         .schema
+    //         .iter()
+    //         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
+    //         .collect::<BTreeMap<String, Arc<arrow::datatypes::Schema>>>();
 
-        // Create the non-derived streams first.
-        for (stream_name, topic_defintion) in config
-            .topics
-            .iter()
-            .filter(|(_, def)| def.derived.is_none())
-        {
-            match &topic_defintion.derived {
-                Some(_derived_from) => unreachable!(),
-                None => {
-                    // Create just normal schema.
-                    let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| {
-                        panic!("No Schema defined for key {}", topic_defintion.schema)
-                    });
+    //     // Create the non-derived streams first.
+    //     for (stream_name, topic_defintion) in config
+    //         .topics
+    //         .iter()
+    //         .filter(|(_, def)| def.derived.is_none())
+    //     {
+    //         match &topic_defintion.derived {
+    //             Some(_derived_from) => unreachable!(),
+    //             None => {
+    //                 // Create just normal schema.
+    //                 let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| {
+    //                     panic!("No Schema defined for key {}", topic_defintion.schema)
+    //                 });
 
-                    broker.create_stream(stream_name, schema.clone());
-                }
-            }
-        }
+    //                 broker.create_stream(stream_name, schema.clone());
+    //             }
+    //         }
+    //     }
 
-        for (stream_name, topic_defintion) in config
-            .topics
-            .iter()
-            .filter(|(_, def)| def.derived.is_some())
-        {
-            match &topic_defintion.derived {
-                Some(derived_from) => {
-                    // Create just normal schema.
-                    let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| {
-                        panic!("No Schema defined for key {}", topic_defintion.schema)
-                    });
+    //     for (stream_name, topic_defintion) in config
+    //         .topics
+    //         .iter()
+    //         .filter(|(_, def)| def.derived.is_some())
+    //     {
+    //         match &topic_defintion.derived {
+    //             Some(derived_from) => {
+    //                 // Create just normal schema.
+    //                 let schema = schema.get(&topic_defintion.schema).unwrap_or_else(|| {
+    //                     panic!("No Schema defined for key {}", topic_defintion.schema)
+    //                 });
 
-                    let topic_type = topic_defintion.fn_type.as_ref().unwrap();
+    //                 let topic_type = topic_defintion.fn_type.as_ref().unwrap();
 
-                    match topic_type.as_ref() {
-                        "reduce" => {
-                            broker.reduce(
-                                derived_from,
-                                topic_defintion.schema.as_str(),
-                                schema.clone(),
-                                |_a, b| RecordBatch::new_empty(b.schema()),
-                            );
-                        }
-                        _ => unimplemented!(),
-                    }
+    //                 match topic_type.as_ref() {
+    //                     "reduce" => {
+    //                         broker.reduce(
+    //                             derived_from,
+    //                             topic_defintion.schema.as_str(),
+    //                             schema.clone(),
+    //                             |_a, b| RecordBatch::new_empty(b.schema()),
+    //                         );
+    //                     }
+    //                     _ => unimplemented!(),
+    //                 }
 
-                    broker.create_stream(stream_name, schema.clone());
-                }
-                None => unreachable!(),
-            }
-        }
+    //                 broker.create_stream(stream_name, schema.clone());
+    //             }
+    //             None => unreachable!(),
+    //         }
+    //     }
 
-        broker
-    }
+    //     broker
+    // }
 
     pub fn get_stream(&self, stream_name: &str) -> Option<&(Arc<Schema>, Sender, Receiver)> {
         self.streams.get(stream_name)
     }
 
     /// Produce a data set onto the named stream.
-    pub async fn produce(&mut self, topic_name: &str, _partition: &[u8], record_batch: RecordBatch) {
+    pub async fn produce(
+        &mut self,
+        topic_name: &str,
+        _partition: &[u8],
+        record_batch: RecordBatch,
+    ) {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
