@@ -40,7 +40,6 @@ enum Commands {
         file: String,
         // partitions?
     },
-
 }
 
 #[tokio::main]
@@ -117,8 +116,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         tracing::info!("Received Produce Response!");
                     }
                     Type::Metadatarequest => todo!(),
-                    Type::Metadataesponse => todo!(),
+                    Type::Metadataresponse => todo!(),
                     Type::Pong => {}
+                    Type::Consumerecordsrequest => todo!(),
+                    Type::Consumerecordsresponse => todo!(),
+                    Type::Createconfigurationrequest => todo!(),
+                    Type::Createconfigurationresponse => todo!(),
+                    Type::Deleteconfigurationrequest => todo!(),
+                    Type::Deleteconfigurationresponse => todo!(),
                 }
             }
         }
