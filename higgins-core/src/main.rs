@@ -13,11 +13,12 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::{broker::Broker};
+use crate::broker::Broker;
 pub mod broker;
 pub mod storage;
-pub mod utils;
 pub mod topography;
+pub mod utils;
+pub mod subscription;
 
 use topography::config::Configuration;
 
@@ -51,7 +52,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Message {
                             r#type: Type::Pong as i32,
                             pong: Some(pong),
-                            ..Default::default()                            
+                            ..Default::default()
                         }
                         .encode(&mut result)
                         .unwrap();
@@ -93,7 +94,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Message {
                             r#type: Type::Produceresponse as i32,
                             produce_response: Some(resp),
-                            ..Default::default()                            
+                            ..Default::default()
                         }
                         .encode(&mut result)
                         .unwrap();
@@ -102,8 +103,14 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Produceresponse => {}
                     Type::Metadatarequest => todo!(),
-                    Type::Metadataesponse => todo!(),
+                    Type::Metadataresponse => todo!(),
                     Type::Pong => todo!(),
+                    Type::Consumerecordsrequest => todo!(),
+                    Type::Consumerecordsresponse => todo!(),
+                    Type::Createconfigurationrequest => todo!(),
+                    Type::Createconfigurationresponse => todo!(),
+                    Type::Deleteconfigurationrequest => todo!(),
+                    Type::Deleteconfigurationresponse => todo!(),
                 }
             }
             Err(err) => {
