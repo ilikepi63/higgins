@@ -64,10 +64,16 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Producerequest => todo!(),
         Type::Produceresponse => todo!(),
         Type::Metadatarequest => todo!(),
-        Type::Metadataesponse => todo!(),
+        Type::Metadataresponse => todo!(),
         Type::Pong => {
             tracing::info!("Received Pong!")
         }
+        Type::Consumerecordsrequest => todo!(),
+        Type::Consumerecordsresponse => todo!(),
+        Type::Createconfigurationrequest => todo!(),
+        Type::Createconfigurationresponse => todo!(),
+        Type::Deleteconfigurationrequest => todo!(),
+        Type::Deleteconfigurationresponse => todo!(),
     }
 
     let result = socket.write_all(&write_buf).await.unwrap();
@@ -98,9 +104,15 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Producerequest => todo!(),
         Type::Produceresponse => todo!(),
         Type::Metadatarequest => todo!(),
-        Type::Metadataesponse => todo!(),
+        Type::Metadataresponse => todo!(),
         Type::Pong => {
             tracing::info!("Received Pong!")
         }
+        Type::Consumerecordsrequest => todo!(),
+        Type::Consumerecordsresponse => todo!(),
+        Type::Createconfigurationrequest => todo!(),
+        Type::Createconfigurationresponse => todo!(),
+        Type::Deleteconfigurationrequest => todo!(),
+        Type::Deleteconfigurationresponse => todo!(),
     }
 }
