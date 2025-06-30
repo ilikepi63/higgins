@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{
+    error::HigginsError,
     storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
     subscription::Subscription,
     utils::request_response::Request,
@@ -274,7 +275,7 @@ impl Broker {
         // How do we get the list of partitions for a stream?
         // We need to also be able to update the subscriptions for every stream.
 
-        // TODO: This also needs to be done atomically. 
+        // TODO: This also needs to be done atomically.
         match self.subscriptions.entry(stream.to_vec()) {
             std::collections::btree_map::Entry::Vacant(vacant_entry) => {
                 let mut map = BTreeMap::new();
@@ -287,6 +288,29 @@ impl Broker {
                     .insert(uuid.as_bytes().to_vec(), subscription);
             }
         }
+    }
+
+    pub fn take_from_subcription(&mut self, stream: &[u8], subscription: &[u8], count: u64) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
+        let subscription = self
+            .subscriptions
+            .get_mut(stream)
+            .map(|v| v.get_mut(subscription))
+            .flatten()
+            .ok_or(HigginsError::SubscriptionForStreamDoesNotExist(
+                stream.iter().map(|v| v.to_string()).collect::<String>(),
+                subscription
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<String>(),
+            ))?;
+
+        let offsets = subscription.take(count)?;
+
+        // TODO: Swap out offsets for payloads here? 
+
+        Ok(offsets)
+
+
     }
 }
 

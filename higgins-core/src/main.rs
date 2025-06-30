@@ -22,6 +22,8 @@ pub mod utils;
 
 use topography::config::Configuration;
 
+mod error;
+
 async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     loop {
         let mut buffer = vec![0; 1024];
@@ -107,7 +109,9 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Metadatarequest => todo!(),
                     Type::Metadataresponse => todo!(),
                     Type::Pong => todo!(),
-                    Type::Takerecordsrequest => {},
+                    Type::Takerecordsrequest => {
+
+                    },
                     Type::Takerecordsresponse => {
                         // we don't handle this.
                     },
