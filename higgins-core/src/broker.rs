@@ -8,10 +8,11 @@ use riskless::{
     object_store::{self, ObjectStore},
 };
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 use crate::{
     storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
-    topography::config::{Configuration, schema_to_arrow_schema},
+    subscription::Subscription,
     utils::request_response::Request,
 };
 
@@ -35,6 +36,9 @@ pub struct Broker {
     pub segment_size_in_bytes: u64,
     collection: MutableCollection,
     flush_tx: tokio::sync::mpsc::Sender<()>,
+
+    // Subscriptions.
+    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Subscription>>,
 }
 
 impl Default for Broker {
@@ -134,9 +138,9 @@ impl Broker {
             flush_interval_in_ms,
             collection: cloned_buffer_ref,
             flush_tx,
+            subscriptions: BTreeMap::new(),
         }
     }
-
 
     pub fn get_stream(&self, stream_name: &str) -> Option<&(Arc<Schema>, Sender, Receiver)> {
         self.streams.get(stream_name)
@@ -250,6 +254,39 @@ impl Broker {
             reduced_stream_name.to_string(),
             (reduced_stream_schema, tx, rx),
         );
+    }
+
+    pub fn create_subscription(
+        &mut self,
+        stream: &[u8],
+        //         ConsumerOffsetType offset_type = 2;
+        //   optional int64 timestamp = 3;
+        //   optional int64 offset = 4;
+    ) {
+        let uuid = Uuid::new_v4();
+
+        let mut path = PathBuf::new();
+        path.push("subscriptions"); // TODO: move to const.
+        path.push(uuid.to_string());
+
+        let subscription = Subscription::new(&path);
+
+        // How do we get the list of partitions for a stream?
+        // We need to also be able to update the subscriptions for every stream.
+
+        // TODO: This also needs to be done atomically. 
+        match self.subscriptions.entry(stream.to_vec()) {
+            std::collections::btree_map::Entry::Vacant(vacant_entry) => {
+                let mut map = BTreeMap::new();
+                map.insert(uuid.as_bytes().to_vec(), subscription);
+                vacant_entry.insert(map);
+            }
+            std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
+                occupied_entry
+                    .get_mut()
+                    .insert(uuid.as_bytes().to_vec(), subscription);
+            }
+        }
     }
 }
 
