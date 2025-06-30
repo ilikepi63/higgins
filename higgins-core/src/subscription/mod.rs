@@ -41,6 +41,15 @@ pub struct Subscription {
     amount_to_take: u64,
 }
 
+impl std::fmt::Debug for Subscription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Subscription")
+            .field("last_index", &self.last_index)
+            .field("amount_to_take", &self.amount_to_take)
+            .finish()
+    }
+}
+
 type Offset = u64;
 type Key = Vec<u8>; // Probably not correct to do this..
 
@@ -218,6 +227,7 @@ fn apply_offset_to_range(range: &mut Range, offset: u64) {
 }
 
 /// A function that collapses missing ranges.
+#[allow(unused)]
 fn collapse_ranges(ranges: &[Range]) -> Vec<Range> {
     let last_index = ranges.len() - 1;
 

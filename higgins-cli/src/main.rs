@@ -107,10 +107,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {}
-                    Type::Consumerequest => {
+                    Type::Createsubscriptionrequest => {
                         tracing::info!("Received Consume Response!");
                     }
-                    Type::Consumeresponse => todo!(),
+                    Type::Createsubscriptionresponse => todo!(),
                     Type::Producerequest => {}
                     Type::Produceresponse => {
                         tracing::info!("Received Produce Response!");
@@ -118,8 +118,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Type::Metadatarequest => todo!(),
                     Type::Metadataresponse => todo!(),
                     Type::Pong => {}
-                    Type::Consumerecordsrequest => todo!(),
-                    Type::Consumerecordsresponse => todo!(),
+                    Type::Takerecordsrequest => todo!(),
+                    Type::Takerecordsresponse => todo!(),
                     Type::Createconfigurationrequest => todo!(),
                     Type::Createconfigurationresponse => todo!(),
                     Type::Deleteconfigurationrequest => todo!(),

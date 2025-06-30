@@ -7,8 +7,6 @@ pub use codec::*; // TODO: everything visible in codec here?
 #[cfg(test)]
 mod test {
 
-    use std::io::Cursor;
-
     use prost::Message as _;
 
     use crate::message::Type;
