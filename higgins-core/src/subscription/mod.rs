@@ -5,11 +5,11 @@
 //! stream.
 mod error;
 
-use rkyv::{Archive, Deserialize, Serialize, deserialize, rancor::Error, result};
-use rocksdb::{DB, Options, TransactionDB};
+use rkyv::{Archive, Deserialize, Serialize};
+use rocksdb::TransactionDB;
 use std::path::PathBuf;
 
-use crate::subscription::{self, error::SubscriptionError};
+use crate::subscription::error::SubscriptionError;
 
 #[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 #[rkyv(
@@ -81,7 +81,7 @@ impl Subscription {
 
         txn.put(key, rkyv::to_bytes::<rkyv::rancor::Error>(&metadata)?)?;
 
-        txn.commit();
+        txn.commit()?;
 
         Ok(())
     }
@@ -144,7 +144,9 @@ impl Subscription {
         let _last_iterated_index = self.last_index;
         let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
-        let count = count + self.amount_to_take;
+        let mut count = count + self.amount_to_take;
+
+        println!("Count: {:#?}", count);
 
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
@@ -157,7 +159,13 @@ impl Subscription {
                     .map(|offset| (key.to_vec(), offset.clone()))
                     .collect::<Vec<(Key, Offset)>>();
 
+            count -= TryInto::<u64>::try_into(extracted_offsets.len())?;
+
             result_vec.append(&mut extracted_offsets);
+
+            if count < 1 {
+                break;
+            }
         }
 
         // We remove the taken count from the amount to take.
@@ -471,18 +479,19 @@ mod tests {
         assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1), (key, 3)]);
     }
 
-    // #[test]
+    #[test]
     fn test_multiple_partitions() {
         let (mut sub, _temp_dir) = setup_subscription();
         let key1 = b"partition1".to_vec();
         let key2 = b"partition2".to_vec();
 
         // Add two partitions
-        assert!(sub.add_partition(&key1, None, Some(5)).is_ok());
-        assert!(sub.add_partition(&key2, None, Some(5)).is_ok());
+        assert!(sub.add_partition(&key1, None, Some(2)).is_ok());
+        assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
 
         // Take 4 offsets (should distribute across partitions)
         let offsets = sub.take(4).expect("Failed to take offsets");
+        println!("{:?}", offsets);
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary
         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));

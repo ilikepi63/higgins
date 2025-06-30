@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,6 +14,8 @@ pub enum SubscriptionError {
     RocksDbError(#[from] rocksdb::Error),
     #[error("Error occurred with Rkyv serde: {0}")]
     RkyvError(#[from] rkyv::rancor::Error),
+    #[error("Failue to convert from Integer.")]
+    TryFromIntError(#[from] TryFromIntError),
     #[error("Unknown Subscription Error")]
     Unknown,
 }
