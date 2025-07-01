@@ -65,7 +65,11 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         socket.write_all(&result).await.unwrap();
                         socket.flush().await.unwrap();
                     }
-                    Type::Createsubscriptionrequest => {}
+                    Type::Createsubscriptionrequest => {
+
+
+
+                    }
                     Type::Createsubscriptionresponse => {
                         // We don't handle this.
                     }

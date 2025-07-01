@@ -3,7 +3,9 @@ use std::time::Duration;
 use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{CreateConfigurationRequest, Message, Ping, message::Type};
+use higgins_codec::{
+    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, message::Type,
+};
 use prost::Message as _;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -30,8 +32,6 @@ async fn can_achieve_basic_broker_functionality() {
     let handle = tokio::spawn(async move {
         let _ = run_server(port).await;
     });
-
-    // println!("{:#?}",handle.is_finished());
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -104,6 +104,40 @@ async fn can_achieve_basic_broker_functionality() {
     }
 
     // Start a subscription on that stream.
+    let create_subscription = CreateSubscriptionRequest{
+        offset: None, 
+        offset_type: 0,
+        timestamp: None, 
+        topic_name: "update_customer".to_string()
+    };
+
+    Message {
+        r#type: Type::Createsubscriptionrequest as i32,
+        create_subscription_request: Some(create_subscription),
+        ..Default::default()
+    }
+    .encode(&mut write_buf)
+    .unwrap();
+
+    tracing::info!("Writing: {:#?}", write_buf);
+
+    let _result = socket.write_all(&write_buf).await.unwrap();
+
+    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_ne!(n, 0);
+
+    let slice = &read_buf[0..n];
+
+    let message = Message::decode(slice).unwrap();
+
+    match Type::try_from(message.r#type).unwrap() {
+        Type::Createsubscriptionresponse => {}
+        _ => panic!("Received incorrect response from server for Create Subscription request."),
+    }
 
     // Produce to the stream.
 
