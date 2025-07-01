@@ -24,6 +24,12 @@ pub mod errors;
 #[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord, Clone)]
 pub struct Key(Vec<u8>);
 
+impl Key {
+    pub fn inner(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 impl From<&str> for Key {
     fn from(value: &str) -> Self {
         Self(value.as_bytes().to_vec())
@@ -31,14 +37,26 @@ impl From<&str> for Key {
 }
 
 /// A topography explains all of the existing streams, schema and the associated keys within them.
+#[derive(Debug)]
 pub struct Topography {
-    streams: BTreeMap<Key, StreamDefinition>,
-    schema: BTreeMap<Key, Arc<Schema>>,
-    functions: BTreeMap<Key, Vec<u8>>,
-    configurations: BTreeMap<Key, Configuration>,
+    pub streams: BTreeMap<Key, StreamDefinition>,
+    pub schema: BTreeMap<Key, Arc<Schema>>,
+    pub functions: BTreeMap<Key, Vec<u8>>,
+    pub configurations: BTreeMap<Key, Configuration>,
+    pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
 }
 
 impl Topography {
+    pub fn new() -> Self {
+        Self {
+            streams: BTreeMap::new(),
+            schema: BTreeMap::new(),
+            functions: BTreeMap::new(),
+            configurations: BTreeMap::new(),
+            subscriptions: BTreeMap::new(),
+        }
+    }
+
     pub fn add_schema(&mut self, key: Key, schema: Arc<Schema>) -> Result<(), TopographyError> {
         // For the most part, this will just upload the schema as there should not be any dependencies/references inside of it.
 
@@ -135,6 +153,11 @@ impl From<&str> for FunctionType {
     }
 }
 
+#[derive(Debug)]
+pub struct SubscriptionDeclaration {
+    topic: Vec<u8>,
+}
+
 pub fn apply_configuration_to_topography(
     configuration: Configuration,
     topography: &mut Topography,
@@ -215,7 +238,9 @@ pub fn apply_configuration_to_topography(
 
     let config_id = Key(config_id.as_bytes().to_vec());
 
-    topography.configurations.insert(config_id.clone(), configuration);
+    topography
+        .configurations
+        .insert(config_id.clone(), configuration);
 
     config_id
 }

@@ -14,6 +14,7 @@ use crate::{
     error::HigginsError,
     storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
     subscription::Subscription,
+    topography::{Topography, apply_configuration_to_topography, config::from_yaml},
     utils::request_response::Request,
 };
 
@@ -30,7 +31,7 @@ type MutableCollection = Arc<
 /// This is a pretty naive implementation of what the broker might look like.
 #[derive(Debug)]
 pub struct Broker {
-    streams: BTreeMap<String, (Arc<Schema>, Sender, Receiver)>,
+    streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
     object_store: Arc<dyn ObjectStore>,
     indexes: Arc<IndexDirectory>,
     pub flush_interval_in_ms: u64,
@@ -40,6 +41,9 @@ pub struct Broker {
 
     // Subscriptions.
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Subscription>>,
+
+    // Topography.
+    topography: Topography,
 }
 
 impl Default for Broker {
@@ -140,17 +144,18 @@ impl Broker {
             collection: cloned_buffer_ref,
             flush_tx,
             subscriptions: BTreeMap::new(),
+            topography: Topography::new(),
         }
     }
 
-    pub fn get_stream(&self, stream_name: &str) -> Option<&(Arc<Schema>, Sender, Receiver)> {
+    pub fn get_stream(&self, stream_name: &[u8]) -> Option<&(Arc<Schema>, Sender, Receiver)> {
         self.streams.get(stream_name)
     }
 
     /// Produce a data set onto the named stream.
     pub async fn produce(
         &mut self,
-        topic_name: &str,
+        topic_name: &[u8],
         _partition: &[u8],
         record_batch: RecordBatch,
     ) {
@@ -158,7 +163,7 @@ impl Broker {
 
         let request = ProduceRequest {
             request_id: 1,
-            topic: topic_name.to_string(),
+            topic: String::from_utf8(topic_name.to_vec()).unwrap(),
             partition: vec![],
             data,
         };
@@ -222,7 +227,7 @@ impl Broker {
     }
 
     /// Retrieve the receiver for a named stream.
-    pub fn get_receiver(&self, stream_name: &str) -> Option<Receiver> {
+    pub fn get_receiver(&self, stream_name: &[u8]) -> Option<Receiver> {
         self.streams
             .iter()
             .find(|(id, _)| *id == stream_name)
@@ -230,18 +235,18 @@ impl Broker {
     }
 
     /// Create a Stream.
-    pub fn create_stream(&mut self, stream_name: &str, schema: Arc<Schema>) {
+    pub fn create_stream(&mut self, stream_name: &[u8], schema: Arc<Schema>) {
         let (tx, rx) = tokio::sync::broadcast::channel(100);
 
         self.streams
-            .insert(stream_name.to_string(), (schema, tx, rx));
+            .insert(stream_name.to_owned(), (schema, tx, rx));
     }
 
     /// Apply a reduction function to the stream.
     pub fn reduce(
         &mut self,
-        stream_name: &str,
-        reduced_stream_name: &str,
+        stream_name: &[u8],
+        reduced_stream_name: &[u8],
         reduced_stream_schema: Arc<Schema>,
         func: ReductionFn,
     ) {
@@ -252,7 +257,7 @@ impl Broker {
         ReduceFunction::new(func, current_rx, tx.clone());
 
         self.streams.insert(
-            reduced_stream_name.to_string(),
+            reduced_stream_name.to_owned(),
             (reduced_stream_schema, tx, rx),
         );
     }
@@ -290,7 +295,12 @@ impl Broker {
         }
     }
 
-    pub fn take_from_subcription(&mut self, stream: &[u8], subscription: &[u8], count: u64) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
+    pub fn take_from_subcription(
+        &mut self,
+        stream: &[u8],
+        subscription: &[u8],
+        count: u64,
+    ) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
         let subscription = self
             .subscriptions
             .get_mut(stream)
@@ -306,11 +316,51 @@ impl Broker {
 
         let offsets = subscription.take(count)?;
 
-        // TODO: Swap out offsets for payloads here? 
+        // TODO: Swap out offsets for payloads here?
 
         Ok(offsets)
+    }
+
+    // Ideally what should happen here is that configurations get applied to topographies,
+    // and then the state of the topography creates resources inside of the broker. However,
+    // due to focus on naive implementations, we're going to just apply the configuration directly.
+    pub fn apply_configuration(&mut self, config: &[u8]) -> Result<(), HigginsError> {
+        let config = from_yaml(config);
+
+        apply_configuration_to_topography(config, &mut self.topography);
+
+        // We need to figure out a nice way to do state updates here.
+
+        let streams_to_create = self
+            .topography
+            .streams
+            .iter()
+            .filter_map(|(stream_key, def)| {
+                if let None = self.streams.get(stream_key.inner()) {
+                    let schema = self.topography.schema.get(&def.schema).unwrap().clone();
+
+                    return Some((stream_key.clone(), schema));
+                }
+
+                None
+            })
+            .collect::<Vec<_>>();
+
+        for (key, schema) in streams_to_create {
+            self.create_stream(key.inner(), schema);
+        }
+
+        // Right now, we don't actually have engineered ways of doing subscriptions.
+        // // Subscription state update -> another nice way to do this.
+        // let subscriptions_to_create = self.topography.subscriptions.iter().filter_map(|(key, sub_def)| {
 
 
+
+        // });
+
+
+
+        Ok(())
     }
 }
 
