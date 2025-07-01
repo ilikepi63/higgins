@@ -59,8 +59,10 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
 
             socket.write(&result).await.unwrap();
         }
-        Type::Consumerequest => todo!(),
-        Type::Consumeresponse => todo!(),
+                Type::Createsubscriptionrequest => {
+                        tracing::info!("Received Consume Response!");
+                    }
+                    Type::Createsubscriptionresponse => todo!(),
         Type::Producerequest => todo!(),
         Type::Produceresponse => todo!(),
         Type::Metadatarequest => todo!(),
@@ -68,8 +70,8 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Pong => {
             tracing::info!("Received Pong!")
         }
-        Type::Consumerecordsrequest => todo!(),
-        Type::Consumerecordsresponse => todo!(),
+        Type::Takerecordsrequest => todo!(),
+        Type::Takerecordsresponse => todo!(),
         Type::Createconfigurationrequest => todo!(),
         Type::Createconfigurationresponse => todo!(),
         Type::Deleteconfigurationrequest => todo!(),
@@ -99,8 +101,10 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
 
             socket.write(&result).await.unwrap();
         }
-        Type::Consumerequest => todo!(),
-        Type::Consumeresponse => todo!(),
+        Type::Createsubscriptionrequest => {
+            tracing::info!("Received Consume Response!");
+        }
+        Type::Createsubscriptionresponse => todo!(),
         Type::Producerequest => todo!(),
         Type::Produceresponse => todo!(),
         Type::Metadatarequest => todo!(),
@@ -108,8 +112,8 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Pong => {
             tracing::info!("Received Pong!")
         }
-        Type::Consumerecordsrequest => todo!(),
-        Type::Consumerecordsresponse => todo!(),
+        Type::Takerecordsrequest => todo!(),
+        Type::Takerecordsresponse => todo!(),
         Type::Createconfigurationrequest => todo!(),
         Type::Createconfigurationresponse => todo!(),
         Type::Deleteconfigurationrequest => todo!(),

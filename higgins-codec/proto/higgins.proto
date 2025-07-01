@@ -9,20 +9,20 @@ enum ConsumerOffsetType {
   FROM_BEGINNING = 3;
 }
 
-message CreateConsumerRequest {
+message CreateSubscriptionRequest {
   string topic_name = 1;
   ConsumerOffsetType offset_type = 2;
   optional int64 timestamp = 3;
   optional int64 offset = 4;
 }
 
-message CreateConsumerResponse { string consumer_id = 1; }
+message createSubscriptionResponse { string consumer_id = 1; }
 
-message ConsumeRecordsRequest { int32 n_messages = 1; }
+message TakeRecordsRequest { int32 n = 1; }
 
 message Record { bytes data = 1; }
 
-message ConsumeRecordsResponse { repeated Record records = 1; }
+message TakeRecordsResponse { repeated Record records = 1; }
 
 message ProduceRequest {
   string topic = 1;
@@ -51,16 +51,16 @@ message DeleteConfigurationResponse { repeated string errors = 1; }
 message Message {
 
   enum Type {
-    CONSUMEREQUEST = 0;
-    CONSUMERESPONSE = 1;
+    CREATESUBSCRIPTIONREQUEST = 0;
+    CREATESUBSCRIPTIONRESPONSE = 1;
     PRODUCEREQUEST = 2;
     PRODUCERESPONSE = 3;
     METADATAREQUEST = 4;
     METADATARESPONSE = 5;
     PING = 6;
     PONG = 7;
-    CONSUMERECORDSREQUEST = 8;
-    CONSUMERECORDSRESPONSE = 9;
+    TAKERECORDSREQUEST = 8;
+    TAKERECORDSRESPONSE = 9;
 
     CREATECONFIGURATIONREQUEST = 10;
     CREATECONFIGURATIONRESPONSE = 11;
@@ -71,16 +71,16 @@ message Message {
 
   Type type = 1;
 
-  optional CreateConsumerRequest createConsumerRequest = 2;
-  optional CreateConsumerResponse createConsumerResponse = 3;
+  optional CreateSubscriptionRequest createSubscriptionRequest = 2;
+  optional createSubscriptionResponse createSubscriptionResponse = 3;
   optional ProduceRequest produceRequest = 4;
   optional ProduceResponse produceResponse = 5;
   optional MetadataRequest metadataRequest = 6;
   optional MetadataResponse metadataResponse = 7;
   optional Ping ping = 8;
   optional Pong pong = 9;
-  optional ConsumeRecordsRequest consumeRecordsRequest = 10;
-  optional ConsumeRecordsResponse consumeRecordsResponse = 11;
+  optional TakeRecordsRequest TakeRecordsRequest = 10;
+  optional TakeRecordsResponse TakeRecordsResponse = 11;
   optional CreateConfigurationRequest createConfigurationRequest = 12;
   optional CreateConfigurationResponse createConfigurationResponse = 13;
   optional DeleteConfigurationRequest deleteConfigurationRequest = 14;
