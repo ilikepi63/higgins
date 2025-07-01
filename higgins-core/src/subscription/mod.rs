@@ -3,7 +3,7 @@
 //! This is a  file-backed subscription model for effectively keeping track of the watermarks of
 //! subcriptions in higgins. These watermarks are tracked per partition inside of the each
 //! stream.
-mod error;
+pub mod error;
 
 use rkyv::{Archive, Deserialize, Serialize};
 use rocksdb::TransactionDB;
