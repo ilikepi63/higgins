@@ -16,9 +16,9 @@ use tokio::{
 use crate::broker::Broker;
 pub mod broker;
 pub mod storage;
+pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod subscription;
 
 use topography::config::Configuration;
 
@@ -62,8 +62,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         socket.write_all(&result).await.unwrap();
                         socket.flush().await.unwrap();
                     }
-                    Type::Consumerequest => todo!(),
-                    Type::Consumeresponse => todo!(),
+                    Type::Createsubscriptionrequest => {}
+                    Type::Createsubscriptionresponse => {
+                        // We don't handle this.
+                    }
                     Type::Producerequest => {
                         let ProduceRequest {
                             topic,
@@ -105,8 +107,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Metadatarequest => todo!(),
                     Type::Metadataresponse => todo!(),
                     Type::Pong => todo!(),
-                    Type::Consumerecordsrequest => todo!(),
-                    Type::Consumerecordsresponse => todo!(),
+                    Type::Takerecordsrequest => {},
+                    Type::Takerecordsresponse => {
+                        // we don't handle this.
+                    },
                     Type::Createconfigurationrequest => todo!(),
                     Type::Createconfigurationresponse => todo!(),
                     Type::Deleteconfigurationrequest => todo!(),
