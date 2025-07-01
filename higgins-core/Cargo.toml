@@ -25,4 +25,6 @@ rkyv = "0.8.10"
 
 
 [dev-dependencies]
+get-port = "4.0.0"
 tempfile = "3.10"
+tracing-test = "0.2.5"
