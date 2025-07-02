@@ -7,7 +7,8 @@ use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, message::Type,
+    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse,
+    TakeRecordsResponse, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -66,8 +67,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         socket.flush().await.unwrap();
                     }
                     Type::Createsubscriptionrequest => {
-
-                        tracing::trace!("Received CreateSubscriptionRequest: {:#?}", message.create_subscription_request);
+                        tracing::trace!(
+                            "Received CreateSubscriptionRequest: {:#?}",
+                            message.create_subscription_request
+                        );
 
                         let CreateSubscriptionRequest {
                             stream_name,..
@@ -117,9 +120,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                         let batch = reader.next().unwrap().unwrap();
 
-                        let _ = broker
-                            .produce(&stream_name, &partition_key, batch)
-                            .await;
+                        let _ = broker.produce(&stream_name, &partition_key, batch).await;
 
                         drop(broker);
 
@@ -141,7 +142,23 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Metadatarequest => todo!(),
                     Type::Metadataresponse => todo!(),
                     Type::Pong => todo!(),
-                    Type::Takerecordsrequest => {}
+                    Type::Takerecordsrequest => {
+                        let mut result = BytesMut::new();
+
+                        let resp = TakeRecordsResponse{
+                            records: vec![]
+                        };
+
+                        Message {
+                            r#type: Type::Takerecordsresponse as i32,
+                            take_records_response: Some(resp),
+                            ..Default::default()
+                        }
+                        .encode(&mut result)
+                        .unwrap();
+
+                        socket.write_all(&result).await.unwrap();
+                    }
                     Type::Takerecordsresponse => {
                         // we don't handle this.
                     }
