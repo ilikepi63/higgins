@@ -4,7 +4,8 @@ use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, message::Type, ProduceRequest
+    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, ProduceRequest,
+    TakeRecordsRequest, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -106,11 +107,11 @@ async fn can_achieve_basic_broker_functionality() {
     }
 
     // Start a subscription on that stream.
-    let create_subscription = CreateSubscriptionRequest{
-        offset: None, 
+    let create_subscription = CreateSubscriptionRequest {
+        offset: None,
         offset_type: 0,
-        timestamp: None, 
-        stream_name: "update_customer".as_bytes().to_vec()
+        timestamp: None,
+        stream_name: "update_customer".as_bytes().to_vec(),
     };
 
     let mut write_buf = BytesMut::new();
@@ -137,25 +138,28 @@ async fn can_achieve_basic_broker_functionality() {
 
     let message = Message::decode(slice).unwrap();
 
-    match Type::try_from(message.r#type).unwrap() {
+    let sub_id = match Type::try_from(message.r#type).unwrap() {
         Type::Createsubscriptionresponse => {
-
-            let sub_id = message.create_subscription_response.unwrap().subscription_id;
+            let sub_id = message
+                .create_subscription_response
+                .unwrap()
+                .subscription_id;
 
             tracing::info!("Got the sub_id: {:#?}", sub_id);
 
+            sub_id.unwrap()
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
-    }
+    };
 
     // Produce to the stream.
 
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
     let produce_request = ProduceRequest {
-        partition_key: "test_partition".as_bytes().to_vec(), 
+        partition_key: "test_partition".as_bytes().to_vec(),
         payload: payload.as_bytes().to_vec(),
-        stream_name: "update_customer".as_bytes().to_vec()
+        stream_name: "update_customer".as_bytes().to_vec(),
     };
 
     let mut write_buf = BytesMut::new();
@@ -184,19 +188,52 @@ async fn can_achieve_basic_broker_functionality() {
 
     match Type::try_from(message.r#type).unwrap() {
         Type::Produceresponse => {
-
             let message = message.produce_response;
 
             tracing::info!("Received produce response: {:#?}", message);
+        }
+        _ => panic!("Received incorrect response from server for Create Subscription request."),
+    }
+
+    // Consume from the stream.
+
+    let take_request = TakeRecordsRequest {
+        n: 1,
+        subscription_id: sub_id,
+    };
+
+    let mut write_buf = BytesMut::new();
+    let mut read_buf = BytesMut::zeroed(1024);
+
+    Message {
+        r#type: Type::Takerecordsrequest as i32,
+        take_records_request: Some(take_request),
+        ..Default::default()
+    }
+    .encode(&mut write_buf)
+    .unwrap();
+
+    let _result = socket.write_all(&write_buf).await.unwrap();
+
+    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_ne!(n, 0);
+
+    let slice = &read_buf[0..n];
+
+    let message = Message::decode(slice).unwrap();
+
+    match Type::try_from(message.r#type).unwrap() {
+        Type::Takerecordsresponse => {
+
+            println!("Receieved a take records response!");
 
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     }
 
-
-    // Consume from the stream.
-
-    // potentially interleave producing/consuming to/from the stream?.
-
-    // handle.abort();
+    handle.abort();
 }
