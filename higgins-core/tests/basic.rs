@@ -99,8 +99,10 @@ async fn can_achieve_basic_broker_functionality() {
     let message = Message::decode(slice).unwrap();
 
     match Type::try_from(message.r#type).unwrap() {
-        Type::Createconfigurationresponse => {}
-        _ => panic!("Received incorrect response from server for ping request."),
+        Type::Createconfigurationresponse => {
+            tracing::info!("Received response from server for configuration request.")
+        }
+        _ => panic!("Received incorrect response from server for create configuration request."),
     }
 
     // Start a subscription on that stream.
@@ -108,8 +110,11 @@ async fn can_achieve_basic_broker_functionality() {
         offset: None, 
         offset_type: 0,
         timestamp: None, 
-        topic_name: "update_customer".to_string()
+        stream_name: "update_customer".as_bytes().to_vec()
     };
+
+    let mut write_buf = BytesMut::new();
+    let mut read_buf = BytesMut::zeroed(1024);
 
     Message {
         r#type: Type::Createsubscriptionrequest as i32,
@@ -118,8 +123,6 @@ async fn can_achieve_basic_broker_functionality() {
     }
     .encode(&mut write_buf)
     .unwrap();
-
-    tracing::info!("Writing: {:#?}", write_buf);
 
     let _result = socket.write_all(&write_buf).await.unwrap();
 
@@ -135,7 +138,13 @@ async fn can_achieve_basic_broker_functionality() {
     let message = Message::decode(slice).unwrap();
 
     match Type::try_from(message.r#type).unwrap() {
-        Type::Createsubscriptionresponse => {}
+        Type::Createsubscriptionresponse => {
+
+            let sub_id = message.create_subscription_response.unwrap().subscription_id;
+
+            tracing::info!("Got the sub_id: {:#?}", sub_id);
+
+        }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     }
 
