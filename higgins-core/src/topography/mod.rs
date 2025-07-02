@@ -162,14 +162,18 @@ pub fn apply_configuration_to_topography(
     configuration: Configuration,
     topography: &mut Topography,
 ) -> Key {
-    let schema = configuration
+
+    tracing::info!("Topography: {:#?}", topography);
+
+
+
+    let _schema = configuration
         .schema
         .iter()
         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
         .for_each(|(key, schema)| {
-            topography
-                .add_schema(Key::from(key.as_str()), schema)
-                .unwrap();
+            let _ = topography
+                .add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
         });
 
     // Create the non-derived streams first.
@@ -221,12 +225,11 @@ pub fn apply_configuration_to_topography(
                     _ => unimplemented!(),
                 }
 
-                topography
+                let _ = topography
                     .add_stream(
                         Key::from(stream_name.as_str()),
                         StreamDefinition::from(topic_defintion),
-                    )
-                    .unwrap();
+                    ); // TODO: This should likely be a warning.
 
                 // broker.create_stream(stream_name, schema.clone());
             }
