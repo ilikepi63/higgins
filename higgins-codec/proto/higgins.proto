@@ -12,8 +12,8 @@ enum ConsumerOffsetType {
 message CreateSubscriptionRequest {
   bytes stream_name = 1;
   ConsumerOffsetType offset_type = 2;
-  optional int64 timestamp = 3;
-  optional int64 offset = 4;
+  optional uint64 timestamp = 3;
+  optional uint64 offset = 4;
 }
 
 message CreateSubscriptionResponse {
@@ -22,11 +22,17 @@ message CreateSubscriptionResponse {
 }
 
 message TakeRecordsRequest {
-  int32 n = 1;
-  bytes subscription_id = 2;
+  uint64 n = 1;
+  bytes stream_name = 2;
+  bytes subscription_id = 3;
 }
 
-message Record { bytes data = 1; }
+message Record {
+  bytes data = 1;
+  bytes stream = 2;
+  bytes partition = 3;
+  uint64 offset = 4;
+}
 
 message TakeRecordsResponse { repeated Record records = 1; }
 
