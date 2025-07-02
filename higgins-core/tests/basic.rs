@@ -87,7 +87,7 @@ async fn can_achieve_basic_broker_functionality() {
 
     let _result = socket.write_all(&write_buf).await.unwrap();
 
-        let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
+    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
         .unwrap()
         .unwrap();
@@ -99,10 +99,7 @@ async fn can_achieve_basic_broker_functionality() {
     let message = Message::decode(slice).unwrap();
 
     match Type::try_from(message.r#type).unwrap() {
-        Type::Createconfigurationresponse => {
-
-
-        }
+        Type::Createconfigurationresponse => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }
 

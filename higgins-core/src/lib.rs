@@ -1,10 +1,13 @@
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::{Cursor, Read},
+    sync::Arc,
+};
 
 use arrow_json::ReaderBuilder;
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use higgins_codec::{
-    Message, Pong, ProduceRequest, ProduceResponse,
-    message::{self, Type},
+    CreateConfigurationRequest, CreateConfigurationResponse, Message, Pong, ProduceRequest,
+    ProduceResponse, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -19,8 +22,6 @@ pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-
-use topography::config::Configuration;
 
 mod error;
 
@@ -78,7 +79,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let mut broker = broker.write().await;
 
                         let (schema, _tx, _rx) = broker
-                            .get_stream(&topic)
+                            .get_stream(topic.as_bytes())
                             .expect("Could not find stream for stream_name.");
 
                         let cursor = Cursor::new(payload);
@@ -87,7 +88,9 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         println!("You are producing! {:#?}", batch);
 
-                        let _ = broker.produce(&topic, &partition_key, batch).await;
+                        let _ = broker
+                            .produce(topic.as_bytes(), &partition_key, batch)
+                            .await;
 
                         drop(broker);
 
@@ -113,7 +116,78 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Takerecordsresponse => {
                         // we don't handle this.
                     }
-                    Type::Createconfigurationrequest => todo!(),
+                    Type::Createconfigurationrequest => {
+                        let mut broker = broker.write().await;
+
+                        if let Some(CreateConfigurationRequest { data }) =
+                            message.create_configuration_request
+                        {
+                            let result = broker.apply_configuration(&data);
+
+                            if let Err(err) = result {
+                                let create_configuration_response = CreateConfigurationResponse {
+                                    errors: vec![err.to_string()],
+                                };
+
+                                let mut result = BytesMut::new();
+
+                                Message {
+                                    r#type: Type::Createconfigurationresponse as i32,
+                                    create_configuration_response: Some(
+                                        create_configuration_response,
+                                    ),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                tracing::info!("Responding with: {:#?}", result.clone().to_vec());
+
+                                socket.write_all(&result).await.unwrap();
+                                socket.flush().await.unwrap();
+                            } else {
+                                let create_configuration_response = CreateConfigurationResponse {
+                                    errors: vec![],
+                                };
+
+                                let mut result = BytesMut::new();
+
+                                Message {
+                                    r#type: Type::Createconfigurationresponse as i32,
+                                    create_configuration_response: Some(
+                                        create_configuration_response,
+                                    ),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                tracing::info!("Responding with: {:#?}", result.clone().to_vec());
+
+                                socket.write_all(&result).await.unwrap();
+                                socket.flush().await.unwrap();
+                            }
+                        } else {
+                            let create_configuration_response = CreateConfigurationResponse {
+                                errors: vec!["Malformed request for creating configuration. Please include CreateConfigurationRequest in body.".into()]
+                            };
+
+                            let mut result = BytesMut::new();
+
+                            Message {
+                                r#type: Type::Createconfigurationresponse as i32,
+                                create_configuration_response: Some(create_configuration_response),
+                                ..Default::default()
+                            }
+                            .encode(&mut result)
+                            .unwrap();
+
+                            tracing::info!("Responding with: {:#?}", result.clone().to_vec());
+
+                            socket.write_all(&result).await.unwrap();
+                            socket.flush().await.unwrap();
+                        }
+                    }
                     Type::Createconfigurationresponse => todo!(),
                     Type::Deleteconfigurationrequest => todo!(),
                     Type::Deleteconfigurationresponse => todo!(),
@@ -127,7 +201,6 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 }
 
 pub async fn run_server(port: u16) {
-
     let broker = Arc::new(RwLock::new(Broker::new()));
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))
