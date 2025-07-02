@@ -268,7 +268,7 @@ impl Broker {
         //         ConsumerOffsetType offset_type = 2;
         //   optional int64 timestamp = 3;
         //   optional int64 offset = 4;
-    ) {
+    ) -> Vec<u8> {
         let uuid = Uuid::new_v4();
 
         let mut path = PathBuf::new();
@@ -293,6 +293,8 @@ impl Broker {
                     .insert(uuid.as_bytes().to_vec(), subscription);
             }
         }
+
+        uuid.as_bytes().to_vec()
     }
 
     pub fn take_from_subcription(
@@ -354,11 +356,7 @@ impl Broker {
         // // Subscription state update -> another nice way to do this.
         // let subscriptions_to_create = self.topography.subscriptions.iter().filter_map(|(key, sub_def)| {
 
-
-
         // });
-
-
 
         Ok(())
     }
