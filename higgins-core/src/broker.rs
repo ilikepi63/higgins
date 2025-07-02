@@ -262,6 +262,26 @@ impl Broker {
         );
     }
 
+    /// Creates a partition from a partition key.
+    ///
+    /// This is primarily just to notify a subcription for a stream that it has a new
+    /// partition key if there doesn't exist one yet.
+    ///
+    /// TODO: This needs to be fault-tolerant.
+    pub fn create_partition(
+        &mut self,
+        stream_name: &[u8],
+        partition_key: &[u8],
+    ) -> Result<(), HigginsError> {
+        if let Some(subs) = self.subscriptions.get_mut(stream_name) {
+            for (_id, sub) in subs {
+                sub.add_partition(partition_key, None, None)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn create_subscription(
         &mut self,
         stream: &[u8],
