@@ -14,7 +14,7 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::broker::Broker;
+use crate::{broker::Broker, storage::arrow_ipc::read_arrow};
 pub mod broker;
 pub mod storage;
 pub mod subscription;
@@ -173,11 +173,31 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     records: val
                                         .batches
                                         .iter()
-                                        .map(|batch| Record {
-                                            data: batch.data.to_vec(),
-                                            stream: batch.topic.as_bytes().to_vec(),
-                                            offset: batch.offset,
-                                            partition: batch.partition.clone(),
+                                        .map(|batch| {
+                                            let stream_reader = read_arrow(&batch.data);
+
+                                            let batches = stream_reader
+                                                .filter_map(|val| val.ok())
+                                                .collect::<Vec<_>>();
+
+                                            let batch_refs = batches.iter().collect::<Vec<_>>();
+
+                                            // Infer the batches
+                                            let buf = Vec::new();
+                                            let mut writer =
+                                                arrow_json::LineDelimitedWriter::new(buf);
+                                            writer.write_batches(&batch_refs).unwrap();
+                                            writer.finish().unwrap();
+
+                                            // Get the underlying buffer back,
+                                            let buf = writer.into_inner();
+
+                                            Record {
+                                                data: buf,
+                                                stream: batch.topic.as_bytes().to_vec(),
+                                                offset: batch.offset,
+                                                partition: batch.partition.clone(),
+                                            }
                                         })
                                         .collect::<Vec<_>>(),
                                 };
