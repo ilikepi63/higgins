@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let data = std::fs::read_to_string(&file_name).unwrap();
 
                 let request = ProduceRequest {
-                    topic,
+                    stream_name: topic.as_bytes().to_vec(),
                     partition_key: key,
                     payload: data.as_bytes().to_vec(),
                 };

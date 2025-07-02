@@ -28,7 +28,7 @@ message Record { bytes data = 1; }
 message TakeRecordsResponse { repeated Record records = 1; }
 
 message ProduceRequest {
-  string topic = 1;
+  bytes stream_name = 1;
   bytes partition_key = 2;
   bytes payload = 3;
 }
