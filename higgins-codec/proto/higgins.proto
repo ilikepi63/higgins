@@ -10,13 +10,16 @@ enum ConsumerOffsetType {
 }
 
 message CreateSubscriptionRequest {
-  string topic_name = 1;
+  bytes stream_name = 1;
   ConsumerOffsetType offset_type = 2;
   optional int64 timestamp = 3;
   optional int64 offset = 4;
 }
 
-message createSubscriptionResponse { string consumer_id = 1; }
+message CreateSubscriptionResponse {
+  repeated string errors = 1;
+  optional bytes subscription_id = 2;
+}
 
 message TakeRecordsRequest { int32 n = 1; }
 
@@ -72,7 +75,7 @@ message Message {
   Type type = 1;
 
   optional CreateSubscriptionRequest createSubscriptionRequest = 2;
-  optional createSubscriptionResponse createSubscriptionResponse = 3;
+  optional CreateSubscriptionResponse createSubscriptionResponse = 3;
   optional ProduceRequest produceRequest = 4;
   optional ProduceResponse produceResponse = 5;
   optional MetadataRequest metadataRequest = 6;
