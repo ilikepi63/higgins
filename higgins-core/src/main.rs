@@ -38,7 +38,7 @@ async fn main() {
 
     let port = 8080; // TODO: this needs to go to env vars.
 
-    run_server(port);
+    run_server(port).await;
 }
 // #[tokio::main]
 // async fn main() -> Result<(), Box<dyn std::error::Error>> {

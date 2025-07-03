@@ -117,11 +117,7 @@ impl Broker {
                                     .find(|r| r.inner().request_id == response.request_id)
                                     .unwrap();
 
-                                res.respond(ProduceResponse {
-                                    request_id: response.request_id,
-                                    errors: response.errors,
-                                })
-                                .unwrap();
+                                res.respond(response).unwrap();
                             }
                         }
                         Err(err) => {
@@ -155,22 +151,20 @@ impl Broker {
     /// Produce a data set onto the named stream.
     pub async fn produce(
         &mut self,
-        topic_name: &[u8],
-        _partition: &[u8],
+        stream_name: &[u8],
+        partition: &[u8],
         record_batch: RecordBatch,
-    ) {
+    ) -> Result<ProduceResponse, HigginsError> {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
             request_id: 1,
-            topic: String::from_utf8(topic_name.to_vec()).unwrap(),
-            partition: vec![],
+            topic: String::from_utf8(stream_name.to_vec()).unwrap(),
+            partition: partition.to_vec(),
             data,
         };
 
         let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
-
-        // self.produce_request_tx.send(request).await.unwrap();
 
         let mut buffer_lock = self.collection.write().await;
 
@@ -185,26 +179,39 @@ impl Broker {
 
         drop(buffer_lock);
 
-        let message = response.recv().await.unwrap();
+        let response = response.recv().await.unwrap();
 
         // TODO: fix this to actually return the error?
-        if !message.errors.is_empty() {
-            tracing::error!("Error when attempting to write out to producer.");
-            return;
+        if !response.errors.is_empty() {
+            tracing::error!(
+                "Error when attempting to write out to producer. Request: {}",
+                response.request_id
+            );
+        } else {
+            // Watermark the subscription.
+            let subscription = self.subscriptions.get(stream_name);
+            if let Some(subscriptions) = subscription {
+                for (subscription_id, subscription) in subscriptions {
+                    subscription.set_max_offset(partition, response.batch.offset)?;
+
+                    tracing::info!(
+                        "Updated Max offset for subscription: {}, watermark: {}",
+                        subscription_id
+                            .iter()
+                            .map(u8::to_string)
+                            .collect::<String>(),
+                        response.batch.offset
+                    );
+                }
+            }
         }
 
-        let (_stream_id, (_, tx, _rx)) = self
-            .streams
-            .iter()
-            .find(|(id, _)| *id == topic_name)
-            .unwrap();
-
-        tx.send(record_batch).unwrap(); // This should change to a standard notification.
+        Ok(response)
     }
 
     pub async fn consume(
         &self,
-        topic: &str,
+        topic: &[u8],
         _partition: &[u8],
         offset: u64,
         max_partition_fetch_bytes: u32,
@@ -214,7 +221,7 @@ impl Broker {
 
         riskless::consume(
             ConsumeRequest {
-                topic: topic.to_string(),
+                topic: String::from_utf8_lossy(topic).to_string(),
                 partition: vec![],
                 offset,
                 max_partition_fetch_bytes,
@@ -262,6 +269,26 @@ impl Broker {
         );
     }
 
+    /// Creates a partition from a partition key.
+    ///
+    /// This is primarily just to notify a subcription for a stream that it has a new
+    /// partition key if there doesn't exist one yet.
+    ///
+    /// TODO: This needs to be fault-tolerant.
+    pub fn create_partition(
+        &mut self,
+        stream_name: &[u8],
+        partition_key: &[u8],
+    ) -> Result<(), HigginsError> {
+        if let Some(subs) = self.subscriptions.get_mut(stream_name) {
+            for (_id, sub) in subs {
+                sub.add_partition(partition_key, None, None)?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn create_subscription(
         &mut self,
         stream: &[u8],
@@ -297,7 +324,9 @@ impl Broker {
         uuid.as_bytes().to_vec()
     }
 
-    pub fn take_from_subcription(
+    /// A function to extract the current subscription indexes from the
+    /// given subscription.
+    pub fn take_from_subscription(
         &mut self,
         stream: &[u8],
         subscription: &[u8],
@@ -317,8 +346,6 @@ impl Broker {
             ))?;
 
         let offsets = subscription.take(count)?;
-
-        // TODO: Swap out offsets for payloads here?
 
         Ok(offsets)
     }

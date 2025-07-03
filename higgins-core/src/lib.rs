@@ -1,14 +1,11 @@
-use std::{
-    io::{Cursor, Read},
-    sync::Arc,
-};
+use std::{io::Cursor, sync::Arc};
 
 use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse,
-    TakeRecordsResponse, message::Type,
+    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, Record,
+    TakeRecordsRequest, TakeRecordsResponse, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -17,7 +14,7 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::broker::Broker;
+use crate::{broker::Broker, storage::arrow_ipc::read_arrow};
 pub mod broker;
 pub mod storage;
 pub mod subscription;
@@ -112,6 +109,13 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let mut broker = broker.write().await;
 
+                        if let Err(err) = broker.create_partition(&stream_name, &partition_key) {
+                            tracing::error!(
+                                "Failed to create partition inside of broker: {:#?}",
+                                err
+                            );
+                        };
+
                         let (schema, _tx, _rx) = broker
                             .get_stream(&stream_name)
                             .expect("Could not find stream for stream_name.");
@@ -145,19 +149,70 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Takerecordsrequest => {
                         let mut result = BytesMut::new();
 
-                        let resp = TakeRecordsResponse{
-                            records: vec![]
-                        };
+                        let TakeRecordsRequest {
+                            n,
+                            stream_name,
+                            subscription_id,
+                        } = message.take_records_request.unwrap();
 
-                        Message {
-                            r#type: Type::Takerecordsresponse as i32,
-                            take_records_response: Some(resp),
-                            ..Default::default()
+                        let mut broker = broker.write().await;
+
+                        let offsets = broker
+                            .take_from_subscription(&stream_name, &subscription_id, n)
+                            .unwrap();
+
+                        tracing::info!("We've received offsets: {:#?}", offsets);
+
+                        for (partition, offset) in offsets {
+                            let mut consumption = broker
+                                .consume(&stream_name, &partition, offset, 50_000)
+                                .await;
+
+                            while let Some(val) = consumption.recv().await {
+                                let resp = TakeRecordsResponse {
+                                    records: val
+                                        .batches
+                                        .iter()
+                                        .map(|batch| {
+                                            let stream_reader = read_arrow(&batch.data);
+
+                                            let batches = stream_reader
+                                                .filter_map(|val| val.ok())
+                                                .collect::<Vec<_>>();
+
+                                            let batch_refs = batches.iter().collect::<Vec<_>>();
+
+                                            // Infer the batches
+                                            let buf = Vec::new();
+                                            let mut writer =
+                                                arrow_json::LineDelimitedWriter::new(buf);
+                                            writer.write_batches(&batch_refs).unwrap();
+                                            writer.finish().unwrap();
+
+                                            // Get the underlying buffer back,
+                                            let buf = writer.into_inner();
+
+                                            Record {
+                                                data: buf,
+                                                stream: batch.topic.as_bytes().to_vec(),
+                                                offset: batch.offset,
+                                                partition: batch.partition.clone(),
+                                            }
+                                        })
+                                        .collect::<Vec<_>>(),
+                                };
+
+                                Message {
+                                    r#type: Type::Takerecordsresponse as i32,
+                                    take_records_response: Some(resp),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                socket.write_all(&result).await.unwrap();
+                            }
                         }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        socket.write_all(&result).await.unwrap();
                     }
                     Type::Takerecordsresponse => {
                         // we don't handle this.

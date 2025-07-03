@@ -206,11 +206,13 @@ impl Subscription {
             }
         };
 
-        subscription_metadata.max_offset = offset;
+        if subscription_metadata.max_offset < offset {
+            subscription_metadata.max_offset = offset;
 
-        let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
+            let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
 
-        self.db.put(key, serialized)?;
+            self.db.put(key, serialized)?;
+        }
 
         Ok(())
     }

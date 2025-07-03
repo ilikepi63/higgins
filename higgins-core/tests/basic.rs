@@ -25,7 +25,7 @@ async fn can_achieve_basic_broker_functionality() {
     )
     .unwrap();
 
-    println!("Running on port: {port}");
+    tracing::info!("Running on port: {port}");
 
     let mut read_buf = BytesMut::zeroed(20);
     let mut write_buf = BytesMut::new();
@@ -200,10 +200,11 @@ async fn can_achieve_basic_broker_functionality() {
     let take_request = TakeRecordsRequest {
         n: 1,
         subscription_id: sub_id,
+        stream_name: "update_customer".as_bytes().to_vec(),
     };
 
     let mut write_buf = BytesMut::new();
-    let mut read_buf = BytesMut::zeroed(1024);
+    let mut read_buf = BytesMut::zeroed(8048);
 
     Message {
         r#type: Type::Takerecordsrequest as i32,
@@ -228,8 +229,17 @@ async fn can_achieve_basic_broker_functionality() {
 
     match Type::try_from(message.r#type).unwrap() {
         Type::Takerecordsresponse => {
+            tracing::info!("Receieved a take records response!");
 
-            println!("Receieved a take records response!");
+            let take_records_response = message.take_records_response.unwrap();
+
+            tracing::info!("Records_Response: {:#?}", take_records_response);
+
+            for record in take_records_response.records.iter() {
+
+                tracing::info!("{}", String::from_utf8(record.data.clone()).unwrap());
+
+            }
 
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
