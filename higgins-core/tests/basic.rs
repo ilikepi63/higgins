@@ -200,6 +200,7 @@ async fn can_achieve_basic_broker_functionality() {
     let take_request = TakeRecordsRequest {
         n: 1,
         subscription_id: sub_id,
+        stream_name: "update_customer".as_bytes().to_vec(),
     };
 
     let mut write_buf = BytesMut::new();
@@ -228,9 +229,7 @@ async fn can_achieve_basic_broker_functionality() {
 
     match Type::try_from(message.r#type).unwrap() {
         Type::Takerecordsresponse => {
-
             println!("Receieved a take records response!");
-
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     }

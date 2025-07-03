@@ -170,8 +170,6 @@ impl Broker {
 
         let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
 
-        // self.produce_request_tx.send(request).await.unwrap();
-
         let mut buffer_lock = self.collection.write().await;
 
         let _ = buffer_lock.0.collect(request.inner().clone());
@@ -185,26 +183,19 @@ impl Broker {
 
         drop(buffer_lock);
 
-        let message = response.recv().await.unwrap();
+        let ProduceResponse { request_id, errors } = response.recv().await.unwrap();
 
         // TODO: fix this to actually return the error?
-        if !message.errors.is_empty() {
-            tracing::error!("Error when attempting to write out to producer.");
+        if !errors.is_empty() {
+            tracing::error!("Error when attempting to write out to producer. Request: {request_id}");
             return;
         }
-
-        let (_stream_id, (_, tx, _rx)) = self
-            .streams
-            .iter()
-            .find(|(id, _)| *id == topic_name)
-            .unwrap();
-
-        tx.send(record_batch).unwrap(); // This should change to a standard notification.
+    
     }
 
     pub async fn consume(
         &self,
-        topic: &str,
+        topic: &[u8],
         _partition: &[u8],
         offset: u64,
         max_partition_fetch_bytes: u32,
@@ -214,7 +205,7 @@ impl Broker {
 
         riskless::consume(
             ConsumeRequest {
-                topic: topic.to_string(),
+                topic: String::from_utf8_lossy(topic).to_string(),
                 partition: vec![],
                 offset,
                 max_partition_fetch_bytes,
@@ -317,7 +308,9 @@ impl Broker {
         uuid.as_bytes().to_vec()
     }
 
-    pub fn take_from_subcription(
+    /// A function to extract the current subscription indexes from the
+    /// given subscription.
+    pub fn take_from_subscription(
         &mut self,
         stream: &[u8],
         subscription: &[u8],
@@ -337,8 +330,6 @@ impl Broker {
             ))?;
 
         let offsets = subscription.take(count)?;
-
-        // TODO: Swap out offsets for payloads here?
 
         Ok(offsets)
     }

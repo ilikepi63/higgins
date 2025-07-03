@@ -1,14 +1,11 @@
-use std::{
-    io::{Cursor, Read},
-    sync::Arc,
-};
+use std::{io::Cursor, sync::Arc};
 
 use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse,
-    TakeRecordsResponse, message::Type,
+    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, Record,
+    TakeRecordsRequest, TakeRecordsResponse, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -113,7 +110,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let mut broker = broker.write().await;
 
                         if let Err(err) = broker.create_partition(&stream_name, &partition_key) {
-                            tracing::error!("Failed to create partition inside of broker: {:#?}", err);
+                            tracing::error!(
+                                "Failed to create partition inside of broker: {:#?}",
+                                err
+                            );
                         };
 
                         let (schema, _tx, _rx) = broker
@@ -149,17 +149,50 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Takerecordsrequest => {
                         let mut result = BytesMut::new();
 
-                        let resp = TakeRecordsResponse { records: vec![] };
+                        let TakeRecordsRequest {
+                            n,
+                            stream_name,
+                            subscription_id,
+                        } = message.take_records_request.unwrap();
 
-                        Message {
-                            r#type: Type::Takerecordsresponse as i32,
-                            take_records_response: Some(resp),
-                            ..Default::default()
+                        let mut broker = broker.write().await;
+
+                        let offsets = broker
+                            .take_from_subscription(&stream_name, &subscription_id, n)
+                            .unwrap();
+
+                        tracing::info!("We've received offsets: {:#?}", offsets);
+
+                        for (partition, offset) in offsets {
+                            let mut consumption = broker
+                                .consume(&stream_name, &partition, offset, 50_000)
+                                .await;
+
+                            while let Some(val) = consumption.recv().await {
+                                let resp = TakeRecordsResponse {
+                                    records: val
+                                        .batches
+                                        .iter()
+                                        .map(|batch| Record {
+                                            data: batch.data.to_vec(),
+                                            stream: batch.topic.as_bytes().to_vec(),
+                                            offset: batch.offset,
+                                            partition: batch.partition.clone(),
+                                        })
+                                        .collect::<Vec<_>>(),
+                                };
+
+                                Message {
+                                    r#type: Type::Takerecordsresponse as i32,
+                                    take_records_response: Some(resp),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                socket.write_all(&result).await.unwrap();
+                            }
                         }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        socket.write_all(&result).await.unwrap();
                     }
                     Type::Takerecordsresponse => {
                         // we don't handle this.
