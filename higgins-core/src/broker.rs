@@ -117,11 +117,7 @@ impl Broker {
                                     .find(|r| r.inner().request_id == response.request_id)
                                     .unwrap();
 
-                                res.respond(ProduceResponse {
-                                    request_id: response.request_id,
-                                    errors: response.errors,
-                                })
-                                .unwrap();
+                                res.respond(response).unwrap();
                             }
                         }
                         Err(err) => {
@@ -155,16 +151,16 @@ impl Broker {
     /// Produce a data set onto the named stream.
     pub async fn produce(
         &mut self,
-        topic_name: &[u8],
-        _partition: &[u8],
+        stream_name: &[u8],
+        partition: &[u8],
         record_batch: RecordBatch,
-    ) {
+    ) -> Result<ProduceResponse, HigginsError> {
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
             request_id: 1,
-            topic: String::from_utf8(topic_name.to_vec()).unwrap(),
-            partition: vec![],
+            topic: String::from_utf8(stream_name.to_vec()).unwrap(),
+            partition: partition.to_vec(),
             data,
         };
 
@@ -183,14 +179,34 @@ impl Broker {
 
         drop(buffer_lock);
 
-        let ProduceResponse { request_id, errors } = response.recv().await.unwrap();
+        let response = response.recv().await.unwrap();
 
         // TODO: fix this to actually return the error?
-        if !errors.is_empty() {
-            tracing::error!("Error when attempting to write out to producer. Request: {request_id}");
-            return;
+        if !response.errors.is_empty() {
+            tracing::error!(
+                "Error when attempting to write out to producer. Request: {}",
+                response.request_id
+            );
+        } else {
+            // Watermark the subscription.
+            let subscription = self.subscriptions.get(stream_name);
+            if let Some(subscriptions) = subscription {
+                for (subscription_id, subscription) in subscriptions {
+                    subscription.set_max_offset(partition, response.batch.offset)?;
+
+                    tracing::info!(
+                        "Updated Max offset for subscription: {}, watermark: {}",
+                        subscription_id
+                            .iter()
+                            .map(u8::to_string)
+                            .collect::<String>(),
+                        response.batch.offset
+                    );
+                }
+            }
         }
-    
+
+        Ok(response)
     }
 
     pub async fn consume(
