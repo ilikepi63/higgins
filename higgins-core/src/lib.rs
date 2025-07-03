@@ -112,6 +112,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let mut broker = broker.write().await;
 
+                        if let Err(err) = broker.create_partition(&stream_name, &partition_key) {
+                            tracing::error!("Failed to create partition inside of broker: {:#?}", err);
+                        };
+
                         let (schema, _tx, _rx) = broker
                             .get_stream(&stream_name)
                             .expect("Could not find stream for stream_name.");
@@ -145,9 +149,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Takerecordsrequest => {
                         let mut result = BytesMut::new();
 
-                        let resp = TakeRecordsResponse{
-                            records: vec![]
-                        };
+                        let resp = TakeRecordsResponse { records: vec![] };
 
                         Message {
                             r#type: Type::Takerecordsresponse as i32,
