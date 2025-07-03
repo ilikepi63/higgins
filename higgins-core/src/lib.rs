@@ -6,8 +6,8 @@ use std::{
 use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateConfigurationResponse, Message, Pong, ProduceRequest,
-    ProduceResponse, message::Type,
+    CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
+    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -67,8 +67,35 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Createsubscriptionrequest => {
 
+                        tracing::trace!("Received CreateSubscriptionRequest: {:#?}", message.create_subscription_request);
 
+                        let CreateSubscriptionRequest {
+                            stream_name,..
+                            // offset_type,
+                            // timestamp,
+                            // offset,
+                        } = message.create_subscription_request.unwrap();
 
+                        let mut broker = broker.write().await;
+
+                        let subscription_id = broker.create_subscription(&stream_name);
+
+                        let resp = CreateSubscriptionResponse {
+                            errors: vec![],
+                            subscription_id: Some(subscription_id),
+                        };
+
+                        let mut result = BytesMut::new();
+
+                        Message {
+                            r#type: Type::Createsubscriptionresponse as i32,
+                            create_subscription_response: Some(resp),
+                            ..Default::default()
+                        }
+                        .encode(&mut result)
+                        .unwrap();
+
+                        socket.write_all(&result).await.unwrap();
                     }
                     Type::Createsubscriptionresponse => {
                         // We don't handle this.
@@ -89,8 +116,6 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let cursor = Cursor::new(payload);
                         let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                         let batch = reader.next().unwrap().unwrap();
-
-                        println!("You are producing! {:#?}", batch);
 
                         let _ = broker
                             .produce(topic.as_bytes(), &partition_key, batch)
@@ -150,9 +175,8 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 socket.write_all(&result).await.unwrap();
                                 socket.flush().await.unwrap();
                             } else {
-                                let create_configuration_response = CreateConfigurationResponse {
-                                    errors: vec![],
-                                };
+                                let create_configuration_response =
+                                    CreateConfigurationResponse { errors: vec![] };
 
                                 let mut result = BytesMut::new();
 
