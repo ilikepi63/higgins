@@ -102,7 +102,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Producerequest => {
                         let ProduceRequest {
-                            topic,
+                            stream_name,
                             partition_key,
                             payload,
                         } = message.produce_request.unwrap();
@@ -110,7 +110,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let mut broker = broker.write().await;
 
                         let (schema, _tx, _rx) = broker
-                            .get_stream(topic.as_bytes())
+                            .get_stream(&stream_name)
                             .expect("Could not find stream for stream_name.");
 
                         let cursor = Cursor::new(payload);
@@ -118,7 +118,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let batch = reader.next().unwrap().unwrap();
 
                         let _ = broker
-                            .produce(topic.as_bytes(), &partition_key, batch)
+                            .produce(&stream_name, &partition_key, batch)
                             .await;
 
                         drop(broker);
