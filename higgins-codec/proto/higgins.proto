@@ -21,7 +21,10 @@ message CreateSubscriptionResponse {
   optional bytes subscription_id = 2;
 }
 
-message TakeRecordsRequest { int32 n = 1; }
+message TakeRecordsRequest {
+  int32 n = 1;
+  bytes subscription_id = 2;
+}
 
 message Record { bytes data = 1; }
 
