@@ -17,7 +17,7 @@ tracing-subscriber = "0.3.19"
 uuid = { version = "1.16.0", features = ["v4"] }
 
 # Higgins 
-higgins-codec = {path = "../higgins-codec"}
+higgins-codec = { path = "../higgins-codec" }
 prost = "0.13.5"
 thiserror = "2.0.12"
 rocksdb = "0.23.0"
@@ -28,3 +28,4 @@ rkyv = "0.8.10"
 get-port = "4.0.0"
 tempfile = "3.10"
 tracing-test = "0.2.5"
+loom = { version = "0.7.2", features = ["futures"] }
