@@ -28,4 +28,4 @@ rkyv = "0.8.10"
 get-port = "4.0.0"
 tempfile = "3.10"
 tracing-test = "0.2.5"
-loom = "0.7.2"
+loom = { version = "0.7.2", features = ["futures"] }
