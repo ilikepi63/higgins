@@ -13,7 +13,7 @@ use std::net::TcpStream;
 
 use tracing_test::traced_test;
 
-use crate::common::{consume, create_subscription, produce};
+use crate::common::{consume, subscription::create_subscription, produce};
 
 mod common;
 
