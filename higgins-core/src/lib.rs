@@ -42,6 +42,8 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                 let message = Message::decode(slice).unwrap();
 
+                tracing::info!("Received a message, responding.");
+
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {
                         tracing::info!("Received Ping, sending Pong.");
