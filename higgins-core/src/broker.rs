@@ -40,7 +40,7 @@ pub struct Broker {
     flush_tx: tokio::sync::mpsc::Sender<()>,
 
     // Subscriptions.
-    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Subscription>>,
+    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Arc<RwLock<Subscription>>>>,
 
     // Topography.
     topography: Topography,
@@ -190,8 +190,11 @@ impl Broker {
         } else {
             // Watermark the subscription.
             let subscription = self.subscriptions.get(stream_name);
+
             if let Some(subscriptions) = subscription {
                 for (subscription_id, subscription) in subscriptions {
+                    let subscription = subscription.write().await;
+
                     subscription.set_max_offset(partition, response.batch.offset)?;
 
                     tracing::info!(
@@ -275,13 +278,14 @@ impl Broker {
     /// partition key if there doesn't exist one yet.
     ///
     /// TODO: This needs to be fault-tolerant.
-    pub fn create_partition(
+    pub async fn create_partition(
         &mut self,
         stream_name: &[u8],
         partition_key: &[u8],
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
             for (_id, sub) in subs {
+                let sub = sub.write().await;
                 sub.add_partition(partition_key, None, None)?;
             }
         }
@@ -311,13 +315,17 @@ impl Broker {
         match self.subscriptions.entry(stream.to_vec()) {
             std::collections::btree_map::Entry::Vacant(vacant_entry) => {
                 let mut map = BTreeMap::new();
-                map.insert(uuid.as_bytes().to_vec(), subscription);
+                map.insert(
+                    uuid.as_bytes().to_vec(),
+                    Arc::new(RwLock::new(subscription)),
+                );
                 vacant_entry.insert(map);
             }
             std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
-                occupied_entry
-                    .get_mut()
-                    .insert(uuid.as_bytes().to_vec(), subscription);
+                occupied_entry.get_mut().insert(
+                    uuid.as_bytes().to_vec(),
+                    Arc::new(RwLock::new(subscription)),
+                );
             }
         }
 
@@ -326,7 +334,7 @@ impl Broker {
 
     /// A function to extract the current subscription indexes from the
     /// given subscription.
-    pub fn take_from_subscription(
+    pub async fn take_from_subscription(
         &mut self,
         stream: &[u8],
         subscription: &[u8],
@@ -344,6 +352,8 @@ impl Broker {
                     .map(|v| v.to_string())
                     .collect::<String>(),
             ))?;
+
+        let mut subscription = subscription.write().await;
 
         let offsets = subscription.take(count)?;
 
