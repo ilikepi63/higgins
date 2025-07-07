@@ -1,5 +1,6 @@
 use std::{
     io::{Read, Write},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -41,6 +42,8 @@ fn can_update_subscription_after_created() {
 
     let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
+    socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/basic_config.yaml").unwrap();
 
@@ -53,6 +56,8 @@ fn can_update_subscription_after_created() {
     // Split the socket.
     let mut socket_writer = socket.try_clone().unwrap();
     let mut socket_reader = socket;
+
+    let result_vec = Arc::new(Mutex::new(vec![]));
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
@@ -75,28 +80,27 @@ fn can_update_subscription_after_created() {
 
         let _result = socket_reader.write_all(&write_buf).unwrap();
 
-        // Loop here.
-        let n = socket_reader.read(&mut read_buf).unwrap();
+        loop {
+            let n = socket_reader.read(&mut read_buf).unwrap();
 
-        assert_ne!(n, 0);
+            assert_ne!(n, 0);
 
-        let slice = &read_buf[0..n];
+            let slice = &read_buf[0..n];
 
-        let message = Message::decode(slice).unwrap();
+            let message = Message::decode(slice).unwrap();
 
-        match Type::try_from(message.r#type).unwrap() {
-            Type::Takerecordsresponse => {
-                tracing::info!("Receieved a take records response!");
+            match Type::try_from(message.r#type).unwrap() {
+                Type::Takerecordsresponse => {
+                    let take_records_response = message.take_records_response.unwrap();
 
-                let take_records_response = message.take_records_response.unwrap();
+                    let mut result_vec = result_vec.lock().unwrap();
 
-                tracing::info!("Records_Response: {:#?}", take_records_response);
-
-                for record in take_records_response.records.iter() {
-                    tracing::info!("{}", String::from_utf8(record.data.clone()).unwrap());
+                    for record in take_records_response.records.iter() {
+                        result_vec.push(String::from_utf8(record.data.clone()).unwrap());
+                    }
                 }
+                _ => {}
             }
-            _ => panic!("Received incorrect response from server for Create Subscription request."),
         }
     });
 
