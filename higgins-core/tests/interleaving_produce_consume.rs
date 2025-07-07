@@ -34,13 +34,17 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     let mut read_buf = BytesMut::zeroed(20);
     let mut write_buf = BytesMut::new();
 
-    let handle = tokio::spawn(async move {
-        let _ = run_server(port).await;
+    let _handle = std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(run_server(port));
     });
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+
+    // socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
 
     // 1. Do a basic Ping test.
     let ping = Ping::default();
@@ -55,7 +59,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 
@@ -111,6 +115,8 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     loom::model(move || {
         let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
+        socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+
         let socket = loom::sync::Arc::new(loom::sync::Mutex::new(socket));
         let result_collection = loom::sync::Arc::new(loom::sync::Mutex::new(vec![]));
 
@@ -119,7 +125,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
         let produce_handles = (0..message_count).map(|_| {
             let payload = payload.clone();
-            let socket = socket.clone(); // arc clone. 
+            let socket = socket.clone(); // arc clone.
 
             let handle = loom::thread::spawn(move || {
                 loom::future::block_on(async {
@@ -129,7 +135,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
                         "update_customer".as_bytes(),
                         "test_partition".as_bytes(),
                         payload.as_bytes(),
-                        &mut socket,
+                        &mut *socket,
                     )
                 });
             });
@@ -138,7 +144,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
         });
 
         let consume_handles = (0..message_count).map(|_| {
-            let socket = socket.clone(); // arc clone. 
+            let socket = socket.clone(); // arc clone.
             let sub_id = sub_id.clone();
             let result_collection = result_collection.clone();
 
@@ -147,7 +153,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
                     let mut socket = socket.lock().unwrap();
 
                     // Consume from the stream.
-                    let response = consume(sub_id, &mut socket).unwrap();
+                    let response = consume(sub_id, &mut *socket).unwrap();
 
                     let mut collection_lock = result_collection.lock().unwrap();
 
@@ -166,6 +172,5 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
         let received_values = result_collection.lock().unwrap();
         assert_eq!(message_count, received_values.len());
 
-        handle.abort();
     });
 }
