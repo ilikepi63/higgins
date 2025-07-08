@@ -1,18 +1,24 @@
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
-
 use arrow::{array::RecordBatch, datatypes::Schema};
+use bytes::BytesMut;
+use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
+use prost::Message as _;
 use riskless::{
     messages::{
         ConsumeRequest, ConsumeResponse, ProduceRequest, ProduceRequestCollection, ProduceResponse,
     },
     object_store::{self, ObjectStore},
 };
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
+    client::{ClientCollection, ClientRef},
     error::HigginsError,
-    storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
+    storage::{
+        arrow_ipc::{read_arrow, write_arrow},
+        indexes::IndexDirectory,
+    },
     subscription::Subscription,
     topography::{Topography, apply_configuration_to_topography, config::from_yaml},
     utils::request_response::Request,
@@ -41,6 +47,9 @@ pub struct Broker {
 
     // Subscriptions.
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
+
+    // Clients
+    pub clients: ClientCollection,
 
     // Topography.
     topography: Topography,
@@ -141,6 +150,7 @@ impl Broker {
             flush_tx,
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
+            clients: ClientCollection::empty(),
         }
     }
 
@@ -328,73 +338,6 @@ impl Broker {
             }
         }
 
-        // The runner for this subscription.
-        tokio::task::spawn(async move {
-            // task_notify;
-            // task_subscription;
-
-            // TODO HERE:
-
-            let mut lock = task_subscription.write().await;
-
-            let n = lock.amount_to_take.clone();
-
-            if let Ok(offsets) = lock.take(n) {
-
-                // Get payloads from offsets.
-                // for (partition, offset) in offsets {
-                //     let mut consumption = broker
-                //         .consume(&stream_name, &partition, offset, 50_000)
-                //         .await;
-
-                //     while let Some(val) = consumption.recv().await {
-                //         let resp = TakeRecordsResponse {
-                //             records: val
-                //                 .batches
-                //                 .iter()
-                //                 .map(|batch| {
-                //                     let stream_reader = read_arrow(&batch.data);
-
-                //                     let batches = stream_reader
-                //                         .filter_map(|val| val.ok())
-                //                         .collect::<Vec<_>>();
-
-                //                     let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                //                     // Infer the batches
-                //                     let buf = Vec::new();
-                //                     let mut writer =
-                //                         arrow_json::LineDelimitedWriter::new(buf);
-                //                     writer.write_batches(&batch_refs).unwrap();
-                //                     writer.finish().unwrap();
-
-                //                     // Get the underlying buffer back,
-                //                     let buf = writer.into_inner();
-
-                //                     Record {
-                //                         data: buf,
-                //                         stream: batch.topic.as_bytes().to_vec(),
-                //                         offset: batch.offset,
-                //                         partition: batch.partition.clone(),
-                //                     }
-                //                 })
-                //                 .collect::<Vec<_>>(),
-                //         };
-
-                //         Message {
-                //             r#type: Type::Takerecordsresponse as i32,
-                //             take_records_response: Some(resp),
-                //             ..Default::default()
-                //         }
-                //         .encode(&mut result)
-                //         .unwrap();
-
-                //         socket.write_all(&result).await.unwrap();
-                //     }
-                // }
-            };
-        });
-
         uuid.as_bytes().to_vec()
     }
 
@@ -402,6 +345,7 @@ impl Broker {
     /// given subscription.
     pub async fn take_from_subscription(
         &mut self,
+        client_id: u64,
         stream: &[u8],
         subscription: &[u8],
         count: u64,
@@ -419,9 +363,90 @@ impl Broker {
                     .collect::<String>(),
             ))?;
 
+        let task_subscription = subscription.clone();
+        let task_client_id = client_id;
+
         let mut subscription = subscription.write().await;
 
-        subscription.increment_amount_to_take(count);
+        // Client ID does not exist on this subscription, therefore we create it.
+        if let Err(err) = subscription
+            .client_counts
+            .binary_search_by(|(id, _)| client_id.cmp(id))
+        {
+            // The runner for this subscription.
+            tokio::task::spawn(async move {
+                loop {
+                    // await the condvar.
+
+                    let mut lock = task_subscription.write().await;
+
+                    let n = match lock.client_counts     .binary_search_by(|(id, _)| client_id.cmp(id)).map(|index| lock.client_counts.get(index)).ok().flatten() {
+                        Some(c) => c.1,
+                        None => continue
+                    };
+
+                    if let Ok(offsets) = lock.take(n) {
+                        //Get payloads from offsets.
+                        for (partition, offset) in offsets {
+
+                            // What to do here?
+                            // let mut consumption = broker
+                            //     .consume(&stream_name, &partition, offset, 50_000)
+                            //     .await;
+
+                            while let Some(val) = consumption.recv().await {
+                                let resp = TakeRecordsResponse {
+                                    records: val
+                                        .batches
+                                        .iter()
+                                        .map(|batch| {
+                                            let stream_reader = read_arrow(&batch.data);
+
+                                            let batches = stream_reader
+                                                .filter_map(|val| val.ok())
+                                                .collect::<Vec<_>>();
+
+                                            let batch_refs = batches.iter().collect::<Vec<_>>();
+
+                                            // Infer the batches
+                                            let buf = Vec::new();
+                                            let mut writer =
+                                                arrow_json::LineDelimitedWriter::new(buf);
+                                            writer.write_batches(&batch_refs).unwrap();
+                                            writer.finish().unwrap();
+
+                                            // Get the underlying buffer back,
+                                            let buf = writer.into_inner();
+
+                                            Record {
+                                                data: buf,
+                                                stream: batch.topic.as_bytes().to_vec(),
+                                                offset: batch.offset,
+                                                partition: batch.partition.clone(),
+                                            }
+                                        })
+                                        .collect::<Vec<_>>(),
+                                };
+
+                                let result = BytesMut::new();
+
+                                Message {
+                                    r#type: Type::Takerecordsresponse as i32,
+                                    take_records_response: Some(resp),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                // socket.write_all(&result).await.unwrap();
+                            }
+                        }
+                    };
+                }
+            });
+        }
+
+        subscription.increment_amount_to_take(client_id, count);
 
         notify.notify_waiters();
 
