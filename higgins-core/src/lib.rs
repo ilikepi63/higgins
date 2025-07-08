@@ -111,7 +111,9 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let mut broker = broker.write().await;
 
-                        if let Err(err) = broker.create_partition(&stream_name, &partition_key) {
+                        if let Err(err) =
+                            broker.create_partition(&stream_name, &partition_key).await
+                        {
                             tracing::error!(
                                 "Failed to create partition inside of broker: {:#?}",
                                 err
@@ -159,62 +161,10 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let mut broker = broker.write().await;
 
-                        let offsets = broker
+                        let _ = broker
                             .take_from_subscription(&stream_name, &subscription_id, n)
+                            .await
                             .unwrap();
-
-                        tracing::info!("We've received offsets: {:#?}", offsets);
-
-                        for (partition, offset) in offsets {
-                            let mut consumption = broker
-                                .consume(&stream_name, &partition, offset, 50_000)
-                                .await;
-
-                            while let Some(val) = consumption.recv().await {
-                                let resp = TakeRecordsResponse {
-                                    records: val
-                                        .batches
-                                        .iter()
-                                        .map(|batch| {
-                                            let stream_reader = read_arrow(&batch.data);
-
-                                            let batches = stream_reader
-                                                .filter_map(|val| val.ok())
-                                                .collect::<Vec<_>>();
-
-                                            let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                                            // Infer the batches
-                                            let buf = Vec::new();
-                                            let mut writer =
-                                                arrow_json::LineDelimitedWriter::new(buf);
-                                            writer.write_batches(&batch_refs).unwrap();
-                                            writer.finish().unwrap();
-
-                                            // Get the underlying buffer back,
-                                            let buf = writer.into_inner();
-
-                                            Record {
-                                                data: buf,
-                                                stream: batch.topic.as_bytes().to_vec(),
-                                                offset: batch.offset,
-                                                partition: batch.partition.clone(),
-                                            }
-                                        })
-                                        .collect::<Vec<_>>(),
-                                };
-
-                                Message {
-                                    r#type: Type::Takerecordsresponse as i32,
-                                    take_records_response: Some(resp),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                socket.write_all(&result).await.unwrap();
-                            }
-                        }
                     }
                     Type::Takerecordsresponse => {
                         // we don't handle this.
