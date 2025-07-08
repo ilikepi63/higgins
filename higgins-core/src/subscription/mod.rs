@@ -7,10 +7,13 @@ pub mod error;
 
 use rkyv::{Archive, Deserialize, Serialize};
 use rocksdb::TransactionDB;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
-use crate::subscription::error::SubscriptionError;
+use crate::{
+    client::{self, ClientRef},
+    subscription::error::SubscriptionError,
+};
 
 #[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 #[rkyv(
@@ -39,16 +42,15 @@ struct SubscriptionMetadata {
 pub struct Subscription {
     db: TransactionDB,
     last_index: u64,
-    pub amount_to_take: u64,
 
     condvar: Notify,
+    client_counts: Vec<(u64, AtomicU64)>,
 }
 
 impl std::fmt::Debug for Subscription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Subscription")
             .field("last_index", &self.last_index)
-            .field("amount_to_take", &self.amount_to_take)
             .finish()
     }
 }
@@ -66,8 +68,8 @@ impl Subscription {
         Self {
             db,
             last_index: 0,
-            amount_to_take: 0,
             condvar: Notify::new(),
+            client_counts: vec![],
         }
     }
 
@@ -156,11 +158,32 @@ impl Subscription {
 
     /// Takes the next few offsets of a set of partitions
     /// TODO: implement round-robining for this.
-    pub fn take(&mut self, count: u64) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
+    pub fn take(
+        &mut self,
+        client_id: u64,
+        count: u64,
+    ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
         let _last_iterated_index = self.last_index;
         let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
-        let mut count = count + self.amount_to_take;
+        let count: &mut AtomicU64 = if let Some((_, count)) = self
+            .client_counts
+            .iter_mut()
+            .find(|(id, _)| *id == client_id)
+        {
+            count
+        } else {
+            let client_count = (client_id, AtomicU64::new(0));
+            self.client_counts.push(client_count);
+
+            &mut self
+                .client_counts
+                .iter_mut()
+                .rev()
+                .find(|(id, _)| *id == client_id)
+                .unwrap()
+                .1
+        };
 
         println!("Count: {:#?}", count);
 
@@ -170,22 +193,25 @@ impl Subscription {
             let metadata = deserialize_subscription_metadata_or_else(&item)?;
 
             let mut extracted_offsets =
-                extract_unacknowledged_keys_from_subscription_metadata(count, &metadata)
+                extract_unacknowledged_keys_from_subscription_metadata(*count.get_mut(), &metadata)
                     .iter()
                     .map(|offset| (key.to_vec(), offset.clone()))
                     .collect::<Vec<(Key, Offset)>>();
 
-            count -= TryInto::<u64>::try_into(extracted_offsets.len())?;
+            count.fetch_sub(
+                TryInto::<u64>::try_into(extracted_offsets.len())?,
+                std::sync::atomic::Ordering::AcqRel,
+            );
 
             result_vec.append(&mut extracted_offsets);
 
-            if count < 1 {
+            if *count.get_mut() < 1 {
                 break;
             }
         }
 
-        // We remove the taken count from the amount to take.
-        self.amount_to_take += TryInto::<u64>::try_into(result_vec.len()).unwrap();
+        // // We remove the taken count from the amount to take.
+        // self.amount_to_take += TryInto::<u64>::try_into(result_vec.len()).unwrap();
 
         Ok(result_vec)
     }
@@ -224,8 +250,13 @@ impl Subscription {
         Ok(())
     }
 
-    pub fn increment_amount_to_take(&mut self, n: u64) {
-        self.amount_to_take += n;
+    pub fn increment_amount_to_take(&mut self, client_id: u64, n: u64) {
+        self.client_counts
+            .iter_mut()
+            .find(|(c, _)| *c == client_id)
+            .map(|count| {
+                count.1.fetch_add(n, std::sync::atomic::Ordering::AcqRel);
+            });
     }
 }
 
@@ -423,7 +454,7 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
         // Take 5 offsets
-        let offsets = sub.take(5).expect("Failed to take offsets");
+        let offsets = sub.take(1, 5).expect("Failed to take offsets");
         assert_eq!(offsets.len(), 5);
         assert_eq!(
             offsets,
@@ -446,7 +477,7 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(0)).is_ok());
 
         // Try to take offsets
-        let offsets = sub.take(5).expect("Failed to take offsets");
+        let offsets = sub.take(1, 5).expect("Failed to take offsets");
         assert!(offsets.is_empty(), "No offsets should be available");
     }
 
@@ -497,7 +528,7 @@ mod tests {
         assert!(sub.acknowledge(&key, 4).is_ok());
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
-        let offsets = sub.take(3).expect("Failed to take offsets");
+        let offsets = sub.take(1, 3).expect("Failed to take offsets");
         assert_eq!(offsets.len(), 3);
         assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1), (key, 3)]);
     }
@@ -513,7 +544,7 @@ mod tests {
         assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
 
         // Take 4 offsets (should distribute across partitions)
-        let offsets = sub.take(4).expect("Failed to take offsets");
+        let offsets = sub.take(1, 4).expect("Failed to take offsets");
         println!("{:?}", offsets);
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary

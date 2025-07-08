@@ -11,6 +11,7 @@ use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
+    client::{ClientCollection, ClientRef},
     error::HigginsError,
     storage::{arrow_ipc::write_arrow, indexes::IndexDirectory},
     subscription::Subscription,
@@ -41,6 +42,9 @@ pub struct Broker {
 
     // Subscriptions.
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
+
+    // Clients
+    pub clients: ClientCollection,
 
     // Topography.
     topography: Topography,
@@ -141,6 +145,7 @@ impl Broker {
             flush_tx,
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
+            clients: ClientCollection::empty(),
         }
     }
 
@@ -337,62 +342,62 @@ impl Broker {
 
             let mut lock = task_subscription.write().await;
 
-            let n = lock.amount_to_take.clone();
+            // let n = lock.amount_to_take.clone();
 
-            if let Ok(offsets) = lock.take(n) {
+            // if let Ok(offsets) = lock.take(n) {
 
-                // Get payloads from offsets.
-                // for (partition, offset) in offsets {
-                //     let mut consumption = broker
-                //         .consume(&stream_name, &partition, offset, 50_000)
-                //         .await;
+            // Get payloads from offsets.
+            // for (partition, offset) in offsets {
+            //     let mut consumption = broker
+            //         .consume(&stream_name, &partition, offset, 50_000)
+            //         .await;
 
-                //     while let Some(val) = consumption.recv().await {
-                //         let resp = TakeRecordsResponse {
-                //             records: val
-                //                 .batches
-                //                 .iter()
-                //                 .map(|batch| {
-                //                     let stream_reader = read_arrow(&batch.data);
+            //     while let Some(val) = consumption.recv().await {
+            //         let resp = TakeRecordsResponse {
+            //             records: val
+            //                 .batches
+            //                 .iter()
+            //                 .map(|batch| {
+            //                     let stream_reader = read_arrow(&batch.data);
 
-                //                     let batches = stream_reader
-                //                         .filter_map(|val| val.ok())
-                //                         .collect::<Vec<_>>();
+            //                     let batches = stream_reader
+            //                         .filter_map(|val| val.ok())
+            //                         .collect::<Vec<_>>();
 
-                //                     let batch_refs = batches.iter().collect::<Vec<_>>();
+            //                     let batch_refs = batches.iter().collect::<Vec<_>>();
 
-                //                     // Infer the batches
-                //                     let buf = Vec::new();
-                //                     let mut writer =
-                //                         arrow_json::LineDelimitedWriter::new(buf);
-                //                     writer.write_batches(&batch_refs).unwrap();
-                //                     writer.finish().unwrap();
+            //                     // Infer the batches
+            //                     let buf = Vec::new();
+            //                     let mut writer =
+            //                         arrow_json::LineDelimitedWriter::new(buf);
+            //                     writer.write_batches(&batch_refs).unwrap();
+            //                     writer.finish().unwrap();
 
-                //                     // Get the underlying buffer back,
-                //                     let buf = writer.into_inner();
+            //                     // Get the underlying buffer back,
+            //                     let buf = writer.into_inner();
 
-                //                     Record {
-                //                         data: buf,
-                //                         stream: batch.topic.as_bytes().to_vec(),
-                //                         offset: batch.offset,
-                //                         partition: batch.partition.clone(),
-                //                     }
-                //                 })
-                //                 .collect::<Vec<_>>(),
-                //         };
+            //                     Record {
+            //                         data: buf,
+            //                         stream: batch.topic.as_bytes().to_vec(),
+            //                         offset: batch.offset,
+            //                         partition: batch.partition.clone(),
+            //                     }
+            //                 })
+            //                 .collect::<Vec<_>>(),
+            //         };
 
-                //         Message {
-                //             r#type: Type::Takerecordsresponse as i32,
-                //             take_records_response: Some(resp),
-                //             ..Default::default()
-                //         }
-                //         .encode(&mut result)
-                //         .unwrap();
+            //         Message {
+            //             r#type: Type::Takerecordsresponse as i32,
+            //             take_records_response: Some(resp),
+            //             ..Default::default()
+            //         }
+            //         .encode(&mut result)
+            //         .unwrap();
 
-                //         socket.write_all(&result).await.unwrap();
-                //     }
-                // }
-            };
+            //         socket.write_all(&result).await.unwrap();
+            //     }
+            // }
+            // };
         });
 
         uuid.as_bytes().to_vec()
@@ -402,6 +407,7 @@ impl Broker {
     /// given subscription.
     pub async fn take_from_subscription(
         &mut self,
+        client_id: u64,
         stream: &[u8],
         subscription: &[u8],
         count: u64,
@@ -421,7 +427,7 @@ impl Broker {
 
         let mut subscription = subscription.write().await;
 
-        subscription.increment_amount_to_take(count);
+        subscription.increment_amount_to_take(client_id, count);
 
         notify.notify_waiters();
 

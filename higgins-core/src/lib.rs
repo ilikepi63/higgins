@@ -20,10 +20,22 @@ pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
+pub mod client;
 
 mod error;
 
 async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
+    
+    let mut socket = Arc::new(socket);
+
+    let client_id = {
+        let mut lock = broker.write().await;
+
+        let id = lock.clients.insert(client::ClientRef::AsyncTcp(socket.clone()));
+
+        id
+    };
+ 
     loop {
         let mut buffer = vec![0; 1024];
 
@@ -162,7 +174,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         let mut broker = broker.write().await;
 
                         let _ = broker
-                            .take_from_subscription(&stream_name, &subscription_id, n)
+                            .take_from_subscription(client_id, &stream_name, &subscription_id, n)
                             .await
                             .unwrap();
                     }
@@ -264,6 +276,7 @@ pub async fn run_server(port: u16) {
     loop {
         let (socket, addr) = listener.accept().await.unwrap();
         tracing::info!("Received connection from: {addr}");
+
         process_socket(socket, broker.clone()).await;
     }
 }
