@@ -7,8 +7,8 @@ pub mod error;
 
 use rkyv::{Archive, Deserialize, Serialize};
 use rocksdb::TransactionDB;
-use tokio::sync::Notify;
 use std::path::PathBuf;
+use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
 
@@ -39,9 +39,9 @@ struct SubscriptionMetadata {
 pub struct Subscription {
     db: TransactionDB,
     last_index: u64,
-    amount_to_take: u64,
+    pub amount_to_take: u64,
 
-    condvar: Notify
+    condvar: Notify,
 }
 
 impl std::fmt::Debug for Subscription {
@@ -58,7 +58,6 @@ type Key = Vec<u8>; // Probably not correct to do this..
 
 impl Subscription {
     pub fn new(path: &PathBuf) -> Self {
-
         // Init the RocksDB implementation.
         let db: TransactionDB = TransactionDB::open_default(path).unwrap();
 
@@ -68,7 +67,7 @@ impl Subscription {
             db,
             last_index: 0,
             amount_to_take: 0,
-            condvar: Notify::new()
+            condvar: Notify::new(),
         }
     }
 
@@ -223,6 +222,10 @@ impl Subscription {
         }
 
         Ok(())
+    }
+
+    pub fn increment_amount_to_take(&mut self, n: u64) {
+        self.amount_to_take += n;
     }
 }
 

@@ -7,7 +7,7 @@ use riskless::{
     },
     object_store::{self, ObjectStore},
 };
-use tokio::sync::RwLock;
+use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
@@ -40,7 +40,7 @@ pub struct Broker {
     flush_tx: tokio::sync::mpsc::Sender<()>,
 
     // Subscriptions.
-    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Arc<RwLock<Subscription>>>>,
+    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
 
     // Topography.
     topography: Topography,
@@ -192,7 +192,7 @@ impl Broker {
             let subscription = self.subscriptions.get(stream_name);
 
             if let Some(subscriptions) = subscription {
-                for (subscription_id, subscription) in subscriptions {
+                for (subscription_id, (_, subscription)) in subscriptions {
                     let subscription = subscription.write().await;
 
                     subscription.set_max_offset(partition, response.batch.offset)?;
@@ -284,7 +284,7 @@ impl Broker {
         partition_key: &[u8],
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
-            for (_id, sub) in subs {
+            for (_id, (_, sub)) in subs {
                 let sub = sub.write().await;
                 sub.add_partition(partition_key, None, None)?;
             }
@@ -306,7 +306,10 @@ impl Broker {
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Subscription::new(&path);
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+        let task_subscription = subscription.clone();
+        let notify = Arc::new(Notify::new());
+        let task_notify = notify.clone();
 
         // How do we get the list of partitions for a stream?
         // We need to also be able to update the subscriptions for every stream.
@@ -315,19 +318,82 @@ impl Broker {
         match self.subscriptions.entry(stream.to_vec()) {
             std::collections::btree_map::Entry::Vacant(vacant_entry) => {
                 let mut map = BTreeMap::new();
-                map.insert(
-                    uuid.as_bytes().to_vec(),
-                    Arc::new(RwLock::new(subscription)),
-                );
+                map.insert(uuid.as_bytes().to_vec(), (notify, subscription));
                 vacant_entry.insert(map);
             }
             std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
-                occupied_entry.get_mut().insert(
-                    uuid.as_bytes().to_vec(),
-                    Arc::new(RwLock::new(subscription)),
-                );
+                occupied_entry
+                    .get_mut()
+                    .insert(uuid.as_bytes().to_vec(), (notify, subscription));
             }
         }
+
+        // The runner for this subscription.
+        tokio::task::spawn(async move {
+            // task_notify;
+            // task_subscription;
+
+            // TODO HERE:
+
+            let mut lock = task_subscription.write().await;
+
+            let n = lock.amount_to_take.clone();
+
+            if let Ok(offsets) = lock.take(n) {
+
+                // Get payloads from offsets.
+                // for (partition, offset) in offsets {
+                //     let mut consumption = broker
+                //         .consume(&stream_name, &partition, offset, 50_000)
+                //         .await;
+
+                //     while let Some(val) = consumption.recv().await {
+                //         let resp = TakeRecordsResponse {
+                //             records: val
+                //                 .batches
+                //                 .iter()
+                //                 .map(|batch| {
+                //                     let stream_reader = read_arrow(&batch.data);
+
+                //                     let batches = stream_reader
+                //                         .filter_map(|val| val.ok())
+                //                         .collect::<Vec<_>>();
+
+                //                     let batch_refs = batches.iter().collect::<Vec<_>>();
+
+                //                     // Infer the batches
+                //                     let buf = Vec::new();
+                //                     let mut writer =
+                //                         arrow_json::LineDelimitedWriter::new(buf);
+                //                     writer.write_batches(&batch_refs).unwrap();
+                //                     writer.finish().unwrap();
+
+                //                     // Get the underlying buffer back,
+                //                     let buf = writer.into_inner();
+
+                //                     Record {
+                //                         data: buf,
+                //                         stream: batch.topic.as_bytes().to_vec(),
+                //                         offset: batch.offset,
+                //                         partition: batch.partition.clone(),
+                //                     }
+                //                 })
+                //                 .collect::<Vec<_>>(),
+                //         };
+
+                //         Message {
+                //             r#type: Type::Takerecordsresponse as i32,
+                //             take_records_response: Some(resp),
+                //             ..Default::default()
+                //         }
+                //         .encode(&mut result)
+                //         .unwrap();
+
+                //         socket.write_all(&result).await.unwrap();
+                //     }
+                // }
+            };
+        });
 
         uuid.as_bytes().to_vec()
     }
@@ -339,8 +405,8 @@ impl Broker {
         stream: &[u8],
         subscription: &[u8],
         count: u64,
-    ) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
-        let subscription = self
+    ) -> Result<(), HigginsError> {
+        let (notify, subscription) = self
             .subscriptions
             .get_mut(stream)
             .map(|v| v.get_mut(subscription))
@@ -355,9 +421,11 @@ impl Broker {
 
         let mut subscription = subscription.write().await;
 
-        let offsets = subscription.take(count)?;
+        subscription.increment_amount_to_take(count);
 
-        Ok(offsets)
+        notify.notify_waiters();
+
+        Ok(())
     }
 
     // Ideally what should happen here is that configurations get applied to topographies,
