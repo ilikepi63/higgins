@@ -8,7 +8,7 @@ use prost::Message as _;
 use std::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub fn produce(stream: &[u8], partition: &[u8], payload: &[u8], socket: &mut TcpStream) {
+pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8], payload: &[u8], socket: &mut T) {
     let produce_request = ProduceRequest {
         partition_key: partition.to_vec(),
         payload: payload.to_vec(),
@@ -46,9 +46,9 @@ pub fn produce(stream: &[u8], partition: &[u8], payload: &[u8], socket: &mut Tcp
     }
 }
 
-pub fn create_subscription(
+pub fn create_subscription<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    socket: &mut TcpStream,
+    socket: &mut T,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let create_subscription = CreateSubscriptionRequest {
         offset: None,
@@ -94,9 +94,9 @@ pub fn create_subscription(
     Ok(sub_id)
 }
 
-pub fn consume(
+pub fn consume<T: std::io::Read + std::io::Write>(
     sub_id: Vec<u8>,
-    socket: &mut TcpStream,
+    socket: &mut T,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let take_request = TakeRecordsRequest {
         n: 1,
@@ -117,7 +117,8 @@ pub fn consume(
 
     let _result = socket.write_all(&write_buf).unwrap();
 
-    let n = socket.read(&mut read_buf)?;
+
+    let n = socket.read(&mut read_buf).unwrap();
 
     assert_ne!(n, 0);
 
