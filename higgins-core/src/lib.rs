@@ -111,7 +111,9 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let mut broker = broker.write().await;
 
-                        if let Err(err) = broker.create_partition(&stream_name, &partition_key) {
+                        if let Err(err) =
+                            broker.create_partition(&stream_name, &partition_key).await
+                        {
                             tracing::error!(
                                 "Failed to create partition inside of broker: {:#?}",
                                 err
@@ -161,6 +163,7 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                         let offsets = broker
                             .take_from_subscription(&stream_name, &subscription_id, n)
+                            .await
                             .unwrap();
 
                         tracing::info!("We've received offsets: {:#?}", offsets);
