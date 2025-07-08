@@ -1,8 +1,10 @@
-use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+use bytes::BytesMut;
+
+
+#[derive(Debug)]
 pub enum ClientRef {
-    AsyncTcp(Arc<tokio::net::TcpStream>),
+    AsyncTcpSocket(tokio::sync::mpsc::Sender<BytesMut>),
 }
 
 impl ClientRef {}

@@ -44,7 +44,7 @@ pub struct Subscription {
     last_index: u64,
 
     condvar: Notify,
-    client_counts: Vec<(u64, AtomicU64)>,
+    pub client_counts: Vec<(u64, AtomicU64)>,
 }
 
 impl std::fmt::Debug for Subscription {

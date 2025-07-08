@@ -14,233 +14,63 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::{broker::Broker, storage::arrow_ipc::read_arrow};
+use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
 pub mod broker;
+pub mod client;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod client;
 
 mod error;
 
-async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
-    
-    let mut socket = Arc::new(socket);
+async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
+    let (mut read_socket, mut write_socket) = tcp_socket.into_split();
+
+    let (writer_tx, mut writer_rx) = tokio::sync::mpsc::channel(100);
 
     let client_id = {
-        let mut lock = broker.write().await;
+        let mut broker_lock = broker.write().await;
 
-        let id = lock.clients.insert(client::ClientRef::AsyncTcp(socket.clone()));
+        let client_id = broker_lock
+            .clients
+            .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()));
 
-        id
+        client_id
     };
- 
-    loop {
-        let mut buffer = vec![0; 1024];
 
-        match socket.read(&mut buffer).await {
-            Ok(n) => {
-                if n > 0 {
-                    tracing::info!(
-                        "Received {n} bytes from client {}",
-                        socket.peer_addr().unwrap()
-                    );
-                } else {
-                    break;
-                }
+    let read_handle = tokio::spawn(async move {
+        loop {
+            let mut buffer = vec![0; 1024];
 
-                let slice = &buffer[0..n];
-
-                let message = Message::decode(slice).unwrap();
-
-                tracing::info!("Received a message, responding.");
-
-                match Type::try_from(message.r#type).unwrap() {
-                    Type::Ping => {
-                        tracing::info!("Received Ping, sending Pong.");
-
-                        let mut result = BytesMut::new();
-
-                        let pong = Pong::default();
-
-                        Message {
-                            r#type: Type::Pong as i32,
-                            pong: Some(pong),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        tracing::info!("Responding with: {:#?}", result.clone().to_vec());
-
-                        socket.write_all(&result).await.unwrap();
-                        socket.flush().await.unwrap();
-                    }
-                    Type::Createsubscriptionrequest => {
+            match read_socket.read(&mut buffer).await {
+                Ok(n) => {
+                    if n > 0 {
                         tracing::trace!(
-                            "Received CreateSubscriptionRequest: {:#?}",
-                            message.create_subscription_request
+                            "Received {n} bytes from client {}",
+                            read_socket.peer_addr().unwrap()
                         );
-
-                        let CreateSubscriptionRequest {
-                            stream_name,..
-                            // offset_type,
-                            // timestamp,
-                            // offset,
-                        } = message.create_subscription_request.unwrap();
-
-                        let mut broker = broker.write().await;
-
-                        let subscription_id = broker.create_subscription(&stream_name);
-
-                        let resp = CreateSubscriptionResponse {
-                            errors: vec![],
-                            subscription_id: Some(subscription_id),
-                        };
-
-                        let mut result = BytesMut::new();
-
-                        Message {
-                            r#type: Type::Createsubscriptionresponse as i32,
-                            create_subscription_response: Some(resp),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        socket.write_all(&result).await.unwrap();
+                    } else {
+                        break;
                     }
-                    Type::Createsubscriptionresponse => {
-                        // We don't handle this.
-                    }
-                    Type::Producerequest => {
-                        let ProduceRequest {
-                            stream_name,
-                            partition_key,
-                            payload,
-                        } = message.produce_request.unwrap();
 
-                        let mut broker = broker.write().await;
+                    let slice = &buffer[0..n];
 
-                        if let Err(err) =
-                            broker.create_partition(&stream_name, &partition_key).await
-                        {
-                            tracing::error!(
-                                "Failed to create partition inside of broker: {:#?}",
-                                err
-                            );
-                        };
+                    let message = Message::decode(slice).unwrap();
 
-                        let (schema, _tx, _rx) = broker
-                            .get_stream(&stream_name)
-                            .expect("Could not find stream for stream_name.");
+                    tracing::info!("Received a message, responding.");
 
-                        let cursor = Cursor::new(payload);
-                        let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
-                        let batch = reader.next().unwrap().unwrap();
-
-                        let _ = broker.produce(&stream_name, &partition_key, batch).await;
-
-                        drop(broker);
-
-                        let mut result = BytesMut::new();
-
-                        let resp = ProduceResponse::default();
-
-                        Message {
-                            r#type: Type::Produceresponse as i32,
-                            produce_response: Some(resp),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        socket.write_all(&result).await.unwrap();
-                    }
-                    Type::Produceresponse => {}
-                    Type::Metadatarequest => todo!(),
-                    Type::Metadataresponse => todo!(),
-                    Type::Pong => todo!(),
-                    Type::Takerecordsrequest => {
-                        let mut result = BytesMut::new();
-
-                        let TakeRecordsRequest {
-                            n,
-                            stream_name,
-                            subscription_id,
-                        } = message.take_records_request.unwrap();
-
-                        let mut broker = broker.write().await;
-
-                        let _ = broker
-                            .take_from_subscription(client_id, &stream_name, &subscription_id, n)
-                            .await
-                            .unwrap();
-                    }
-                    Type::Takerecordsresponse => {
-                        // we don't handle this.
-                    }
-                    Type::Createconfigurationrequest => {
-                        let mut broker = broker.write().await;
-
-                        if let Some(CreateConfigurationRequest { data }) =
-                            message.create_configuration_request
-                        {
-                            let result = broker.apply_configuration(&data);
-
-                            if let Err(err) = result {
-                                let create_configuration_response = CreateConfigurationResponse {
-                                    errors: vec![err.to_string()],
-                                };
-
-                                let mut result = BytesMut::new();
-
-                                Message {
-                                    r#type: Type::Createconfigurationresponse as i32,
-                                    create_configuration_response: Some(
-                                        create_configuration_response,
-                                    ),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                tracing::info!("Responding with: {:#?}", result.clone().to_vec());
-
-                                socket.write_all(&result).await.unwrap();
-                                socket.flush().await.unwrap();
-                            } else {
-                                let create_configuration_response =
-                                    CreateConfigurationResponse { errors: vec![] };
-
-                                let mut result = BytesMut::new();
-
-                                Message {
-                                    r#type: Type::Createconfigurationresponse as i32,
-                                    create_configuration_response: Some(
-                                        create_configuration_response,
-                                    ),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                tracing::info!("Responding with: {:#?}", result.clone().to_vec());
-
-                                socket.write_all(&result).await.unwrap();
-                                socket.flush().await.unwrap();
-                            }
-                        } else {
-                            let create_configuration_response = CreateConfigurationResponse {
-                                errors: vec!["Malformed request for creating configuration. Please include CreateConfigurationRequest in body.".into()]
-                            };
+                    match Type::try_from(message.r#type).unwrap() {
+                        Type::Ping => {
+                            tracing::trace!("Received Ping, sending Pong.");
 
                             let mut result = BytesMut::new();
 
+                            let pong = Pong::default();
+
                             Message {
-                                r#type: Type::Createconfigurationresponse as i32,
-                                create_configuration_response: Some(create_configuration_response),
+                                r#type: Type::Pong as i32,
+                                pong: Some(pong),
                                 ..Default::default()
                             }
                             .encode(&mut result)
@@ -248,20 +78,217 @@ async fn process_socket(mut socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                             tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
-                            socket.write_all(&result).await.unwrap();
-                            socket.flush().await.unwrap();
+                            writer_tx.send(result).await;
+
+                            //                             writer_tx.send(result).await;
+                            // socket.flush().await.unwrap();
                         }
+                        Type::Createsubscriptionrequest => {
+                            tracing::trace!(
+                                "Received CreateSubscriptionRequest: {:#?}",
+                                message.create_subscription_request
+                            );
+
+                            let CreateSubscriptionRequest {
+                            stream_name,..
+                            // offset_type,
+                            // timestamp,
+                            // offset,
+                        } = message.create_subscription_request.unwrap();
+
+                            let mut broker = broker.write().await;
+
+                            let subscription_id = broker.create_subscription(&stream_name);
+
+                            let resp = CreateSubscriptionResponse {
+                                errors: vec![],
+                                subscription_id: Some(subscription_id),
+                            };
+
+                            let mut result = BytesMut::new();
+
+                            Message {
+                                r#type: Type::Createsubscriptionresponse as i32,
+                                create_subscription_response: Some(resp),
+                                ..Default::default()
+                            }
+                            .encode(&mut result)
+                            .unwrap();
+
+                            writer_tx.send(result).await.unwrap();
+                        }
+                        Type::Createsubscriptionresponse => {
+                            // We don't handle this.
+                        }
+                        Type::Producerequest => {
+                            let ProduceRequest {
+                                stream_name,
+                                partition_key,
+                                payload,
+                            } = message.produce_request.unwrap();
+
+                            let mut broker = broker.write().await;
+
+                            if let Err(err) =
+                                broker.create_partition(&stream_name, &partition_key).await
+                            {
+                                tracing::error!(
+                                    "Failed to create partition inside of broker: {:#?}",
+                                    err
+                                );
+                            };
+
+                            let (schema, _tx, _rx) = broker
+                                .get_stream(&stream_name)
+                                .expect("Could not find stream for stream_name.");
+
+                            let cursor = Cursor::new(payload);
+                            let mut reader =
+                                ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
+                            let batch = reader.next().unwrap().unwrap();
+
+                            let _ = broker.produce(&stream_name, &partition_key, batch).await;
+
+                            drop(broker);
+
+                            let mut result = BytesMut::new();
+
+                            let resp = ProduceResponse::default();
+
+                            Message {
+                                r#type: Type::Produceresponse as i32,
+                                produce_response: Some(resp),
+                                ..Default::default()
+                            }
+                            .encode(&mut result)
+                            .unwrap();
+
+                            writer_tx.send(result).await;
+                        }
+                        Type::Produceresponse => {}
+                        Type::Metadatarequest => todo!(),
+                        Type::Metadataresponse => todo!(),
+                        Type::Pong => todo!(),
+                        Type::Takerecordsrequest => {
+                            let mut result = BytesMut::new();
+
+                            let TakeRecordsRequest {
+                                n,
+                                stream_name,
+                                subscription_id,
+                            } = message.take_records_request.unwrap();
+
+                            let mut broker = broker.write().await;
+
+                            let _ = broker
+                                .take_from_subscription(
+                                    client_id,
+                                    &stream_name,
+                                    &subscription_id,
+                                    n,
+                                )
+                                .await
+                                .unwrap();
+                        }
+                        Type::Takerecordsresponse => {
+                            // we don't handle this.
+                        }
+                        Type::Createconfigurationrequest => {
+                            let mut broker = broker.write().await;
+
+                            if let Some(CreateConfigurationRequest { data }) =
+                                message.create_configuration_request
+                            {
+                                let result = broker.apply_configuration(&data);
+
+                                if let Err(err) = result {
+                                    let create_configuration_response =
+                                        CreateConfigurationResponse {
+                                            errors: vec![err.to_string()],
+                                        };
+
+                                    let mut result = BytesMut::new();
+
+                                    Message {
+                                        r#type: Type::Createconfigurationresponse as i32,
+                                        create_configuration_response: Some(
+                                            create_configuration_response,
+                                        ),
+                                        ..Default::default()
+                                    }
+                                    .encode(&mut result)
+                                    .unwrap();
+
+                                    tracing::info!(
+                                        "Responding with: {:#?}",
+                                        result.clone().to_vec()
+                                    );
+
+                                    writer_tx.send(result).await;
+                                } else {
+                                    let create_configuration_response =
+                                        CreateConfigurationResponse { errors: vec![] };
+
+                                    let mut result = BytesMut::new();
+
+                                    Message {
+                                        r#type: Type::Createconfigurationresponse as i32,
+                                        create_configuration_response: Some(
+                                            create_configuration_response,
+                                        ),
+                                        ..Default::default()
+                                    }
+                                    .encode(&mut result)
+                                    .unwrap();
+
+                                    tracing::info!(
+                                        "Responding with: {:#?}",
+                                        result.clone().to_vec()
+                                    );
+
+                                    writer_tx.send(result).await;
+                                }
+                            } else {
+                                let create_configuration_response = CreateConfigurationResponse {
+                                errors: vec!["Malformed request for creating configuration. Please include CreateConfigurationRequest in body.".into()]
+                            };
+
+                                let mut result = BytesMut::new();
+
+                                Message {
+                                    r#type: Type::Createconfigurationresponse as i32,
+                                    create_configuration_response: Some(
+                                        create_configuration_response,
+                                    ),
+                                    ..Default::default()
+                                }
+                                .encode(&mut result)
+                                .unwrap();
+
+                                tracing::info!("Responding with: {:#?}", result.clone().to_vec());
+
+                                writer_tx.send(result).await;
+                            }
+                        }
+                        Type::Createconfigurationresponse => todo!(),
+                        Type::Deleteconfigurationrequest => todo!(),
+                        Type::Deleteconfigurationresponse => todo!(),
                     }
-                    Type::Createconfigurationresponse => todo!(),
-                    Type::Deleteconfigurationrequest => todo!(),
-                    Type::Deleteconfigurationresponse => todo!(),
+                }
+                Err(err) => {
+                    tracing::trace!("Received error when trying to process socket: {:#?}", err);
                 }
             }
-            Err(err) => {
-                tracing::trace!("Received error when trying to process socket: {:#?}", err);
-            }
         }
-    }
+    });
+
+    let _write_handle = tokio::spawn(async move {
+        while let Some(val) = writer_rx.recv().await {
+            write_socket.write_all(&val);
+            write_socket.flush();
+        }
+    });
+
 }
 
 pub async fn run_server(port: u16) {
