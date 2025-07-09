@@ -4,8 +4,8 @@ use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, Record,
-    TakeRecordsRequest, TakeRecordsResponse, message::Type,
+    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, TakeRecordsRequest,
+    message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -14,7 +14,7 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
+use crate::{broker::Broker, client::ClientRef};
 pub mod broker;
 pub mod client;
 pub mod storage;
@@ -39,7 +39,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
         client_id
     };
 
-    let read_handle = tokio::spawn(async move {
+    let _read_handle = tokio::spawn(async move {
         loop {
             let mut buffer = vec![0; 1024];
 
@@ -170,7 +170,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Type::Metadataresponse => todo!(),
                         Type::Pong => todo!(),
                         Type::Takerecordsrequest => {
-                            let mut result = BytesMut::new();
+
+                            let broker_ref = broker.clone();
 
                             let TakeRecordsRequest {
                                 n,
@@ -185,6 +186,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     client_id,
                                     &stream_name,
                                     &subscription_id,
+                                    broker_ref,
                                     n,
                                 )
                                 .await
@@ -288,7 +290,6 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
             write_socket.flush();
         }
     });
-
 }
 
 pub async fn run_server(port: u16) {

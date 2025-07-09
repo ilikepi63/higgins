@@ -8,12 +8,17 @@ use riskless::{
     },
     object_store::{self, ObjectStore},
 };
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
-    client::{ClientCollection, ClientRef},
+    client::ClientCollection,
     error::HigginsError,
     storage::{
         arrow_ipc::{read_arrow, write_arrow},
@@ -317,9 +322,7 @@ impl Broker {
         path.push(uuid.to_string());
 
         let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
-        let task_subscription = subscription.clone();
         let notify = Arc::new(Notify::new());
-        let task_notify = notify.clone();
 
         // How do we get the list of partitions for a stream?
         // We need to also be able to update the subscriptions for every stream.
@@ -348,6 +351,7 @@ impl Broker {
         client_id: u64,
         stream: &[u8],
         subscription: &[u8],
+        broker: Arc<RwLock<Broker>>,
         count: u64,
     ) -> Result<(), HigginsError> {
         let (notify, subscription) = self
@@ -365,34 +369,42 @@ impl Broker {
 
         let task_subscription = subscription.clone();
         let task_client_id = client_id;
+        let task_stream_name = stream.to_vec();
 
         let mut subscription = subscription.write().await;
 
         // Client ID does not exist on this subscription, therefore we create it.
-        if let Err(err) = subscription
+        if let Err(_) = subscription
             .client_counts
             .binary_search_by(|(id, _)| client_id.cmp(id))
         {
+            let broker = broker.clone();
+
             // The runner for this subscription.
             tokio::task::spawn(async move {
                 loop {
                     // await the condvar.
 
                     let mut lock = task_subscription.write().await;
+                    let broker_lock = broker.read().await;
 
-                    let n = match lock.client_counts     .binary_search_by(|(id, _)| client_id.cmp(id)).map(|index| lock.client_counts.get(index)).ok().flatten() {
-                        Some(c) => c.1,
-                        None => continue
+                    let n = match lock
+                        .client_counts
+                        .binary_search_by(|(id, _)| client_id.cmp(id))
+                        .map(|index| lock.client_counts.get(index))
+                        .ok()
+                        .flatten()
+                    {
+                        Some(c) => c.1.load(Ordering::Relaxed),
+                        None => continue,
                     };
 
-                    if let Ok(offsets) = lock.take(n) {
+                    if let Ok(offsets) = lock.take(task_client_id, n) {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
-
-                            // What to do here?
-                            // let mut consumption = broker
-                            //     .consume(&stream_name, &partition, offset, 50_000)
-                            //     .await;
+                            let mut consumption = broker_lock
+                                .consume(&task_stream_name, &partition, offset, 50_000)
+                                .await;
 
                             while let Some(val) = consumption.recv().await {
                                 let resp = TakeRecordsResponse {
@@ -428,7 +440,7 @@ impl Broker {
                                         .collect::<Vec<_>>(),
                                 };
 
-                                let result = BytesMut::new();
+                                let mut result = BytesMut::new();
 
                                 Message {
                                     r#type: Type::Takerecordsresponse as i32,
