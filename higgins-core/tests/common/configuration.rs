@@ -9,12 +9,15 @@ pub fn upload_configuration(
     config: &[u8],
     socket: &mut std::net::TcpStream,
 ) -> CreateConfigurationResponse {
+
     let mut read_buf = BytesMut::zeroed(1024);
     let mut write_buf = BytesMut::new();
 
     let create_config_req = CreateConfigurationRequest {
         data: config.to_vec(),
     };
+
+    tracing::info!("Sending Configuration Request: {:#?}", create_config_req);
 
     Message {
         r#type: Type::Createconfigurationrequest as i32,
