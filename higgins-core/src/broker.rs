@@ -207,10 +207,14 @@ impl Broker {
             let subscription = self.subscriptions.get(stream_name);
 
             if let Some(subscriptions) = subscription {
-                for (subscription_id, (_, subscription)) in subscriptions {
+                for (subscription_id, (notify, subscription)) in subscriptions {
                     let subscription = subscription.write().await;
 
+                    // Set the max offset of the subscription.
                     subscription.set_max_offset(partition, response.batch.offset)?;
+
+                    // Notify the tasks awaiting this subscription.
+                    notify.notify_waiters();
 
                     tracing::info!(
                         "Updated Max offset for subscription: {}, watermark: {}",
@@ -370,6 +374,7 @@ impl Broker {
         let task_subscription = subscription.clone();
         let task_client_id = client_id;
         let task_stream_name = stream.to_vec();
+        let task_notify = notify.clone();
 
         let mut subscription = subscription.write().await;
 
@@ -384,6 +389,7 @@ impl Broker {
             tokio::task::spawn(async move {
                 loop {
                     // await the condvar.
+                    task_notify.notified().await;
 
                     let mut lock = task_subscription.write().await;
                     let broker_lock = broker.read().await;
