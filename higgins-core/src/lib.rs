@@ -182,6 +182,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     client_id,
                                     &stream_name,
                                     &subscription_id,
+                                    writer_tx.clone(), 
                                     broker_ref,
                                     n,
                                 )
