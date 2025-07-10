@@ -207,22 +207,19 @@ impl Broker {
             let subscription = self.subscriptions.get(stream_name);
 
             if let Some(subscriptions) = subscription {
-
-                tracing::trace!("[PRODUCE] Found a subscription for this produce request." );
+                tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
 
                 for (subscription_id, (notify, subscription)) in subscriptions {
                     let subscription = subscription.write().await;
 
-                tracing::trace!("[PRODUCE] Notifying the subscrition." );
-
+                    tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
                     // Set the max offset of the subscription.
                     subscription.set_max_offset(partition, response.batch.offset)?;
 
                     // Notify the tasks awaiting this subscription.
                     notify.notify_waiters();
-                                    tracing::trace!("[PRODUCE] Notified the subscrition." );
-
+                    tracing::trace!("[PRODUCE] Notified the subscrition.");
 
                     tracing::info!(
                         "Updated Max offset for subscription: {}, watermark: {}",
@@ -406,13 +403,6 @@ impl Broker {
             // The runner for this subscription.
             tokio::task::spawn(async move {
                 loop {
-                    tracing::trace!("[TAKE] Awaiting the condvar.");
-
-                    // await the condvar.
-                    task_notify.notified().await;
-
-                    tracing::trace!("[TAKE] Condvar has been notified, retrieving the amount.");
-
                     let mut lock = task_subscription.write().await;
                     let broker_lock = broker.read().await;
 
@@ -486,6 +476,13 @@ impl Broker {
                             }
                         }
                     };
+
+                    tracing::trace!("[TAKE] Awaiting the condvar.");
+
+                    // await the condvar.
+                    task_notify.notified().await;
+
+                    tracing::trace!("[TAKE] Condvar has been notified, retrieving the amount.");
                 }
             });
         }

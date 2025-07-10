@@ -95,6 +95,8 @@ fn can_update_subscription_after_created() {
 
             let message = Message::decode(slice).unwrap();
 
+            tracing::trace!("Received: {:#?}", message);
+
             match Type::try_from(message.r#type).unwrap() {
                 Type::Takerecordsresponse => {
                     let take_records_response = message.take_records_response.unwrap();
@@ -110,7 +112,16 @@ fn can_update_subscription_after_created() {
                         }
                     }
                 }
+                Type::Produceresponse => {
+                    let message = message.produce_response;
+
+                    tracing::info!("Received produce response: {:#?}", message);
+                }
                 _ => {}
+            }
+
+            if count >= NUMBER_OF_MESSAGES {
+                break;
             }
         }
     });
