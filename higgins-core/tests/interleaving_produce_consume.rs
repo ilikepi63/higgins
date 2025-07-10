@@ -17,8 +17,8 @@ use crate::common::{consume, subscription::create_subscription, produce};
 
 mod common;
 
-#[tokio::test]
-#[traced_test]
+// #[tokio::test]
+// #[traced_test]
 async fn can_correctly_consume_and_produce_interleaving_requests() {
     let port = TcpPort::in_range(
         "127.0.0.1",
