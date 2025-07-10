@@ -207,10 +207,22 @@ impl Broker {
             let subscription = self.subscriptions.get(stream_name);
 
             if let Some(subscriptions) = subscription {
-                for (subscription_id, (_, subscription)) in subscriptions {
+
+                tracing::trace!("[PRODUCE] Found a subscription for this produce request." );
+
+                for (subscription_id, (notify, subscription)) in subscriptions {
                     let subscription = subscription.write().await;
 
+                tracing::trace!("[PRODUCE] Notifying the subscrition." );
+
+
+                    // Set the max offset of the subscription.
                     subscription.set_max_offset(partition, response.batch.offset)?;
+
+                    // Notify the tasks awaiting this subscription.
+                    notify.notify_waiters();
+                                    tracing::trace!("[PRODUCE] Notified the subscrition." );
+
 
                     tracing::info!(
                         "Updated Max offset for subscription: {}, watermark: {}",
@@ -351,9 +363,12 @@ impl Broker {
         client_id: u64,
         stream: &[u8],
         subscription: &[u8],
+        client_ref: tokio::sync::mpsc::Sender<BytesMut>,
         broker: Arc<RwLock<Broker>>,
         count: u64,
     ) -> Result<(), HigginsError> {
+        tracing::trace!("[TAKE] Taking for subscription for client {client_id}, amount: {count}.");
+
         let (notify, subscription) = self
             .subscriptions
             .get_mut(stream)
@@ -367,9 +382,15 @@ impl Broker {
                     .collect::<String>(),
             ))?;
 
+        tracing::trace!(
+            "[TAKE] Managed to find the subscription for subscription ID: {:#?}",
+            subscription
+        );
+
         let task_subscription = subscription.clone();
         let task_client_id = client_id;
         let task_stream_name = stream.to_vec();
+        let task_notify = notify.clone();
 
         let mut subscription = subscription.write().await;
 
@@ -378,12 +399,19 @@ impl Broker {
             .client_counts
             .binary_search_by(|(id, _)| client_id.cmp(id))
         {
+            tracing::trace!("[TAKE] No client count found for subscription. Creating one.");
+
             let broker = broker.clone();
 
             // The runner for this subscription.
             tokio::task::spawn(async move {
                 loop {
+                    tracing::trace!("[TAKE] Awaiting the condvar.");
+
                     // await the condvar.
+                    task_notify.notified().await;
+
+                    tracing::trace!("[TAKE] Condvar has been notified, retrieving the amount.");
 
                     let mut lock = task_subscription.write().await;
                     let broker_lock = broker.read().await;
@@ -398,6 +426,8 @@ impl Broker {
                         Some(c) => c.1.load(Ordering::Relaxed),
                         None => continue,
                     };
+
+                    tracing::trace!("[TAKE] Taking the amount: {n}");
 
                     if let Ok(offsets) = lock.take(task_client_id, n) {
                         //Get payloads from offsets.
@@ -450,7 +480,9 @@ impl Broker {
                                 .encode(&mut result)
                                 .unwrap();
 
-                                // socket.write_all(&result).await.unwrap();
+                                tracing::trace!("[TAKE] Writing the amount back to client.");
+
+                                client_ref.send(result).await;
                             }
                         }
                     };
