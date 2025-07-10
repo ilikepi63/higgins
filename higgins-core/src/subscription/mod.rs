@@ -251,12 +251,11 @@ impl Subscription {
     }
 
     pub fn increment_amount_to_take(&mut self, client_id: u64, n: u64) {
-        self.client_counts
-            .iter_mut()
-            .find(|(c, _)| *c == client_id)
-            .map(|count| {
-                count.1.fetch_add(n, std::sync::atomic::Ordering::AcqRel);
-            });
+        if let Some(count) = self.client_counts.iter_mut().find(|(c, _)| *c == client_id) {
+            count.1.fetch_add(n, std::sync::atomic::Ordering::AcqRel);
+        } else {
+            self.client_counts.push((client_id, AtomicU64::new(n)));
+        }
     }
 }
 
