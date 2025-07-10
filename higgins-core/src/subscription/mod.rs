@@ -42,7 +42,6 @@ struct SubscriptionMetadata {
 pub struct Subscription {
     db: TransactionDB,
     last_index: u64,
-
     condvar: Notify,
     pub client_counts: Vec<(u64, AtomicU64)>,
 }
@@ -62,8 +61,6 @@ impl Subscription {
     pub fn new(path: &PathBuf) -> Self {
         // Init the RocksDB implementation.
         let db: TransactionDB = TransactionDB::open_default(path).unwrap();
-
-        tokio::task::spawn(async move {});
 
         Self {
             db,
