@@ -79,9 +79,6 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
                             writer_tx.send(result).await;
-
-                            //                             writer_tx.send(result).await;
-                            // socket.flush().await.unwrap();
                         }
                         Type::Createsubscriptionrequest => {
                             tracing::trace!(
@@ -170,7 +167,6 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Type::Metadataresponse => todo!(),
                         Type::Pong => todo!(),
                         Type::Takerecordsrequest => {
-
                             let broker_ref = broker.clone();
 
                             let TakeRecordsRequest {
@@ -198,6 +194,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Type::Createconfigurationrequest => {
                             let mut broker = broker.write().await;
 
+                            tracing::info!("Applying configuration..");
+
                             if let Some(CreateConfigurationRequest { data }) =
                                 message.create_configuration_request
                             {
@@ -221,15 +219,15 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     .encode(&mut result)
                                     .unwrap();
 
-                                    tracing::info!(
-                                        "Responding with: {:#?}",
-                                        result.clone().to_vec()
-                                    );
-
-                                    writer_tx.send(result).await;
+                                    let result = writer_tx.send(result).await;
                                 } else {
                                     let create_configuration_response =
                                         CreateConfigurationResponse { errors: vec![] };
+
+                                    tracing::info!(
+                                        "Responding with: {:#?}",
+                                        create_configuration_response
+                                    );
 
                                     let mut result = BytesMut::new();
 
@@ -243,12 +241,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     .encode(&mut result)
                                     .unwrap();
 
-                                    tracing::info!(
-                                        "Responding with: {:#?}",
-                                        result.clone().to_vec()
-                                    );
-
-                                    writer_tx.send(result).await;
+                                    let result = writer_tx.send(result).await;
+                                    tracing::info!("Result from writing: {:#?}", result);
                                 }
                             } else {
                                 let create_configuration_response = CreateConfigurationResponse {
@@ -285,9 +279,15 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     });
 
     let _write_handle = tokio::spawn(async move {
+
+        tracing::info!("Starting writing task..");
+
         while let Some(val) = writer_rx.recv().await {
-            write_socket.write_all(&val);
-            write_socket.flush();
+
+            tracing::info!("Received: {:#?} on the writing side", val);
+
+            let result = write_socket.write_all(&val).await;
+            write_socket.flush().await;
         }
     });
 }

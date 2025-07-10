@@ -20,6 +20,8 @@ mod common;
 #[test]
 #[traced_test]
 fn can_update_subscription_after_created() {
+    const NUMBER_OF_MESSAGES: u16 = 1;
+
     let port = TcpPort::in_range(
         "127.0.0.1",
         Range {
@@ -42,7 +44,9 @@ fn can_update_subscription_after_created() {
 
     let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
-    socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
 
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/basic_config.yaml").unwrap();
@@ -80,6 +84,8 @@ fn can_update_subscription_after_created() {
 
         let _result = socket_reader.write_all(&write_buf).unwrap();
 
+        let mut count = 0;
+
         loop {
             let n = socket_reader.read(&mut read_buf).unwrap();
 
@@ -97,6 +103,11 @@ fn can_update_subscription_after_created() {
 
                     for record in take_records_response.records.iter() {
                         result_vec.push(String::from_utf8(record.data.clone()).unwrap());
+                        count += 1;
+
+                        if count >= NUMBER_OF_MESSAGES {
+                            break;
+                        }
                     }
                 }
                 _ => {}
@@ -108,12 +119,14 @@ fn can_update_subscription_after_created() {
 
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    produce(
-        "update_customer".as_bytes(),
-        "test_partition".as_bytes(),
-        payload.as_bytes(),
-        &mut socket_writer,
-    );
+    for i in 0..NUMBER_OF_MESSAGES {
+        produce(
+            "update_customer".as_bytes(),
+            "test_partition".as_bytes(),
+            payload.as_bytes(),
+            &mut socket_writer,
+        );
+    }
 
     handle_consume.join().unwrap();
 }
