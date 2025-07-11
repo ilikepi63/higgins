@@ -60,6 +60,23 @@ message DeleteConfigurationRequest { bytes key = 1; }
 
 message DeleteConfigurationResponse { repeated string errors = 1; }
 
+// Query to get the index at a specific time or offset.
+message GetIndexRequest { repeated Index indexes = 1; }
+
+message Index {
+  enum Type {
+    TIMESTAMP = 0;
+    LATEST = 1;
+    OFFSET = 2;
+  }
+
+  Type type = 1;
+  bytes stream = 2;
+  bytes partition = 3;
+  optional uint64 timestamp = 4;
+  optional uint64 index = 5;
+}
+
 message Message {
 
   enum Type {
