@@ -170,7 +170,7 @@ impl Subscription {
         {
             count
         } else {
-            let client_count = (client_id, AtomicU64::new(0));
+            let client_count = (client_id, AtomicU64::new(count));
             self.client_counts.push(client_count);
 
             &mut self
@@ -195,10 +195,12 @@ impl Subscription {
                     .map(|offset| (key.to_vec(), offset.clone()))
                     .collect::<Vec<(Key, Offset)>>();
 
-            count.fetch_sub(
+            let result = count.fetch_sub(
                 TryInto::<u64>::try_into(extracted_offsets.len())?,
                 std::sync::atomic::Ordering::AcqRel,
             );
+
+            println!("Count: {result}");
 
             result_vec.append(&mut extracted_offsets);
 
@@ -525,6 +527,7 @@ mod tests {
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
         let offsets = sub.take(1, 3).expect("Failed to take offsets");
+
         assert_eq!(offsets.len(), 3);
         assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1), (key, 3)]);
     }
