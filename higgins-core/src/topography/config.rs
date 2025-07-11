@@ -70,7 +70,7 @@ mod test {
 
     #[test]
     fn can_deserialize_basic_yaml() {
-        let example_config = std::fs::read_to_string("tests/config.yaml").unwrap();
+        let example_config = std::fs::read_to_string("tests/basic_config.yaml").unwrap();
 
         let _config = from_yaml(example_config.as_bytes());
     }

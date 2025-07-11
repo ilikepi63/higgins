@@ -30,23 +30,6 @@ pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8
     .unwrap();
 
     let _result = socket.write_all(&write_buf).unwrap();
-
-    let n = socket.read(&mut read_buf).unwrap();
-
-    assert_ne!(n, 0);
-
-    let slice = &read_buf[0..n];
-
-    let message = Message::decode(slice).unwrap();
-
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Produceresponse => {
-            let message = message.produce_response;
-
-            tracing::info!("Received produce response: {:#?}", message);
-        }
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    }
 }
 
 
