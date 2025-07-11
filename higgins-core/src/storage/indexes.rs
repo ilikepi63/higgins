@@ -38,6 +38,13 @@ impl IndexDirectory {
 
         topic_path
     }
+
+    pub fn index_file_path_from_partition(partition_key: &[u8]) -> String {
+        format!(
+            "{}.index",
+            partition_key.iter().map(|b| b.to_string()).collect::<String>()
+        )
+    }
 }
 
 #[async_trait::async_trait]
@@ -56,10 +63,7 @@ impl CommitFile for IndexDirectory {
 
             let mut topic_dir = self.create_topic_dir(&topic);
 
-            let index_file_path = &format!(
-                "{:0>20}.index",
-                partition.iter().map(|b| b.to_string()).collect::<String>()
-            );
+            let index_file_path = Self::index_file_path_from_partition(&partition);
 
             topic_dir.push(index_file_path);
 
@@ -142,10 +146,7 @@ impl FindBatches for IndexDirectory {
 
             let mut topic_dir = self.create_topic_dir(&topic);
 
-            let index_file_path = &format!(
-                "{:0>20}.index",
-                partition.iter().map(|b| b.to_string()).collect::<String>()
-            );
+            let index_file_path = Self::index_file_path_from_partition(&partition);
 
             topic_dir.push(index_file_path);
 
