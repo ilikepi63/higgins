@@ -42,8 +42,177 @@ impl IndexDirectory {
     pub fn index_file_path_from_partition(partition_key: &[u8]) -> String {
         format!(
             "{:0>20}.index",
-            partition_key.iter().map(|b| b.to_string()).collect::<String>()
+            partition_key
+                .iter()
+                .map(|b| b.to_string())
+                .collect::<String>()
         )
+    }
+
+    pub fn index_file_from_stream_and_partition(&self, stream: String, partition: &[u8]) -> String {
+        let mut topic_dir = self.create_topic_dir(&stream);
+
+        let index_file_path = Self::index_file_path_from_partition(&partition);
+
+        topic_dir.push(index_file_path);
+
+        let index_file_path = topic_dir.to_string_lossy().to_string();
+
+        index_file_path
+    }
+
+    /// Retrieves the timestamp before the given one.
+    pub async fn get_by_timestamp(
+        &self,
+        stream: &[u8],
+        partition: &[u8],
+        timestamp: u64,
+    ) -> Vec<FindBatchResponse> {
+        let mut responses = vec![];
+
+        let stream_str = String::from_utf8_lossy(&stream).to_string();
+
+        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+
+        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
+
+        let index_reader =
+            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
+                .await
+                .unwrap();
+
+        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+
+        let index = indexes.find_by_timestamp(timestamp);
+
+        match index {
+            Some(index) => {
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+
+                tracing::info!("Reading from object: {:#?}", object_key);
+
+                let batch = BatchInfo {
+                    batch_id: 1,
+                    object_key,
+                    metadata: BatchMetadata {
+                        topic_id_partition,
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
+                        base_offset: 0,
+                        last_offset: 0,
+                        log_append_timestamp: 0,
+                        batch_max_timestamp: 0,
+                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                        producer_id: 0,
+                        producer_epoch: 0,
+                        base_sequence: 0,
+                        last_sequence: 0,
+                    },
+                };
+
+                let response = FindBatchResponse {
+                    errors: vec![],
+                    batches: vec![batch],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+
+                responses.push(response);
+            }
+            None => {
+                tracing::error!("No Index found at offset {}", 0);
+                let response = FindBatchResponse {
+                    errors: vec!["Failed to find index for Topic and offset".to_string()],
+                    batches: vec![],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+                responses.push(response);
+            }
+        }
+
+        responses
+    }
+
+    /// Retrieves the latest value to be placed on this partition.
+    pub async fn get_latest_offset(
+        &self,
+        stream: &[u8],
+        partition: &[u8],
+    ) -> Vec<FindBatchResponse> {
+        let mut responses = vec![];
+
+        let stream_str = String::from_utf8_lossy(&stream).to_string();
+
+        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+
+        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
+
+        let index_reader =
+            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
+                .await
+                .unwrap();
+
+        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+
+        let index = indexes.last();
+
+        match index {
+            Some(index) => {
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+
+                tracing::info!("Reading from object: {:#?}", object_key);
+
+                let batch = BatchInfo {
+                    batch_id: 1,
+                    object_key,
+                    metadata: BatchMetadata {
+                        topic_id_partition,
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
+                        base_offset: 0,
+                        last_offset: 0,
+                        log_append_timestamp: 0,
+                        batch_max_timestamp: 0,
+                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                        producer_id: 0,
+                        producer_epoch: 0,
+                        base_sequence: 0,
+                        last_sequence: 0,
+                    },
+                };
+
+                let response = FindBatchResponse {
+                    errors: vec![],
+                    batches: vec![batch],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+
+                responses.push(response);
+            }
+            None => {
+                tracing::error!("No Index found at offset {}", 0);
+                let response = FindBatchResponse {
+                    errors: vec!["Failed to find index for Topic and offset".to_string()],
+                    batches: vec![],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+                responses.push(response);
+            }
+        }
+
+        responses
+    }
+
+    /// Retrieves the offset by its offset number.
+    pub async fn get_by_offset(&self, stream: &[u8], partition: &[u8]) -> Vec<FindBatchResponse> {
+        vec![]
     }
 }
 
@@ -61,13 +230,7 @@ impl CommitFile for IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let mut topic_dir = self.create_topic_dir(&topic);
-
-            let index_file_path = Self::index_file_path_from_partition(&partition);
-
-            topic_dir.push(index_file_path);
-
-            let index_file_path = topic_dir.to_string_lossy().to_string();
+            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
             let index_file_exists = std::fs::exists(&index_file_path).unwrap();
 
@@ -137,20 +300,14 @@ impl FindBatches for IndexDirectory {
         for batch_request in batch_requests {
             let FindBatchRequest {
                 topic_id_partition,
-                // offset,
+                offset,
                 // max_partition_fetch_bytes,
                 ..
             } = batch_request;
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let mut topic_dir = self.create_topic_dir(&topic);
-
-            let index_file_path = Self::index_file_path_from_partition(&partition);
-
-            topic_dir.push(index_file_path);
-
-            let index_file_path = topic_dir.to_string_lossy().to_string();
+            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
             let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
@@ -163,7 +320,7 @@ impl FindBatches for IndexDirectory {
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let index = indexes.get(0); // offset.try_into().unwrap());
+            let index = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
 
             tracing::info!("Reading index: {:#?}", index);
 
