@@ -41,7 +41,7 @@ impl IndexDirectory {
 
     pub fn index_file_path_from_partition(partition_key: &[u8]) -> String {
         format!(
-            "{}.index",
+            "{:0>20}.index",
             partition_key.iter().map(|b| b.to_string()).collect::<String>()
         )
     }
