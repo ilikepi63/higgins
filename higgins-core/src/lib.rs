@@ -14,6 +14,8 @@ use tokio::{
     sync::RwLock,
 };
 
+use utils::consumption::collect_consume_responses;
+
 use crate::{broker::Broker, client::ClientRef};
 pub mod broker;
 pub mod client;
@@ -41,7 +43,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let _read_handle = tokio::spawn(async move {
         loop {
-            let mut buffer = vec![0; 1024];
+            let mut buffer = vec![0; 1024]; // TODO: consider how we are goingg to size this buffer.
 
             match read_socket.read(&mut buffer).await {
                 Ok(n) => {
@@ -182,7 +184,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     client_id,
                                     &stream_name,
                                     &subscription_id,
-                                    writer_tx.clone(), 
+                                    writer_tx.clone(),
                                     broker_ref,
                                     n,
                                 )
@@ -270,6 +272,31 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         Type::Createconfigurationresponse => todo!(),
                         Type::Deleteconfigurationrequest => todo!(),
                         Type::Deleteconfigurationresponse => todo!(),
+                        Type::Error => {}
+                        Type::Getindexrequest => {
+                            let broker = broker.read().await;
+
+                            let request = message.get_index_request.unwrap(); // TODO: error response here.
+
+                            for index in request.indexes {
+                                // We can potentially query in three different ways using this request, so
+                                // this match arm reflects that.
+                                match index.r#type() {
+                                    higgins_codec::index::Type::Timestamp => {}
+                                    higgins_codec::index::Type::Latest => {
+                                        let values = broker
+                                            .get_latest(&index.stream, &index.partition)
+                                            .await
+                                            .unwrap();
+
+                                        let responses = collect_consume_responses(values);
+
+                                    }
+                                    higgins_codec::index::Type::Offset => todo!(),
+                                }
+                            }
+                        }
+                        Type::Getindexresponse => {}
                     }
                 }
                 Err(err) => {
@@ -280,11 +307,9 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     });
 
     let _write_handle = tokio::spawn(async move {
-
         tracing::info!("Starting writing task..");
 
         while let Some(val) = writer_rx.recv().await {
-
             tracing::info!("Received: {:#?} on the writing side", val);
 
             let result = write_socket.write_all(&val).await;
