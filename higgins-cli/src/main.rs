@@ -124,6 +124,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Type::Createconfigurationresponse => todo!(),
                     Type::Deleteconfigurationrequest => todo!(),
                     Type::Deleteconfigurationresponse => todo!(),
+                    Type::Getindexrequest => todo!(),
+                    Type::Getindexresponse => todo!(),
+                    Type::Error => todo!()
                 }
             }
         }
