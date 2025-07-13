@@ -77,6 +77,16 @@ message Index {
   optional uint64 index = 5;
 }
 
+message Error {
+    enum Type {
+    UNIMPLEMENTED = 0;
+    UNKNOWN = 1;
+  }
+
+  Type type = 1;
+
+}
+
 message Message {
 
   enum Type {
@@ -100,18 +110,19 @@ message Message {
 
   Type type = 1;
 
-  optional CreateSubscriptionRequest createSubscriptionRequest = 2;
-  optional CreateSubscriptionResponse createSubscriptionResponse = 3;
-  optional ProduceRequest produceRequest = 4;
-  optional ProduceResponse produceResponse = 5;
-  optional MetadataRequest metadataRequest = 6;
-  optional MetadataResponse metadataResponse = 7;
-  optional Ping ping = 8;
-  optional Pong pong = 9;
-  optional TakeRecordsRequest TakeRecordsRequest = 10;
-  optional TakeRecordsResponse TakeRecordsResponse = 11;
-  optional CreateConfigurationRequest createConfigurationRequest = 12;
-  optional CreateConfigurationResponse createConfigurationResponse = 13;
-  optional DeleteConfigurationRequest deleteConfigurationRequest = 14;
-  optional DeleteConfigurationResponse deleteConfigurationResponse = 15;
+  optional Error error = 2;
+  optional CreateSubscriptionRequest createSubscriptionRequest = 3;
+  optional CreateSubscriptionResponse createSubscriptionResponse = 4;
+  optional ProduceRequest produceRequest = 5;
+  optional ProduceResponse produceResponse = 6;
+  optional MetadataRequest metadataRequest = 7;
+  optional MetadataResponse metadataResponse = 8;
+  optional Ping ping = 9;
+  optional Pong pong = 10;
+  optional TakeRecordsRequest TakeRecordsRequest = 11;
+  optional TakeRecordsResponse TakeRecordsResponse = 12;
+  optional CreateConfigurationRequest createConfigurationRequest = 13;
+  optional CreateConfigurationResponse createConfigurationResponse = 14;
+  optional DeleteConfigurationRequest deleteConfigurationRequest = 15;
+  optional DeleteConfigurationResponse deleteConfigurationResponse = 16;
 }
