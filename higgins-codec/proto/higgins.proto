@@ -62,6 +62,7 @@ message DeleteConfigurationResponse { repeated string errors = 1; }
 
 // Query to get the index at a specific time or offset.
 message GetIndexRequest { repeated Index indexes = 1; }
+message GetIndexResponse { repeated Record records = 1; }
 
 message Index {
   enum Type {
@@ -78,34 +79,37 @@ message Index {
 }
 
 message Error {
-    enum Type {
+  enum Type {
     UNIMPLEMENTED = 0;
     UNKNOWN = 1;
   }
 
   Type type = 1;
-
 }
 
 message Message {
 
   enum Type {
-    CREATESUBSCRIPTIONREQUEST = 0;
-    CREATESUBSCRIPTIONRESPONSE = 1;
-    PRODUCEREQUEST = 2;
-    PRODUCERESPONSE = 3;
-    METADATAREQUEST = 4;
-    METADATARESPONSE = 5;
-    PING = 6;
-    PONG = 7;
-    TAKERECORDSREQUEST = 8;
-    TAKERECORDSRESPONSE = 9;
+    ERROR = 0;
+    CREATESUBSCRIPTIONREQUEST = 1;
+    CREATESUBSCRIPTIONRESPONSE = 2;
+    PRODUCEREQUEST = 3;
+    PRODUCERESPONSE = 4;
+    METADATAREQUEST = 5;
+    METADATARESPONSE = 6;
+    PING = 7;
+    PONG = 8;
+    TAKERECORDSREQUEST = 9;
+    TAKERECORDSRESPONSE = 10;
 
-    CREATECONFIGURATIONREQUEST = 10;
-    CREATECONFIGURATIONRESPONSE = 11;
+    CREATECONFIGURATIONREQUEST = 11;
+    CREATECONFIGURATIONRESPONSE = 12;
 
-    DELETECONFIGURATIONREQUEST = 12;
-    DELETECONFIGURATIONRESPONSE = 13;
+    DELETECONFIGURATIONREQUEST = 13;
+    DELETECONFIGURATIONRESPONSE = 14;
+
+    GETINDEXREQUEST = 15;
+    GETINDEXRESPONSE = 16;
   }
 
   Type type = 1;
@@ -125,4 +129,6 @@ message Message {
   optional CreateConfigurationResponse createConfigurationResponse = 14;
   optional DeleteConfigurationRequest deleteConfigurationRequest = 15;
   optional DeleteConfigurationResponse deleteConfigurationResponse = 16;
+  optional GetIndexRequest getIndexRequest = 17;
+  optional GetIndexResponse getIndexResponse = 18;
 }
