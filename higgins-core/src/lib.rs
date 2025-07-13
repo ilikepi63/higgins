@@ -4,8 +4,8 @@ use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Message, Pong, ProduceRequest, ProduceResponse, TakeRecordsRequest,
-    message::Type,
+    CreateSubscriptionResponse, Error, Message, Pong, ProduceRequest, ProduceResponse,
+    TakeRecordsRequest, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -282,7 +282,32 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 // We can potentially query in three different ways using this request, so
                                 // this match arm reflects that.
                                 match index.r#type() {
-                                    higgins_codec::index::Type::Timestamp => {}
+                                    higgins_codec::index::Type::Timestamp => {
+                                        let values = broker
+                                            .get_by_timestamp(
+                                                &index.stream,
+                                                &index.partition,
+                                                index.timestamp(),
+                                            )
+                                            .await
+                                            .unwrap();
+
+                                        let responses = collect_consume_responses(values).await;
+
+                                        for response in responses {
+                                            let mut result = BytesMut::new();
+
+                                            Message {
+                                                r#type: Type::Getindexresponse as i32,
+                                                get_index_response: Some(response),
+                                                ..Default::default()
+                                            }
+                                            .encode(&mut result)
+                                            .unwrap();
+
+                                            writer_tx.send(result).await;
+                                        }
+                                    }
                                     higgins_codec::index::Type::Latest => {
                                         let values = broker
                                             .get_latest(&index.stream, &index.partition)
@@ -305,7 +330,22 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                             writer_tx.send(result).await;
                                         }
                                     }
-                                    higgins_codec::index::Type::Offset => todo!(),
+                                    higgins_codec::index::Type::Offset => {
+                                        let mut result = BytesMut::new();
+
+                                        let mut error = Error::default();
+                                        error.set_type(higgins_codec::error::Type::Unimplemented);
+
+                                        Message {
+                                            r#type: Type::Error as i32,
+                                            error: Some(error),
+                                            ..Default::default()
+                                        }
+                                        .encode(&mut result)
+                                        .unwrap();
+
+                                        writer_tx.send(result).await;
+                                    }
                                 }
                             }
                         }
