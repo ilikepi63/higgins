@@ -2,16 +2,25 @@ use std::io::{Read, Write};
 use std::time::Duration;
 
 use bytes::BytesMut;
-use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest};
+use higgins_codec::{CreateSubscriptionRequest, ProduceResponse, TakeRecordsRequest};
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
 use std::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod configuration;
+pub mod query;
 pub mod subscription;
 
-pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8], payload: &[u8], socket: &mut T) {
+/// produce to a stream without waiting for the response.
+///
+/// This is helpful in scenarios where you may want to produce concurrently.
+pub fn produce<T: std::io::Read + std::io::Write>(
+    stream: &[u8],
+    partition: &[u8],
+    payload: &[u8],
+    socket: &mut T,
+) {
     let produce_request = ProduceRequest {
         partition_key: partition.to_vec(),
         payload: payload.to_vec(),
@@ -19,7 +28,6 @@ pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8
     };
 
     let mut write_buf = BytesMut::new();
-    let mut read_buf = BytesMut::zeroed(1024);
 
     Message {
         r#type: Type::Producerequest as i32,
@@ -32,6 +40,36 @@ pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8
     let _result = socket.write_all(&write_buf).unwrap();
 }
 
+/// Produce synchronously to a listener awaiting the response.
+pub fn produce_sync<T: std::io::Read + std::io::Write>(
+    stream: &[u8],
+    partition: &[u8],
+    payload: &[u8],
+    socket: &mut T,
+) -> Result<ProduceResponse, Box<dyn std::error::Error>> {
+    produce(stream, partition, payload, socket);
+
+    let mut read_buf = BytesMut::zeroed(1024);
+
+    let n = socket.read(&mut read_buf).unwrap();
+
+    assert_ne!(n, 0);
+
+    let slice = &read_buf[0..n];
+
+    let message = Message::decode(slice).unwrap();
+
+    let result = match Type::try_from(message.r#type).unwrap() {
+        Type::Produceresponse => {
+            let resp = message.produce_response.unwrap();
+
+            resp
+        }
+        _ => panic!("Received incorrect response from server for Create Subscription request."),
+    };
+
+    Ok(result)
+}
 
 pub fn consume<T: std::io::Read + std::io::Write>(
     sub_id: Vec<u8>,
@@ -55,7 +93,6 @@ pub fn consume<T: std::io::Read + std::io::Write>(
     .unwrap();
 
     let _result = socket.write_all(&write_buf).unwrap();
-
 
     let n = socket.read(&mut read_buf).unwrap();
 
