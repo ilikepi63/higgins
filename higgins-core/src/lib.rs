@@ -289,8 +289,21 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                             .await
                                             .unwrap();
 
-                                        let responses = collect_consume_responses(values);
+                                        let responses = collect_consume_responses(values).await;
 
+                                        for response in responses {
+                                            let mut result = BytesMut::new();
+
+                                            Message {
+                                                r#type: Type::Getindexresponse as i32,
+                                                get_index_response: Some(response),
+                                                ..Default::default()
+                                            }
+                                            .encode(&mut result)
+                                            .unwrap();
+
+                                            writer_tx.send(result).await;
+                                        }
                                     }
                                     higgins_codec::index::Type::Offset => todo!(),
                                 }
