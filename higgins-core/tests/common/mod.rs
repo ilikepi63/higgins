@@ -11,6 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 pub mod configuration;
 pub mod query;
 pub mod subscription;
+pub mod ping;
 
 /// produce to a stream without waiting for the response.
 ///
