@@ -29,3 +29,4 @@ get-port = "4.0.0"
 tempfile = "3.10"
 tracing-test = { version = "0.2.5", features = ["no-env-filter"] }
 loom = { version = "0.7.2", features = ["futures"] }
+serde_json = "1.0.140"
