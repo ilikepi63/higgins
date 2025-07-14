@@ -84,14 +84,14 @@ impl Topography {
         }
 
         // Check if the derivations exist inside of this topography.
-        if let Some(key) = stream.derived.as_ref() {
+        if let Some(key) = stream.base.as_ref() {
             if let None = self.streams.get(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
         }
 
         // Check if the function exists.
-        if let Some(key) = stream.derived.as_ref() {
+        if let Some(key) = stream.base.as_ref() {
             if let None = self.streams.get(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
@@ -112,10 +112,10 @@ impl Topography {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StreamDefinition {
     /// From which this topic is derived.
-    pub derived: Option<Key>,
+    pub base: Option<Key>,
     /// The Function type for this derived function if it is a derived function.
     #[serde(rename = "type")]
-    pub fn_type: Option<FunctionType>,
+    pub stream_type: Option<FunctionType>,
     /// The partition key for this topic.
     pub partition_key: Key,
     /// The schema for this, references a key in schema.
@@ -125,8 +125,8 @@ pub struct StreamDefinition {
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     fn from(value: &ConfigurationStreamDefinition) -> Self {
         StreamDefinition {
-            derived: value.derived.as_ref().map(|s| s.as_str().into()),
-            fn_type: value.fn_type.as_ref().map(|s| s.as_str().into()),
+            base: value.base.as_ref().map(|s| s.as_str().into()),
+            stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
             partition_key: Key::from(value.partition_key.as_str()),
             schema: value.schema.as_str().into(),
         }
@@ -162,27 +162,23 @@ pub fn apply_configuration_to_topography(
     configuration: Configuration,
     topography: &mut Topography,
 ) -> Key {
-
     tracing::info!("Topography: {:#?}", topography);
-
-
 
     let _schema = configuration
         .schema
         .iter()
         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
         .for_each(|(key, schema)| {
-            let _ = topography
-                .add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
+            let _ = topography.add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
         });
 
     // Create the non-derived streams first.
     for (stream_name, topic_defintion) in configuration
         .streams
         .iter()
-        .filter(|(_, def)| def.derived.is_none())
+        .filter(|(_, def)| def.base.is_none())
     {
-        match &topic_defintion.derived {
+        match &topic_defintion.base {
             Some(_derived_from) => unreachable!(),
             None => {
                 topography.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
@@ -193,9 +189,9 @@ pub fn apply_configuration_to_topography(
     for (stream_name, topic_defintion) in configuration
         .streams
         .iter()
-        .filter(|(_, def)| def.derived.is_some())
+        .filter(|(_, def)| def.base.is_some())
     {
-        match &topic_defintion.derived {
+        match &topic_defintion.base {
             Some(derived_from) => {
                 // Create just normal schema.
                 let schema = topography
@@ -207,7 +203,7 @@ pub fn apply_configuration_to_topography(
 
                 let topic_type = FunctionType::from(
                     topic_defintion
-                        .fn_type
+                        .stream_type
                         .as_ref()
                         .expect("Derived stream without a function type.")
                         .as_str(),
@@ -225,11 +221,10 @@ pub fn apply_configuration_to_topography(
                     _ => unimplemented!(),
                 }
 
-                let _ = topography
-                    .add_stream(
-                        Key::from(stream_name.as_str()),
-                        StreamDefinition::from(topic_defintion),
-                    ); // TODO: This should likely be a warning.
+                let _ = topography.add_stream(
+                    Key::from(stream_name.as_str()),
+                    StreamDefinition::from(topic_defintion),
+                ); // TODO: This should likely be a warning.
 
                 // broker.create_stream(stream_name, schema.clone());
             }
