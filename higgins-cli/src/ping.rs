@@ -90,38 +90,38 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
 
     match Type::try_from(message.r#type).unwrap() {
         Type::Ping => {
-                        let mut result = BytesMut::new();
-        
-                        let pong = Pong::default();
-        
-                        Message {
-                            r#type: Type::Pong as i32,
-                            pong: Some(pong),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-        
-                        socket.write(&result).await.unwrap();
+            let mut result = BytesMut::new();
+
+            let pong = Pong::default();
+
+            Message {
+                r#type: Type::Pong as i32,
+                pong: Some(pong),
+                ..Default::default()
             }
+            .encode(&mut result)
+            .unwrap();
+
+            socket.write(&result).await.unwrap();
+        }
         Type::Createsubscriptionrequest => {
-                tracing::info!("Received Consume Response!");
-            }
+            tracing::info!("Received Consume Response!");
+        }
         Type::Createsubscriptionresponse => todo!(),
         Type::Producerequest => todo!(),
         Type::Produceresponse => todo!(),
         Type::Metadatarequest => todo!(),
         Type::Metadataresponse => todo!(),
         Type::Pong => {
-                tracing::info!("Received Pong!")
-            }
+            tracing::info!("Received Pong!")
+        }
         Type::Takerecordsrequest => todo!(),
         Type::Takerecordsresponse => todo!(),
         Type::Createconfigurationrequest => todo!(),
         Type::Createconfigurationresponse => todo!(),
         Type::Deleteconfigurationrequest => todo!(),
         Type::Deleteconfigurationresponse => todo!(),
-Type::Error => todo!(),
+        Type::Error => s,
         Type::Getindexrequest => todo!(),
         Type::Getindexresponse => todo!(),
     }
