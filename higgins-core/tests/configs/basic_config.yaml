@@ -15,7 +15,7 @@ streams:
     schema: update_customer_event
     partition_key: id
   customer:
-    derived: update_customer
+    base: update_customer
     type: reduce
     partition_key: id
     schema: customer
