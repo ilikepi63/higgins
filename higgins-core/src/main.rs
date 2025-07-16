@@ -1,5 +1,6 @@
 pub mod broker;
 pub mod client;
+mod derive;
 mod error;
 pub mod storage;
 pub mod subscription;

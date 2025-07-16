@@ -34,7 +34,7 @@ pub struct ConfigurationStreamDefinition {
     pub full_join: Option<String>,
 
     /// The mapping of values given this is a join operation.
-    pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation. s
+    pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation. 
 }
 
 type Schema = BTreeMap<String, String>;
