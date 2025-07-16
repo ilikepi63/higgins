@@ -4,7 +4,7 @@ schema:
     first_name: string
     last_name: string
     age: int32
-  address:
+  product:
     id: string
     address_line_1: string
     address_line_2: string
@@ -22,7 +22,7 @@ schema:
 
 streams:
   customer:
-    schema: update_customer_event
+    schema: customer
     partition_key: id
   product:
     schema: product

@@ -121,7 +121,7 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Createconfigurationresponse => todo!(),
         Type::Deleteconfigurationrequest => todo!(),
         Type::Deleteconfigurationresponse => todo!(),
-        Type::Error => s,
+        Type::Error => todo!(),
         Type::Getindexrequest => todo!(),
         Type::Getindexresponse => todo!(),
     }
