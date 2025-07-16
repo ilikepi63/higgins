@@ -1,11 +1,9 @@
 use std::io::{Read, Write};
-use std::time::Duration;
 
 use bytes::BytesMut;
-use higgins_codec::{CreateSubscriptionRequest, ProduceResponse, TakeRecordsRequest};
+use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
-use std::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod configuration;

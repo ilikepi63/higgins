@@ -1,22 +1,13 @@
-use std::{
-    io::{Read, Write},
-    sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
-};
+use std::time::Duration;
 
-use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{Message, TakeRecordsRequest, message::Type};
-use prost::Message as _;
 use tracing_test::traced_test;
 
 use crate::common::produce_sync;
 use crate::common::{
     configuration::upload_configuration,
-    produce,
     query::{query_by_timestamp, query_latest},
-    subscription::create_subscription,
 };
 
 mod common;

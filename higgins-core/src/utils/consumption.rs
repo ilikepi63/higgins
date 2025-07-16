@@ -1,4 +1,4 @@
-use higgins_codec::{GetIndexResponse, TakeRecordsResponse};
+use higgins_codec::GetIndexResponse;
 use riskless::messages::ConsumeResponse;
 use tokio::sync::mpsc::Receiver;
 use higgins_codec::Record;
@@ -10,7 +10,7 @@ pub async fn collect_consume_responses(
     let mut return_vec = vec![];
 
     while let Some(val) = consumption.recv().await {
-        let mut resp = GetIndexResponse {
+        let resp = GetIndexResponse {
             records: val
                 .batches
                 .iter()

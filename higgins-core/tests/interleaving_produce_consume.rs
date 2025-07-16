@@ -4,14 +4,12 @@ use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, ProduceRequest,
-    TakeRecordsRequest, message::Type,
+    CreateConfigurationRequest, Message, Ping, message::Type,
 };
 use prost::Message as _;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use tracing_test::traced_test;
 
 use crate::common::{consume, subscription::create_subscription, produce};
 
@@ -113,7 +111,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
     loom::model(move || {
-        let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+        let socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
         socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
 
