@@ -25,7 +25,7 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    let result = socket.write_all(&write_buf).await.unwrap();
+    let _result = socket.write_all(&write_buf).await.unwrap();
 
     let n = socket.read(&mut read_buf).await.unwrap();
 
@@ -80,7 +80,7 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Deleteconfigurationresponse => todo!(),
     }
 
-    let result = socket.write_all(&write_buf).await.unwrap();
+    let _result = socket.write_all(&write_buf).await.unwrap();
     let n = socket.read(&mut read_buf).await.unwrap();
 
     let slice = &read_buf[0..n];

@@ -157,6 +157,7 @@ impl From<&str> for FunctionType {
 
 #[derive(Debug)]
 pub struct SubscriptionDeclaration {
+    #[allow(unused)] 
     topic: Vec<u8>,
 }
 
@@ -202,18 +203,18 @@ pub fn apply_configuration_to_topography(
         .filter(|(_, def)| def.base.is_some())
     {
         match &topic_defintion.base {
-            Some(derived_from) => {
+            Some(_derived_from) => {
                 tracing::trace!("Applying a derived stream: {stream_name}..");
 
                 // Create just normal schema.
-                let schema = topography
+                let _schema = topography
                     .schema
                     .get(&Key::from(topic_defintion.schema.as_str()))
                     .unwrap_or_else(|| {
                         panic!("No Schema defined for key {}", topic_defintion.schema)
                     });
 
-                let topic_type = FunctionType::from(
+                let _topic_type = FunctionType::from(
                     topic_defintion
                         .stream_type
                         .as_ref()

@@ -18,12 +18,11 @@ use utils::consumption::collect_consume_responses;
 
 use crate::{broker::Broker, client::ClientRef};
 pub mod broker;
-pub mod client;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-
+pub mod client;
 mod error;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
@@ -80,7 +79,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                             tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
-                            writer_tx.send(result).await;
+                            writer_tx.send(result).await.unwrap();
                         }
                         Type::Createsubscriptionrequest => {
                             tracing::trace!(
@@ -162,7 +161,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             .encode(&mut result)
                             .unwrap();
 
-                            writer_tx.send(result).await;
+                            writer_tx.send(result).await.unwrap();
                         }
                         Type::Produceresponse => {}
                         Type::Metadatarequest => todo!(),
@@ -222,7 +221,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                     .encode(&mut result)
                                     .unwrap();
 
-                                    let result = writer_tx.send(result).await;
+                                    let _ = writer_tx.send(result).await;
                                 } else {
                                     let create_configuration_response =
                                         CreateConfigurationResponse { errors: vec![] };
@@ -266,7 +265,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                                 tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
-                                writer_tx.send(result).await;
+                                writer_tx.send(result).await.unwrap();
                             }
                         }
                         Type::Createconfigurationresponse => todo!(),
@@ -305,7 +304,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                             .encode(&mut result)
                                             .unwrap();
 
-                                            writer_tx.send(result).await;
+                                            writer_tx.send(result).await.unwrap();
                                         }
                                     }
                                     higgins_codec::index::Type::Latest => {
@@ -327,7 +326,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                             .encode(&mut result)
                                             .unwrap();
 
-                                            writer_tx.send(result).await;
+                                            writer_tx.send(result).await.unwrap();
                                         }
                                     }
                                     higgins_codec::index::Type::Offset => {
@@ -344,7 +343,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                         .encode(&mut result)
                                         .unwrap();
 
-                                        writer_tx.send(result).await;
+                                        writer_tx.send(result).await.unwrap();
                                     }
                                 }
                             }
@@ -365,8 +364,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
         while let Some(val) = writer_rx.recv().await {
             tracing::info!("Received: {:#?} on the writing side", val);
 
-            let result = write_socket.write_all(&val).await;
-            write_socket.flush().await;
+            let _result = write_socket.write_all(&val).await;
+            write_socket.flush().await.unwrap();
         }
     });
 }
