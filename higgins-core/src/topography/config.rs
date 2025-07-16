@@ -38,7 +38,6 @@ pub struct ConfigurationStreamDefinition {
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation. s
 }
 
-type NamedSchemaCollection = BTreeMap<String, Schema>;
 
 type Schema = BTreeMap<String, String>;
 

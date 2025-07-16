@@ -476,7 +476,7 @@ impl Broker {
 
                                 tracing::trace!("[TAKE] Writing the amount back to client.");
 
-                                client_ref.send(result).await;
+                                client_ref.send(result).await.unwrap();
                             }
                         }
                     };

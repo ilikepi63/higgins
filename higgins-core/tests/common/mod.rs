@@ -14,6 +14,7 @@ pub mod ping;
 /// produce to a stream without waiting for the response.
 ///
 /// This is helpful in scenarios where you may want to produce concurrently.
+#[allow(dead_code)]
 pub fn produce<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     partition: &[u8],
