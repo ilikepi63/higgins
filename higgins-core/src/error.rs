@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::subscription::error::SubscriptionError;
+use crate::topography::errors::TopographyError;
 
 #[derive(Error, Debug)]
 pub enum HigginsError {
@@ -9,6 +10,10 @@ pub enum HigginsError {
 
     #[error("Error occurred with Subscriptions.")]
     SubscriptionError(#[from] SubscriptionError),
+
+    #[error("Error occurred with Typography.")]
+    TopographyError(#[from] TopographyError),
+
     #[error("Unknown Error")]
     Unknown,
 }

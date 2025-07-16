@@ -111,5 +111,7 @@ async fn can_implement_a_basic_stream_join() {
 
     assert_ne!(n, 0);
 
+    panic!();
+
     handle.abort();
 }
