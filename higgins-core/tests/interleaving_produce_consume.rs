@@ -3,15 +3,12 @@ use std::time::Duration;
 use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{
-    CreateConfigurationRequest, Message, Ping, message::Type,
-};
+use higgins_codec::{CreateConfigurationRequest, Message, Ping, message::Type};
 use prost::Message as _;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-
-use crate::common::{consume, subscription::create_subscription, produce};
+use crate::common::{consume, produce, subscription::create_subscription};
 
 mod common;
 
@@ -115,7 +112,9 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     loom::model(move || {
         let socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
-        socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(1)))
+            .unwrap();
 
         let socket = loom::sync::Arc::new(loom::sync::Mutex::new(socket));
         let result_collection = loom::sync::Arc::new(loom::sync::Mutex::new(vec![]));
@@ -171,6 +170,5 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
         let received_values = result_collection.lock().unwrap();
         assert_eq!(message_count, received_values.len());
-
     });
 }

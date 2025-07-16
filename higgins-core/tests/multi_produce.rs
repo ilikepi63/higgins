@@ -3,9 +3,7 @@ use std::time::Duration;
 use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{
-    CreateConfigurationRequest, Message, Ping, ProduceRequest, message::Type,
-};
+use higgins_codec::{CreateConfigurationRequest, Message, Ping, ProduceRequest, message::Type};
 use prost::Message as _;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

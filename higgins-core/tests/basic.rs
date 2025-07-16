@@ -236,11 +236,8 @@ async fn can_achieve_basic_broker_functionality() {
             tracing::info!("Records_Response: {:#?}", take_records_response);
 
             for record in take_records_response.records.iter() {
-
                 tracing::info!("{}", String::from_utf8(record.data.clone()).unwrap());
-
             }
-
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     }

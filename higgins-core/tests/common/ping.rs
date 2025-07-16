@@ -1,8 +1,8 @@
+use bytes::BytesMut;
 use higgins_codec::{Message, Ping, message::Type};
 use prost::Message as _;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use bytes::BytesMut;
 
 pub async fn ping<S: AsyncReadExt + AsyncWriteExt + std::marker::Unpin>(socket: &mut S) {
     let mut write_buf = BytesMut::new();

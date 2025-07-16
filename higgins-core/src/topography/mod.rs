@@ -109,7 +109,7 @@ impl Topography {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StreamDefinition {
     /// From which this topic is derived.
     pub base: Option<Key>,
@@ -133,7 +133,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FunctionType {
     Reduce,
     Map,
@@ -157,7 +157,7 @@ impl From<&str> for FunctionType {
 
 #[derive(Debug)]
 pub struct SubscriptionDeclaration {
-    #[allow(unused)] 
+    #[allow(unused)]
     topic: Vec<u8>,
 }
 
