@@ -18,7 +18,7 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::{broker::object_store::path::Path, client};
+use crate::{broker::object_store::path::Path};
 use crate::{
     client::ClientCollection,
     error::HigginsError,
@@ -364,7 +364,7 @@ impl Broker {
         // We need to also be able to update the subscriptions for every stream.
 
         // TODO: This also needs to be done atomically.
-        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription));
+        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription)).unwrap();
 
         uuid.as_bytes().to_vec()
     }
@@ -552,7 +552,7 @@ impl Broker {
             .filter_map(|(key, def)| Some((key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
 
-        for (derived_stream_key, derived_stream_definition) in derived_streams {
+        for (derived_stream_key, _derived_stream_definition) in derived_streams {
             let subscription = self.create_subscription(derived_stream_key.inner());
 
             let (notify, subscription) = self
@@ -617,7 +617,7 @@ impl Broker {
                                 .consume(&task_stream_name, &partition, offset, 50_000)
                                 .await;
 
-                            while let Some(val) = consumption.recv().await {
+                            while let Some(_val) = consumption.recv().await {
 
                                 // let resp = TakeRecordsResponse {
                                 //     records: val
