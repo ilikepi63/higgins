@@ -9,7 +9,6 @@ pub fn upload_configuration(
     config: &[u8],
     socket: &mut std::net::TcpStream,
 ) -> CreateConfigurationResponse {
-
     let mut read_buf = BytesMut::zeroed(1024);
     let mut write_buf = BytesMut::new();
 

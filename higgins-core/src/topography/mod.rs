@@ -157,7 +157,7 @@ impl From<&str> for FunctionType {
 
 #[derive(Debug)]
 pub struct SubscriptionDeclaration {
-    #[allow(unused)] 
+    #[allow(unused)]
     topic: Vec<u8>,
 }
 

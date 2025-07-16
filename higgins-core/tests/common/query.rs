@@ -1,7 +1,6 @@
-use higgins_codec::{message::Type, GetIndexRequest, Index, Message, Record};
-use prost::Message as _; 
 use bytes::BytesMut;
-
+use higgins_codec::{GetIndexRequest, Index, Message, Record, message::Type};
+use prost::Message as _;
 
 pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     stream: &[u8],
@@ -52,7 +51,11 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     Ok(result)
 }
 
-pub fn query_latest<T: std::io::Read + std::io::Write>(stream: &[u8], partition: &[u8], socket: &mut T) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
+pub fn query_latest<T: std::io::Read + std::io::Write>(
+    stream: &[u8],
+    partition: &[u8],
+    socket: &mut T,
+) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),

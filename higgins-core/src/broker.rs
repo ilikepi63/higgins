@@ -18,7 +18,7 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::{broker::object_store::path::Path};
+use crate::broker::object_store::path::Path;
 use crate::{
     client::ClientCollection,
     error::HigginsError,
@@ -364,7 +364,8 @@ impl Broker {
         // We need to also be able to update the subscriptions for every stream.
 
         // TODO: This also needs to be done atomically.
-        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription)).unwrap();
+        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription))
+            .unwrap();
 
         uuid.as_bytes().to_vec()
     }

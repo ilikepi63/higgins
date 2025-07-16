@@ -18,12 +18,12 @@ use utils::consumption::collect_consume_responses;
 
 use crate::{broker::Broker, client::ClientRef};
 pub mod broker;
+pub mod client;
+mod error;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod client;
-mod error;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
