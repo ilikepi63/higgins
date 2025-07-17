@@ -504,9 +504,9 @@ impl Broker {
     pub fn apply_configuration(&mut self, config: &[u8]) -> Result<(), HigginsError> {
         let config = from_yaml(config);
 
-        apply_configuration_to_topography(config, &mut self.topography);
+        apply_configuration_to_topography(config, &mut self.topography)?;
 
-        // We need to figure out a nice way to do state updates here.
+        tracing::trace!("Streams after configuration update: {:#?}", self.topography.streams);
 
         let streams_to_create = self
             .topography
@@ -522,6 +522,8 @@ impl Broker {
                 None
             })
             .collect::<Vec<_>>();
+
+        tracing::trace!("Streams to create: {:#?}", streams_to_create);
 
         for (key, schema) in streams_to_create {
             self.create_stream(key.inner(), schema);

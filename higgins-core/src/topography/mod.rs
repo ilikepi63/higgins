@@ -138,6 +138,7 @@ pub enum FunctionType {
     Reduce,
     Map,
     Aggregate,
+    Join,
 }
 
 impl From<&str> for FunctionType {
@@ -146,6 +147,7 @@ impl From<&str> for FunctionType {
             "reduce" => FunctionType::Reduce,
             "map" => FunctionType::Map,
             "aggregate" => FunctionType::Aggregate,
+            "join" => FunctionType::Join,
             _ => {
                 panic!("Unmplemented function type {value}. Options are reduce, map and aggregate.")
             }
@@ -161,8 +163,12 @@ pub struct SubscriptionDeclaration {
 pub fn apply_configuration_to_topography(
     configuration: Configuration,
     topography: &mut Topography,
-) -> Key {
-    tracing::info!("Topography: {:#?}", topography);
+) -> Result<Key, TopographyError> {
+    tracing::info!(
+        "Applying configuration {:#?} to Topography: {:#?}",
+        configuration,
+        topography
+    );
 
     let _schema = configuration
         .schema
@@ -181,7 +187,11 @@ pub fn apply_configuration_to_topography(
         match &topic_defintion.base {
             Some(_derived_from) => unreachable!(),
             None => {
-                topography.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
+                tracing::trace!("Applying stream {}", stream_name);
+                let result =
+                    topography.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
+
+                tracing::trace!("Result from applying stream: {:#?}", result);
             }
         }
     }
@@ -193,6 +203,8 @@ pub fn apply_configuration_to_topography(
     {
         match &topic_defintion.base {
             Some(derived_from) => {
+                tracing::trace!("Applying a derived stream: {stream_name}..");
+
                 // Create just normal schema.
                 let schema = topography
                     .schema
@@ -209,24 +221,10 @@ pub fn apply_configuration_to_topography(
                         .as_str(),
                 );
 
-                match topic_type {
-                    FunctionType::Reduce => {
-                        // broker.reduce(
-                        //     derived_from,
-                        //     topic_defintion.schema.as_str(),
-                        //     schema.clone(),
-                        //     |_a, b| RecordBatch::new_empty(b.schema()),
-                        // );
-                    }
-                    _ => unimplemented!(),
-                }
-
                 let _ = topography.add_stream(
                     Key::from(stream_name.as_str()),
                     StreamDefinition::from(topic_defintion),
                 ); // TODO: This should likely be a warning.
-
-                // broker.create_stream(stream_name, schema.clone());
             }
             None => unreachable!(),
         }
@@ -240,5 +238,7 @@ pub fn apply_configuration_to_topography(
         .configurations
         .insert(config_id.clone(), configuration);
 
-    config_id
+    tracing::trace!("Typography after application: {:#?}", topography);
+
+    Ok(config_id)
 }
