@@ -1,10 +1,9 @@
-
 use bytes::BytesMut;
-
 
 #[derive(Debug)]
 pub enum ClientRef {
     AsyncTcpSocket(tokio::sync::mpsc::Sender<BytesMut>),
+    NoOp,
 }
 
 impl ClientRef {}

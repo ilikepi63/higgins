@@ -1,12 +1,10 @@
-
-
 pub mod broker;
+pub mod client;
+mod error;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod client;
-mod error;
 
 use higgins::run_server;
 
