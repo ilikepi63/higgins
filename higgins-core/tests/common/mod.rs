@@ -1,15 +1,15 @@
 use std::io::{Read, Write};
 
 use bytes::BytesMut;
-use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use higgins_codec::{Message, ProduceRequest, message::Type};
+use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod configuration;
+pub mod ping;
 pub mod query;
 pub mod subscription;
-pub mod ping;
 
 /// produce to a stream without waiting for the response.
 ///

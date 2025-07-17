@@ -1,7 +1,7 @@
 use higgins_codec::GetIndexResponse;
+use higgins_codec::Record;
 use riskless::messages::ConsumeResponse;
 use tokio::sync::mpsc::Receiver;
-use higgins_codec::Record;
 
 use crate::storage::arrow_ipc::read_arrow;
 pub async fn collect_consume_responses(

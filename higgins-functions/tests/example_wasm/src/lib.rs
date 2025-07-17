@@ -35,13 +35,10 @@ pub unsafe fn _malloc(len: u32) -> *mut u8 {
 
 #[unsafe(no_mangle)]
 pub unsafe fn run(array_ptr: *const FFI_ArrowArray, schema_ptr: *const FFI_ArrowSchema) -> u32 {
-
     // log_error!()
-
 
     let array = unsafe { FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray) };
     let schema = unsafe { FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema) };
-
 
     log_error(&format!("{:#?}", array));
 
