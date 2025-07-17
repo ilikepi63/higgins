@@ -1,9 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use arrow::datatypes::{DataType, Field};
 use serde::{Deserialize, Serialize};
 
-use crate::topography::{Key, StreamDefinition};
 
 /// A Configuration is a serializable value that corresponds to a
 /// unit of implementation. These implementations aggregate to become a

@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use clap::{Parser, Subcommand, arg, command};
-use higgins_codec::{Message, Ping, Pong, ProduceRequest, message::Type};
+use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
