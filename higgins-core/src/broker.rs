@@ -18,6 +18,7 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
+use crate::{broker::object_store::path::Path, client};
 use crate::{
     client::ClientCollection,
     error::HigginsError,
@@ -30,8 +31,8 @@ use crate::{
     utils::request_response::Request,
 };
 use riskless::messages::ConsumeBatch;
-use crate::broker::object_store::path::Path;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicU64;
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
 type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
@@ -321,6 +322,28 @@ impl Broker {
         Ok(())
     }
 
+    /// Upserts the given subscription into the underlying stream's subscription
+    /// list. If the list of the stream does not yet exist, we create one.
+    fn upsert_subscription(
+        &mut self,
+        stream: &[u8],
+        uuid: &[u8],
+        value: (Arc<Notify>, Arc<RwLock<Subscription>>),
+    ) -> Result<(), HigginsError> {
+        match self.subscriptions.entry(stream.to_vec()) {
+            std::collections::btree_map::Entry::Vacant(vacant_entry) => {
+                let mut map = BTreeMap::new();
+                map.insert(uuid.to_vec(), value);
+                vacant_entry.insert(map);
+            }
+            std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
+                occupied_entry.get_mut().insert(uuid.to_vec(), value);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn create_subscription(
         &mut self,
         stream: &[u8],
@@ -341,18 +364,7 @@ impl Broker {
         // We need to also be able to update the subscriptions for every stream.
 
         // TODO: This also needs to be done atomically.
-        match self.subscriptions.entry(stream.to_vec()) {
-            std::collections::btree_map::Entry::Vacant(vacant_entry) => {
-                let mut map = BTreeMap::new();
-                map.insert(uuid.as_bytes().to_vec(), (notify, subscription));
-                vacant_entry.insert(map);
-            }
-            std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
-                occupied_entry
-                    .get_mut()
-                    .insert(uuid.as_bytes().to_vec(), (notify, subscription));
-            }
-        }
+        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription));
 
         uuid.as_bytes().to_vec()
     }
@@ -501,13 +513,18 @@ impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
     // and then the state of the topography creates resources inside of the broker. However,
     // due to focus on naive implementations, we're going to just apply the configuration directly.
-    pub fn apply_configuration(&mut self, config: &[u8]) -> Result<(), HigginsError> {
+    pub fn apply_configuration(
+        &mut self,
+        config: &[u8],
+        broker: Arc<RwLock<Self>>,
+    ) -> Result<(), HigginsError> {
+        // Deserialize configuratio from YAML.
         let config = from_yaml(config);
 
+        // Apply the configuration to the topography.
         apply_configuration_to_topography(config, &mut self.topography)?;
 
-        tracing::trace!("Streams after configuration update: {:#?}", self.topography.streams);
-
+        // Generate Stream metadata to create.
         let streams_to_create = self
             .topography
             .streams
@@ -523,17 +540,130 @@ impl Broker {
             })
             .collect::<Vec<_>>();
 
-        tracing::trace!("Streams to create: {:#?}", streams_to_create);
-
         for (key, schema) in streams_to_create {
             self.create_stream(key.inner(), schema);
         }
 
-        // Right now, we don't actually have engineered ways of doing subscriptions.
-        // // Subscription state update -> another nice way to do this.
-        // let subscriptions_to_create = self.topography.subscriptions.iter().filter_map(|(key, sub_def)| {
+        // Retrieve derived streams metadata.
+        let derived_streams = self
+            .topography
+            .streams
+            .iter()
+            .filter_map(|(key, def)| Some((key.to_owned(), def.to_owned())))
+            .collect::<Vec<_>>();
 
-        // });
+        for (derived_stream_key, derived_stream_definition) in derived_streams {
+            let subscription = self.create_subscription(derived_stream_key.inner());
+
+            let (notify, subscription) = self
+                .subscriptions
+                .get_mut(derived_stream_key.inner())
+                .map(|v| v.get_mut(&subscription))
+                .flatten()
+                .ok_or(HigginsError::SubscriptionForStreamDoesNotExist(
+                    derived_stream_key
+                        .inner()
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<String>(),
+                    subscription
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<String>(),
+                ))?;
+
+            tracing::trace!(
+                "[DERIVED] Managed to find the subscription for subscription ID: {:#?}",
+                subscription
+            );
+
+            let task_subscription = subscription.clone();
+            let task_stream_name = derived_stream_key.inner().to_vec();
+            let task_notify = notify.clone();
+            let broker = broker.clone();
+            let client_id = self.clients.insert(crate::client::ClientRef::NoOp);
+
+            // The runner for this subscription.
+            tokio::task::spawn(async move {
+                loop {
+                    let mut lock = task_subscription.write().await;
+                    let broker_lock = broker.read().await;
+
+                    let n = match lock
+                        .client_counts
+                        .binary_search_by(|(id, _)| client_id.cmp(id))
+                        .map(|index| lock.client_counts.get(index))
+                        .ok()
+                        .flatten()
+                    {
+                        Some(c) => c.1.load(Ordering::Relaxed),
+                        None => {
+                            lock.client_counts.push((client_id, AtomicU64::new(0)));
+
+                            lock.client_counts
+                                .iter()
+                                .find(|(id, _)| *id == client_id)
+                                .unwrap()
+                                .0
+                        }
+                    };
+
+                    tracing::trace!("[DERIVED] Taking the amount: {n}");
+
+                    if let Ok(offsets) = lock.take(client_id, n) {
+                        //Get payloads from offsets.
+                        for (partition, offset) in offsets {
+                            let mut consumption = broker_lock
+                                .consume(&task_stream_name, &partition, offset, 50_000)
+                                .await;
+
+                            while let Some(val) = consumption.recv().await {
+
+                                // let resp = TakeRecordsResponse {
+                                //     records: val
+                                //         .batches
+                                //         .iter()
+                                //         .map(|batch| {
+                                //             let stream_reader = read_arrow(&batch.data);
+
+                                //             let batches = stream_reader
+                                //                 .filter_map(|val| val.ok())
+                                //                 .collect::<Vec<_>>();
+
+                                //             let batch_refs = batches.iter().collect::<Vec<_>>();
+
+                                //             // Infer the batches
+                                //             let buf = Vec::new();
+                                //             let mut writer =
+                                //                 arrow_json::LineDelimitedWriter::new(buf);
+                                //             writer.write_batches(&batch_refs).unwrap();
+                                //             writer.finish().unwrap();
+
+                                //             // Get the underlying buffer back,
+                                //             let buf = writer.into_inner();
+
+                                //             Record {
+                                //                 data: buf,
+                                //                 stream: batch.topic.as_bytes().to_vec(),
+                                //                 offset: batch.offset,
+                                //                 partition: batch.partition.clone(),
+                                //             }
+                                //         })
+                                //         .collect::<Vec<_>>(),
+                                // };
+                            }
+                        }
+                    };
+
+                    tracing::trace!("[DERIVED] Awaiting the condvar.");
+
+                    // await the condvar.
+                    task_notify.notified().await;
+
+                    tracing::trace!("[DERIVED] Condvar has been notified, retrieving the amount.");
+                }
+            });
+        }
 
         Ok(())
     }
@@ -549,7 +679,8 @@ impl Broker {
             .get_by_timestamp(stream, partition, timestamp)
             .await;
 
-        self.dereference_find_batch_response(find_batch_responses).await
+        self.dereference_find_batch_response(find_batch_responses)
+            .await
     }
 
     pub async fn get_latest(
@@ -559,7 +690,8 @@ impl Broker {
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
         let find_batch_responses = self.indexes.get_latest_offset(stream, partition).await;
 
-        self.dereference_find_batch_response(find_batch_responses).await
+        self.dereference_find_batch_response(find_batch_responses)
+            .await
     }
 
     pub async fn dereference_find_batch_response(
