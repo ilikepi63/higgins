@@ -4,8 +4,7 @@ use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, ProduceRequest,
-    TakeRecordsRequest, message::Type,
+    CreateConfigurationRequest, CreateSubscriptionRequest, Message, message::Type,
 };
 use prost::Message as _;
 use tokio::{

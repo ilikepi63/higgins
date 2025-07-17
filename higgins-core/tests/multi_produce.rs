@@ -11,7 +11,6 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-use tracing_test::traced_test;
 // #[tokio::test]
 // #[traced_test]
 async fn can_write_multiple_produce_requests() {

@@ -10,10 +10,7 @@ use rocksdb::TransactionDB;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
-use crate::{
-    client::{self, ClientRef},
-    subscription::error::SubscriptionError,
-};
+use crate::subscription::error::SubscriptionError;
 
 #[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
 #[rkyv(
