@@ -39,6 +39,7 @@ struct SubscriptionMetadata {
 pub struct Subscription {
     db: TransactionDB,
     last_index: u64,
+    #[allow(unused)]// Allowing for now as we will need this for grabbing this condvar to make more jobs.
     condvar: Notify,
     pub client_counts: Vec<(u64, AtomicU64)>,
 }

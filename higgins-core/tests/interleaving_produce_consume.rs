@@ -17,6 +17,8 @@ mod common;
 
 // #[tokio::test]
 // #[traced_test]
+
+#[allow(dead_code)]
 async fn can_correctly_consume_and_produce_interleaving_requests() {
     let port = TcpPort::in_range(
         "127.0.0.1",
