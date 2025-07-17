@@ -20,7 +20,7 @@ impl ClientCollection {
     /// Gets an open index from a range.
     fn get_open_index(&self) -> u64 {
         // As this is sorted, we can just iterate and return the missing index.
-        let index_watermark = 0;
+        let _index_watermark = 0;
 
         // let val = (0..self.0.len()).enumerate().find(|(index, val)|);
 
@@ -48,7 +48,7 @@ impl ClientCollection {
         // };
     }
 
-    pub fn insert(&mut self, client: ClientRef) -> u64 {
+    pub fn insert(&mut self, _client: ClientRef) -> u64 {
         let index = self.get_open_index();
 
         index

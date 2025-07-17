@@ -60,16 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(cmd) if matches!(cmd, Commands::Ping {}) => {
             handle_ping_cmd(&mut socket).await;
         }
-        Some(cmd)
-            if matches!(
-                &cmd,
-                Commands::Produce {
-                    topic,
-                    key,
-                    file_name
-                }
-            ) =>
-        {
+        Some(cmd) if matches!(&cmd, Commands::Produce { .. }) => {
             if let Commands::Produce {
                 topic,
                 key,
@@ -97,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tracing::info!("Writing: {:#?}", write_buf);
 
-                let result = socket.write_all(&write_buf).await.unwrap();
+                let _result = socket.write_all(&write_buf).await.unwrap();
 
                 let n = socket.read(&mut read_buf).await.unwrap();
 
@@ -126,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Type::Deleteconfigurationresponse => todo!(),
                     Type::Getindexrequest => todo!(),
                     Type::Getindexresponse => todo!(),
-                    Type::Error => todo!()
+                    Type::Error => todo!(),
                 }
             }
         }
