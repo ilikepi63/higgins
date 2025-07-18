@@ -8,9 +8,12 @@
 
 // TODO: How do we chain multiple streams together?.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use arrow::{
@@ -138,8 +141,34 @@ fn values_to_batches(
     join: Join,
     left: Option<RecordBatch>,
     right: Option<RecordBatch>,
+    left_key: String,
+    right_key: String,
+    map: BTreeMap<String, String>,
 ) -> Option<RecordBatch> {
+    // let x = map.iter().map(|key, destination| {
+
+    //     let destination =
+
+    //     (key, )
+
+    // })
+
     None
+    // match join {
+    //     Join::Inner(key) => todo!(),
+    //     Join::LeftOuter(key) => todo!(),
+    //     Join::RightOuter(key) => todo!(),
+    //     Join::Full(key) => {
+
+    //         match (left, right) {
+    //             (None, None) => None,
+    //             (None, Some(_)) => ,
+    //             (Some(_), None) => todo!(),
+    //             (Some(_), Some(_)) => todo!(),
+    //         }
+
+    //     },
+    // }
 }
 
 fn get_partition_key_from_record_batch<'a>(
@@ -163,4 +192,125 @@ fn get_partition_key_from_record_batch<'a>(
     let value = col.as_string::<i64>().value(index); // TODO: What is offset size here?
 
     value.as_bytes()
+}
+
+#[cfg(test)]
+mod test {
+    use std::{collections::BTreeMap, sync::Arc};
+
+    use arrow::{
+        array::{Int32Array, RecordBatch, StringArray},
+        datatypes::{DataType, Field, Schema},
+    };
+
+    use crate::{
+        derive::joining::values_to_batches,
+        topography::{Join, Key},
+    };
+
+    #[test]
+    fn can_query_record_batches() {
+        let map = BTreeMap::from([
+            ("customer_id".to_string(), "customer.id".to_string()),
+            (
+                "customer_first_name".to_string(),
+                "customer.first_name".to_string(),
+            ),
+            (
+                "customer_last_name".to_string(),
+                "customer.last_name".to_string(),
+            ),
+            ("age".to_string(), "customer.age".to_string()),
+            (
+                "address_line_1".to_string(),
+                "address.address_line_1".to_string(),
+            ),
+            (
+                "address_line_2".to_string(),
+                "address.address_line_2".to_string(),
+            ),
+            ("city".to_string(), "address.city".to_string()),
+            ("province".to_string(), "address.province".to_string()),
+        ]);
+
+        let join = Join::Inner("customer_id".into());
+
+        let left_schema = Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("first_name", DataType::Utf8, false),
+            Field::new("last_name", DataType::Utf8, false),
+            Field::new("age", DataType::Int32, false),
+        ]);
+
+        let left = RecordBatch::try_new(
+            Arc::new(left_schema),
+            vec![
+                Arc::new(StringArray::from(vec!["ID"])),
+                Arc::new(StringArray::from(vec!["TestFirstName"])),
+                Arc::new(StringArray::from(vec!["TestSurname"])),
+                Arc::new(Int32Array::from(vec![30])),
+            ],
+        )
+        .unwrap();
+
+        let right_schema: Schema = Schema::new(vec![
+            Field::new("address_line_1", DataType::Utf8, false),
+            Field::new("address_line_2", DataType::Utf8, false),
+            Field::new("city", DataType::Utf8, false),
+            Field::new("province", DataType::Int32, false),
+        ]);
+
+        let right = RecordBatch::try_new(
+            Arc::new(right_schema),
+            vec![
+                Arc::new(StringArray::from(vec!["12 Tennatn Avenut"])),
+                Arc::new(StringArray::from(vec!["Bonteheuwel"])),
+                Arc::new(StringArray::from(vec!["Cape Town"])),
+                Arc::new(StringArray::from(vec!["Western Cape"])),
+            ],
+        )
+        .unwrap();
+
+        let result = values_to_batches(
+            join,
+            Some(left),
+            Some(right),
+            "customer".to_string(),
+            "address".to_string(),
+            map,
+        );
+
+        assert!(result.is_some());
+
+        let result = result.unwrap();
+
+        let result_schema = Schema::new(vec![
+            Field::new("customer_id", DataType::Utf8, false),
+            Field::new("customer_first_name", DataType::Utf8, false),
+            Field::new("customerlast_name", DataType::Utf8, false),
+            Field::new("age", DataType::Int32, false),
+            Field::new("address_line_1", DataType::Utf8, false),
+            Field::new("address_line_2", DataType::Utf8, false),
+            Field::new("city", DataType::Utf8, false),
+            Field::new("province", DataType::Int32, false),
+        ]);
+
+        let expected_result = RecordBatch::try_new(
+            Arc::new(result_schema),
+            vec![
+                Arc::new(StringArray::from(vec!["ID"])),
+                Arc::new(StringArray::from(vec!["TestFirstName"])),
+                Arc::new(StringArray::from(vec!["TestSurname"])),
+                Arc::new(Int32Array::from(vec![30])),
+                Arc::new(StringArray::from(vec!["12 Tennatn Avenut"])),
+                Arc::new(StringArray::from(vec!["Bonteheuwel"])),
+                Arc::new(StringArray::from(vec!["Cape Town"])),
+                Arc::new(StringArray::from(vec!["Western Cape"])),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(result, expected_result);
+
+    }
 }
