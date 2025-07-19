@@ -120,6 +120,10 @@ pub struct StreamDefinition {
     pub partition_key: Key,
     /// The schema for this, references a key in schema.
     pub schema: Key,
+    /// The Join for this stream definition.
+    pub join: Option<Join>,
+    /// The mapping of values given this is a join operation.
+    pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
 }
 
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
@@ -129,8 +133,31 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
             partition_key: Key::from(value.partition_key.as_str()),
             schema: value.schema.as_str().into(),
+            join: match (
+                value.full_join.as_ref(),
+                value.inner_join.as_ref(),
+                value.left_join.as_ref(),
+                value.right_join.as_ref(),
+            ) {
+                (Some(stream), _, _, _) => Some(Join::Full(Key(stream.as_bytes().to_vec()))),
+                (_, Some(stream), _, _) => Some(Join::Inner(Key(stream.as_bytes().to_vec()))),
+
+                (_, _, Some(stream), _) => Some(Join::LeftOuter(Key(stream.as_bytes().to_vec()))),
+
+                (_, _, _, Some(stream)) => Some(Join::RightOuter(Key(stream.as_bytes().to_vec()))),
+                (None, None, None, None) => None,
+            },
+            map: value.map.clone(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Join {
+    Inner(Key),
+    LeftOuter(Key),
+    RightOuter(Key),
+    Full(Key),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
