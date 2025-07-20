@@ -10,6 +10,7 @@ use riskless::{
     object_store::{self, ObjectStore},
 };
 use std::{
+    clone,
     collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, atomic::Ordering},
@@ -18,7 +19,9 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::broker::object_store::path::Path;
+use crate::{
+    broker::object_store::path::Path, derive::joining::create_derived_stream_from_definition,
+};
 use crate::{
     client::ClientCollection,
     error::HigginsError,
@@ -526,7 +529,7 @@ impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
     // and then the state of the topography creates resources inside of the broker. However,
     // due to focus on naive implementations, we're going to just apply the configuration directly.
-    pub fn apply_configuration(
+    pub async fn apply_configuration(
         &mut self,
         config: &[u8],
         broker: Arc<RwLock<Self>>,
@@ -565,7 +568,35 @@ impl Broker {
             .filter_map(|(key, def)| Some((key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
 
-        for (derived_stream_key, _derived_stream_definition) in derived_streams {}
+        for (derived_stream_key, derived_stream_definition) in derived_streams {
+            let join = derived_stream_definition.join.as_ref().cloned().unwrap();
+
+            let left = self
+                .topography
+                .streams
+                .iter()
+                .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
+                .map(|(key, def)| (key.clone(), def.clone()))
+                .unwrap();
+            let right = self
+                .topography
+                .streams
+                .iter()
+                .find(|(key, _)| {
+                    key.inner() == derived_stream_definition.join.as_ref().unwrap().key()
+                })
+                .map(|(key, def)| (key.clone(), def.clone()))
+                .unwrap();
+
+            create_derived_stream_from_definition(
+                derived_stream_key,
+                derived_stream_definition,
+                left,
+                right,
+                join,
+                broker.clone(),
+            ).await;
+        }
 
         Ok(())
     }

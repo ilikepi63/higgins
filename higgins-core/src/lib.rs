@@ -204,7 +204,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             if let Some(CreateConfigurationRequest { data }) =
                                 message.create_configuration_request
                             {
-                                let result = broker.apply_configuration(&data, broker_ref);
+                                let result = broker.apply_configuration(&data, broker_ref).await;
 
                                 if let Err(err) = result {
                                     let create_configuration_response =

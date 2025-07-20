@@ -160,6 +160,17 @@ pub enum Join {
     Full(Key),
 }
 
+impl Join {
+    pub fn key(&self) -> &[u8] {
+        match self {
+            Join::Inner(key) => key.inner(),
+            Join::LeftOuter(key) => key.inner(),
+            Join::RightOuter(key) => key.inner(),
+            Join::Full(key) => key.inner(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FunctionType {
     Reduce,
