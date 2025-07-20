@@ -4,8 +4,8 @@ use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Error, Message, Pong, ProduceRequest, ProduceResponse,
-    TakeRecordsRequest, message::Type,
+    CreateSubscriptionResponse, Error, GetIndexResponse, Message, Pong, ProduceRequest,
+    ProduceResponse, Record, TakeRecordsRequest, message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -16,9 +16,10 @@ use tokio::{
 
 use utils::consumption::collect_consume_responses;
 
-use crate::{broker::Broker, client::ClientRef};
+use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
 pub mod broker;
 pub mod client;
+mod derive;
 mod error;
 pub mod storage;
 pub mod subscription;
@@ -203,7 +204,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             if let Some(CreateConfigurationRequest { data }) =
                                 message.create_configuration_request
                             {
-                                let result = broker.apply_configuration(&data, broker_ref);
+                                let result = broker.apply_configuration(&data, broker_ref).await;
 
                                 if let Err(err) = result {
                                     let create_configuration_response =
@@ -293,21 +294,55 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                             .await
                                             .unwrap();
 
-                                        let responses = collect_consume_responses(values).await;
+                                        let response = GetIndexResponse {
+                                            records: values
+                                                .batches
+                                                .iter()
+                                                .map(|batch| {
+                                                    let stream_reader = read_arrow(&batch.data);
 
-                                        for response in responses {
-                                            let mut result = BytesMut::new();
+                                                    let batches = stream_reader
+                                                        .filter_map(|val| val.ok())
+                                                        .collect::<Vec<_>>();
 
-                                            Message {
-                                                r#type: Type::Getindexresponse as i32,
-                                                get_index_response: Some(response),
-                                                ..Default::default()
-                                            }
-                                            .encode(&mut result)
-                                            .unwrap();
+                                                    let batch_refs =
+                                                        batches.iter().collect::<Vec<_>>();
 
-                                            writer_tx.send(result).await.unwrap();
+                                                    // Infer the batches
+                                                    let buf = Vec::new();
+                                                    let mut writer =
+                                                        arrow_json::LineDelimitedWriter::new(buf);
+                                                    writer.write_batches(&batch_refs).unwrap();
+                                                    writer.finish().unwrap();
+
+                                                    // Get the underlying buffer back,
+                                                    let buf = writer.into_inner();
+
+                                                    Record {
+                                                        data: buf,
+                                                        stream: batch.topic.as_bytes().to_vec(),
+                                                        offset: batch.offset,
+                                                        partition: batch.partition.clone(),
+                                                    }
+                                                })
+                                                .collect::<Vec<_>>(),
+                                        };
+
+                                        // let responses = collect_consume_responses(values).await;
+
+                                        // for response in responses {
+                                        let mut result = BytesMut::new();
+
+                                        Message {
+                                            r#type: Type::Getindexresponse as i32,
+                                            get_index_response: Some(response),
+                                            ..Default::default()
                                         }
+                                        .encode(&mut result)
+                                        .unwrap();
+
+                                        writer_tx.send(result).await.unwrap();
+                                        // }
                                     }
                                     higgins_codec::index::Type::Latest => {
                                         let values = broker

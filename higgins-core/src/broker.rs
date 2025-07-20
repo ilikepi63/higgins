@@ -10,6 +10,7 @@ use riskless::{
     object_store::{self, ObjectStore},
 };
 use std::{
+    clone,
     collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, atomic::Ordering},
@@ -18,7 +19,9 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::broker::object_store::path::Path;
+use crate::{
+    broker::object_store::path::Path, derive::joining::create_derived_stream_from_definition,
+};
 use crate::{
     client::ClientCollection,
     error::HigginsError,
@@ -32,7 +35,6 @@ use crate::{
 };
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
-use std::sync::atomic::AtomicU64;
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
 type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
@@ -281,6 +283,19 @@ impl Broker {
             .insert(stream_name.to_owned(), (schema, tx, rx));
     }
 
+    /// Retrieves the subscription for this specific key.
+    pub fn get_subscription_by_key(
+        &self,
+        stream: &[u8],
+        subscription_id: &[u8],
+    ) -> Option<(Arc<Notify>, Arc<RwLock<Subscription>>)> {
+        self.subscriptions
+            .get(stream)
+            .map(|v| v.get(subscription_id))
+            .flatten()
+            .cloned()
+    }
+
     /// Apply a reduction function to the stream.
     pub fn reduce(
         &mut self,
@@ -514,7 +529,7 @@ impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
     // and then the state of the topography creates resources inside of the broker. However,
     // due to focus on naive implementations, we're going to just apply the configuration directly.
-    pub fn apply_configuration(
+    pub async fn apply_configuration(
         &mut self,
         config: &[u8],
         broker: Arc<RwLock<Self>>,
@@ -553,117 +568,34 @@ impl Broker {
             .filter_map(|(key, def)| Some((key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
 
-        for (derived_stream_key, _derived_stream_definition) in derived_streams {
-            let subscription = self.create_subscription(derived_stream_key.inner());
+        for (derived_stream_key, derived_stream_definition) in derived_streams {
+            let join = derived_stream_definition.join.as_ref().cloned().unwrap();
 
-            let (notify, subscription) = self
-                .subscriptions
-                .get_mut(derived_stream_key.inner())
-                .map(|v| v.get_mut(&subscription))
-                .flatten()
-                .ok_or(HigginsError::SubscriptionForStreamDoesNotExist(
-                    derived_stream_key
-                        .inner()
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect::<String>(),
-                    subscription
-                        .iter()
-                        .map(|v| v.to_string())
-                        .collect::<String>(),
-                ))?;
+            let left = self
+                .topography
+                .streams
+                .iter()
+                .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
+                .map(|(key, def)| (key.clone(), def.clone()))
+                .unwrap();
+            let right = self
+                .topography
+                .streams
+                .iter()
+                .find(|(key, _)| {
+                    key.inner() == derived_stream_definition.join.as_ref().unwrap().key()
+                })
+                .map(|(key, def)| (key.clone(), def.clone()))
+                .unwrap();
 
-            tracing::trace!(
-                "[DERIVED] Managed to find the subscription for subscription ID: {:#?}",
-                subscription
-            );
-
-            let task_subscription = subscription.clone();
-            let task_stream_name = derived_stream_key.inner().to_vec();
-            let task_notify = notify.clone();
-            let broker = broker.clone();
-            let client_id = self.clients.insert(crate::client::ClientRef::NoOp);
-
-            // The runner for this subscription.
-            tokio::task::spawn(async move {
-                loop {
-                    let mut lock = task_subscription.write().await;
-                    let broker_lock = broker.read().await;
-
-                    let n = match lock
-                        .client_counts
-                        .binary_search_by(|(id, _)| client_id.cmp(id))
-                        .map(|index| lock.client_counts.get(index))
-                        .ok()
-                        .flatten()
-                    {
-                        Some(c) => c.1.load(Ordering::Relaxed),
-                        None => {
-                            lock.client_counts.push((client_id, AtomicU64::new(0)));
-
-                            lock.client_counts
-                                .iter()
-                                .find(|(id, _)| *id == client_id)
-                                .unwrap()
-                                .0
-                        }
-                    };
-
-                    tracing::trace!("[DERIVED] Taking the amount: {n}");
-
-                    if let Ok(offsets) = lock.take(client_id, n) {
-                        //Get payloads from offsets.
-                        for (partition, offset) in offsets {
-                            let mut consumption = broker_lock
-                                .consume(&task_stream_name, &partition, offset, 50_000)
-                                .await;
-
-                            while let Some(_val) = consumption.recv().await {
-
-                                // let resp = TakeRecordsResponse {
-                                //     records: val
-                                //         .batches
-                                //         .iter()
-                                //         .map(|batch| {
-                                //             let stream_reader = read_arrow(&batch.data);
-
-                                //             let batches = stream_reader
-                                //                 .filter_map(|val| val.ok())
-                                //                 .collect::<Vec<_>>();
-
-                                //             let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                                //             // Infer the batches
-                                //             let buf = Vec::new();
-                                //             let mut writer =
-                                //                 arrow_json::LineDelimitedWriter::new(buf);
-                                //             writer.write_batches(&batch_refs).unwrap();
-                                //             writer.finish().unwrap();
-
-                                //             // Get the underlying buffer back,
-                                //             let buf = writer.into_inner();
-
-                                //             Record {
-                                //                 data: buf,
-                                //                 stream: batch.topic.as_bytes().to_vec(),
-                                //                 offset: batch.offset,
-                                //                 partition: batch.partition.clone(),
-                                //             }
-                                //         })
-                                //         .collect::<Vec<_>>(),
-                                // };
-                            }
-                        }
-                    };
-
-                    tracing::trace!("[DERIVED] Awaiting the condvar.");
-
-                    // await the condvar.
-                    task_notify.notified().await;
-
-                    tracing::trace!("[DERIVED] Condvar has been notified, retrieving the amount.");
-                }
-            });
+            create_derived_stream_from_definition(
+                derived_stream_key,
+                derived_stream_definition,
+                left,
+                right,
+                join,
+                broker.clone(),
+            ).await;
         }
 
         Ok(())
@@ -674,13 +606,16 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
         timestamp: u64,
-    ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
+    ) -> Option<ConsumeResponse> {
         let find_batch_responses = self
             .indexes
             .get_by_timestamp(stream, partition, timestamp)
             .await;
 
         self.dereference_find_batch_response(find_batch_responses)
+            .await
+            .unwrap()
+            .recv()
             .await
     }
 
