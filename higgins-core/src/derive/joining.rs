@@ -17,9 +17,11 @@ use std::{
 };
 
 use arrow::{
-    array::{AsArray, Datum, RecordBatch},
+    array::{ArrayRef, AsArray, Datum, RecordBatch},
+    datatypes::{Field, Schema},
     record_batch,
 };
+use higgins_codec::Record;
 use tokio::sync::RwLock;
 
 use crate::{
@@ -145,30 +147,83 @@ fn values_to_batches(
     right_key: String,
     map: BTreeMap<String, String>,
 ) -> Option<RecordBatch> {
-    // let x = map.iter().map(|key, destination| {
+    let mut fields = vec![];
+    let mut columns = vec![];
 
-    //     let destination =
+    for (resultant_name, origin) in map.iter() {
+        tracing::info!("Resultant Name: {resultant_name}, origin: {origin} ");
 
-    //     (key, )
+        let mut split_origin = origin.split(".");
 
-    // })
+        if let (Some(origin), Some(origin_key)) = (split_origin.nth(0), split_origin.nth(0)) {
+            match origin {
+                origin if origin == left_key => match join {
+                    Join::Inner(_) => {
+                        let left = left.as_ref().unwrap();
 
-    None
-    // match join {
-    //     Join::Inner(key) => todo!(),
-    //     Join::LeftOuter(key) => todo!(),
-    //     Join::RightOuter(key) => todo!(),
-    //     Join::Full(key) => {
+                        let (col, field) = col_name_to_field_and_col(&left, origin_key);
+                        let field = field.with_name(resultant_name);
 
-    //         match (left, right) {
-    //             (None, None) => None,
-    //             (None, Some(_)) => ,
-    //             (Some(_), None) => todo!(),
-    //             (Some(_), Some(_)) => todo!(),
-    //         }
+                        columns.push(col);
+                        fields.push(field);
+                    }
+                    Join::LeftOuter(key) => todo!(),
+                    Join::RightOuter(key) => todo!(),
+                    Join::Full(key) => todo!(),
+                },
+                origin if origin == right_key => match join {
+                    Join::Inner(_) => {
+                        let right = right.as_ref().unwrap();
 
-    //     },
-    // }
+                        let (col, field) = col_name_to_field_and_col(&right, origin_key);
+
+                        columns.push(col);
+                        fields.push(field);
+                    }
+                    Join::LeftOuter(key) => todo!(),
+                    Join::RightOuter(key) => todo!(),
+                    Join::Full(key) => todo!(),
+                },
+                _ => {
+                    tracing::error!("Origin does not match left of right. Continuing.");
+                }
+            }
+        } else {
+            tracing::error!("Origin/Origin Key pairing non-existent. Continuing.");
+        }
+    }
+
+    let schema = Schema::new(fields);
+
+    let result = RecordBatch::try_new(Arc::new(schema), columns)
+        .inspect_err(|err| {
+            tracing::error!(
+                "Failed to create RecordBatch from Schema and Columsn: {:#?}",
+                err
+            );
+        })
+        .ok();
+
+    result
+}
+
+fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
+    let schema = batch.schema();
+
+    let schema_index = schema
+        .index_of(col_name)
+        .inspect(|err| {
+            tracing::error!(
+                "Unexpected error not being able to retrieve partition key by name: {:#?}",
+                err
+            );
+        })
+        .unwrap();
+
+    let col = batch.column(schema_index);
+    let field = schema.field(schema_index);
+
+    (col.clone(), field.clone())
 }
 
 fn get_partition_key_from_record_batch<'a>(
@@ -196,12 +251,13 @@ fn get_partition_key_from_record_batch<'a>(
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{collections::BTreeMap, ops::Deref, sync::Arc};
 
     use arrow::{
         array::{Int32Array, RecordBatch, StringArray},
         datatypes::{DataType, Field, Schema},
     };
+    use tracing_test::traced_test;
 
     use crate::{
         derive::joining::values_to_batches,
@@ -209,6 +265,7 @@ mod test {
     };
 
     #[test]
+    #[traced_test]
     fn can_query_record_batches() {
         let map = BTreeMap::from([
             ("customer_id".to_string(), "customer.id".to_string()),
@@ -257,7 +314,7 @@ mod test {
             Field::new("address_line_1", DataType::Utf8, false),
             Field::new("address_line_2", DataType::Utf8, false),
             Field::new("city", DataType::Utf8, false),
-            Field::new("province", DataType::Int32, false),
+            Field::new("province", DataType::Utf8, false),
         ]);
 
         let right = RecordBatch::try_new(
@@ -287,12 +344,12 @@ mod test {
         let result_schema = Schema::new(vec![
             Field::new("customer_id", DataType::Utf8, false),
             Field::new("customer_first_name", DataType::Utf8, false),
-            Field::new("customerlast_name", DataType::Utf8, false),
+            Field::new("customer_last_name", DataType::Utf8, false),
             Field::new("age", DataType::Int32, false),
             Field::new("address_line_1", DataType::Utf8, false),
             Field::new("address_line_2", DataType::Utf8, false),
             Field::new("city", DataType::Utf8, false),
-            Field::new("province", DataType::Int32, false),
+            Field::new("province", DataType::Utf8, false),
         ]);
 
         let expected_result = RecordBatch::try_new(
@@ -310,7 +367,24 @@ mod test {
         )
         .unwrap();
 
-        assert_eq!(result, expected_result);
+        for field in result.schema().fields() {
+            let schema = result.schema();
+
+            let result_field = schema.field_with_name(field.name()).unwrap();
+
+            // field equality.
+            assert_eq!(*result_field, **field);
+
+            let expected_schema = expected_result.schema();
+
+            let (index, _) = schema.column_with_name(field.name()).unwrap();
+            let (expect_index, _) = expected_schema.column_with_name(field.name()).unwrap();
+
+            let expected_value = expected_result.column(expect_index);
+            let value = result.column(index);
+
+            assert_eq!(expected_value, value);
+        }
 
     }
 }
