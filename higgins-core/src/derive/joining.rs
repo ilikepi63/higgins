@@ -10,23 +10,18 @@
 
 use std::{
     collections::BTreeMap,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
 };
 
 use arrow::{
-    array::{ArrayRef, AsArray, Datum, RecordBatch},
+    array::{ArrayRef, AsArray, RecordBatch},
     datatypes::{Field, Schema},
-    record_batch,
 };
-use higgins_codec::Record;
 use tokio::sync::RwLock;
 
 use crate::{
     broker::Broker,
-    client::{self, ClientRef},
+    client::{ClientRef},
     error::HigginsError,
     storage::arrow_ipc::read_arrow,
     topography::{Join, Key, StreamDefinition},
@@ -34,6 +29,7 @@ use crate::{
 };
 
 pub async fn create_derived_stream_from_definition(
+    stream_name: Key,
     stream_def: StreamDefinition,
     left: (Key, StreamDefinition),
     right: (Key, StreamDefinition),
@@ -45,12 +41,12 @@ pub async fn create_derived_stream_from_definition(
 
     // Subscribe to both streams.
     let left_subscription = broker.create_subscription(left.0.inner());
-    let right_subscription = broker.create_subscription(right.0.inner());
+    let _right_subscription = broker.create_subscription(right.0.inner());
 
     let (left_notify, left_subscription_ref) = broker
         .get_subscription_by_key(left.0.inner(), &left_subscription)
         .unwrap();
-    let (right_notify, right_subscription_ref) = broker
+    let (_right_notify, _right_subscription_ref) = broker
         .get_subscription_by_key(left.0.inner(), &left_subscription)
         .unwrap();
 
@@ -90,7 +86,7 @@ pub async fn create_derived_stream_from_definition(
                                 stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
                             for record_batch in batches {
-                                let broker_lock = left_broker.read().await;
+                                let mut broker_lock = left_broker.write().await;
 
                                 let epoch_val = epoch();
 
@@ -122,6 +118,35 @@ pub async fn create_derived_stream_from_definition(
                                         })
                                         .flatten()
                                         .flatten();
+
+                                    let right_key =
+                                        String::from_utf8(join_type.key().to_vec()).unwrap();
+
+                                    let new_record_batch = values_to_batches(
+                                        &join_type,
+                                        Some(record_batch.clone()),
+                                        right_record,
+                                        String::from_utf8(
+                                            stream_def.base.clone().unwrap().inner().to_vec(),
+                                        )
+                                        .unwrap(),
+                                        right_key,
+                                        stream_def.map.clone().unwrap(),
+                                    )
+                                    .unwrap();
+
+                                    let result = broker_lock
+                                        .produce(
+                                            stream_name.inner(),
+                                            stream_def.partition_key.inner(),
+                                            new_record_batch,
+                                        )
+                                        .await;
+
+                                    tracing::trace!(
+                                        "Result from producing with a join: {:#?}",
+                                        result
+                                    );
                                 }
 
                                 drop(broker_lock);
@@ -140,7 +165,7 @@ pub async fn create_derived_stream_from_definition(
 /// and return the resultant record batch that needs to be written to the new
 /// stream.
 fn values_to_batches(
-    join: Join,
+    join: &Join,
     left: Option<RecordBatch>,
     right: Option<RecordBatch>,
     left_key: String,
@@ -251,7 +276,7 @@ fn get_partition_key_from_record_batch<'a>(
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap, ops::Deref, sync::Arc};
+    use std::{collections::BTreeMap, sync::Arc};
 
     use arrow::{
         array::{Int32Array, RecordBatch, StringArray},
@@ -261,7 +286,7 @@ mod test {
 
     use crate::{
         derive::joining::values_to_batches,
-        topography::{Join, Key},
+        topography::Join,
     };
 
     #[test]
@@ -329,7 +354,7 @@ mod test {
         .unwrap();
 
         let result = values_to_batches(
-            join,
+            &join,
             Some(left),
             Some(right),
             "customer".to_string(),
@@ -385,6 +410,5 @@ mod test {
 
             assert_eq!(expected_value, value);
         }
-
     }
 }

@@ -1,7 +1,6 @@
 pub mod consumption;
 pub mod request_response;
 
-
 pub fn epoch() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
 
