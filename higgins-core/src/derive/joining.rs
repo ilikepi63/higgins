@@ -8,10 +8,7 @@
 
 // TODO: How do we chain multiple streams together?.
 
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{
     array::{ArrayRef, AsArray, RecordBatch},
@@ -21,7 +18,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     broker::Broker,
-    client::{ClientRef},
+    client::ClientRef,
     error::HigginsError,
     storage::arrow_ipc::read_arrow,
     topography::{Join, Key, StreamDefinition},
@@ -34,9 +31,9 @@ pub async fn create_derived_stream_from_definition(
     left: (Key, StreamDefinition),
     right: (Key, StreamDefinition),
     join_type: Join,
+    broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    let mut broker = broker_ref.write().await;
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
     // Subscribe to both streams.
@@ -57,15 +54,24 @@ pub async fn create_derived_stream_from_definition(
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
+
+        
+
         loop {
             let mut lock = left_subscription_ref.write().await;
 
             let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
 
-            if let Ok(offsets) = lock.take(client_id, n) {
+            let offsets_result = lock.take(client_id, n);
+
+            drop(lock);
+
+            if let Ok(offsets) = offsets_result{
                 // If there are no given offsts, await the wakener then.
                 if offsets.len() < 1 {
+                    tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
                     left_notify.notified().await;
+                    tracing::trace!("[DERIVED TAKE] We've been notified!");
                 }
 
                 //Get payloads from offsets.
@@ -154,6 +160,8 @@ pub async fn create_derived_stream_from_definition(
                         }
                     }
                 }
+            } else {
+                tracing::info!("Nothing to take, will just continue..");
             };
         }
     });
@@ -192,9 +200,9 @@ fn values_to_batches(
                         columns.push(col);
                         fields.push(field);
                     }
-                    Join::LeftOuter(key) => todo!(),
-                    Join::RightOuter(key) => todo!(),
-                    Join::Full(key) => todo!(),
+                    Join::LeftOuter(_) => todo!(),
+                    Join::RightOuter(_) => todo!(),
+                    Join::Full(_) => todo!(),
                 },
                 origin if origin == right_key => match join {
                     Join::Inner(_) => {
@@ -205,9 +213,9 @@ fn values_to_batches(
                         columns.push(col);
                         fields.push(field);
                     }
-                    Join::LeftOuter(key) => todo!(),
-                    Join::RightOuter(key) => todo!(),
-                    Join::Full(key) => todo!(),
+                    Join::LeftOuter(_) => todo!(),
+                    Join::RightOuter(_) => todo!(),
+                    Join::Full(_) => todo!(),
                 },
                 _ => {
                     tracing::error!("Origin does not match left of right. Continuing.");
@@ -284,10 +292,7 @@ mod test {
     };
     use tracing_test::traced_test;
 
-    use crate::{
-        derive::joining::values_to_batches,
-        topography::Join,
-    };
+    use crate::{derive::joining::values_to_batches, topography::Join};
 
     #[test]
     #[traced_test]

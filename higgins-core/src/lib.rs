@@ -146,7 +146,14 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                             let batch = reader.next().unwrap().unwrap();
 
-                            let _ = broker.produce(&stream_name, &partition_key, batch).await;
+
+                            let result = broker.produce(&stream_name, &partition_key, batch).await;
+
+                            tracing::trace!(
+                                "Result from producing to {}: {:#?}",
+                                String::from_utf8(stream_name.to_vec()).unwrap(),
+                                result
+                            );
 
                             drop(broker);
 
@@ -195,6 +202,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             // we don't handle this.
                         }
                         Type::Createconfigurationrequest => {
+                            tracing::info!("We're trying to get the lock.");
+
                             let broker_ref = broker.clone();
 
                             let mut broker = broker.write().await;
@@ -204,7 +213,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             if let Some(CreateConfigurationRequest { data }) =
                                 message.create_configuration_request
                             {
+                                tracing::trace!("Making a config");
+
                                 let result = broker.apply_configuration(&data, broker_ref).await;
+
+                                tracing::trace!("Returned {:#?} from configuratin update.", result);
 
                                 if let Err(err) = result {
                                     let create_configuration_response =

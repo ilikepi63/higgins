@@ -1,10 +1,8 @@
-use std::io::{Read, Write};
 
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub mod configuration;
 pub mod ping;
@@ -41,6 +39,7 @@ pub fn produce<T: std::io::Read + std::io::Write>(
 }
 
 /// Produce synchronously to a listener awaiting the response.
+#[allow(unused)]
 pub fn produce_sync<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     partition: &[u8],
@@ -71,14 +70,16 @@ pub fn produce_sync<T: std::io::Read + std::io::Write>(
     Ok(result)
 }
 
+#[allow(unused)]
 pub fn consume<T: std::io::Read + std::io::Write>(
     sub_id: Vec<u8>,
+    stream_name: &[u8],
     socket: &mut T,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let take_request = TakeRecordsRequest {
         n: 1,
         subscription_id: sub_id,
-        stream_name: "update_customer".as_bytes().to_vec(),
+        stream_name: stream_name.to_vec(),
     };
 
     let mut write_buf = BytesMut::new();

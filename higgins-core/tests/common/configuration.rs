@@ -5,6 +5,7 @@ use higgins_codec::{
 use prost::Message as _;
 use std::io::{Read, Write};
 
+#[allow(unused)]
 pub fn upload_configuration(
     config: &[u8],
     socket: &mut std::net::TcpStream,
@@ -15,8 +16,6 @@ pub fn upload_configuration(
     let create_config_req = CreateConfigurationRequest {
         data: config.to_vec(),
     };
-
-    tracing::info!("Sending Configuration Request: {:#?}", create_config_req);
 
     Message {
         r#type: Type::Createconfigurationrequest as i32,

@@ -10,7 +10,6 @@ use riskless::{
     object_store::{self, ObjectStore},
 };
 use std::{
-    clone,
     collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, atomic::Ordering},
@@ -177,6 +176,9 @@ impl Broker {
         partition: &[u8],
         record_batch: RecordBatch,
     ) -> Result<ProduceResponse, HigginsError> {
+
+        tracing::trace!("[PRODUCE] Producing to stream: {}", String::from_utf8(stream_name.to_vec()).unwrap());
+
         let data = write_arrow(&record_batch);
 
         let request = ProduceRequest {
@@ -329,7 +331,10 @@ impl Broker {
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
             for (_id, (_, sub)) in subs {
+                println!("Awaiting sub...");
                 let sub = sub.write().await;
+                                println!("Got sub...");
+
                 sub.add_partition(partition_key, None, None)?;
             }
         }
@@ -396,7 +401,6 @@ impl Broker {
         broker: Arc<RwLock<Broker>>,
         count: u64,
     ) -> Result<(), HigginsError> {
-        tracing::trace!("[TAKE] Taking for subscription for client {client_id}, amount: {count}.");
 
         let (notify, subscription) = self
             .subscriptions
@@ -565,7 +569,7 @@ impl Broker {
             .topography
             .streams
             .iter()
-            .filter_map(|(key, def)| Some((key.to_owned(), def.to_owned())))
+            .filter_map(|(key, def)| def.base.as_ref().map(|_| (key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
 
         for (derived_stream_key, derived_stream_definition) in derived_streams {
@@ -578,6 +582,7 @@ impl Broker {
                 .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
                 .map(|(key, def)| (key.clone(), def.clone()))
                 .unwrap();
+
             let right = self
                 .topography
                 .streams
@@ -594,8 +599,11 @@ impl Broker {
                 left,
                 right,
                 join,
+                self,
                 broker.clone(),
-            ).await;
+            )
+            .await
+            .unwrap();
         }
 
         Ok(())

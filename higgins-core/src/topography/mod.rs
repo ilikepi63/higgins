@@ -128,25 +128,27 @@ pub struct StreamDefinition {
 
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     fn from(value: &ConfigurationStreamDefinition) -> Self {
+        let join = match (
+            value.full_join.as_ref(),
+            value.inner_join.as_ref(),
+            value.left_join.as_ref(),
+            value.right_join.as_ref(),
+        ) {
+            (Some(stream), _, _, _) => Some(Join::Full(Key(stream.as_bytes().to_vec()))),
+            (_, Some(stream), _, _) => Some(Join::Inner(Key(stream.as_bytes().to_vec()))),
+
+            (_, _, Some(stream), _) => Some(Join::LeftOuter(Key(stream.as_bytes().to_vec()))),
+
+            (_, _, _, Some(stream)) => Some(Join::RightOuter(Key(stream.as_bytes().to_vec()))),
+            (None, None, None, None) => None,
+        };
+
         StreamDefinition {
             base: value.base.as_ref().map(|s| s.as_str().into()),
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
             partition_key: Key::from(value.partition_key.as_str()),
             schema: value.schema.as_str().into(),
-            join: match (
-                value.full_join.as_ref(),
-                value.inner_join.as_ref(),
-                value.left_join.as_ref(),
-                value.right_join.as_ref(),
-            ) {
-                (Some(stream), _, _, _) => Some(Join::Full(Key(stream.as_bytes().to_vec()))),
-                (_, Some(stream), _, _) => Some(Join::Inner(Key(stream.as_bytes().to_vec()))),
-
-                (_, _, Some(stream), _) => Some(Join::LeftOuter(Key(stream.as_bytes().to_vec()))),
-
-                (_, _, _, Some(stream)) => Some(Join::RightOuter(Key(stream.as_bytes().to_vec()))),
-                (None, None, None, None) => None,
-            },
+            join,
             map: value.map.clone(),
         }
     }
@@ -276,8 +278,6 @@ pub fn apply_configuration_to_topography(
     topography
         .configurations
         .insert(config_id.clone(), configuration);
-
-    tracing::trace!("Typography after application: {:#?}", topography);
 
     Ok(config_id)
 }
