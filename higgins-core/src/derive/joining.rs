@@ -11,9 +11,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{
-    array::{ArrayRef, AsArray, RecordBatch, StringArrayType},
-    compute::cast,
-    datatypes::{Field, Schema, Utf8Type},
+    array::{ArrayRef, RecordBatch},
+    datatypes::{Field, Schema},
     util::display::array_value_to_string,
 };
 use tokio::sync::RwLock;
@@ -292,7 +291,7 @@ fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, 
 
 fn get_partition_key_from_record_batch(
     batch: &RecordBatch,
-    index: usize,
+    _index: usize,
     col_name: &str,
 ) -> Vec<u8> {
     let schema_index = batch
@@ -308,17 +307,7 @@ fn get_partition_key_from_record_batch(
 
     let col = batch.column(schema_index);
 
-    tracing::info!("Col: {:#?}", col);
-
     let value = array_value_to_string(col, 0);
-
-    // let col = cast(col, &arrow::datatypes::DataType::Utf8).inspect_err(|err| {
-    //     tracing::error!("Received Error when trying to cast StringArray: {:#?}", err);
-    // }).unwrap();
-
-    // let value = col.as_string_opt::<i64>(  );
-
-    tracing::info!("Result: {:#?}", value);
 
     value.unwrap().as_bytes().to_vec()
 }
