@@ -2,10 +2,13 @@ use std::{net::TcpStream, time::Duration};
 
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
+use serde_json::json;
 use tracing_test::traced_test;
+use uuid::Uuid;
 
 use crate::common::{
-    configuration::upload_configuration, consume, ping::ping_sync, produce_sync, subscription::create_subscription
+    configuration::upload_configuration, consume, ping::ping_sync, produce_sync,
+    query::query_latest, subscription::create_subscription,
 };
 
 mod common;
@@ -47,14 +50,16 @@ fn can_implement_a_basic_stream_join() {
 
     upload_configuration(config.as_bytes(), &mut socket);
 
-    let sub_id = create_subscription(b"customer_product", &mut socket).unwrap();
+    // let sub_id = create_subscription(b"customer_product", &mut socket).unwrap();
+
+    // tracing::info!("Sub ID: {:#?}", Uuid::from_slice(&sub_id).unwrap());
 
     produce_sync(
         b"customer",
         b"1",
         r#"
         {
-            "id": "ID",
+            "id": "1",
             "first_name": "TestFirstName",
             "last_name": "TestSurname",
             "age": 30
@@ -62,7 +67,8 @@ fn can_implement_a_basic_stream_join() {
     "#
         .as_bytes(),
         &mut socket,
-    ).unwrap();
+    )
+    .unwrap();
 
     produce_sync(
         b"address",
@@ -78,13 +84,17 @@ fn can_implement_a_basic_stream_join() {
     "#
         .as_bytes(),
         &mut socket,
-    ).unwrap();
+    )
+    .unwrap();
 
-    let result = consume(sub_id, b"customer_product", &mut socket).unwrap();
+    // let result = consume(sub_id, b"customer_product", &mut socket).unwrap();
 
-    let json_str = String::from_utf8(result).unwrap();
+    let result = query_latest(b"customer_address", b"1", &mut socket).unwrap();
 
-    tracing::info!("Result: {json_str}");
+    let result: serde_json::Value = serde_json::from_slice(&result.get(0).unwrap().data).unwrap();
+    let expected_result = json!(
+        {"address_line_1":"12 Tennatn Avenut","address_line_2":"Bonteheuwel","age":30,"city":"Cape Town","customer_first_name":"TestFirstName","customer_id":"1","customer_last_name":"TestSurname","province":"Western Cape"}
+    );
 
-    panic!();
+    assert_eq!(result, expected_result);
 }

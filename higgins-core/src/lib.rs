@@ -184,6 +184,10 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 subscription_id,
                             } = message.take_records_request.unwrap();
 
+                            // TODO: Wrap this behind test cfg flag.
+                             tracing::info!("Sub ID: {:#?}", uuid::Uuid::from_slice(&subscription_id).unwrap());
+
+
                             let mut broker = broker.write().await;
 
                             let _ = broker

@@ -1,4 +1,6 @@
 customer/
 data/
+customer_address/
+address/
 subscriptions/
 update_customer/

@@ -310,6 +310,8 @@ impl FindBatches for IndexDirectory {
 
             let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
+            tracing::info!("Reading metadata for file : {index_file_path}");
+
             let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
             let index_reader =
