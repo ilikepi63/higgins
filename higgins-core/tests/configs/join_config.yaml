@@ -4,8 +4,8 @@ schema:
     first_name: string
     last_name: string
     age: int32
-  product:
-    id: string
+  address:
+    customer_id: string
     address_line_1: string
     address_line_2: string
     city: string
@@ -24,10 +24,10 @@ streams:
   customer:
     schema: customer
     partition_key: id
-  product:
-    schema: product
+  address:
+    schema: address
     partition_key: id
-  customer_product:
+  customer_address:
     type: join
     schema: customer_address
     partition_key: customer_id

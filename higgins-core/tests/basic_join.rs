@@ -1,25 +1,18 @@
-use std::time::Duration;
+use std::{net::TcpStream, time::Duration};
 
-use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{
-    CreateConfigurationRequest, CreateSubscriptionRequest, Message, message::Type,
-};
-use prost::Message as _;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-};
 use tracing_test::traced_test;
 
-use crate::common::ping::ping_sync;
+use crate::common::{
+    configuration::upload_configuration, consume, ping::ping_sync, produce_sync, subscription::create_subscription
+};
 
 mod common;
 
-#[tokio::test]
+#[test]
 #[traced_test]
-async fn can_implement_a_basic_stream_join() {
+fn can_implement_a_basic_stream_join() {
     let port = TcpPort::in_range(
         "127.0.0.1",
         Range {
@@ -31,86 +24,67 @@ async fn can_implement_a_basic_stream_join() {
 
     tracing::info!("Running on port: {port}");
 
-    let mut read_buf = BytesMut::zeroed(20);
-    let mut write_buf = BytesMut::new();
+    let _ = std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
-    let handle = tokio::spawn(async move {
-        let _ = run_server(port).await;
+        rt.block_on(run_server(port));
     });
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    std::thread::sleep(Duration::from_millis(200)); // Sleep to allow 
 
-    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}"))
-        .await
+    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+
+    socket
+        .set_read_timeout(Some(Duration::from_secs(3)))
         .unwrap();
 
     // 1. Do a basic Ping test.
-    ping_sync(&mut socket).await;
+    ping_sync(&mut socket);
 
     // Upload a basic configuration with one stream.
+
     let config = std::fs::read_to_string("tests/configs/join_config.yaml").unwrap();
 
-    let create_config_req = CreateConfigurationRequest {
-        data: config.into_bytes(),
-    };
+    upload_configuration(config.as_bytes(), &mut socket);
 
-    Message {
-        r#type: Type::Createconfigurationrequest as i32,
-        create_configuration_request: Some(create_config_req),
-        ..Default::default()
-    }
-    .encode(&mut write_buf)
-    .unwrap();
+    let sub_id = create_subscription(b"customer_product", &mut socket).unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
-
-    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
-        .await
-        .unwrap()
-        .unwrap();
-
-    assert_ne!(n, 0);
-
-    let slice = &read_buf[0..n];
-
-    let message = Message::decode(slice).unwrap();
-
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Createconfigurationresponse => {
-            tracing::info!("Received response from server for configuration request.")
+    produce_sync(
+        b"customer",
+        b"1",
+        r#"
+        {
+            "id": "ID",
+            "first_name": "TestFirstName",
+            "last_name": "TestSurname",
+            "age": 30
         }
-        _ => panic!("Received incorrect response from server for create configuration request."),
-    }
+    "#
+        .as_bytes(),
+        &mut socket,
+    ).unwrap();
 
-    // Start a subscription on that stream.
-    let create_subscription = CreateSubscriptionRequest {
-        offset: None,
-        offset_type: 0,
-        timestamp: None,
-        stream_name: "update_customer".as_bytes().to_vec(),
-    };
+    produce_sync(
+        b"address",
+        b"1",
+        r#"
+        {
+            "customer_id": "1",
+            "address_line_1": "12 Tennatn Avenut",
+            "address_line_2": "Bonteheuwel",
+            "city": "Cape Town",
+            "province": "Western Cape"
+        }
+    "#
+        .as_bytes(),
+        &mut socket,
+    ).unwrap();
 
-    let mut write_buf = BytesMut::new();
-    let mut read_buf = BytesMut::zeroed(1024);
+    let result = consume(sub_id, b"customer_product", &mut socket).unwrap();
 
-    Message {
-        r#type: Type::Createsubscriptionrequest as i32,
-        create_subscription_request: Some(create_subscription),
-        ..Default::default()
-    }
-    .encode(&mut write_buf)
-    .unwrap();
+    let json_str = String::from_utf8(result).unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
-
-    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
-        .await
-        .unwrap()
-        .unwrap();
-
-    assert_ne!(n, 0);
+    tracing::info!("Result: {json_str}");
 
     panic!();
-
-    handle.abort();
 }

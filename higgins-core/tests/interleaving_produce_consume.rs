@@ -152,7 +152,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
                     let mut socket = socket.lock().unwrap();
 
                     // Consume from the stream.
-                    let response = consume(sub_id, &mut *socket).unwrap();
+                    let response = consume(sub_id, b"update_customer", &mut *socket).unwrap();
 
                     let mut collection_lock = result_collection.lock().unwrap();
 

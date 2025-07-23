@@ -71,7 +71,7 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         first_payload.as_bytes(),
         &mut socket,
-    );
+    ).unwrap();
 
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
@@ -105,7 +105,7 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         second_payload.as_bytes(),
         &mut socket,
-    );
+    ).unwrap();
 
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()

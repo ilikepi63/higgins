@@ -11,6 +11,7 @@ use tokio::{
 };
 // #[tokio::test]
 // #[traced_test]
+#[allow(unused)]
 async fn can_write_multiple_produce_requests() {
     let port = TcpPort::in_range(
         "127.0.0.1",

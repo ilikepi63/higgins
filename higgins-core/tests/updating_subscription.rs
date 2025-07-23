@@ -130,7 +130,7 @@ fn can_update_subscription_after_created() {
 
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    for i in 0..NUMBER_OF_MESSAGES {
+    for _ in 0..NUMBER_OF_MESSAGES {
         produce(
             "update_customer".as_bytes(),
             "test_partition".as_bytes(),
