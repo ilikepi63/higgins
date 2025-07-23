@@ -123,10 +123,9 @@ impl Subscription {
             }
         };
 
-        let existing_ranges = subscription_metadata
-            .ranges
-            .iter_mut()
-            .find(|range| range.0 <= offset + 1 && range.1 >= offset - 1);
+        let existing_ranges = subscription_metadata.ranges.iter_mut().find(|range| {
+            range.0 <= offset.saturating_add(1) && range.1 >= offset.saturating_sub(1)
+        });
 
         if let Some(range) = existing_ranges {
             apply_offset_to_range(range, offset);

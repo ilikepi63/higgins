@@ -3,6 +3,7 @@ use higgins_codec::CreateSubscriptionRequest;
 use higgins_codec::{Message, message::Type};
 use prost::Message as _;
 
+#[allow(unused)]
 pub fn create_subscription<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     socket: &mut T,
@@ -40,8 +41,6 @@ pub fn create_subscription<T: std::io::Read + std::io::Write>(
                 .create_subscription_response
                 .unwrap()
                 .subscription_id;
-
-            tracing::info!("Got the sub_id: {:#?}", sub_id);
 
             sub_id.unwrap()
         }

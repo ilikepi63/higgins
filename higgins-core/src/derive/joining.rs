@@ -8,20 +8,19 @@
 
 // TODO: How do we chain multiple streams together?.
 
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{
-    array::{ArrayRef, AsArray, RecordBatch},
-    datatypes::{Field, Schema},
+    array::{ArrayRef, AsArray, RecordBatch, StringArrayType},
+    compute::cast,
+    datatypes::{Field, Schema, Utf8Type},
+    util::display::array_value_to_string,
 };
 use tokio::sync::RwLock;
 
 use crate::{
     broker::Broker,
-    client::{ClientRef},
+    client::ClientRef,
     error::HigginsError,
     storage::arrow_ipc::read_arrow,
     topography::{Join, Key, StreamDefinition},
@@ -34,9 +33,9 @@ pub async fn create_derived_stream_from_definition(
     left: (Key, StreamDefinition),
     right: (Key, StreamDefinition),
     join_type: Join,
+    broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    let mut broker = broker_ref.write().await;
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
     // Subscribe to both streams.
@@ -57,16 +56,34 @@ pub async fn create_derived_stream_from_definition(
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
+        tracing::trace!("[DERIVED TAKE] We are being initiated");
+
         loop {
             let mut lock = left_subscription_ref.write().await;
 
             let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
 
-            if let Ok(offsets) = lock.take(client_id, n) {
+            let offsets_result = lock.take(client_id, n);
+
+            drop(lock);
+
+            if let Ok(mut offsets) = offsets_result {
                 // If there are no given offsts, await the wakener then.
                 if offsets.len() < 1 {
+                    tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
                     left_notify.notified().await;
+                    tracing::trace!("[DERIVED TAKE] We've been notified!");
+
+                    offsets = {
+                        let mut lock = left_subscription_ref.write().await;
+                        lock.take(client_id, n).unwrap()
+                    };
                 }
+
+                tracing::trace!(
+                    "[DERIVED TAKE] Received offsets {:#?}. Initiating join.",
+                    offsets
+                );
 
                 //Get payloads from offsets.
                 for (partition, offset) in offsets {
@@ -79,6 +96,8 @@ pub async fn create_derived_stream_from_definition(
                     drop(broker_lock);
 
                     while let Some(val) = consumption.recv().await {
+                        tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
+
                         for consume_batch in val.batches.iter() {
                             let stream_reader = read_arrow(&consume_batch.data);
 
@@ -102,7 +121,7 @@ pub async fn create_derived_stream_from_definition(
                                     let right_record = broker_lock
                                         .get_by_timestamp(
                                             &right_stream_name,
-                                            partition_val,
+                                            &partition_val,
                                             epoch_val,
                                         )
                                         .await
@@ -118,6 +137,11 @@ pub async fn create_derived_stream_from_definition(
                                         })
                                         .flatten()
                                         .flatten();
+
+                                    tracing::trace!(
+                                        "[DERIVED TAKE] Right record: {:#?}",
+                                        right_record
+                                    );
 
                                     let right_key =
                                         String::from_utf8(join_type.key().to_vec()).unwrap();
@@ -135,10 +159,15 @@ pub async fn create_derived_stream_from_definition(
                                     )
                                     .unwrap();
 
+                                    tracing::trace!(
+                                        "Managed to write to partition: {:#?}",
+                                        stream_def.partition_key
+                                    );
+
                                     let result = broker_lock
                                         .produce(
                                             stream_name.inner(),
-                                            stream_def.partition_key.inner(),
+                                            &partition_val,
                                             new_record_batch,
                                         )
                                         .await;
@@ -153,7 +182,15 @@ pub async fn create_derived_stream_from_definition(
                             }
                         }
                     }
+
+                    let lock = left_subscription_ref.write().await;
+
+                    lock.acknowledge(&partition, offset).unwrap();
+
+                    drop(lock);
                 }
+            } else {
+                tracing::info!("Nothing to take, will just continue..");
             };
         }
     });
@@ -192,9 +229,9 @@ fn values_to_batches(
                         columns.push(col);
                         fields.push(field);
                     }
-                    Join::LeftOuter(key) => todo!(),
-                    Join::RightOuter(key) => todo!(),
-                    Join::Full(key) => todo!(),
+                    Join::LeftOuter(_) => todo!(),
+                    Join::RightOuter(_) => todo!(),
+                    Join::Full(_) => todo!(),
                 },
                 origin if origin == right_key => match join {
                     Join::Inner(_) => {
@@ -205,9 +242,9 @@ fn values_to_batches(
                         columns.push(col);
                         fields.push(field);
                     }
-                    Join::LeftOuter(key) => todo!(),
-                    Join::RightOuter(key) => todo!(),
-                    Join::Full(key) => todo!(),
+                    Join::LeftOuter(_) => todo!(),
+                    Join::RightOuter(_) => todo!(),
+                    Join::Full(_) => todo!(),
                 },
                 _ => {
                     tracing::error!("Origin does not match left of right. Continuing.");
@@ -233,6 +270,8 @@ fn values_to_batches(
 }
 
 fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
+    tracing::info!("Attempting to retrieve data from RecordBatch: {:#?}", batch);
+
     let schema = batch.schema();
 
     let schema_index = schema
@@ -251,15 +290,15 @@ fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, 
     (col.clone(), field.clone())
 }
 
-fn get_partition_key_from_record_batch<'a>(
-    batch: &'a RecordBatch,
+fn get_partition_key_from_record_batch(
+    batch: &RecordBatch,
     index: usize,
     col_name: &str,
-) -> &'a [u8] {
+) -> Vec<u8> {
     let schema_index = batch
         .schema()
         .index_of(col_name)
-        .inspect(|err| {
+        .inspect_err(|err| {
             tracing::error!(
                 "Unexpected error not being able to retrieve partition key by name: {:#?}",
                 err
@@ -269,9 +308,19 @@ fn get_partition_key_from_record_batch<'a>(
 
     let col = batch.column(schema_index);
 
-    let value = col.as_string::<i64>().value(index); // TODO: What is offset size here?
+    tracing::info!("Col: {:#?}", col);
 
-    value.as_bytes()
+    let value = array_value_to_string(col, 0);
+
+    // let col = cast(col, &arrow::datatypes::DataType::Utf8).inspect_err(|err| {
+    //     tracing::error!("Received Error when trying to cast StringArray: {:#?}", err);
+    // }).unwrap();
+
+    // let value = col.as_string_opt::<i64>(  );
+
+    tracing::info!("Result: {:#?}", value);
+
+    value.unwrap().as_bytes().to_vec()
 }
 
 #[cfg(test)]
@@ -284,10 +333,7 @@ mod test {
     };
     use tracing_test::traced_test;
 
-    use crate::{
-        derive::joining::values_to_batches,
-        topography::Join,
-    };
+    use crate::{derive::joining::values_to_batches, topography::Join};
 
     #[test]
     #[traced_test]

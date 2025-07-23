@@ -1,10 +1,9 @@
 use bytes::BytesMut;
 use higgins_codec::{Message, Ping, message::Type};
 use prost::Message as _;
-use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-pub async fn ping<S: AsyncReadExt + AsyncWriteExt + std::marker::Unpin>(socket: &mut S) {
+#[allow(unused)]
+pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
     let mut write_buf = BytesMut::new();
 
     let ping = Ping::default();
@@ -19,19 +18,16 @@ pub async fn ping<S: AsyncReadExt + AsyncWriteExt + std::marker::Unpin>(socket: 
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).unwrap();
 }
 
-pub async fn ping_sync<S: AsyncReadExt + AsyncWriteExt + std::marker::Unpin>(socket: &mut S) {
+#[allow(unused)]
+pub fn ping_sync<S: std::io::Read + std::io::Write>(socket: &mut S) {
     let mut read_buf = BytesMut::zeroed(20);
 
-    ping(socket).await;
+    ping(socket);
 
-    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
-        .await
-        .unwrap()
-        .unwrap();
-
+    let n = socket.read(&mut read_buf).unwrap();
     assert_ne!(n, 0);
 
     let slice = &read_buf[0..n];
