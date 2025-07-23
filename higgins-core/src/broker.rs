@@ -176,8 +176,10 @@ impl Broker {
         partition: &[u8],
         record_batch: RecordBatch,
     ) -> Result<ProduceResponse, HigginsError> {
-
-        tracing::trace!("[PRODUCE] Producing to stream: {}", String::from_utf8(stream_name.to_vec()).unwrap());
+        tracing::trace!(
+            "[PRODUCE] Producing to stream: {}",
+            String::from_utf8(stream_name.to_vec()).unwrap()
+        );
 
         let data = write_arrow(&record_batch);
 
@@ -333,7 +335,7 @@ impl Broker {
             for (_id, (_, sub)) in subs {
                 println!("Awaiting sub...");
                 let sub = sub.write().await;
-                                println!("Got sub...");
+                println!("Got sub...");
 
                 sub.add_partition(partition_key, None, None)?;
             }
@@ -401,7 +403,6 @@ impl Broker {
         broker: Arc<RwLock<Broker>>,
         count: u64,
     ) -> Result<(), HigginsError> {
-
         let (notify, subscription) = self
             .subscriptions
             .get_mut(stream)
@@ -594,10 +595,22 @@ impl Broker {
                 .unwrap();
 
             create_derived_stream_from_definition(
+                derived_stream_key.clone(),
+                derived_stream_definition.clone(),
+                left.clone(),
+                right.clone(),
+                join.clone(),
+                self,
+                broker.clone(),
+            )
+            .await
+            .unwrap();
+
+            create_derived_stream_from_definition(
                 derived_stream_key,
                 derived_stream_definition,
-                left,
                 right,
+                left,
                 join,
                 self,
                 broker.clone(),
