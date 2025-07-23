@@ -57,6 +57,7 @@ pub struct Broker {
     flush_tx: tokio::sync::mpsc::Sender<()>,
 
     // Subscriptions.
+    #[allow(clippy::type_complexity)]
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
 
     // Clients
@@ -295,8 +296,7 @@ impl Broker {
     ) -> Option<(Arc<Notify>, Arc<RwLock<Subscription>>)> {
         self.subscriptions
             .get(stream)
-            .map(|v| v.get(subscription_id))
-            .flatten()
+            .and_then(|v| v.get(subscription_id))
             .cloned()
     }
 
@@ -332,7 +332,7 @@ impl Broker {
         partition_key: &[u8],
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
-            for (_id, (_, sub)) in subs {
+            for (_, sub) in subs.values_mut() {
                 println!("Awaiting sub...");
                 let sub = sub.write().await;
                 println!("Got sub...");
@@ -406,8 +406,7 @@ impl Broker {
         let (notify, subscription) = self
             .subscriptions
             .get_mut(stream)
-            .map(|v| v.get_mut(subscription))
-            .flatten()
+            .and_then(|v| v.get_mut(subscription))
             .ok_or(HigginsError::SubscriptionForStreamDoesNotExist(
                 stream.iter().map(|v| v.to_string()).collect::<String>(),
                 subscription
@@ -429,9 +428,9 @@ impl Broker {
         let mut subscription = subscription.write().await;
 
         // Client ID does not exist on this subscription, therefore we create it.
-        if let Err(_) = subscription
+        if subscription
             .client_counts
-            .binary_search_by(|(id, _)| client_id.cmp(id))
+            .binary_search_by(|(id, _)| client_id.cmp(id)).is_err()
         {
             tracing::trace!("[TAKE] No client count found for subscription. Creating one.");
 
@@ -551,7 +550,7 @@ impl Broker {
             .streams
             .iter()
             .filter_map(|(stream_key, def)| {
-                if let None = self.streams.get(stream_key.inner()) {
+                if !self.streams.contains_key(stream_key.inner()) {
                     let schema = self.topography.schema.get(&def.schema).unwrap().clone();
 
                     return Some((stream_key.clone(), schema));

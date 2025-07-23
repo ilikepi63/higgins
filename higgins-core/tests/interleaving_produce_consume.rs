@@ -86,7 +86,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 

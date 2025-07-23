@@ -1,3 +1,5 @@
+#![allow(clippy::unused_io_amount)]
+
 use bytes::BytesMut;
 use clap::{Parser, Subcommand, arg, command};
 use higgins_codec::{Message, ProduceRequest, message::Type};
@@ -57,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     match args.command {
-        Some(cmd) if matches!(cmd, Commands::Ping {}) => {
+        Some(Commands::Ping {}) => {
             handle_ping_cmd(&mut socket).await;
         }
         Some(cmd) if matches!(&cmd, Commands::Produce { .. }) => {
@@ -88,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tracing::info!("Writing: {:#?}", write_buf);
 
-                let _result = socket.write_all(&write_buf).await.unwrap();
+                socket.write_all(&write_buf).await.unwrap();
 
                 let n = socket.read(&mut read_buf).await.unwrap();
 

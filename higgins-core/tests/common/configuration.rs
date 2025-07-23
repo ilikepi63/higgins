@@ -25,7 +25,7 @@ pub fn upload_configuration(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 

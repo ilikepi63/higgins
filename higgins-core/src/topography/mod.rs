@@ -46,6 +46,12 @@ pub struct Topography {
     pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
 }
 
+impl Default for Topography {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Topography {
     pub fn new() -> Self {
         Self {
@@ -67,7 +73,7 @@ impl Topography {
                 vacant_entry.insert(schema);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(TopographyError::Occupied(format!(""))), // TODO: add more meat to this error messag .
+            Entry::Occupied(_) => Err(TopographyError::Occupied(String::new())), // TODO: add more meat to this error messag .
         }
     }
     pub fn add_stream(
@@ -76,7 +82,7 @@ impl Topography {
         stream: StreamDefinition,
     ) -> Result<(), TopographyError> {
         // Check the schema exists.
-        if let None = self.schema.get(&stream.schema) {
+        if !self.schema.contains_key(&stream.schema) {
             return Err(TopographyError::SchemaNotFound(format!(
                 "{:#?}",
                 stream.schema
@@ -85,14 +91,14 @@ impl Topography {
 
         // Check if the derivations exist inside of this topography.
         if let Some(key) = stream.base.as_ref() {
-            if let None = self.streams.get(key) {
+            if !self.streams.contains_key(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
         }
 
         // Check if the function exists.
         if let Some(key) = stream.base.as_ref() {
-            if let None = self.streams.get(key) {
+            if !self.streams.contains_key(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
         }
@@ -104,7 +110,7 @@ impl Topography {
                 vacant_entry.insert(stream);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(TopographyError::Occupied(format!(""))), // TODO: add more meat to this error messag .
+            Entry::Occupied(_) => Err(TopographyError::Occupied(String::new())), // TODO: add more meat to this error messag .
         }
     }
 }
@@ -211,7 +217,7 @@ pub fn apply_configuration_to_topography(
         topography
     );
 
-    let _schema = configuration
+    configuration
         .schema
         .iter()
         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))

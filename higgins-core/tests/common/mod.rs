@@ -35,7 +35,7 @@ pub fn produce<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 }
 
 /// Produce synchronously to a listener awaiting the response.
@@ -60,9 +60,9 @@ pub fn produce_sync<T: std::io::Read + std::io::Write>(
 
     let result = match Type::try_from(message.r#type).unwrap() {
         Type::Produceresponse => {
-            let resp = message.produce_response.unwrap();
+            
 
-            resp
+            message.produce_response.unwrap()
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     };
@@ -93,7 +93,7 @@ pub fn consume<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 
@@ -111,7 +111,7 @@ pub fn consume<T: std::io::Read + std::io::Write>(
 
             tracing::info!("Records_Response: {:#?}", take_records_response);
 
-            let record = take_records_response.records.iter().nth(0).unwrap();
+            let record = take_records_response.records.first().unwrap();
 
             record.data.clone()
         }

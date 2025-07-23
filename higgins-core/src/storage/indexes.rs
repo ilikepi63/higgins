@@ -52,7 +52,7 @@ impl IndexDirectory {
     pub fn index_file_from_stream_and_partition(&self, stream: String, partition: &[u8]) -> String {
         let mut topic_dir = self.create_topic_dir(&stream);
 
-        let index_file_path = Self::index_file_path_from_partition(&partition);
+        let index_file_path = Self::index_file_path_from_partition(partition);
 
         topic_dir.push(index_file_path);
 
@@ -70,7 +70,7 @@ impl IndexDirectory {
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
-        let stream_str = String::from_utf8_lossy(&stream).to_string();
+        let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
@@ -144,7 +144,7 @@ impl IndexDirectory {
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
-        let stream_str = String::from_utf8_lossy(&stream).to_string();
+        let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
