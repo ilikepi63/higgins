@@ -25,7 +25,7 @@ pub fn create_subscription<T: std::io::Read + std::io::Write>(
     }
     .encode(&mut write_buf)?;
 
-    let _result = socket.write_all(&write_buf)?;
+    socket.write_all(&write_buf)?;
 
     let n = socket.read(&mut read_buf).unwrap();
 

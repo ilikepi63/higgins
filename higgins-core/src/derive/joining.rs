@@ -68,7 +68,7 @@ pub async fn create_derived_stream_from_definition(
 
             if let Ok(mut offsets) = offsets_result {
                 // If there are no given offsts, await the wakener then.
-                if offsets.len() < 1 {
+                if offsets.is_empty() {
                     tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
                     left_notify.notified().await;
                     tracing::trace!("[DERIVED TAKE] We've been notified!");
@@ -124,17 +124,16 @@ pub async fn create_derived_stream_from_definition(
                                             epoch_val,
                                         )
                                         .await
-                                        .map(|consume| {
+                                        .and_then(|consume| {
                                             consume.batches.first().map(|batch| {
                                                 let stream_reader = read_arrow(&batch.data);
 
                                                 let batches = stream_reader
                                                     .filter_map(|val| val.ok())
                                                     .collect::<Vec<_>>();
-                                                batches.into_iter().nth(0)
+                                                batches.into_iter().next()
                                             })
                                         })
-                                        .flatten()
                                         .flatten();
 
                                     tracing::trace!(
@@ -216,13 +215,13 @@ fn values_to_batches(
 
         let mut split_origin = origin.split(".");
 
-        if let (Some(origin), Some(origin_key)) = (split_origin.nth(0), split_origin.nth(0)) {
+        if let (Some(origin), Some(origin_key)) = (split_origin.next(), split_origin.next()) {
             match origin {
                 origin if origin == left_key => match join {
                     Join::Inner(_) => {
                         let left = left.as_ref().unwrap();
 
-                        let (col, field) = col_name_to_field_and_col(&left, origin_key);
+                        let (col, field) = col_name_to_field_and_col(left, origin_key);
                         let field = field.with_name(resultant_name);
 
                         columns.push(col);
@@ -236,7 +235,7 @@ fn values_to_batches(
                     Join::Inner(_) => {
                         let right = right.as_ref().unwrap();
 
-                        let (col, field) = col_name_to_field_and_col(&right, origin_key);
+                        let (col, field) = col_name_to_field_and_col(right, origin_key);
 
                         columns.push(col);
                         fields.push(field);
@@ -256,16 +255,16 @@ fn values_to_batches(
 
     let schema = Schema::new(fields);
 
-    let result = RecordBatch::try_new(Arc::new(schema), columns)
+    
+
+    RecordBatch::try_new(Arc::new(schema), columns)
         .inspect_err(|err| {
             tracing::error!(
                 "Failed to create RecordBatch from Schema and Columsn: {:#?}",
                 err
             );
         })
-        .ok();
-
-    result
+        .ok()
 }
 
 fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {

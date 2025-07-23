@@ -44,7 +44,7 @@ pub unsafe fn run(array_ptr: *const FFI_ArrowArray, schema_ptr: *const FFI_Arrow
 
     let array = unsafe { from_ffi(array, &schema) }.unwrap();
 
-    let array = Int32Array::try_from(array).unwrap();
+    let array = Int32Array::from(array);
 
     let result = array.iter().fold(0_i32, |mut acc, curr| match curr {
         Some(i) => {
