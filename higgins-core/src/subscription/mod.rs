@@ -84,9 +84,9 @@ impl Subscription {
             return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
         };
 
-        let mut ranges = Vec::new();
-
-        ranges.push(Range(0, offset.unwrap_or(0)));
+        let ranges = vec![
+            Range(0, offset.unwrap_or(0))
+        ];
 
         let metadata = SubscriptionMetadata {
             max_offset: max_offset.unwrap_or(0),
