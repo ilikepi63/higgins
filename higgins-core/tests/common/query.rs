@@ -30,7 +30,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 
@@ -79,7 +79,7 @@ pub fn query_latest<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf).unwrap();
 
     let n = socket.read(&mut read_buf).unwrap();
 

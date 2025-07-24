@@ -90,7 +90,7 @@ fn can_implement_a_basic_stream_join() {
 
     let result = query_latest(b"customer_address", b"1", &mut socket).unwrap();
 
-    let result: serde_json::Value = serde_json::from_slice(&result.get(0).unwrap().data).unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
     let expected_result = json!(
         {"address_line_1":"12 Tennatn Avenut","address_line_2":"Bonteheuwel","age":30,"city":"Cape Town","customer_first_name":"TestFirstName","customer_id":"1","customer_last_name":"TestSurname","province":"Western Cape"}
     );

@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tracing::info!("Writing: {:#?}", write_buf);
 
-                let _result = socket.write_all(&write_buf).await.unwrap();
+                socket.write_all(&write_buf).await.unwrap();
 
                 let n = socket.read(&mut read_buf).await.unwrap();
 

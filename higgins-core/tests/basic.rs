@@ -53,7 +53,7 @@ async fn can_achieve_basic_broker_functionality() {
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await.unwrap();
 
     let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
@@ -86,7 +86,7 @@ async fn can_achieve_basic_broker_functionality() {
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await.unwrap();
 
     let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
@@ -125,7 +125,7 @@ async fn can_achieve_basic_broker_functionality() {
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await.unwrap();
 
     let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
@@ -173,7 +173,7 @@ async fn can_achieve_basic_broker_functionality() {
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await.unwrap();
 
     let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
@@ -214,7 +214,7 @@ async fn can_achieve_basic_broker_functionality() {
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await.unwrap();
 
     let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
         .await
