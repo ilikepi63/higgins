@@ -248,7 +248,7 @@ impl Broker {
     pub async fn consume(
         &self,
         topic: &[u8],
-        _partition: &[u8],
+        partition: &[u8],
         offset: u64,
         max_partition_fetch_bytes: u32,
     ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
@@ -258,7 +258,7 @@ impl Broker {
         riskless::consume(
             ConsumeRequest {
                 topic: String::from_utf8_lossy(topic).to_string(),
-                partition: vec![],
+                partition: partition.to_vec(),
                 offset,
                 max_partition_fetch_bytes,
             },
