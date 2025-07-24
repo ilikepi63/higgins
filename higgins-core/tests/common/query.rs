@@ -2,6 +2,7 @@ use bytes::BytesMut;
 use higgins_codec::{GetIndexRequest, Index, Message, Record, message::Type};
 use prost::Message as _;
 
+#[allow(unused)]
 pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     partition: &[u8],
@@ -51,6 +52,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     Ok(result)
 }
 
+#[allow(unused)]
 pub fn query_latest<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     partition: &[u8],
