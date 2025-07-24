@@ -34,11 +34,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let client_id = {
         let mut broker_lock = broker.write().await;
 
-        let client_id = broker_lock
-            .clients
-            .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()));
+        
 
-        client_id
+        broker_lock
+            .clients
+            .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))
     };
 
     let _read_handle = tokio::spawn(async move {
@@ -190,7 +190,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                             let mut broker = broker.write().await;
 
-                            let _ = broker
+                            broker
                                 .take_from_subscription(
                                     client_id,
                                     &stream_name,

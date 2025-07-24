@@ -48,9 +48,9 @@ impl ClientCollection {
     }
 
     pub fn insert(&mut self, _client: ClientRef) -> u64 {
-        let index = self.get_open_index();
+        
 
-        index
+        self.get_open_index()
     }
 
     pub fn get(&self, client_id: u64) -> Option<&ClientRef> {

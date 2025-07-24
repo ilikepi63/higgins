@@ -84,9 +84,9 @@ impl Subscription {
             return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
         };
 
-        let mut ranges = Vec::new();
-
-        ranges.push(Range(0, offset.unwrap_or(0)));
+        let ranges = vec![
+            Range(0, offset.unwrap_or(0))
+        ];
 
         let metadata = SubscriptionMetadata {
             max_offset: max_offset.unwrap_or(0),
@@ -109,9 +109,9 @@ impl Subscription {
 
         let mut subscription_metadata = match serde_subscription_metadata {
             Ok(Some(val)) => {
-                let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?;
+                
 
-                val
+                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
             }
             Ok(None) | Err(_) => {
                 return Err(
@@ -190,7 +190,7 @@ impl Subscription {
             let mut extracted_offsets =
                 extract_unacknowledged_keys_from_subscription_metadata(*count.get_mut(), &metadata)
                     .iter()
-                    .map(|offset| (key.to_vec(), offset.clone()))
+                    .map(|offset| (key.to_vec(), *offset))
                     .collect::<Vec<(Key, Offset)>>();
 
             let result = count.fetch_sub(
@@ -222,9 +222,9 @@ impl Subscription {
 
         let mut subscription_metadata = match serde_subscription_metadata {
             Ok(Some(val)) => {
-                let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?;
+                
 
-                val
+                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
             }
             Ok(None) | Err(_) => {
                 return Err(
@@ -302,7 +302,7 @@ fn collapse_ranges(ranges: &[Range]) -> Vec<Range> {
 fn deserialize_subscription_metadata_or_else(
     val: &[u8],
 ) -> Result<SubscriptionMetadata, SubscriptionError> {
-    let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?;
+    let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(val)?;
 
     Ok(val)
 }

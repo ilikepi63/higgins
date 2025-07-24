@@ -82,7 +82,7 @@ fn can_update_subscription_after_created() {
         .encode(&mut write_buf)
         .unwrap();
 
-        let _result = socket_reader.write_all(&write_buf).unwrap();
+        socket_reader.write_all(&write_buf).unwrap();
 
         let mut count = 0;
 
