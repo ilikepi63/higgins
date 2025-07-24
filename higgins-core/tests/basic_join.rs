@@ -4,11 +4,10 @@ use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use serde_json::json;
 use tracing_test::traced_test;
-use uuid::Uuid;
 
 use crate::common::{
-    configuration::upload_configuration, consume, ping::ping_sync, produce_sync,
-    query::query_latest, subscription::create_subscription,
+    configuration::upload_configuration, ping::ping_sync, produce_sync,
+    query::query_latest
 };
 
 mod common;
