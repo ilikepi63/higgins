@@ -57,6 +57,7 @@ pub struct Broker {
     flush_tx: tokio::sync::mpsc::Sender<()>,
 
     // Subscriptions.
+    #[allow(clippy::type_complexity)]
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
 
     // Clients
@@ -549,7 +550,7 @@ impl Broker {
             .streams
             .iter()
             .filter_map(|(stream_key, def)| {
-                if self.streams.get(stream_key.inner()).is_none() {
+                if !self.streams.contains_key(stream_key.inner()) {
                     let schema = self.topography.schema.get(&def.schema).unwrap().clone();
 
                     return Some((stream_key.clone(), schema));

@@ -82,7 +82,7 @@ impl Topography {
         stream: StreamDefinition,
     ) -> Result<(), TopographyError> {
         // Check the schema exists.
-        if self.schema.get(&stream.schema).is_none() {
+        if !self.schema.contains_key(&stream.schema) {
             return Err(TopographyError::SchemaNotFound(format!(
                 "{:#?}",
                 stream.schema
@@ -91,14 +91,14 @@ impl Topography {
 
         // Check if the derivations exist inside of this topography.
         if let Some(key) = stream.base.as_ref() {
-            if self.streams.get(key).is_none() {
+            if !self.streams.contains_key(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
         }
 
         // Check if the function exists.
         if let Some(key) = stream.base.as_ref() {
-            if self.streams.get(key).is_none() {
+            if !self.streams.contains_key(key) {
                 return Err(TopographyError::DerivativeNotFound(format!("{:#?}", key)));
             }
         }
