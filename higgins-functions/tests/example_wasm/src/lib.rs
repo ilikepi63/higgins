@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use arrow::array::Int32Array;
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi};
 
