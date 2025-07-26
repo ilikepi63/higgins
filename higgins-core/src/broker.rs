@@ -19,7 +19,7 @@ use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
-    broker::object_store::path::Path, derive::joining::create_derived_stream_from_definition,
+    broker::object_store::path::Path, derive::joining::create_joined_stream_from_definition,
 };
 use crate::{
     client::ClientCollection,
@@ -593,7 +593,7 @@ impl Broker {
                 .map(|(key, def)| (key.clone(), def.clone()))
                 .unwrap();
 
-            create_derived_stream_from_definition(
+            create_joined_stream_from_definition(
                 derived_stream_key.clone(),
                 derived_stream_definition.clone(),
                 left.clone(),
@@ -605,7 +605,7 @@ impl Broker {
             .await
             .unwrap();
 
-            create_derived_stream_from_definition(
+            create_joined_stream_from_definition(
                 derived_stream_key,
                 derived_stream_definition,
                 right,
