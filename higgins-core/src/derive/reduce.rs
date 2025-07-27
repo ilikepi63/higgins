@@ -6,7 +6,7 @@ use crate::{
     client::ClientRef,
     derive::utils::get_partition_key_from_record_batch,
     error::HigginsError,
-    functions::run_reduce_function,
+    functions::reduce::run_reduce_function,
     storage::arrow_ipc::read_arrow,
     topography::{Join, Key, StreamDefinition},
     utils::epoch,
