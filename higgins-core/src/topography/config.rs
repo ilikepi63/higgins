@@ -35,6 +35,10 @@ pub struct ConfigurationStreamDefinition {
 
     /// The mapping of values given this is a join operation.
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
+
+    /// The name of the function that needs to be applied to this configuration.
+    #[serde(rename = "fn")]
+    pub function_name: Option<String>,
 }
 
 type Schema = BTreeMap<String, String>;
@@ -72,7 +76,6 @@ pub fn from_yaml(config: &[u8]) -> Configuration {
 
 #[cfg(test)]
 mod test {
-    
 
     use super::*;
     use crate::topography::config::from_yaml;
@@ -101,6 +104,7 @@ mod test {
                             right_join: None,
                             full_join: None,
                             map: None,
+                            function_name: None,
                         },
                     );
                     streams.insert(
@@ -115,6 +119,7 @@ mod test {
                             right_join: None,
                             full_join: None,
                             map: None,
+                            function_name: None,
                         },
                     );
                     streams

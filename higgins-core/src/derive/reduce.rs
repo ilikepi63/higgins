@@ -8,7 +8,7 @@ use crate::{
     error::HigginsError,
     functions::reduce::run_reduce_function,
     storage::arrow_ipc::read_arrow,
-    topography::{Join, Key, StreamDefinition},
+    topography::{ Key, StreamDefinition},
     utils::epoch,
 };
 
@@ -118,8 +118,7 @@ pub async fn create_reduced_stream_from_definition(
                                         })
                                         .flatten();
 
-                                    // TODO:Retrieve Module logic..
-                                    let module = Vec::new();
+                                    let module = broker_lock.functions.get_function(&stream_def.function_name.as_ref().unwrap()).await;
 
                                     let reduced_record_batch = run_reduce_function(
                                         &record_batch,
