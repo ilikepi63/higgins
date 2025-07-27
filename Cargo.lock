@@ -1230,6 +1230,7 @@ dependencies = [
  "bytes",
  "get-port",
  "higgins-codec",
+ "higgins-functions",
  "loom",
  "prost",
  "riskless",
