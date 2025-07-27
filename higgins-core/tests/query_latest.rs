@@ -76,7 +76,8 @@ fn can_arbitrarily_query_for_time_based_values() {
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
+        .map(|record| String::from_utf8(record.data.clone()).ok())
+        .flatten()
         .unwrap();
 
     let result = query_by_timestamp(
@@ -87,7 +88,8 @@ fn can_arbitrarily_query_for_time_based_values() {
     )
     .unwrap()
     .first()
-    .and_then(|record| String::from_utf8(record.data.clone()).ok())
+    .map(|record| String::from_utf8(record.data.clone()).ok())
+    .flatten()
     .unwrap();
 
     assert_eq!(result, latest_result);
@@ -108,13 +110,15 @@ fn can_arbitrarily_query_for_time_based_values() {
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
+        .map(|record| String::from_utf8(record.data.clone()).ok())
+        .flatten()
         .unwrap();
 
     let result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
+        .map(|record| String::from_utf8(record.data.clone()).ok())
+        .flatten()
         .unwrap();
 
     assert_eq!(result, latest_result);
