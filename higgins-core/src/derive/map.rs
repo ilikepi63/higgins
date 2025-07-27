@@ -1,9 +1,15 @@
 use std::sync::Arc;
-use arrow::record_batch;
 use tokio::sync::RwLock;
 
 use crate::{
-    broker::Broker, client::ClientRef, derive::utils::get_partition_key_from_record_batch, error::HigginsError, functions::run_map_function, storage::arrow_ipc::read_arrow, topography::{Join, Key, StreamDefinition}, utils::epoch
+    broker::Broker,
+    client::ClientRef,
+    derive::utils::get_partition_key_from_record_batch,
+    error::HigginsError,
+    functions::map::run_map_function,
+    storage::arrow_ipc::read_arrow,
+    topography::{Key, StreamDefinition},
+    utils::epoch,
 };
 
 pub async fn create_mapped_stream_from_definition(
@@ -96,8 +102,8 @@ pub async fn create_mapped_stream_from_definition(
                                     /// TODO: Module retrieval logic.  
                                     let module = Vec::new();
 
-                                    let mapped_record_batch = run_map_function(&record_batch, module);
-
+                                    let mapped_record_batch =
+                                        run_map_function(&record_batch, module);
 
                                     let result = broker_lock
                                         .produce(
