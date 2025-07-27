@@ -1,12 +1,19 @@
-
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::{broker::Broker, client::ClientRef, derive::utils::get_partition_key_from_record_batch, error::HigginsError, storage::arrow_ipc::read_arrow, topography::{Join, Key, StreamDefinition}, utils::epoch};
+use crate::{
+    broker::Broker,
+    client::ClientRef,
+    derive::utils::get_partition_key_from_record_batch,
+    error::HigginsError,
+    functions::run_reduce_function,
+    storage::arrow_ipc::read_arrow,
+    topography::{Join, Key, StreamDefinition},
+    utils::epoch,
+};
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,
-    stream_def: StreamDefinition,
     left: (Key, StreamDefinition),
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
@@ -91,9 +98,9 @@ pub async fn create_reduced_stream_from_definition(
                                             .as_str(),
                                     );
 
-                                    let right_record = broker_lock
+                                    let prev_record = broker_lock
                                         .get_by_timestamp(
-                                            &right_stream_name,
+                                            stream_name.inner(),
                                             &partition_val,
                                             epoch_val,
                                         )
@@ -110,37 +117,20 @@ pub async fn create_reduced_stream_from_definition(
                                         })
                                         .flatten();
 
-                                    tracing::trace!(
-                                        "[DERIVED TAKE] Right record: {:#?}",
-                                        right_record
-                                    );
+                                    /// TODO:Retrieve Module logic..
+                                    let module = Vec::new();
 
-                                    let right_key =
-                                        String::from_utf8(join_type.key().to_vec()).unwrap();
-
-                                    let new_record_batch = values_to_batches(
-                                        &join_type,
-                                        Some(record_batch.clone()),
-                                        right_record,
-                                        String::from_utf8(
-                                            stream_def.base.clone().unwrap().inner().to_vec(),
-                                        )
-                                        .unwrap(),
-                                        right_key,
-                                        stream_def.map.clone().unwrap(),
-                                    )
-                                    .unwrap();
-
-                                    tracing::trace!(
-                                        "Managed to write to partition: {:#?}",
-                                        stream_def.partition_key
+                                    let reduced_record_batch = run_reduce_function(
+                                        &record_batch,
+                                        &prev_record.unwrap(),
+                                        module,
                                     );
 
                                     let result = broker_lock
                                         .produce(
                                             stream_name.inner(),
                                             &partition_val,
-                                            new_record_batch,
+                                            reduced_record_batch,
                                         )
                                         .await;
 

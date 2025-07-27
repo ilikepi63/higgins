@@ -1,6 +1,6 @@
 use arrow::{
     array::{ArrayRef, RecordBatch},
-    datatypes::{Field, Schema},
+    datatypes::{Field},
     util::display::array_value_to_string,
 };
 
