@@ -130,6 +130,10 @@ pub struct StreamDefinition {
     pub join: Option<Join>,
     /// The mapping of values given this is a join operation.
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
+        /// The name of the function that needs to be applied to this configuration.
+    #[serde(rename = "fn")]
+    pub function_name: Option<String>,
+
 }
 
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
@@ -156,6 +160,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
             schema: value.schema.as_str().into(),
             join,
             map: value.map.clone(),
+            function_name: value.function_name.clone()
         }
     }
 }
