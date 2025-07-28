@@ -25,6 +25,7 @@ pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
+pub mod functions;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();

@@ -18,6 +18,7 @@ uuid = { version = "1.16.0", features = ["v4"] }
 
 # Higgins 
 higgins-codec = { path = "../higgins-codec" }
+higgins-functions = { path = "../higgins-functions" }
 prost = "0.13.5"
 thiserror = "2.0.12"
 rocksdb = "0.23.0"
