@@ -126,6 +126,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 payload,
                             } = message.produce_request.unwrap();
 
+                            tracing::trace!("Received produce: {:#?}", payload);
+
                             let mut broker = broker.write().await;
 
                             if let Err(err) =
