@@ -10,15 +10,17 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use arrow::{
-    array::{ArrayRef, RecordBatch},
-    datatypes::{Field, Schema},
-    util::display::array_value_to_string,
-};
+use arrow::{array::RecordBatch, datatypes::Schema};
 use tokio::sync::RwLock;
 
 use crate::{
-    broker::Broker, client::ClientRef, derive::utils::{col_name_to_field_and_col, get_partition_key_from_record_batch}, error::HigginsError, storage::arrow_ipc::read_arrow, topography::{Join, Key, StreamDefinition}, utils::epoch
+    broker::Broker,
+    client::ClientRef,
+    derive::utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
+    error::HigginsError,
+    storage::arrow_ipc::read_arrow,
+    topography::{Join, Key, StreamDefinition},
+    utils::epoch,
 };
 
 pub async fn create_joined_stream_from_definition(
@@ -250,8 +252,6 @@ fn values_to_batches(
 
     let schema = Schema::new(fields);
 
-    
-
     RecordBatch::try_new(Arc::new(schema), columns)
         .inspect_err(|err| {
             tracing::error!(
@@ -261,7 +261,6 @@ fn values_to_batches(
         })
         .ok()
 }
-
 
 #[cfg(test)]
 mod test {

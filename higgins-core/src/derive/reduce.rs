@@ -14,6 +14,7 @@ use crate::{
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,
+    stream_def: StreamDefinition,
     left: (Key, StreamDefinition),
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
@@ -117,7 +118,7 @@ pub async fn create_reduced_stream_from_definition(
                                         })
                                         .flatten();
 
-                                    /// TODO:Retrieve Module logic..
+                                    // TODO:Retrieve Module logic..
                                     let module = Vec::new();
 
                                     let reduced_record_batch = run_reduce_function(
