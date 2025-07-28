@@ -78,6 +78,8 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Getindexresponse => todo!(),
         Type::Error => todo!(),
         Type::Deleteconfigurationresponse => todo!(),
+        Type::Uploadmodulerequest => todo!(),
+        Type::Uploadmoduleresponse => todo!(),
     }
 
     socket.write_all(&write_buf).await.unwrap();
@@ -123,5 +125,7 @@ pub async fn handle_ping_cmd(socket: &mut TcpStream) {
         Type::Error => todo!(),
         Type::Getindexrequest => todo!(),
         Type::Getindexresponse => todo!(),
+        Type::Uploadmodulerequest => todo!(),
+        Type::Uploadmoduleresponse => todo!(),
     }
 }

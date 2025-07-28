@@ -64,7 +64,7 @@ pub struct Broker {
     topography: Topography,
 
     // Functions
-    functions: FunctionCollection
+    pub functions: FunctionCollection
 }
 
 impl Default for Broker {

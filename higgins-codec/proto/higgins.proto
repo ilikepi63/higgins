@@ -61,10 +61,12 @@ message DeleteConfigurationRequest { bytes key = 1; }
 message DeleteConfigurationResponse { repeated string errors = 1; }
 
 // Upload Module.
-message UploadModuleRequest { bytes value = 1; }
+message UploadModuleRequest {
+  string name = 1;
+  bytes value = 2;
+}
 
 message UploadModuleResponse { repeated string errors = 1; }
-
 
 // Query to get the index at a specific time or offset.
 message GetIndexRequest { repeated Index indexes = 1; }
@@ -141,5 +143,5 @@ message Message {
   optional GetIndexRequest getIndexRequest = 17;
   optional GetIndexResponse getIndexResponse = 18;
   optional UploadModuleRequest uploadModuleRequest = 19;
-  optional UploadModuleResponse uploadModuleResponse = 20; 
+  optional UploadModuleResponse uploadModuleResponse = 20;
 }

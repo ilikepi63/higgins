@@ -5,7 +5,8 @@ use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
     CreateSubscriptionResponse, Error, GetIndexResponse, Message, Pong, ProduceRequest,
-    ProduceResponse, Record, TakeRecordsRequest, message::Type,
+    ProduceResponse, Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse,
+    message::Type,
 };
 use prost::Message as _;
 use tokio::{
@@ -21,11 +22,11 @@ pub mod broker;
 pub mod client;
 mod derive;
 mod error;
+pub mod functions;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod functions;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
@@ -34,8 +35,6 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let client_id = {
         let mut broker_lock = broker.write().await;
-
-        
 
         broker_lock
             .clients
@@ -147,7 +146,6 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                             let batch = reader.next().unwrap().unwrap();
 
-
                             let result = broker.produce(&stream_name, &partition_key, batch).await;
 
                             tracing::trace!(
@@ -186,8 +184,10 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             } = message.take_records_request.unwrap();
 
                             // TODO: Wrap this behind test cfg flag.
-                             tracing::info!("Sub ID: {:#?}", uuid::Uuid::from_slice(&subscription_id).unwrap());
-
+                            tracing::info!(
+                                "Sub ID: {:#?}",
+                                uuid::Uuid::from_slice(&subscription_id).unwrap()
+                            );
 
                             let mut broker = broker.write().await;
 
@@ -404,6 +404,32 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             }
                         }
                         Type::Getindexresponse => {}
+                        Type::Uploadmodulerequest => {
+                            tracing::trace!("Received Upload Module Request.");
+
+                            let UploadModuleRequest { name, value } = message
+                                .upload_module_request
+                                .expect("Marked Upload Module Request without a body.");
+
+                            let broker_lock = broker.write().await;
+
+                            broker_lock.functions.put_function(&name, value).await;
+
+                            let mut result = BytesMut::new();
+
+                            let response = UploadModuleResponse::default();
+
+                            Message {
+                                r#type: Type::Uploadmoduleresponse as i32,
+                                upload_module_response: Some(response),
+                                ..Default::default()
+                            }
+                            .encode(&mut result)
+                            .unwrap();
+
+                            writer_tx.send(result).await.unwrap();
+                        }
+                        Type::Uploadmoduleresponse => {}
                     }
                 }
                 Err(err) => {
