@@ -6,6 +6,7 @@ pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
+pub mod functions;
 
 use higgins::run_server;
 

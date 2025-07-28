@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use arrow::record_batch;
 use tokio::sync::RwLock;
 
 use crate::{
-    broker::Broker, client::ClientRef, derive::utils::get_partition_key_from_record_batch, error::HigginsError, storage::arrow_ipc::read_arrow, topography::{Join, Key, StreamDefinition}, utils::epoch
+    broker::Broker, client::ClientRef, derive::utils::get_partition_key_from_record_batch, error::HigginsError, functions::run_map_function, storage::arrow_ipc::read_arrow, topography::{Join, Key, StreamDefinition}, utils::epoch
 };
 
 pub async fn create_mapped_stream_from_definition(
@@ -16,7 +17,6 @@ pub async fn create_mapped_stream_from_definition(
 
     // Subscribe to both streams.
     let left_subscription = broker.create_subscription(left.0.inner());
-    let _right_subscription = broker.create_subscription(right.0.inner());
 
     let (left_notify, left_subscription_ref) = broker
         .get_subscription_by_key(left.0.inner(), &left_subscription)
@@ -28,7 +28,6 @@ pub async fn create_mapped_stream_from_definition(
     let left_broker = broker_ref.clone();
     let left_stream_name = left.0.inner().to_owned();
     let left_stream_partition_key = left.1.partition_key;
-    let right_stream_name = right.0.inner().to_owned();
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
@@ -94,56 +93,17 @@ pub async fn create_mapped_stream_from_definition(
                                             .as_str(),
                                     );
 
-                                    let right_record = broker_lock
-                                        .get_by_timestamp(
-                                            &right_stream_name,
-                                            &partition_val,
-                                            epoch_val,
-                                        )
-                                        .await
-                                        .and_then(|consume| {
-                                            consume.batches.first().map(|batch| {
-                                                let stream_reader = read_arrow(&batch.data);
+                                    /// TODO: Module retrieval logic.  
+                                    let module = Vec::new();
 
-                                                let batches = stream_reader
-                                                    .filter_map(|val| val.ok())
-                                                    .collect::<Vec<_>>();
-                                                batches.into_iter().next()
-                                            })
-                                        })
-                                        .flatten();
+                                    let mapped_record_batch = run_map_function(&record_batch, module);
 
-                                    tracing::trace!(
-                                        "[DERIVED TAKE] Right record: {:#?}",
-                                        right_record
-                                    );
-
-                                    let right_key =
-                                        String::from_utf8(join_type.key().to_vec()).unwrap();
-
-                                    let new_record_batch = values_to_batches(
-                                        &join_type,
-                                        Some(record_batch.clone()),
-                                        right_record,
-                                        String::from_utf8(
-                                            stream_def.base.clone().unwrap().inner().to_vec(),
-                                        )
-                                        .unwrap(),
-                                        right_key,
-                                        stream_def.map.clone().unwrap(),
-                                    )
-                                    .unwrap();
-
-                                    tracing::trace!(
-                                        "Managed to write to partition: {:#?}",
-                                        stream_def.partition_key
-                                    );
 
                                     let result = broker_lock
                                         .produce(
                                             stream_name.inner(),
                                             &partition_val,
-                                            new_record_batch,
+                                            mapped_record_batch,
                                         )
                                         .await;
 
