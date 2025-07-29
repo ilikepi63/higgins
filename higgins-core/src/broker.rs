@@ -10,13 +10,22 @@ use riskless::{
     object_store::{self, ObjectStore},
 };
 use std::{
-    collections::BTreeMap, fs::create_dir, path::PathBuf, sync::{atomic::Ordering, Arc}, time::Duration
+    collections::BTreeMap,
+    fs::create_dir,
+    path::PathBuf,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
 };
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
 use crate::{
-    broker::object_store::path::Path, derive::joining::create_joined_stream_from_definition, functions::collection::FunctionCollection,
+    broker::object_store::path::Path,
+    derive::{
+        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition,
+    },
+    functions::collection::FunctionCollection,
+    topography::FunctionType,
 };
 use crate::{
     client::ClientCollection,
@@ -64,7 +73,7 @@ pub struct Broker {
     topography: Topography,
 
     // Functions
-    pub functions: FunctionCollection
+    pub functions: FunctionCollection,
 }
 
 impl Default for Broker {
@@ -155,7 +164,9 @@ impl Broker {
         let functions_dir = {
             let mut cwd = std::env::current_dir().unwrap();
             cwd.push("functions");
-            create_dir(&cwd).unwrap();
+            if let Err(e) = create_dir(&cwd) {
+                tracing::trace!("Error when creating functions dir: {:#?}", e);
+            }
             cwd
         };
 
@@ -170,7 +181,7 @@ impl Broker {
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
             clients: ClientCollection::empty(),
-            functions: FunctionCollection::new(functions_dir)
+            functions: FunctionCollection::new(functions_dir),
         }
     }
 
@@ -438,7 +449,8 @@ impl Broker {
         // Client ID does not exist on this subscription, therefore we create it.
         if subscription
             .client_counts
-            .binary_search_by(|(id, _)| client_id.cmp(id)).is_err()
+            .binary_search_by(|(id, _)| client_id.cmp(id))
+            .is_err()
         {
             tracing::trace!("[TAKE] No client count found for subscription. Creating one.");
 
@@ -581,49 +593,79 @@ impl Broker {
             .collect::<Vec<_>>();
 
         for (derived_stream_key, derived_stream_definition) in derived_streams {
-            let join = derived_stream_definition.join.as_ref().cloned().unwrap();
+            match derived_stream_definition.stream_type {
+                Some(FunctionType::Join) => {
+                    let join = derived_stream_definition.join.as_ref().cloned().unwrap();
 
-            let left = self
-                .topography
-                .streams
-                .iter()
-                .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
-                .map(|(key, def)| (key.clone(), def.clone()))
-                .unwrap();
+                    let left = self
+                        .topography
+                        .streams
+                        .iter()
+                        .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
+                        .map(|(key, def)| (key.clone(), def.clone()))
+                        .unwrap();
 
-            let right = self
-                .topography
-                .streams
-                .iter()
-                .find(|(key, _)| {
-                    key.inner() == derived_stream_definition.join.as_ref().unwrap().key()
-                })
-                .map(|(key, def)| (key.clone(), def.clone()))
-                .unwrap();
+                    let right = self
+                        .topography
+                        .streams
+                        .iter()
+                        .find(|(key, _)| {
+                            key.inner() == derived_stream_definition.join.as_ref().unwrap().key()
+                        })
+                        .map(|(key, def)| (key.clone(), def.clone()))
+                        .unwrap();
 
-            create_joined_stream_from_definition(
-                derived_stream_key.clone(),
-                derived_stream_definition.clone(),
-                left.clone(),
-                right.clone(),
-                join.clone(),
-                self,
-                broker.clone(),
-            )
-            .await
-            .unwrap();
+                    create_joined_stream_from_definition(
+                        derived_stream_key.clone(),
+                        derived_stream_definition.clone(),
+                        left.clone(),
+                        right.clone(),
+                        join.clone(),
+                        self,
+                        broker.clone(),
+                    )
+                    .await
+                    .unwrap();
 
-            create_joined_stream_from_definition(
-                derived_stream_key,
-                derived_stream_definition,
-                right,
-                left,
-                join,
-                self,
-                broker.clone(),
-            )
-            .await
-            .unwrap();
+                    create_joined_stream_from_definition(
+                        derived_stream_key,
+                        derived_stream_definition,
+                        right,
+                        left,
+                        join,
+                        self,
+                        broker.clone(),
+                    )
+                    .await
+                    .unwrap();
+                }
+                Some(FunctionType::Map) => {
+                    tracing::trace!("Createing Mapped stream definition.");
+
+                    let left = self
+                        .topography
+                        .streams
+                        .iter()
+                        .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
+                        .map(|(key, def)| (key.clone(), def.clone()))
+                        .unwrap();
+
+                    let _ = create_mapped_stream_from_definition(
+                        derived_stream_key,
+                        derived_stream_definition,
+                        left,
+                        self,
+                        broker.clone(),
+                    )
+                    .await
+                    .unwrap();
+                }
+                Some(FunctionType::Reduce) => {}
+                Some(_) => todo!(),
+                None => {
+                    panic!("There should be a type associated with a derived stream.");
+                }
+            }
         }
 
         Ok(())
