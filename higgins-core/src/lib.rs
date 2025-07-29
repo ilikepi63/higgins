@@ -43,7 +43,9 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let _read_handle = tokio::spawn(async move {
         loop {
-            let mut buffer = vec![0; 1024]; // TODO: consider how we are goingg to size this buffer.
+            let mut buffer = BytesMut::zeroed(50_000_000); // TODO: consider how we are goingg to size this buffer.
+
+            tracing::trace!("Buffer length: {}", buffer.len());
 
             match read_socket.read(&mut buffer).await {
                 Ok(n) => {
