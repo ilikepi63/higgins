@@ -6,14 +6,15 @@ use serde_json::json;
 use tracing_test::traced_test;
 
 use crate::common::{
-    configuration::upload_configuration, functions::upload_function_sync, ping::ping_sync, produce_sync, query::query_latest
+    configuration::upload_configuration, functions::upload_module_sync, ping::ping_sync,
+    produce_sync, query::query_latest,
 };
 
 mod common;
 
 #[test]
 #[traced_test]
-fn can_implement_basic_map() {
+fn can_implement_basic_reduce() {
     let port = TcpPort::in_range(
         "127.0.0.1",
         Range {
@@ -48,7 +49,7 @@ fn can_implement_basic_map() {
 
     upload_configuration(config.as_bytes(), &mut socket);
 
-    upload_function_sync("reduce", &std::fs::read("higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm").unwrap(), &mut socket);
+    upload_module_sync("reduce", &std::fs::read("higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_reduce.wasm").unwrap(), &mut socket);
 
     produce_sync(
         b"amount",
