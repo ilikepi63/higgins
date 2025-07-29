@@ -22,4 +22,5 @@ pub use record_batch::{clone_record_batch, record_batch_to_wasm};
 #[cfg(feature = "full")]
 pub use schema::copy_schema;
 
+#[cfg(feature = "full")]
 pub use wasmtime;
