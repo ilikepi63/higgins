@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-arrow = { version = "55.1.0", features = ["ffi"] }
+arrow = { version = "55.1.0", default-features = false, features = ["ffi"] }
 higgins-functions = { path = "../../../../higgins-functions", default-features = false }
 
 [lib]
