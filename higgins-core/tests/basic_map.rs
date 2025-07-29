@@ -48,22 +48,6 @@ fn can_implement_basic_map() {
 
     upload_configuration(config.as_bytes(), &mut socket);
 
-    // schema:
-    //   amount:
-    //     id: string
-    //     data: int32
-
-    // streams:
-    //   amount:
-    //     schema: amount
-    //     partition_key: id
-    //   result:
-    //     base: amount
-    //     type: map
-    //     partition_key: id
-    //     schema: amount
-    //     fn: map
-
     produce_sync(
         b"amount",
         b"1",
