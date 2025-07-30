@@ -10,3 +10,5 @@ higgins-functions = { path = "../../", default-features = false }
 
 [lib]
 crate-type = ["cdylib"]
+
+[workspace]
