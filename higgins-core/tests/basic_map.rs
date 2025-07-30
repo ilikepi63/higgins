@@ -70,7 +70,7 @@ fn can_implement_basic_map() {
         r#"
         {   
             "id": "1",
-            "amount": 1,
+            "data": 1,
         }
     "#
         .as_bytes(),
@@ -83,8 +83,9 @@ fn can_implement_basic_map() {
     let result = query_latest(b"result", b"1", &mut socket).unwrap();
 
     let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
-    let expected_result = json!(
-        {"id":"1","data":2,"age":30}
+    let expected_result
+     = json!(
+        {"id":"1","data":2}
     );
 
     assert_eq!(result, expected_result);
