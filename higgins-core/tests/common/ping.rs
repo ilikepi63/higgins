@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use higgins_codec::{Message, Ping, message::Type};
+use higgins_codec::{frame::Frame, message::Type, Message, Ping};
 use prost::Message as _;
 
 #[allow(unused)]
@@ -18,7 +18,9 @@ pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    socket.write_all(&write_buf).unwrap();
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write(socket).unwrap();
 }
 
 #[allow(unused)]
@@ -27,10 +29,9 @@ pub fn ping_sync<S: std::io::Read + std::io::Write>(socket: &mut S) {
 
     ping(socket);
 
-    let n = socket.read(&mut read_buf).unwrap();
-    assert_ne!(n, 0);
+    let frame = Frame::try_read(socket).unwrap();
 
-    let slice = &read_buf[0..n];
+    let slice = frame.inner();
 
     let message = Message::decode(slice).unwrap();
 

@@ -33,6 +33,7 @@ impl FunctionCollection {
     }
 
     pub async fn get_function(&self, name: &str) -> Vec<u8> {
+
         let path = {
             let mut path = self.base_dir.clone();
             path.push(name);
