@@ -8,3 +8,7 @@ members = [
     "higgins-functions/tests/example_wasm",
 ]
 exclude = ["higgins-functions/tests/example_wasm"]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+thiserror = { version = "2" }
