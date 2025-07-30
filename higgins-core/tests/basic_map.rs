@@ -6,7 +6,8 @@ use serde_json::json;
 use tracing_test::traced_test;
 
 use crate::common::{
-    configuration::upload_configuration, functions::upload_module_sync, ping::ping_sync, produce_sync, query::query_latest
+    configuration::upload_configuration, functions::upload_module_sync, ping::ping_sync,
+    produce_sync, query::query_latest,
 };
 
 mod common;
@@ -48,7 +49,7 @@ fn can_implement_basic_map() {
 
     upload_configuration(config.as_bytes(), &mut socket);
 
-    upload_module_sync("reduce", &std::fs::read("higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm").unwrap(), &mut socket);
+    upload_module_sync("map", &std::fs::read("tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm").unwrap(), &mut socket);
 
     produce_sync(
         b"amount",
@@ -69,8 +70,7 @@ fn can_implement_basic_map() {
     let result = query_latest(b"result", b"1", &mut socket).unwrap();
 
     let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
-    let expected_result
-     = json!(
+    let expected_result = json!(
         {"id":"1","data":2}
     );
 
