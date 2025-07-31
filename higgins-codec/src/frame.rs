@@ -1,4 +1,4 @@
-use crate::error::HigginsCodecError;
+use crate::errors::HigginsCodecError;
 
 pub struct Frame(Vec<u8>);
 
@@ -6,6 +6,12 @@ impl Frame {
     /// Wrap an existing Vec with a Frame.
     pub fn new(buf: Vec<u8>) -> Self {
         Self(buf)
+    }
+
+
+    /// Unwrap this value.
+    pub fn inner(&self) -> &[u8] {
+        self.0.as_slice()
     }
 
     /// Try read a frame from the given Read implementation.
