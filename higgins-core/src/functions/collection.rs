@@ -41,16 +41,22 @@ impl FunctionCollection {
             path
         };
 
+
+        tracing::info!("Reading function: {:#?}", path);
+
+
         let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
+            .read(true)
             .open(path)
             .unwrap();
 
-        let mut buffer = Vec::with_capacity(file.metadata().unwrap().size().try_into().unwrap());
+            tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
 
-        file.read(&mut buffer).unwrap();
+
+        let mut buffer = vec![0;
+            file.metadata().unwrap().size().try_into().unwrap()];
+
+        file.read_exact(&mut buffer).unwrap();
 
         buffer
     }
