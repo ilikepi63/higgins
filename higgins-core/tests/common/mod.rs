@@ -1,14 +1,14 @@
-
 use bytes::BytesMut;
+use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 
 pub mod configuration;
+pub mod functions;
 pub mod ping;
 pub mod query;
 pub mod subscription;
-pub mod functions;
 
 /// produce to a stream without waiting for the response.
 ///
@@ -36,7 +36,9 @@ pub fn produce<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write(socket).unwrap();
 }
 
 /// Produce synchronously to a listener awaiting the response.
@@ -51,11 +53,9 @@ pub fn produce_sync<T: std::io::Read + std::io::Write>(
 
     let mut read_buf = BytesMut::zeroed(1024);
 
-    let n = socket.read(&mut read_buf).unwrap();
+    let frame = Frame::try_read(socket).unwrap();
 
-    assert_ne!(n, 0);
-
-    let slice = &read_buf[0..n];
+    let slice = frame.inner();
 
     let message = Message::decode(slice).unwrap();
 
@@ -94,13 +94,13 @@ pub fn consume<T: std::io::Read + std::io::Write>(
     .encode(&mut write_buf)
     .unwrap();
 
-    let _result = socket.write_all(&write_buf).unwrap();
+    let frame = Frame::new(write_buf.to_vec());
 
-    let n = socket.read(&mut read_buf).unwrap();
+    frame.try_write(socket).unwrap();
 
-    assert_ne!(n, 0);
+    let frame = Frame::try_read(socket).unwrap();
 
-    let slice = &read_buf[0..n];
+    let slice = frame.inner();
 
     let message = Message::decode(slice).unwrap();
 

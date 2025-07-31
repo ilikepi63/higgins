@@ -1,7 +1,7 @@
 use std::io::{Write,Read};
 use prost::Message as _;
 
-use higgins_codec::{message::Type, Message, UploadModuleRequest};
+use higgins_codec::{frame::Frame, message::Type, Message, UploadModuleRequest};
 use bytes::BytesMut;
 
 pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) {
@@ -20,7 +20,10 @@ pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) 
     .encode(&mut write_buf)
     .unwrap();
 
-    socket.write_all(&write_buf).unwrap();
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write(socket).unwrap();
+
 }
 
 #[allow(unused)]
@@ -29,10 +32,9 @@ pub fn upload_module_sync(name: &str, wasm: &[u8], socket: &mut std::net::TcpStr
 
     upload_module(name, wasm, socket);
 
-    let n = socket.read(&mut read_buf).unwrap();
-    assert_ne!(n, 0);
+    let frame = Frame::try_read(socket).unwrap();
 
-    let slice = &read_buf[0..n];
+    let slice = frame.inner();
 
     let message = Message::decode(slice).unwrap();
 

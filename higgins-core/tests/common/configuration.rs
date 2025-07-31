@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateConfigurationResponse, Message, message::Type,
+    frame::Frame, message::Type, CreateConfigurationRequest, CreateConfigurationResponse, Message
 };
 use prost::Message as _;
 use std::io::{Read, Write};
@@ -10,6 +10,9 @@ pub fn upload_configuration(
     config: &[u8],
     socket: &mut std::net::TcpStream,
 ) -> CreateConfigurationResponse {
+
+
+
     let mut read_buf = BytesMut::zeroed(1024);
     let mut write_buf = BytesMut::new();
 
@@ -25,13 +28,13 @@ pub fn upload_configuration(
     .encode(&mut write_buf)
     .unwrap();
 
-    socket.write_all(&write_buf).unwrap();
+    let frame = Frame::new(write_buf.to_vec());
 
-    let n = socket.read(&mut read_buf).unwrap();
+    frame.try_write(socket).unwrap();
 
-    assert_ne!(n, 0);
+    let frame = Frame::try_read(socket).unwrap();
 
-    let slice = &read_buf[0..n];
+    let slice = frame.inner();
 
     let message = Message::decode(slice).unwrap();
 
