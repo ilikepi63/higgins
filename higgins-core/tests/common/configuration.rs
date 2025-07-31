@@ -3,7 +3,6 @@ use higgins_codec::{
     frame::Frame, message::Type, CreateConfigurationRequest, CreateConfigurationResponse, Message
 };
 use prost::Message as _;
-use std::io::{Read, Write};
 
 #[allow(unused)]
 pub fn upload_configuration(

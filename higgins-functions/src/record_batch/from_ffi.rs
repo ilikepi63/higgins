@@ -3,7 +3,7 @@ use std::sync::Arc;
 use arrow::{
     array::{RecordBatch, make_array},
     datatypes::{Field, Schema},
-    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi},
+    ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi},
 };
 
 use super::FFIRecordBatch;
