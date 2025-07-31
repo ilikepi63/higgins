@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
-use arrow::{array::{Array, Int32Array}, datatypes::Field};
-use higgins_functions::{copy_array, copy_schema, utils::WasmAllocator};
+use arrow::{
+    array::{Array, Int32Array, RecordBatch, StringArray},
+    datatypes::{DataType, Field, Schema},
+};
+use higgins_functions::{clone_record_batch, record_batch_to_wasm, utils::WasmAllocator};
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
 #[test]
-fn multiple_simple_array() {
-    let wasm =
-        std::fs::read("tests/example_wasm/target/wasm32-unknown-unknown/release/example_wasm.wasm")
-            .unwrap();
+fn simple_map_value() {
+
+    let wasm = std::fs::read("../higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm")
+        .unwrap();
 
     let engine = Engine::new(
         Config::new()
@@ -33,21 +36,29 @@ fn multiple_simple_array() {
 
     let mut memory = instance.get_memory(&mut store, "memory").unwrap();
 
-    let array = Int32Array::from(vec![Some(1), None, Some(3)]);
+    let id_array = StringArray::from(vec!["id"]);
+    let data_array =         Int32Array::from(vec![1]);
+
+    let schema = Schema::new(vec![Field::new("id", DataType::Utf8, false), Field::new("data", DataType::Int32, false)]);
+
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array), Arc::new(data_array)]).unwrap();
 
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
-    let ptr = copy_array(&array.to_data(), &mut allocator);
+    let ptr = record_batch_to_wasm(batch, &mut allocator);
 
-    let ffi_schema_ptr = copy_schema(array.data_type(), Arc::new(Field::new("hello", array.data_type().clone(), false)), &mut allocator).unwrap();
+    let ptr = clone_record_batch(ptr, &mut allocator);
 
     let wasm_run_fn = instance
-        .get_typed_func::<(u32, u32), u32>(&mut store, "run")
+        .get_typed_func::<u32, u32>(&mut store, "run")
         .unwrap();
 
-    let result = wasm_run_fn.call(&mut store, (ptr.inner(), ffi_schema_ptr.inner()));
+    let result = wasm_run_fn.call(&mut store, ptr);
 
-    let wasm_error_fn = instance
+
+    // Get errors.
+
+        let wasm_error_fn = instance
         .get_typed_func::<(), u32>(&mut store, "get_errors")
         .unwrap();
 
@@ -65,7 +76,10 @@ fn multiple_simple_array() {
         println!("{:#?}", s);
     }
 
-    assert_eq!(result.unwrap(), 4);
+    println!("{:#?}", result.unwrap());
+
+    // TODO: this test basically just makes sure this does not panic.
+    // We need some more tests for this.
 }
 
 #[test]

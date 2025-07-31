@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 arrow = { version = "55.1.0", default-features = false, features = ["ffi"] }
 higgins-functions = { path = "../../../../higgins-functions", default-features = false }
+log = "0.4.27"
 
 [lib]
 crate-type = ["cdylib"]
