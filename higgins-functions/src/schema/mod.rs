@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use arrow::{
     datatypes::{DataType, Field, IntervalUnit, TimeUnit, UnionMode},
@@ -58,8 +58,10 @@ fn children_from_datatype(
 
 pub fn copy_schema(
     dtype: &DataType,
+    field: Arc<Field>,
     allocator: &mut WasmAllocator,
 ) -> Result<WasmPtr<WasmArrowSchema>, ArrowError> {
+
     let format = get_format_string(dtype)?;
 
     let format_ptr = allocator.copy(format.as_bytes());
@@ -68,7 +70,7 @@ pub fn copy_schema(
     let children = children_from_datatype(dtype, allocator)?;
 
     let dictionary = if let DataType::Dictionary(_, value_data_type) = dtype {
-        Some(copy_schema(value_data_type.as_ref(), allocator)?)
+        Some(copy_schema(value_data_type.as_ref(), field.clone(), allocator)?)
     } else {
         None
     };
@@ -99,9 +101,11 @@ pub fn copy_schema(
 
     let dictionary = dictionary_ptr;
 
+    let name = allocator.copy(field.name().as_bytes());
+
     let schema = WasmArrowSchema {
         format: WasmPtr::new(format_ptr),
-        name: WasmPtr::null(),
+        name: WasmPtr::new(name),
         metadata: WasmPtr::null(),
         flags: flags.bits(),
         n_children,
@@ -111,6 +115,7 @@ pub fn copy_schema(
         private_data: WasmPtr::null(),
     };
 
+
     let buffer: &[u8] = unsafe {
         &std::mem::transmute::<WasmArrowSchema, [u8; std::mem::size_of::<WasmArrowSchema>()]>(
             schema,
@@ -118,6 +123,8 @@ pub fn copy_schema(
     };
 
     let ptr = allocator.copy(buffer);
+
+    println!("Copying Schema to ptr {:#?}", ptr);
 
     Ok(WasmPtr::new(ptr))
 }

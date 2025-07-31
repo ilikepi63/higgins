@@ -1278,6 +1278,7 @@ dependencies = [
  "arrow",
  "bindgen 0.71.1",
  "bitflags",
+ "log",
  "wasmtime",
 ]
 
