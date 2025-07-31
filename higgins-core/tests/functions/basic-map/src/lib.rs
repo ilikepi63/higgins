@@ -1,10 +1,9 @@
+use arrow::array::Array;
 use arrow::array::{ArrayRef, AsArray, Int32Array, StringArray};
-use arrow::datatypes::{Field, Int32Type, DataType,Schema, };
+use arrow::datatypes::{DataType, Field, Int32Type, Schema};
 use arrow::record_batch::RecordBatch;
 use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi};
 use std::sync::Arc;
-use arrow::array::Array;
-
 
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi};
 
@@ -66,36 +65,10 @@ pub unsafe fn _malloc(len: u32) -> *mut u8 {
 pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
     log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Trace));
 
-    // log::info!("Record batch ptr: {:#?}", rb_ptr);
-
-    // log::info!("Record batch: {:#?}", *rb_ptr);
-
-    // {
-    //     // Standalone for testing record batch..
-    //     let id_array = StringArray::from(vec!["id"]);
-    //     let data_array = Int32Array::from(vec![1]);
-
-    //     let data_field =             Field::new("data", DataType::Int32, false);
-
-    //     let schema = Schema::new(vec![
-    //         Field::new("id", DataType::Utf8, false),
-    //     ]);
-
-    //     // let batch = RecordBatch::try_new(
-    //     //     Arc::new(schema),
-    //     //     vec![Arc::new(id_array), Arc::new(data_array)],
-    //     // )
-    //     // .unwrap();
-
-    //     let result = to_ffi(&data_array.to_data());
-
-    //     // log::info!("Received from FFI conversion: {:#?}", result);
-    // }
-
     // Retrieve record batch from FFI ptr.
     let record_batch = record_batch_from_ffi(unsafe { *rb_ptr });
 
-    log::info!("Resultant Record Batch: {:#?}", record_batch);
+    // log::info!("Resultant Record Batch: {:#?}", record_batch);
 
     // Retrieve the data col name.
     let col = col_name_to_field_and_col(&record_batch, "data");
@@ -116,10 +89,11 @@ pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
     let batch = RecordBatch::try_new(
         record_batch.schema(),
         vec![
-            col_name_to_field_and_col(&record_batch, "id").0,
             Arc::new(arr),
+            col_name_to_field_and_col(&record_batch, "id").0,
         ],
     )
+    .inspect_err(|e| log::error!("Error: {:#?}", e))
     .unwrap();
 
     let result = record_batch_to_ffi(batch);
@@ -134,7 +108,11 @@ pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
 pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
     let schema = batch.schema();
 
-    let schema_index = schema.index_of(col_name).unwrap();
+    let schema_index = schema.index_of(col_name);
+
+    log::info!("Schema Index: {:#?}", schema_index);
+
+    let schema_index = schema_index.unwrap();
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
