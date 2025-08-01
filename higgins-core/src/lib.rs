@@ -10,7 +10,7 @@ use higgins_codec::{
 };
 use prost::Message as _;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     sync::RwLock,
 };
@@ -43,9 +43,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let _read_handle = tokio::spawn(async move {
         loop {
-            let frame = Frame::try_read_async(&mut read_socket)
-                .await
-                .unwrap();
+            let frame = Frame::try_read_async(&mut read_socket).await.unwrap();
             let message = Message::decode(&mut frame.inner()).unwrap();
 
             tracing::info!("Received a message, responding.");
@@ -416,7 +414,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
             Frame::new(val.to_vec())
                 .try_write_async(&mut write_socket)
-                .await;
+                .await.unwrap();
             // let _result = write_socket.write_all(&val).await;
             write_socket.flush().await.unwrap();
         }
