@@ -41,7 +41,30 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
         .get_typed_func::<u32, u32>(&mut store, "run")
         .unwrap();
 
-    let _result = wasm_run_fn.call(&mut store, ptr).unwrap();
+    let result = wasm_run_fn.call(&mut store, ptr);
+
+    // Get errors.
+
+        let wasm_error_fn = instance
+        .get_typed_func::<(), u32>(&mut store, "get_errors")
+        .unwrap();
+
+    let errors = wasm_error_fn.call(&mut store, ()).unwrap();
+
+    let mut bytes = vec![0; 1000 * 10];
+
+    memory
+        .read(&mut store, errors.try_into().unwrap(), &mut bytes)
+        .unwrap();
+
+    for chunk in bytes.chunks(100) {
+        let s = String::from_utf8_lossy(chunk);
+
+        tracing::info!("{:#?}", s);
+    }
+
+
+    result.unwrap();
 
     RecordBatch::new_empty(batch.schema())
 }
