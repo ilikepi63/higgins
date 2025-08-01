@@ -11,6 +11,10 @@ pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> W
 
     let data = rb.columns().iter().map(|array| array.to_data());
 
+    let schema = rb.schema();
+
+    let schema_data = data.clone().zip(schema.fields());
+
     let arrays = data
         .clone() // hoping this clone is cheap somehow.
         .map(|data| {
@@ -20,9 +24,9 @@ pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> W
         })
         .collect::<Box<[_]>>();
 
-    let schema = data
-        .map(|data| {
-            let schema = copy_schema(data.data_type(), allocator).unwrap();
+    let schema = schema_data
+        .map(|(data, field)| {
+            let schema = copy_schema(data.data_type(), field.clone(), allocator).unwrap();
 
             schema.inner()
         })
@@ -31,11 +35,13 @@ pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> W
     let arrays_ptr = allocator.copy(u32_to_u8(&arrays));
     let schema_ptr = allocator.copy(u32_to_u8(&schema));
 
-    WasmRecordBatch {
+    let result = WasmRecordBatch {
         n_columns: len as i64,
         schema: WasmPtr::new(schema_ptr),
         columns: WasmPtr::new(arrays_ptr),
-    }
+    };
+
+    result
 }
 
 pub fn clone_record_batch(array: WasmRecordBatch, allocator: &mut WasmAllocator) -> u32 {

@@ -31,6 +31,8 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
 
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
+    tracing::info!("Copying batch {:#?} to Wasm", batch);
+
     let ptr = record_batch_to_wasm(batch.clone(), &mut allocator);
 
     let ptr = clone_record_batch(ptr, &mut allocator);
