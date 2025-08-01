@@ -1,8 +1,57 @@
-use arrow::array::{ArrayRef, AsArray, Int32Array};
-use arrow::datatypes::{Field, Int32Type};
+use arrow::array::Array;
+use arrow::array::{ArrayRef, AsArray, Int32Array, StringArray};
+use arrow::datatypes::{DataType, Field, Int32Type, Schema};
 use arrow::record_batch::RecordBatch;
 use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi};
-use std::sync::Arc; 
+use std::sync::Arc;
+
+use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi};
+
+const ERROR_MSG_SIZE: usize = 1000;
+
+static mut ERRORS: [[u8; ERROR_MSG_SIZE]; 10] = [[0_u8; ERROR_MSG_SIZE]; 10];
+static mut COUNTER: usize = 0;
+
+use log::{Level, Metadata, Record};
+
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            log_error(&format!("{} - {}", record.level(), record.args()));
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+use log::{LevelFilter, SetLoggerError};
+
+static LOGGER: SimpleLogger = SimpleLogger;
+
+fn log_error(s: &str) {
+    unsafe {
+        for (index, byte) in s.as_bytes().iter().enumerate() {
+            ERRORS[COUNTER][index] = *byte;
+        }
+    };
+    unsafe {
+        COUNTER += 1;
+    };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe fn get_errors() -> *const [u8; ERROR_MSG_SIZE] {
+    unsafe {
+        #[allow(static_mut_refs)]
+        ERRORS.as_ptr()
+    }
+}
 
 #[unsafe(no_mangle)]
 pub unsafe fn _malloc(len: u32) -> *mut u8 {
@@ -14,8 +63,12 @@ pub unsafe fn _malloc(len: u32) -> *mut u8 {
 
 #[unsafe(no_mangle)]
 pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Trace));
+
     // Retrieve record batch from FFI ptr.
     let record_batch = record_batch_from_ffi(unsafe { *rb_ptr });
+
+    // log::info!("Resultant Record Batch: {:#?}", record_batch);
 
     // Retrieve the data col name.
     let col = col_name_to_field_and_col(&record_batch, "data");
@@ -35,8 +88,13 @@ pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
 
     let batch = RecordBatch::try_new(
         record_batch.schema(),
-        vec![col_name_to_field_and_col(&record_batch, "id").0, Arc::new(arr)],
-    ).unwrap();
+        vec![
+            Arc::new(arr),
+            col_name_to_field_and_col(&record_batch, "id").0,
+        ],
+    )
+    .inspect_err(|e| log::error!("Error: {:#?}", e))
+    .unwrap();
 
     let result = record_batch_to_ffi(batch);
 
@@ -50,7 +108,11 @@ pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
 pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
     let schema = batch.schema();
 
-    let schema_index = schema.index_of(col_name).unwrap();
+    let schema_index = schema.index_of(col_name);
+
+    log::info!("Schema Index: {:#?}", schema_index);
+
+    let schema_index = schema_index.unwrap();
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);

@@ -9,7 +9,6 @@ use crate::{
     functions::map::run_map_function,
     storage::arrow_ipc::read_arrow,
     topography::{Key, StreamDefinition},
-    utils::epoch,
 };
 
 pub async fn create_mapped_stream_from_definition(
@@ -87,8 +86,6 @@ pub async fn create_mapped_stream_from_definition(
 
                             for record_batch in batches {
                                 let mut broker_lock = left_broker.write().await;
-
-                                let epoch_val = epoch();
 
                                 for index in 0..record_batch.num_rows() {
                                     let partition_val = get_partition_key_from_record_batch(
