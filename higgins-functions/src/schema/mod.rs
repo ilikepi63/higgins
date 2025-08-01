@@ -70,7 +70,7 @@ pub fn copy_schema(
     let children = children_from_datatype(dtype, allocator)?;
 
     let dictionary = if let DataType::Dictionary(_, value_data_type) = dtype {
-        Some(copy_schema(value_data_type.as_ref(), field, allocator)?)
+        Some(copy_schema(value_data_type.as_ref(), field.clone(), allocator)?)
     } else {
         None
     };
@@ -101,9 +101,11 @@ pub fn copy_schema(
 
     let dictionary = dictionary_ptr;
 
+    let name = allocator.copy(field.name().as_bytes());
+
     let schema = WasmArrowSchema {
         format: WasmPtr::new(format_ptr),
-        name: WasmPtr::null(),
+        name: WasmPtr::new(name),
         metadata: WasmPtr::null(),
         flags: flags.bits(),
         n_children,
