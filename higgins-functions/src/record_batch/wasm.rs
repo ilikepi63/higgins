@@ -110,7 +110,7 @@ pub fn wasm_schema_from_wasm(
 
     let format = (unsafe { *schema_ptr }).format;
 
-    let format = get_format_string(dtype)?;
+    let format = get_wasm_c_string(format, memory, &mut store);
 
     // let format_ptr = allocator.copy(format.as_bytes());
 
