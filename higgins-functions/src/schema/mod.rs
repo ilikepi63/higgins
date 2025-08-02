@@ -124,8 +124,6 @@ pub fn copy_schema(
 
     let ptr = allocator.copy(buffer);
 
-    println!("Copying Schema to ptr {:#?}", ptr);
-
     Ok(WasmPtr::new(ptr))
 }
 

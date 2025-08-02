@@ -24,3 +24,5 @@ pub use schema::copy_schema;
 
 #[cfg(feature = "full")]
 pub use wasmtime;
+
+pub mod errors;

@@ -1279,6 +1279,7 @@ dependencies = [
  "bindgen 0.71.1",
  "bitflags",
  "log",
+ "thiserror 2.0.12",
  "wasmtime",
 ]
 

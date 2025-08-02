@@ -21,7 +21,7 @@ impl<T> WasmPtr<T> {
     }
 
     /// Unwraps this value into a u32, consuming self.
-    pub fn inner(self) -> u32 {
+    pub fn inner(&self) -> u32 {
         self.0
     }
 }
