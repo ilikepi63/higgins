@@ -1,15 +1,12 @@
-use crate::record_batch::FFIRecordBatch;
-use arrow::array::RecordBatch;
-use arrow::ffi::FFI_ArrowSchema;
-use wasmtime::{Memory, Store};
-
-use crate::schema;
+use crate::ArrowSchema;
 use crate::{
     copy_array, copy_schema,
     errors::HigginsFunctionError,
     types::{WasmArrowArray, WasmArrowSchema, WasmPtr, WasmRecordBatch},
     utils::{WasmAllocator, u32_to_u8},
 };
+use arrow::array::RecordBatch;
+use wasmtime::{Memory, Store};
 
 pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> WasmRecordBatch {
     let len = rb.num_columns();
@@ -65,7 +62,9 @@ macro_rules! deref_wasm_ptr {
     ($name:ty, $memory:ident, $store:ident, $ptr:ident) => {{
         let mut buffer = [0_u8; std::mem::size_of::<$name>()];
 
-        $memory.read($store, $ptr.inner().try_into()?, &mut buffer);
+        $memory
+            .read(&mut *$store, $ptr.inner().try_into()?, &mut buffer)
+            .unwrap();
 
         let schema_ptr = buffer.as_ptr() as *const $name;
 
@@ -78,6 +77,10 @@ pub fn get_wasm_c_string(
     memory: Memory,
     store: &mut Store<u32>,
 ) -> Result<String, HigginsFunctionError> {
+    if ptr.inner() == WasmPtr::<i8>::null().inner() {
+        return Err(HigginsFunctionError::DereferenceNullPtr);
+    }
+
     let mut str = String::new();
 
     'outer: loop {
@@ -104,72 +107,61 @@ pub fn get_wasm_c_string(
 pub fn wasm_schema_from_wasm(
     ptr: WasmPtr<WasmArrowSchema>,
     memory: Memory,
-    store: Store<u32>,
-) -> Result<FFI_ArrowSchema, HigginsFunctionError> {
+    store: &mut Store<u32>,
+) -> Result<ArrowSchema, HigginsFunctionError> {
     let schema_ptr = deref_wasm_ptr!(WasmArrowSchema, memory, store, ptr);
 
-    let format = (unsafe { *schema_ptr }).format;
+    let schema = unsafe { *schema_ptr };
 
-    let format = get_wasm_c_string(format, memory, &mut store);
+    let format = get_wasm_c_string(schema.format, memory, store);
 
-    // let format_ptr = allocator.copy(format.as_bytes());
+    let name = get_wasm_c_string(schema.name, memory, store);
 
-    // // allocate and hold the children
-    // let children = children_from_datatype(dtype, allocator)?;
+    let children = schema.children;
+    let n_children = schema.n_children;
 
-    // let dictionary = if let DataType::Dictionary(_, value_data_type) = dtype {
-    //     Some(copy_schema(value_data_type.as_ref(), field.clone(), allocator)?)
-    // } else {
-    //     None
-    // };
+    let mut dereferenced_children = vec![];
 
-    // let flags = match dtype {
-    //     DataType::Map(_, true) => Flags::MAP_KEYS_SORTED,
-    //     _ => Flags::empty(),
-    // };
+    for i in 0..n_children {
+        let increment =
+            TryInto::<i64>::try_into(std::mem::size_of::<WasmPtr<WasmPtr<WasmArrowSchema>>>())?;
 
-    // // Allocation happens here.
-    // let children_box = children
-    //     .into_iter()
-    //     .map(|child_schema| clone_struct(child_schema, allocator))
-    //     .collect::<Box<_>>();
+        let ptr = WasmPtr::<WasmPtr<WasmArrowSchema>>::new(
+            children.inner() + TryInto::<u32>::try_into(i * increment)?,
+        );
 
-    // let n_children = children_box.len() as i64;
+        let ptr = deref_wasm_ptr!(WasmPtr<WasmArrowSchema>, memory, store, ptr);
 
-    // // Malloc for the children pointers.
-    // let children_ptr = allocator.copy(u32_to_u8(&children_box));
+        let ffi_schema: ArrowSchema = wasm_schema_from_wasm(unsafe { *ptr }, memory, store)?;
 
-    // let dictionary_ptr = dictionary
-    //     .map(|d| {
-    //         let ptr = clone_struct(d, allocator);
+        let ptr = Box::into_raw(Box::new(ffi_schema));
 
-    //         WasmPtr::new(ptr)
-    //     })
-    //     .unwrap_or(WasmPtr::null());
+        dereferenced_children.push(ptr);
+    }
 
-    // let dictionary = dictionary_ptr;
+    let children_ptrs = dereferenced_children.iter().collect::<Box<_>>();
 
-    // let name = allocator.copy(field.name().as_bytes());
+    let dictionary_ptr = schema.dictionary;
 
-    // let schema = WasmArrowSchema {
-    //     format: WasmPtr::new(format_ptr),
-    //     name: WasmPtr::new(name),
-    //     metadata: WasmPtr::null(),
-    //     flags: flags.bits(),
-    //     n_children,
-    //     children: WasmPtr::new(children_ptr),
-    //     dictionary,
-    //     release: None,
-    //     private_data: WasmPtr::null(),
-    // };
+    let dictionary = wasm_schema_from_wasm(dictionary_ptr, memory, store)
+        .map(Box::new)
+        .map(Box::into_raw);
 
-    // let buffer: &[u8] = unsafe {
-    //     &std::mem::transmute::<WasmArrowSchema, [u8; std::mem::size_of::<WasmArrowSchema>()]>(
-    //         schema,
-    //     )
-    // };
-
-    // let ptr = allocator.copy(buffer);
-
-    // Ok(WasmPtr::new(ptr))
+    Ok(ArrowSchema {
+        format: format
+            .map(|s| s.as_ptr() as *const i8)
+            .unwrap_or(std::ptr::null()),
+        name: name
+            .map(|s| s.as_ptr() as *const i8)
+            .unwrap_or(std::ptr::null()),
+        metadata: std::ptr::null(),
+        flags: schema.flags,
+        n_children,
+        children: Box::into_raw(children_ptrs) as *mut *mut ArrowSchema,
+        dictionary: dictionary.unwrap_or(std::ptr::null_mut()),
+        release: Some(noop),
+        private_data: std::ptr::null_mut(),
+    })
 }
+
+unsafe extern "C" fn noop(_: *mut ArrowSchema) {}

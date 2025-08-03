@@ -9,4 +9,7 @@ pub enum HigginsFunctionError {
 
     #[error("Failed to convert from UTF8.")]
     FromUtf8Error(#[from] FromUtf8Error),
+
+    #[error("Attempt at dereferencing null ptr.")]
+    DereferenceNullPtr,
 }

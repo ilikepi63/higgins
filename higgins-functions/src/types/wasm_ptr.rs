@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 /// As Webassembly primarily targets a 32-bit architecture, we will need to communicate
 /// all pointers for webassembly to the u32 memory address size.
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct WasmPtr<T>(u32, PhantomData<T>);
 
 impl<T> WasmPtr<T> {

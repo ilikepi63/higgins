@@ -6,7 +6,7 @@ use std::ffi::{c_char, c_void};
 use super::WasmPtr;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub struct WasmArrowSchema {
     pub format: WasmPtr<c_char>,
@@ -18,5 +18,5 @@ pub struct WasmArrowSchema {
     pub children: WasmPtr<WasmPtr<Self>>,
     pub dictionary: WasmPtr<Self>,
     pub release: Option<unsafe extern "C" fn(arg1: *mut WasmPtr<Self>)>,
-    pub private_data: WasmPtr<c_void>,
+    pub private_data: WasmPtr<i8>,
 }
