@@ -1,5 +1,5 @@
 //! Module for the WasmPtr type.
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Add};
 
 /// The WasmPtr type.
 ///
@@ -23,6 +23,20 @@ impl<T> WasmPtr<T> {
     /// Unwraps this value into a u32, consuming self.
     pub fn inner(&self) -> u32 {
         self.0
+    }
+
+    pub const fn size() -> usize {
+        std::mem::size_of::<Self>()
+    }
+
+    pub fn add(&self, increment: u32) -> WasmPtr<T> {
+        let size: u32 = std::mem::size_of_val(self).try_into().unwrap();
+
+        WasmPtr::new(self.0 + (size * increment))
+    }
+
+    pub fn cast<U>(self) -> WasmPtr<U> {
+        WasmPtr::new(self.0)
     }
 }
 
