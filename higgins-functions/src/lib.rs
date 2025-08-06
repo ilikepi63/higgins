@@ -3,7 +3,8 @@ mod array;
 mod record_batch;
 #[cfg(feature = "full")]
 mod schema;
-#[cfg(feature = "full")]
+
+// #[cfg(feature = "full")]
 pub mod types;
 
 #[cfg(feature = "full")]
@@ -24,3 +25,5 @@ pub use schema::copy_schema;
 
 #[cfg(feature = "full")]
 pub use wasmtime;
+
+pub use types::ArbitraryLengthBuffer;
