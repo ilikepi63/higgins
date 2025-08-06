@@ -1,9 +1,12 @@
 use arrow::array::RecordBatch;
 use higgins_functions::{
     clone_record_batch, record_batch_to_wasm,
+    types::ArbitraryLengthBuffer,
     utils::WasmAllocator,
     wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
 };
+
+use crate::storage::arrow_ipc::{read_arrow, write_arrow};
 
 /// Wrapper around the mapping functions.
 pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
@@ -33,19 +36,19 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
 
     tracing::info!("Copying batch {:#?} to Wasm", batch);
 
-    let ptr = record_batch_to_wasm(batch.clone(), &mut allocator);
+    let data = ArbitraryLengthBuffer::from(write_arrow(batch).as_ref()).into_inner();
 
-    let ptr = clone_record_batch(ptr, &mut allocator);
+    let record_batch_ptr = allocator.copy(&data);
 
     let wasm_run_fn = instance
         .get_typed_func::<u32, u32>(&mut store, "run")
         .unwrap();
 
-    let result = wasm_run_fn.call(&mut store, ptr);
+    let result = wasm_run_fn.call(&mut store, record_batch_ptr);
 
     // Get errors.
 
-        let wasm_error_fn = instance
+    let wasm_error_fn = instance
         .get_typed_func::<(), u32>(&mut store, "get_errors")
         .unwrap();
 
@@ -63,8 +66,29 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
         tracing::info!("{:#?}", s);
     }
 
+    let record_batch_ptr = result.unwrap();
 
-    result.unwrap();
+    tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
 
-    RecordBatch::new_empty(batch.schema())
+    let record_batch = {
+
+        let mut buf = [0_u8; 8];
+
+        memory.read(&store, record_batch_ptr.try_into().unwrap(), &mut buf).unwrap();
+
+        let length = u64::from_be_bytes(buf);
+
+        let mut buf = vec![0_u8; length as usize + 8];
+
+        memory.read(&store, record_batch_ptr.try_into().unwrap(), &mut buf).unwrap();
+
+        let array = ArbitraryLengthBuffer::new(buf);
+
+        let record_batch = read_arrow(array.data()).nth(0).unwrap().unwrap();
+
+        record_batch
+
+    };
+
+    record_batch
 }
