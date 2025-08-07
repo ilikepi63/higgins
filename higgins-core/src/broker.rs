@@ -22,7 +22,8 @@ use uuid::Uuid;
 use crate::{
     broker::object_store::path::Path,
     derive::{
-        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition, reduce::create_reduced_stream_from_definition,
+        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition,
+        reduce::create_reduced_stream_from_definition,
     },
     functions::collection::FunctionCollection,
     topography::FunctionType,
@@ -734,7 +735,11 @@ impl Broker {
 
         // We create a
         let (batch_response_tx, batch_reponse_rx) =
-            tokio::sync::mpsc::channel(objects_to_retrieve.len());
+            tokio::sync::mpsc::channel(if objects_to_retrieve.len() > 0 {
+                objects_to_retrieve.len()
+            } else {
+                1
+            });
 
         let batch_responses = Arc::new(batch_responses);
 
