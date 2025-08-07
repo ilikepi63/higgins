@@ -49,7 +49,9 @@ fn can_implement_basic_reduce() {
 
     upload_configuration(config.as_bytes(), &mut socket);
 
-    upload_module_sync("reduce", &std::fs::read("higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_reduce.wasm").unwrap(), &mut socket);
+    
+
+    upload_module_sync("reduce", &std::fs::read("tests/functions/basic-reduce/target/wasm32-unknown-unknown/release/basic_reduce.wasm").unwrap(), &mut socket);
 
     produce_sync(
         b"amount",
@@ -57,7 +59,7 @@ fn can_implement_basic_reduce() {
         r#"
         {   
             "id": "1",
-            "amount": 1,
+            "data": 1,
         }
     "#
         .as_bytes(),
@@ -79,7 +81,7 @@ fn can_implement_basic_reduce() {
         r#"
         {   
             "id": "1",
-            "amount": 1,
+            "data": 1,
         }
     "#
         .as_bytes(),
