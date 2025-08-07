@@ -76,6 +76,10 @@ impl IndexDirectory {
 
         let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
 
+        if !std::fs::exists(&index_file_path).unwrap_or(false) {
+            return vec![];
+        }
+
         let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
         let index_reader =
@@ -149,6 +153,10 @@ impl IndexDirectory {
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
         let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+
+        if !std::fs::exists(&index_file_path).unwrap_or(false) {
+            return vec![];
+        }
 
         let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 

@@ -492,6 +492,7 @@ dependencies = [
  "arrow",
  "bindgen",
  "bitflags",
+ "log",
 ]
 
 [[package]]
