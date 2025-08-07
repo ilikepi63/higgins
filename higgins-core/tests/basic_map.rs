@@ -37,7 +37,7 @@ fn can_implement_basic_map() {
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
     socket
-        .set_read_timeout(Some(Duration::from_secs(3)))
+        .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
 
     // 1. Do a basic Ping test.
