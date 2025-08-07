@@ -2,7 +2,7 @@ use arrow::array::Array;
 use arrow::array::{ArrayRef, AsArray, Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Int32Type, Schema};
 use arrow::record_batch::RecordBatch;
-use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi};
+use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi, ArbitraryLengthBuffer};
 use std::sync::Arc;
 
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi};
@@ -62,11 +62,13 @@ pub unsafe fn _malloc(len: u32) -> *mut u8 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
+pub unsafe fn run(rb_ptr: *const u8) -> *const u8 {
     log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Trace));
 
     // Retrieve record batch from FFI ptr.
-    let record_batch = record_batch_from_ffi(unsafe { *rb_ptr });
+    let buffer: Vec<u8> = ArbitraryLengthBuffer::from(rb_ptr).into_inner();
+
+    let record_batch = read_arrow(&buffer).nth(0).unwrap().unwrap(); 
 
     // log::info!("Resultant Record Batch: {:#?}", record_batch);
 
@@ -96,13 +98,16 @@ pub unsafe fn run(rb_ptr: *const FFIRecordBatch) -> *const FFIRecordBatch {
     .inspect_err(|e| log::error!("Error: {:#?}", e))
     .unwrap();
 
-    let result = record_batch_to_ffi(batch);
+    // let result = record_batch_to_ffi(batch);
+    let result = write_arrow(&batch);
 
-    let heaped = Box::new(result);
+    let buffer: Vec<u8> = ArbitraryLengthBuffer::from(result.as_ref()).into_inner();
 
-    let ptr = Box::leak(heaped) as *const FFIRecordBatch;
+    let ptr = buffer.as_ptr();
 
-    ptr
+    buffer.leak();
+
+    ptr as *const u8
 }
 
 pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
@@ -118,4 +123,26 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
     let field = schema.field(schema_index);
 
     (col.clone(), field.clone())
+}
+
+use arrow::{
+    ipc::{reader::StreamReader, writer::StreamWriter},
+};
+
+pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
+    let mut buf = Vec::new();
+
+    let mut writer = StreamWriter::try_new(&mut buf, &batch.schema()).unwrap();
+
+    writer.write(batch).unwrap();
+
+    writer.finish().unwrap();
+
+    buf
+}
+
+pub fn read_arrow(bytes: &[u8]) -> StreamReader<&[u8]> {
+    let projection = None; // read all columns
+
+    StreamReader::try_new(bytes, projection).unwrap()
 }
