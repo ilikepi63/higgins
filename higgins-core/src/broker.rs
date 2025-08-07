@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::{
     broker::object_store::path::Path,
     derive::{
-        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition,
+        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition, reduce::create_reduced_stream_from_definition,
     },
     functions::collection::FunctionCollection,
     topography::FunctionType,
@@ -640,7 +640,7 @@ impl Broker {
                     .unwrap();
                 }
                 Some(FunctionType::Map) => {
-                    tracing::trace!("Createing Mapped stream definition.");
+                    tracing::trace!("Creating Mapped stream definition.");
 
                     let left = self
                         .topography
@@ -660,7 +660,27 @@ impl Broker {
                     .await
                     .unwrap();
                 }
-                Some(FunctionType::Reduce) => {}
+                Some(FunctionType::Reduce) => {
+                    tracing::trace!("Creating Reduced stream definition.");
+
+                    let left = self
+                        .topography
+                        .streams
+                        .iter()
+                        .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
+                        .map(|(key, def)| (key.clone(), def.clone()))
+                        .unwrap();
+
+                    let _ = create_reduced_stream_from_definition(
+                        derived_stream_key,
+                        derived_stream_definition,
+                        left,
+                        self,
+                        broker.clone(),
+                    )
+                    .await
+                    .unwrap();
+                }
                 Some(_) => todo!(),
                 None => {
                     panic!("There should be a type associated with a derived stream.");
