@@ -55,8 +55,8 @@ pub unsafe fn run(prev_rb_ptr: *const u8, rb_ptr: *const u8) -> *const u8 {
     let batch = RecordBatch::try_new(
         record_batch.schema(),
         vec![
-            col_name_to_field_and_col(&record_batch, "id").0,
             Arc::new(arr),
+            col_name_to_field_and_col(&record_batch, "id").0,
         ],
     )
     .unwrap();

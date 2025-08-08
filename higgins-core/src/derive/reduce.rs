@@ -8,7 +8,7 @@ use crate::{
     error::HigginsError,
     functions::reduce::run_reduce_function,
     storage::arrow_ipc::read_arrow,
-    topography::{ Key, StreamDefinition},
+    topography::{Key, StreamDefinition},
     utils::epoch,
 };
 
@@ -25,9 +25,6 @@ pub async fn create_reduced_stream_from_definition(
     let left_subscription = broker.create_subscription(left.0.inner());
 
     let (left_notify, left_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
-        .unwrap();
-    let (_right_notify, _right_subscription_ref) = broker
         .get_subscription_by_key(left.0.inner(), &left_subscription)
         .unwrap();
 
@@ -118,26 +115,49 @@ pub async fn create_reduced_stream_from_definition(
                                         })
                                         .flatten();
 
-                                    let module = broker_lock.functions.get_function(&stream_def.function_name.as_ref().unwrap()).await;
+                                    match prev_record {
+                                        Some(prev_record) => {
+                                            let module = broker_lock
+                                                .functions
+                                                .get_function(
+                                                    &stream_def.function_name.as_ref().unwrap(),
+                                                )
+                                                .await;
 
-                                    let reduced_record_batch = run_reduce_function(
-                                        &record_batch,
-                                        &prev_record.unwrap(),
-                                        module,
-                                    );
+                                            let reduced_record_batch = run_reduce_function(
+                                                &record_batch,
+                                                &prev_record,
+                                                module,
+                                            );
 
-                                    let result = broker_lock
-                                        .produce(
-                                            stream_name.inner(),
-                                            &partition_val,
-                                            reduced_record_batch,
-                                        )
-                                        .await;
+                                            let result = broker_lock
+                                                .produce(
+                                                    stream_name.inner(),
+                                                    &partition_val,
+                                                    reduced_record_batch,
+                                                )
+                                                .await;
 
-                                    tracing::trace!(
-                                        "Result from producing with a join: {:#?}",
-                                        result
-                                    );
+                                            tracing::trace!(
+                                                "Result from producing with a join: {:#?}",
+                                                result
+                                            );
+                                        }
+                                        None => {
+                                            let result = broker_lock
+                                                .produce(
+                                                    stream_name.inner(),
+                                                    &partition_val,
+                                                    record_batch.clone(),
+                                                )
+                                                .await;
+
+                                            tracing::trace!(
+                                                "Result from producing with a join: {:#?}",
+                                                result
+                                            );
+                                        }
+                                    }
                                 }
 
                                 drop(broker_lock);
