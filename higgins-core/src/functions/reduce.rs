@@ -1,10 +1,11 @@
 use arrow::array::RecordBatch;
 use higgins_functions::{
-    clone_record_batch, record_batch_to_wasm,
+    ArbitraryLengthBuffer, clone_record_batch, record_batch_to_wasm,
     utils::WasmAllocator,
     wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
 };
 
+use crate::storage::arrow_ipc::{read_arrow, write_arrow};
 
 /// Wrapper around the reduce functions.
 pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u8>) -> RecordBatch {
@@ -33,23 +34,46 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
     let curr_ptr = {
-        let ptr = record_batch_to_wasm(curr.clone(), &mut allocator);
-        let ptr = clone_record_batch(ptr, &mut allocator);
-        ptr
+        let data = ArbitraryLengthBuffer::from(write_arrow(curr).as_ref()).into_inner();
+        let record_batch_ptr = allocator.copy(&data);
+        record_batch_ptr
     };
 
     let prev_ptr = {
-        let ptr = record_batch_to_wasm(prev.clone(), &mut allocator);
-        let ptr = clone_record_batch(ptr, &mut allocator);
-        ptr
+        let data = ArbitraryLengthBuffer::from(write_arrow(prev).as_ref()).into_inner();
+        let record_batch_ptr = allocator.copy(&data);
+        record_batch_ptr
     };
 
     let wasm_run_fn = instance
         .get_typed_func::<(u32, u32), u32>(&mut store, "run")
         .unwrap();
 
-    let _result = wasm_run_fn.call(&mut store, (prev_ptr, curr_ptr)).unwrap();
+    let record_batch_ptr = wasm_run_fn.call(&mut store, (prev_ptr, curr_ptr)).unwrap();
 
-    // TODO: do we have a function for converting from pointer back to
-    RecordBatch::new_empty(curr.schema())
+    tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
+
+    let record_batch = {
+        let mut buf = [0_u8; 8];
+
+        memory
+            .read(&store, record_batch_ptr.try_into().unwrap(), &mut buf)
+            .unwrap();
+
+        let length = u64::from_be_bytes(buf);
+
+        let mut buf = vec![0_u8; length as usize + 8];
+
+        memory
+            .read(&store, record_batch_ptr.try_into().unwrap(), &mut buf)
+            .unwrap();
+
+        let array = ArbitraryLengthBuffer::new(buf);
+
+        let record_batch = read_arrow(array.data()).nth(0).unwrap().unwrap();
+
+        record_batch
+    };
+
+    record_batch
 }
