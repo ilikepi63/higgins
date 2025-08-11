@@ -1,0 +1,11 @@
+[package]
+name = "higgins-client"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+higgins-codec = { path = "../higgins-codec" }
+prost = { version = "0.13" }
+tracing = { version = "0.1" }
+bytes = "1"
+tokio = { version = "1", features = ["net"] }
