@@ -45,7 +45,7 @@ fn can_implement_a_basic_stream_join() {
 
     // Upload a basic configuration with one stream.
 
-    let config = std::fs::read_to_string("tests/configs/join_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/join_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
 

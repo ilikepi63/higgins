@@ -1,0 +1,14 @@
+[schema.amount]
+id = "string"
+data = "int32"
+
+[streams.amount]
+schema = "amount"
+partition_key = "id"
+
+[streams.result]
+base = "amount"
+type = "map"
+partition_key = "id"
+schema = "amount"
+fn = "map"

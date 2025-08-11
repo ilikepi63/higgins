@@ -52,7 +52,7 @@ fn can_implement_basic_reduce() {
 
     // Upload a basic configuration with one stream.
 
-    let config = std::fs::read_to_string("tests/configs/reduce_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/reduce_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
 

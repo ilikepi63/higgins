@@ -72,7 +72,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     }
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
 
     let create_config_req = CreateConfigurationRequest {
         data: config.into_bytes(),

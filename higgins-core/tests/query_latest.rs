@@ -42,7 +42,7 @@ fn can_arbitrarily_query_for_time_based_values() {
         .unwrap();
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
 
