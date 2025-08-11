@@ -32,7 +32,7 @@ fn can_implement_basic_map() {
         rt.block_on(run_server(port));
     });
 
-    std::thread::sleep(Duration::from_millis(200)); // Sleep to allow 
+    std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
@@ -45,7 +45,7 @@ fn can_implement_basic_map() {
 
     // Upload a basic configuration with one stream.
 
-    let config = std::fs::read_to_string("tests/configs/map_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/map_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
 
@@ -55,7 +55,7 @@ fn can_implement_basic_map() {
         b"amount",
         b"1",
         r#"
-        {   
+        {
             "id": "1",
             "data": 1,
         }

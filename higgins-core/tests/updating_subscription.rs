@@ -49,7 +49,7 @@ fn can_update_subscription_after_created() {
         .unwrap();
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.yaml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
 
