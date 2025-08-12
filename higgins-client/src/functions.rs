@@ -1,14 +1,18 @@
 use prost::Message as _;
 
-use higgins_codec::{frame::Frame, message::Type, Message, UploadModuleRequest};
 use bytes::BytesMut;
+use higgins_codec::{Message, UploadModuleRequest, frame::Frame, message::Type};
 
-pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) {
+pub fn upload_module<S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
+    name: &str,
+    wasm: &[u8],
+    socket: &mut S,
+) {
     let mut write_buf = BytesMut::new();
 
     let request = UploadModuleRequest {
-        name:name.to_owned(),
-        value: wasm.to_vec()
+        name: name.to_owned(),
+        value: wasm.to_vec(),
     };
 
     Message {
@@ -22,11 +26,16 @@ pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) 
     let frame = Frame::new(write_buf.to_vec());
 
     frame.try_write(socket).unwrap();
-
 }
 
 #[allow(unused)]
-pub fn upload_module_sync(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) {
+pub fn upload_module_sync<
+    S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
+    name: &str,
+    wasm: &[u8],
+    socket: &mut S,
+) {
     let mut read_buf = BytesMut::zeroed(20);
 
     upload_module(name, wasm, socket);

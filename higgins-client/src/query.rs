@@ -1,9 +1,11 @@
 use bytes::BytesMut;
-use higgins_codec::{frame::Frame, message::Type, GetIndexRequest, Index, Message, Record};
+use higgins_codec::{GetIndexRequest, Index, Message, Record, frame::Frame, message::Type};
 use prost::Message as _;
 
 #[allow(unused)]
-pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
+pub fn query_by_timestamp<
+    T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
     stream: &[u8],
     partition: &[u8],
     socket: &mut T,
@@ -53,7 +55,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
 }
 
 #[allow(unused)]
-pub fn query_latest<T: std::io::Read + std::io::Write>(
+pub fn query_latest<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
     stream: &[u8],
     partition: &[u8],
     socket: &mut T,
