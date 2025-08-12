@@ -1266,6 +1266,7 @@ name = "higgins-client"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "futures",
  "higgins-codec",
  "prost",
  "thiserror 2.0.12",
