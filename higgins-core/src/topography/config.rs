@@ -68,8 +68,8 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
 }
 
 /// Deserializes the given byte array into a configuration.
-pub fn from_yaml(config: &[u8]) -> Configuration {
-    let config: Configuration = serde_yaml::from_slice(config).unwrap();
+pub fn from_toml(config: &[u8]) -> Configuration {
+    let config: Configuration = toml::from_slice(config).unwrap();
 
     config
 }
@@ -78,13 +78,35 @@ pub fn from_yaml(config: &[u8]) -> Configuration {
 mod test {
 
     use super::*;
-    use crate::topography::config::from_yaml;
+    use crate::topography::config::from_toml;
 
     #[test]
-    fn can_deserialize_basic_yaml() {
-        let example_config = std::fs::read_to_string("tests/configs/basic_config.yaml").unwrap();
+    fn can_deserialize_basic_toml() {
+        let example_config = r#"
+            [schema.update_customer_event]
+            id = "string"
+            first_name = "string"
+            last_name = "string"
+            age = "int32"
 
-        let config = from_yaml(example_config.as_bytes());
+            [schema.customer]
+            id = "string"
+            first_name = "string"
+            last_name = "string"
+            age = "int32"
+
+            [streams.update_customer]
+            schema = "update_customer_event"
+            partition_key = "id"
+
+            [streams.customer]
+            base = "update_customer"
+            type = "reduce"
+            partition_key = "id"
+            schema = "customer"
+            "#;
+
+        let config = from_toml(example_config.as_bytes());
 
         // Assert entire struct equality with inline expected values
         assert_eq!(
@@ -175,161 +197,169 @@ mod test {
     }
 
     #[test]
-    fn can_deserialize_join_yaml() {
-        let example_config = std::fs::read_to_string("tests/configs/join_config.yaml").unwrap();
+    fn can_deserialize_join_toml() {
+        let example_config = r#"
+            [schema.customer]
+            id = "string"
+            first_name = "string"
+            last_name = "string"
+            age = "int32"
 
-        let config = from_yaml(example_config.as_bytes());
+            [schema.address]
+            customer_id = "string"
+            address_line_1 = "string"
+            address_line_2 = "string"
+            city = "string"
+            province = "string"
 
-        // Assert entire struct equality with inline expected values
-        // assert_eq!(
-        //     config,
-        //     Configuration {
-        //         streams: {
-        //             let mut streams = BTreeMap::new();
-        //             streams.insert(
-        //                 "customer".to_string(),
-        //                 ConfigurationStreamDefinition {
-        //                     base: None,
-        //                     stream_type: None,
-        //                     partition_key: "id".to_string(),
-        //                     schema: "update_customer_event".to_string(),
-        //                     inner_join: None,
-        //                     left_join: None,
-        //                     right_join: None,
-        //                     full_join: None,
-        //                     map: None,
-        //                 },
-        //             );
-        //             streams.insert(
-        //                 "customer_product".to_string(),
-        //                 ConfigurationStreamDefinition {
-        //                     base: Some("customer".to_string()),
-        //                     stream_type: Some("join".to_string()),
-        //                     partition_key: "customer_id".to_string(),
-        //                     schema: "customer_address".to_string(),
-        //                     inner_join: Some("address".to_string()),
-        //                     left_join: None,
-        //                     right_join: None,
-        //                     full_join: None,
-        //                     map: Some({
-        //                         let mut map = BTreeMap::new();
-        //                         map.insert(
-        //                             "address_line_1".to_string(),
-        //                             "address.address_line_1".to_string(),
-        //                         );
-        //                         map.insert(
-        //                             "address_line_2".to_string(),
-        //                             "address.address_line_2".to_string(),
-        //                         );
-        //                         map.insert("age".to_string(), "customer.age".to_string());
-        //                         map.insert("city".to_string(), "address.city".to_string());
-        //                         map.insert(
-        //                             "customer_first_name".to_string(),
-        //                             "customer.first_name".to_string(),
-        //                         );
-        //                         map.insert("customer_id".to_string(), "customer.id".to_string());
-        //                         map.insert(
-        //                             "customer_last_name".to_string(),
-        //                             "customer.last_name".to_string(),
-        //                         );
-        //                         map.insert("province".to_string(), "address.province".to_string());
-        //                         map
-        //                     }),
-        //                 },
-        //             );
-        //             streams.insert(
-        //                 "product".to_string(),
-        //                 ConfigurationStreamDefinition {
-        //                     base: None,
-        //                     stream_type: None,
-        //                     partition_key: "id".to_string(),
-        //                     schema: "product".to_string(),
-        //                     inner_join: None,
-        //                     left_join: None,
-        //                     right_join: None,
-        //                     full_join: None,
-        //                     map: None,
-        //                 },
-        //             );
-        //             streams
-        //         },
-        //         schema: {
-        //             let mut schema = BTreeMap::new();
-        //             let mut customer_fields = BTreeMap::new();
-        //             customer_fields.insert("age".to_string(), "int32".to_string());
-        //             customer_fields.insert("first_name".to_string(), "string".to_string());
-        //             customer_fields.insert("id".to_string(), "string".to_string());
-        //             customer_fields.insert("last_name".to_string(), "string".to_string());
-        //             schema.insert("customer".to_string(), customer_fields);
+            [schema.customer_address]
+            customer_id = "string"
+            customer_first_name = "string"
+            customer_last_name = "string"
+            age = "int32"
+            address_line_1 = "string"
+            address_line_2 = "string"
+            city = "string"
+            province = "string"
 
-        //             let mut address_fields = BTreeMap::new();
-        //             address_fields.insert("address_line_1".to_string(), "string".to_string());
-        //             address_fields.insert("address_line_2".to_string(), "string".to_string());
-        //             address_fields.insert("city".to_string(), "string".to_string());
-        //             address_fields.insert("id".to_string(), "string".to_string());
-        //             address_fields.insert("province".to_string(), "string".to_string());
-        //             schema.insert("address".to_string(), address_fields);
+            [streams.customer]
+            schema = "customer"
+            partition_key = "id"
 
-        //             let mut customer_address_fields = BTreeMap::new();
-        //             customer_address_fields
-        //                 .insert("address_line_1".to_string(), "string".to_string());
-        //             customer_address_fields
-        //                 .insert("address_line_2".to_string(), "string".to_string());
-        //             customer_address_fields.insert("age".to_string(), "int32".to_string());
-        //             customer_address_fields.insert("city".to_string(), "string".to_string());
-        //             customer_address_fields
-        //                 .insert("customer_first_name".to_string(), "string".to_string());
-        //             customer_address_fields.insert("customer_id".to_string(), "string".to_string());
-        //             customer_address_fields
-        //                 .insert("customer_last_name".to_string(), "string".to_string());
-        //             customer_address_fields.insert("province".to_string(), "string".to_string());
-        //             schema.insert("customer_address".to_string(), customer_address_fields);
-        //             schema
-        //         },
-        //     },
-        //     "Configuration struct should match expected values"
-        // );
+            [streams.address]
+            schema = "address"
+            partition_key = "id"
 
-        // Assert individual fields
+            [streams.customer_address]
+            type = "join"
+            schema = "customer_address"
+            partition_key = "customer_id"
+            base = "customer"
+            inner_join = "address"
+
+            [streams.customer_address.map]
+            customer_id = "customer.id"
+            customer_first_name = "customer.first_name"
+            customer_last_name = "customer.last_name"
+            age = "customer.age"
+            address_line_1 = "address.address_line_1"
+            address_line_2 = "address.address_line_2"
+            city = "address.city"
+            province = "address.province"
+            "#;
+
+        let config = from_toml(example_config.as_bytes());
+
+        // Define the expected Configuration struct
+        let expected = Configuration {
+            schema: BTreeMap::from([
+                (
+                    "customer".to_string(),
+                    BTreeMap::from([
+                        ("id".to_string(), "string".to_string()),
+                        ("first_name".to_string(), "string".to_string()),
+                        ("last_name".to_string(), "string".to_string()),
+                        ("age".to_string(), "int32".to_string()),
+                    ]),
+                ),
+                (
+                    "address".to_string(),
+                    BTreeMap::from([
+                        ("customer_id".to_string(), "string".to_string()),
+                        ("address_line_1".to_string(), "string".to_string()),
+                        ("address_line_2".to_string(), "string".to_string()),
+                        ("city".to_string(), "string".to_string()),
+                        ("province".to_string(), "string".to_string()),
+                    ]),
+                ),
+                (
+                    "customer_address".to_string(),
+                    BTreeMap::from([
+                        ("customer_id".to_string(), "string".to_string()),
+                        ("customer_first_name".to_string(), "string".to_string()),
+                        ("customer_last_name".to_string(), "string".to_string()),
+                        ("age".to_string(), "int32".to_string()),
+                        ("address_line_1".to_string(), "string".to_string()),
+                        ("address_line_2".to_string(), "string".to_string()),
+                        ("city".to_string(), "string".to_string()),
+                        ("province".to_string(), "string".to_string()),
+                    ]),
+                ),
+            ]),
+            streams: BTreeMap::from([
+                (
+                    "customer".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: None,
+                        stream_type: None,
+                        partition_key: "id".to_string(),
+                        schema: "customer".to_string(),
+                        inner_join: None,
+                        left_join: None,
+                        right_join: None,
+                        full_join: None,
+                        map: None,
+                        function_name: None,
+                    },
+                ),
+                (
+                    "address".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: None,
+                        stream_type: None,
+                        partition_key: "id".to_string(),
+                        schema: "address".to_string(),
+                        inner_join: None,
+                        left_join: None,
+                        right_join: None,
+                        full_join: None,
+                        map: None,
+                        function_name: None,
+                    },
+                ),
+                (
+                    "customer_address".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: Some("customer".to_string()),
+                        stream_type: Some("join".to_string()),
+                        partition_key: "customer_id".to_string(),
+                        schema: "customer_address".to_string(),
+                        inner_join: Some("address".to_string()),
+                        left_join: None,
+                        right_join: None,
+                        full_join: None,
+                        map: Some(BTreeMap::from([
+                            ("customer_id".to_string(), "customer.id".to_string()),
+                            (
+                                "customer_first_name".to_string(),
+                                "customer.first_name".to_string(),
+                            ),
+                            (
+                                "customer_last_name".to_string(),
+                                "customer.last_name".to_string(),
+                            ),
+                            ("age".to_string(), "customer.age".to_string()),
+                            (
+                                "address_line_1".to_string(),
+                                "address.address_line_1".to_string(),
+                            ),
+                            (
+                                "address_line_2".to_string(),
+                                "address.address_line_2".to_string(),
+                            ),
+                            ("city".to_string(), "address.city".to_string()),
+                            ("province".to_string(), "address.province".to_string()),
+                        ])),
+                        function_name: None,
+                    },
+                ),
+            ]),
+        };
+
+        // Assert that the deserialized configuration matches the expected one
         assert_eq!(
-            config.streams.len(),
-            3,
-            "Should have three stream definitions"
-        );
-        assert_eq!(
-            config.streams.get("customer").unwrap().partition_key,
-            "id",
-            "Customer stream partition key should be id"
-        );
-        assert_eq!(
-            config.streams.get("customer_product").unwrap().stream_type,
-            Some("join".to_string()),
-            "Customer_product stream type should be join"
-        );
-        assert_eq!(
-            config.streams.get("customer_product").unwrap().inner_join,
-            Some("address".to_string()),
-            "Customer_product inner join should be address"
-        );
-        assert_eq!(
-            config.streams.get("product").unwrap().schema,
-            "product",
-            "Product stream schema should be product"
-        );
-        assert_eq!(
-            config.schema.len(),
-            3,
-            "Should have three schema definitions"
-        );
-        assert_eq!(
-            config
-                .schema
-                .get("customer_address")
-                .unwrap()
-                .get("customer_id")
-                .unwrap(),
-            "string",
-            "Customer_address schema customer_id field should be string"
+            config, expected,
+            "Deserialized configuration does not match expected"
         );
     }
 }
