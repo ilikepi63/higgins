@@ -3,7 +3,7 @@ use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
-
+use crate::error::HigginsClientError;
 
 /// produce to a stream without waiting for the response.
 ///
@@ -43,7 +43,7 @@ pub async fn produce_sync<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std:
     partition: &[u8],
     payload: &[u8],
     socket: &mut T,
-) -> Result<ProduceResponse, Box<dyn std::error::Error>> {
+) -> Result<ProduceResponse, HigginsClientError> {
     produce(stream, partition, payload, socket).await;
 
     let mut read_buf = BytesMut::zeroed(1024);

@@ -15,7 +15,7 @@ impl From<&[u8]> for ArbitraryLengthBuffer {
 
 impl From<*const u8> for ArbitraryLengthBuffer {
     fn from(value: *const u8) -> Self {
-        let length_ptr = (value as *const [u8; 8]);
+        let length_ptr = value as *const [u8; 8];
 
         let length = u64::from_be_bytes(unsafe { *length_ptr });
 

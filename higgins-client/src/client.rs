@@ -1,14 +1,14 @@
-use crate::produce::produce_sync;
+use crate::{
+    produce::produce_sync,
+    error::HigginsClientError
+};
+use higgins_codec::ProduceResponse;
 
 pub struct Client (tokio::net::TcpStream);
 
 impl Client {
-
-
-    pub async fn produce(&mut self, stream: &str, partition: &[u8], payload: &[u8]) {
-
-        produce_sync(stream.as_bytes(), partition, payload, &mut self.0).await;
-
+    pub async fn produce(&mut self, stream: &str, partition: &[u8], payload: &[u8]) -> Result<ProduceResponse, HigginsClientError> {
+        produce_sync(stream.as_bytes(), partition, payload, &mut self.0).await
     }
 
     pub async fn consume(&self) {}
