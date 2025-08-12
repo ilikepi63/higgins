@@ -36,7 +36,7 @@ use crate::{
         indexes::IndexDirectory,
     },
     subscription::Subscription,
-    topography::{Topography, apply_configuration_to_topography, config::from_yaml},
+    topography::{Topography, apply_configuration_to_topography, config::from_toml},
     utils::request_response::Request,
 };
 use riskless::messages::ConsumeBatch;
@@ -559,8 +559,8 @@ impl Broker {
         config: &[u8],
         broker: Arc<RwLock<Self>>,
     ) -> Result<(), HigginsError> {
-        // Deserialize configuratio from YAML.
-        let config = from_yaml(config);
+        // Deserialize configuratio from TOML.
+        let config = from_toml(config);
 
         // Apply the configuration to the topography.
         apply_configuration_to_topography(config, &mut self.topography)?;
