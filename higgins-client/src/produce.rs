@@ -1,9 +1,9 @@
+use crate::error::HigginsClientError;
 use bytes::BytesMut;
+use higgins_codec::ProduceResponse;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
-use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
-use crate::error::HigginsClientError;
 
 /// produce to a stream without waiting for the response.
 ///

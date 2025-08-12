@@ -66,7 +66,6 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
     };
 
     let mut write_buf = BytesMut::new();
-    let mut read_buf = BytesMut::zeroed(8048);
 
     Message {
         r#type: Type::Takerecordsrequest as i32,
