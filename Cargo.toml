@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "higgins-cli",
+    "higgins-client",
     "higgins-codec",
     "higgins-core",
     "higgins-functions",
