@@ -2,15 +2,17 @@ use bytes::BytesMut;
 use higgins_codec::{GetIndexRequest, Index, Message, Record, frame::Frame, message::Type};
 use prost::Message as _;
 
+use crate::error::HigginsClientError;
+
 #[allow(unused)]
-pub fn query_by_timestamp<
+pub async fn query_by_timestamp<
     T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
     stream: &[u8],
     partition: &[u8],
     socket: &mut T,
     timestamp: u64,
-) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Record>, HigginsClientError> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
@@ -29,14 +31,12 @@ pub fn query_by_timestamp<
         get_index_request: Some(request),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
-
+    .encode(&mut write_buf)?;
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read_async(socket).await?;
 
     let slice = frame.inner();
 
@@ -55,11 +55,13 @@ pub fn query_by_timestamp<
 }
 
 #[allow(unused)]
-pub fn query_latest<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
+pub async fn query_latest<
+    T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
     stream: &[u8],
     partition: &[u8],
     socket: &mut T,
-) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Record>, HigginsClientError> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
@@ -78,14 +80,13 @@ pub fn query_latest<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std:
         get_index_request: Some(request),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read_async(socket).await?;
 
     let slice = frame.inner();
 

@@ -16,8 +16,7 @@ pub async fn ping<S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
         ping: Some(ping),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 

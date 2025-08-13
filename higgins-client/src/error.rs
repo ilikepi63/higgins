@@ -1,4 +1,5 @@
 use higgins_codec::{errors::HigginsCodecError, message::Type};
+use prost::EncodeError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -7,4 +8,6 @@ pub enum HigginsClientError {
     IncorrectResponseReceived(String, String),
     #[error("Higgins Codec Error")]
     CodecError(#[from] HigginsCodecError),
+    #[error("Encoding Error")]
+    EncodeError(#[from] EncodeError),
 }
