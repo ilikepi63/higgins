@@ -1,10 +1,10 @@
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
-use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest};
+use crate::error::HigginsClientError;
+use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest, TakeRecordsResponse};
 use higgins_codec::{Message, message::Type};
 use prost::Message as _;
 
-#[allow(unused)]
 pub fn create_subscription<T: std::io::Read + std::io::Write>(
     stream: &[u8],
     socket: &mut T,
@@ -51,15 +51,14 @@ pub fn create_subscription<T: std::io::Read + std::io::Write>(
     Ok(sub_id)
 }
 
-
-#[allow(unused)]
-pub fn consume<T: std::io::Read + std::io::Write>(
+pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
     sub_id: Vec<u8>,
     stream_name: &[u8],
+    n: u64,
     socket: &mut T,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+) -> Result<TakeRecordsResponse, HigginsClientError> {
     let take_request = TakeRecordsRequest {
-        n: 1,
+        n,
         subscription_id: sub_id,
         stream_name: stream_name.to_vec(),
     };
@@ -77,9 +76,9 @@ pub fn consume<T: std::io::Read + std::io::Write>(
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write_async(socket).await.unwrap();
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read_async(socket).await.unwrap();
 
     let slice = frame.inner();
 
@@ -87,15 +86,9 @@ pub fn consume<T: std::io::Read + std::io::Write>(
 
     let result = match Type::try_from(message.r#type).unwrap() {
         Type::Takerecordsresponse => {
-            tracing::info!("Receieved a take records response!");
-
             let take_records_response = message.take_records_response.unwrap();
+take_records_response
 
-            tracing::info!("Records_Response: {:#?}", take_records_response);
-
-            let record = take_records_response.records.iter().nth(0).unwrap();
-
-            record.data.clone()
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     };

@@ -1,9 +1,11 @@
 use bytes::BytesMut;
-use higgins_codec::{frame::Frame, message::Type, Message, Ping};
+use higgins_codec::{Message, Ping, frame::Frame, message::Type};
 use prost::Message as _;
 
 #[allow(unused)]
-pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
+pub fn ping<S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
+    socket: &mut S,
+) {
     let mut write_buf = BytesMut::new();
 
     let ping = Ping::default();
@@ -24,7 +26,9 @@ pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
 }
 
 #[allow(unused)]
-pub fn ping_sync<S: std::io::Read + std::io::Write>(socket: &mut S) {
+pub fn ping_sync<S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
+    socket: &mut S,
+) {
     let mut read_buf = BytesMut::zeroed(20);
 
     ping(socket);

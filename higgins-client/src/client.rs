@@ -1,8 +1,9 @@
 use crate::{
     produce::produce_sync,
-    error::HigginsClientError
+    error::HigginsClientError,
+    subscription::take
 };
-use higgins_codec::ProduceResponse;
+use higgins_codec::{ProduceResponse, TakeRecordsResponse};
 
 pub struct Client (tokio::net::TcpStream);
 
@@ -11,7 +12,12 @@ impl Client {
         produce_sync(stream.as_bytes(), partition, payload, &mut self.0).await
     }
 
-    pub async fn consume(&self) {}
+    pub async fn take(&mut self,
+        sub_id: Vec<u8>,
+        stream_name: &[u8],
+        n: u64) -> Result<TakeRecordsResponse, HigginsClientError> {
+        take(sub_id, stream_name, n, &mut self.0).await
+    }
 
     pub async fn ping(&self) {}
 

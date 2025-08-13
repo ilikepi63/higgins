@@ -1,17 +1,16 @@
 use bytes::BytesMut;
 use higgins_codec::{
-    frame::Frame, message::Type, CreateConfigurationRequest, CreateConfigurationResponse, Message
+    CreateConfigurationRequest, CreateConfigurationResponse, Message, frame::Frame, message::Type,
 };
 use prost::Message as _;
 
 #[allow(unused)]
-pub fn upload_configuration(
+pub fn upload_configuration<
+    S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
     config: &[u8],
-    socket: &mut std::net::TcpStream,
+    socket: &mut S,
 ) -> CreateConfigurationResponse {
-
-
-
     let mut read_buf = BytesMut::zeroed(1024);
     let mut write_buf = BytesMut::new();
 
