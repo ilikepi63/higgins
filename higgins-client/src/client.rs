@@ -8,10 +8,17 @@ use crate::{
     subscription::{create_subscription, take},
 };
 use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
+use tokio::net::{TcpStream, ToSocketAddrs};
 
 pub struct Client(tokio::net::TcpStream);
 
 impl Client {
+    pub async fn connect<A: ToSocketAddrs>(addr: A) -> Result<Self, HigginsClientError> {
+        let stream = TcpStream::connect(addr).await?;
+
+        Ok(Self(stream))
+    }
+
     pub async fn produce(
         &mut self,
         stream: &str,

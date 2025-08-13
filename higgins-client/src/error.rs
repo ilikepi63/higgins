@@ -12,4 +12,6 @@ pub enum HigginsClientError {
     EncodeError(#[from] EncodeError),
     #[error("Missing Payload")]
     MissingPayload,
+    #[error("IOError")]
+    IOError(#[from] std::io::Error),
 }
