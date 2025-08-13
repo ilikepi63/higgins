@@ -1,4 +1,4 @@
-use higgins_codec::{errors::HigginsCodecError, message::Type};
+use higgins_codec::errors::HigginsCodecError;
 use prost::EncodeError;
 use thiserror::Error;
 

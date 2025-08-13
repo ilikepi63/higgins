@@ -33,6 +33,7 @@ pub async fn upload_module<
     Ok(())
 }
 
+#[allow(unused)]
 pub async fn upload_module_sync<
     S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
@@ -40,7 +41,7 @@ pub async fn upload_module_sync<
     wasm: &[u8],
     socket: &mut S,
 ) -> Result<(), HigginsClientError> {
-    upload_module(name, wasm, socket);
+    upload_module(name, wasm, socket).await?;
 
     let frame = Frame::try_read_async(socket).await?;
 
