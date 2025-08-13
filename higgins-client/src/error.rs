@@ -10,4 +10,6 @@ pub enum HigginsClientError {
     CodecError(#[from] HigginsCodecError),
     #[error("Encoding Error")]
     EncodeError(#[from] EncodeError),
+    #[error("Missing Payload")]
+    MissingPayload,
 }
