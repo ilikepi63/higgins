@@ -1268,6 +1268,7 @@ dependencies = [
  "bytes",
  "higgins-codec",
  "prost",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]

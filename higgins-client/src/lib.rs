@@ -10,6 +10,7 @@ pub(crate) mod ping;
 pub(crate) mod query;
 pub(crate) mod subscription;
 pub(crate) mod produce;
+pub mod error;
 
 mod client;
 

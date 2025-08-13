@@ -9,3 +9,4 @@ prost = { version = "0.13" }
 tracing = { version = "0.1" }
 bytes = "1"
 tokio = { version = "1", features = ["net"] }
+thiserror.workspace = true

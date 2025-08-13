@@ -3,7 +3,6 @@ use std::{net::TcpStream, time::Duration};
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use serde_json::json;
-use tokio::fs;
 use tracing_test::traced_test;
 
 use crate::common::{
