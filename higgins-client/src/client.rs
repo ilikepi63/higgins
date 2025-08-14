@@ -4,7 +4,7 @@ use crate::{
     configuration::upload_configuration,
     error::HigginsClientError,
     functions::upload_module,
-    ping::{ping, ping_sync},
+    ping::ping_sync,
     produce::produce_sync,
     query::{query_by_timestamp, query_latest},
     subscription::{create_subscription, take},
@@ -55,12 +55,7 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<(), HigginsClientError> {
-        tracing::trace!("Able to Write...");
-
         let result = timeout!(ping_sync(&mut self.0), self.1).await?;
-
-        tracing::trace!("Written..");
-
         result
     }
 

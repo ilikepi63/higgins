@@ -1,6 +1,5 @@
 use arrow::array::RecordBatch;
 use higgins_functions::{
-    clone_record_batch, record_batch_to_wasm,
     types::ArbitraryLengthBuffer,
     utils::WasmAllocator,
     wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
