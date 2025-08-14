@@ -14,12 +14,21 @@ fn can_achieve_basic_broker_functionality() {
             max: 25000,
         },
     )
-    .unwrap();  
+    .unwrap();
 
-    // Spawn the server on a separate thread. 
-    std::thread::spawn(move || {
+    let dir = {
+        let mut dir = std::env::current_dir().unwrap(); //temp_dir();
+        dir.push("basic");
+
+        dir
+    };
+
+    let dir_remove = dir.clone();
+
+    let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(run_server(port));
+
+        rt.block_on(run_server(dir, port));
     });
 
     std::thread::sleep(Duration::from_millis(100));
@@ -50,11 +59,10 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
-
     // Consume from the stream.
     client
         .take(sub_id, "update_customer".as_bytes(), 1)
         .unwrap();
 
-    
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }

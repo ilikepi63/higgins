@@ -13,6 +13,7 @@ use std::{
     collections::BTreeMap,
     fs::create_dir,
     path::PathBuf,
+    str::FromStr,
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
@@ -79,15 +80,20 @@ pub struct Broker {
 
 impl Default for Broker {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::from_str("higgins_data").unwrap())
     }
 }
 
 impl Broker {
     /// Creates a new instance of a Broker.
-    pub fn new() -> Self {
+    pub fn new(dir: PathBuf) -> Self {
+        if !dir.exists() {
+            std::fs::create_dir(&dir).unwrap();
+        }
         let index_dir = {
-            let path = PathBuf::from("index");
+            let mut path = dir.clone();
+
+            path.push("index");
 
             if !path.exists() {
                 std::fs::create_dir(&path).unwrap();
@@ -100,9 +106,23 @@ impl Broker {
         let flush_interval_in_ms: u64 = 500;
         let segment_size_in_bytes: u64 = 50_000;
 
-        let object_store =
-            Arc::new(object_store::local::LocalFileSystem::new_with_prefix("data").unwrap());
-        let object_store_ref = object_store.clone();
+        let object_store_ref = {
+            let mut dir = dir.clone();
+
+            dir.push("data");
+
+                    if !dir.exists() {
+            std::fs::create_dir(&dir).unwrap();
+        }
+
+
+            let object_store =
+                Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap());
+
+            object_store
+        };
+
+        let object_store = object_store_ref.clone();
 
         let indexes = Arc::new(IndexDirectory::new(index_dir));
         let indexes_ref = indexes.clone();
