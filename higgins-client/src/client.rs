@@ -55,7 +55,13 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<(), HigginsClientError> {
-        timeout!(ping_sync(&mut self.0), self.1).await?
+        tracing::trace!("Able to Write...");
+
+        let result = timeout!(ping_sync(&mut self.0), self.1).await?;
+
+        tracing::trace!("Written..");
+
+        result
     }
 
     pub async fn query_by_timestamp(
