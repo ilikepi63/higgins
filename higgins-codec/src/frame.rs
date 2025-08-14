@@ -33,15 +33,24 @@ impl Frame {
     pub async fn try_read_async<R: tokio::io::AsyncReadExt + std::marker::Unpin>(
         r: &mut R,
     ) -> Result<Self, HigginsCodecError> {
+
+        println!("Reading Frame..");
+
         let mut buf = [0_u8; 4];
 
         r.read_exact(&mut buf).await?;
 
+        println!("Reading the size..");
+
         let size: usize = u32::from_be_bytes(buf).try_into()?;
+
+        println!("Size: {:#?}", size);
 
         let mut buf = vec![0_u8; size];
 
-        r.read_exact(&mut buf).await?;
+        let result = r.read_exact(&mut buf).await;
+
+        println!("Result: {:#?}", result);
 
         Ok(Self(buf))
     }
