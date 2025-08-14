@@ -1229,6 +1229,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "get-port",
+ "higgins-client",
  "higgins-codec",
  "higgins-functions",
  "loom",
@@ -1282,6 +1283,7 @@ dependencies = [
  "prost-build",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
