@@ -1,3 +1,4 @@
+use std::env::temp_dir;
 use std::time::Duration;
 
 use bytes::BytesMut;
@@ -31,10 +32,19 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     let mut read_buf = BytesMut::zeroed(20);
     let mut write_buf = BytesMut::new();
 
-    let _handle = std::thread::spawn(move || {
+    let dir = {
+        let mut dir = temp_dir();
+        dir.push(uuid::Uuid::new_v4().to_string());
+
+        dir
+    };
+
+    let dir_remove = dir.clone();
+
+    let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        rt.block_on(run_server(port));
+        rt.block_on(run_server(dir, port));
     });
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -171,4 +181,6 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
         let received_values = result_collection.lock().unwrap();
         assert_eq!(message_count, received_values.len());
     });
+
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }

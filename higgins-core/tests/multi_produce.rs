@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{env::temp_dir, time::Duration};
 
 use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
@@ -27,8 +27,18 @@ async fn can_write_multiple_produce_requests() {
     let mut read_buf = BytesMut::zeroed(20);
     let mut write_buf = BytesMut::new();
 
+
+    let dir = {
+        let mut dir = temp_dir();
+        dir.push(uuid::Uuid::new_v4().to_string());
+
+        dir
+    };
+
+    let dir_remove = dir.clone();
+
     let handle = tokio::spawn(async move {
-        let _ = run_server(port).await;
+        let _ = run_server(dir,port).await;
     });
 
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -148,4 +158,7 @@ async fn can_write_multiple_produce_requests() {
     }
 
     handle.abort();
+
+        std::fs::remove_dir_all(dir_remove).unwrap();
+
 }
