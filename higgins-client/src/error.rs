@@ -14,4 +14,6 @@ pub enum HigginsClientError {
     MissingPayload,
     #[error("IOError")]
     IOError(#[from] std::io::Error),
+    #[error("Tokio Timeout Elapsed")]
+    TokioTimeout(#[from] tokio::time::error::Elapsed)
 }

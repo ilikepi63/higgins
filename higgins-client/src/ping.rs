@@ -32,9 +32,9 @@ pub async fn ping_sync<
 ) -> Result<(), HigginsClientError> {
     let mut read_buf = BytesMut::zeroed(20);
 
-    ping(socket);
+    ping(socket).await?;
 
-    let frame = Frame::try_read_async(socket).await.unwrap();
+    let frame = Frame::try_read_async(socket).await?;
 
     let slice = frame.inner();
 
