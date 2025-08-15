@@ -14,9 +14,10 @@ fn can_achieve_basic_broker_functionality() {
             max: 25000,
         },
     )
-    .unwrap();
+    .unwrap();  
 
-    let handle = std::thread::spawn(move || {
+    // Spawn the server on a separate thread. 
+    std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(run_server(port));
     });
