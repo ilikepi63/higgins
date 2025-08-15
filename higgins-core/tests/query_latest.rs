@@ -1,3 +1,4 @@
+use std::env::temp_dir;
 use std::time::Duration;
 
 use get_port::{Ops, Range, tcp::TcpPort};
@@ -26,10 +27,19 @@ fn can_arbitrarily_query_for_time_based_values() {
 
     tracing::trace!("Running on port: {port}");
 
+    let dir = {
+        let mut dir = temp_dir();
+        dir.push(uuid::Uuid::new_v4().to_string());
+
+        dir
+    };
+
+    let dir_remove= dir .clone();
+
     let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        rt.block_on(run_server(port));
+        rt.block_on(run_server(dir, port));
     });
 
     // This will make the above server more likely to be instantiated.
@@ -71,7 +81,8 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         first_payload.as_bytes(),
         &mut socket,
-    ).unwrap();
+    )
+    .unwrap();
 
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
@@ -105,7 +116,8 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         second_payload.as_bytes(),
         &mut socket,
-    ).unwrap();
+    )
+    .unwrap();
 
     let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
         .unwrap()
@@ -128,6 +140,7 @@ fn can_arbitrarily_query_for_time_based_values() {
         serde_json::from_slice(second_payload.as_bytes()).unwrap();
 
     assert_eq!(result, second_payload);
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }
 
 pub fn epoch() -> u64 {

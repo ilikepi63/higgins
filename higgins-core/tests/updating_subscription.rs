@@ -1,4 +1,5 @@
 use std::{
+    env::temp_dir,
     io::{Read, Write},
     sync::{Arc, Mutex},
     time::Duration,
@@ -33,10 +34,19 @@ fn can_update_subscription_after_created() {
 
     tracing::trace!("Running on port: {port}");
 
+    let dir = {
+        let mut dir = temp_dir();
+        dir.push(uuid::Uuid::new_v4().to_string());
+
+        dir
+    };
+
+    let dir_remove = dir.clone();
+
     let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        rt.block_on(run_server(port));
+        rt.block_on(run_server(dir, port));
     });
 
     // This will make the above server more likely to be instantiated.
@@ -140,4 +150,6 @@ fn can_update_subscription_after_created() {
     }
 
     handle_consume.join().unwrap();
+
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }

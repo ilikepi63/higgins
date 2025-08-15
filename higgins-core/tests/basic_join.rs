@@ -1,4 +1,4 @@
-use std::{net::TcpStream, time::Duration};
+use std::{env::temp_dir, net::TcpStream, time::Duration};
 
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
@@ -6,8 +6,7 @@ use serde_json::json;
 use tracing_test::traced_test;
 
 use crate::common::{
-    configuration::upload_configuration, ping::ping_sync, produce_sync,
-    query::query_latest
+    configuration::upload_configuration, ping::ping_sync, produce_sync, query::query_latest,
 };
 
 mod common;
@@ -26,10 +25,19 @@ fn can_implement_a_basic_stream_join() {
 
     tracing::info!("Running on port: {port}");
 
+    let dir = {
+        let mut dir = temp_dir();
+        dir.push(uuid::Uuid::new_v4().to_string());
+
+        dir
+    };
+
+    let dir_remove = dir.clone();
+
     let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        rt.block_on(run_server(port));
+        rt.block_on(run_server(dir, port));
     });
 
     std::thread::sleep(Duration::from_millis(200)); // Sleep to allow 
@@ -96,4 +104,6 @@ fn can_implement_a_basic_stream_join() {
     );
 
     assert_eq!(result, expected_result);
+
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }
