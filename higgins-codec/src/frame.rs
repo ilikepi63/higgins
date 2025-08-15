@@ -34,23 +34,23 @@ impl Frame {
         r: &mut R,
     ) -> Result<Self, HigginsCodecError> {
 
-        println!("Reading Frame..");
+        tracing::trace!("Reading Frame..");
 
         let mut buf = [0_u8; 4];
 
         r.read_exact(&mut buf).await?;
 
-        println!("Reading the size..");
+        tracing::trace!("Reading the size..");
 
         let size: usize = u32::from_be_bytes(buf).try_into()?;
 
-        println!("Size: {:#?}", size);
+        tracing::trace!("Size: {:#?}", size);
 
         let mut buf = vec![0_u8; size];
 
         let result = r.read_exact(&mut buf).await;
 
-        println!("Result: {:#?}", result);
+        tracing::trace!("Result: {:#?}", result);
 
         Ok(Self(buf))
     }
