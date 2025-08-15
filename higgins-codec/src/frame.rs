@@ -8,7 +8,6 @@ impl Frame {
         Self(buf)
     }
 
-
     /// Unwrap this value.
     pub fn inner(&self) -> &[u8] {
         self.0.as_slice()
@@ -33,7 +32,6 @@ impl Frame {
     pub async fn try_read_async<R: tokio::io::AsyncReadExt + std::marker::Unpin>(
         r: &mut R,
     ) -> Result<Self, HigginsCodecError> {
-
         tracing::trace!("Reading Frame..");
 
         let mut buf = [0_u8; 4];

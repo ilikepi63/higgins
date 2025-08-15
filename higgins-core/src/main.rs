@@ -1,12 +1,14 @@
+#[deny(clippy::unwrap_used)]
+#[deny(clippy::expect_used)]
 pub mod broker;
 pub mod client;
 mod derive;
 mod error;
+pub mod functions;
 pub mod storage;
 pub mod subscription;
 pub mod topography;
 pub mod utils;
-pub mod functions;
 
 use std::{path::PathBuf, str::FromStr};
 

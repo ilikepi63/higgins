@@ -19,7 +19,6 @@ pub fn clone_array(array: WasmArrowArray, allocator: &mut WasmAllocator) -> u32 
 }
 
 pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<WasmArrowArray> {
-
     println!("Copying Array Data: {:#?}", data);
 
     let data_layout = layout(data.data_type());

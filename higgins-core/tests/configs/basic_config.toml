@@ -4,18 +4,6 @@ first_name = "string"
 last_name = "string"
 age = "int32"
 
-[schema.customer]
-id = "string"
-first_name = "string"
-last_name = "string"
-age = "int32"
-
 [streams.update_customer]
 schema = "update_customer_event"
 partition_key = "id"
-
-[streams.customer]
-base = "update_customer"
-type = "reduce"
-partition_key = "id"
-schema = "customer"

@@ -84,9 +84,7 @@ impl Subscription {
             return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
         };
 
-        let ranges = vec![
-            Range(0, offset.unwrap_or(0))
-        ];
+        let ranges = vec![Range(0, offset.unwrap_or(0))];
 
         let metadata = SubscriptionMetadata {
             max_offset: max_offset.unwrap_or(0),
@@ -108,11 +106,7 @@ impl Subscription {
         let serde_subscription_metadata = txn.get(key);
 
         let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => {
-                
-
-                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
-            }
+            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
             Ok(None) | Err(_) => {
                 return Err(
                     SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
@@ -221,11 +215,7 @@ impl Subscription {
         let serde_subscription_metadata = self.db.get(key);
 
         let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => {
-                
-
-                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
-            }
+            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
             Ok(None) | Err(_) => {
                 return Err(
                     SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(

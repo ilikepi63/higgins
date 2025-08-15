@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use higgins_codec::{
-    frame::Frame, message::Type, CreateConfigurationRequest, CreateConfigurationResponse, Message
+    CreateConfigurationRequest, CreateConfigurationResponse, Message, frame::Frame, message::Type,
 };
 use prost::Message as _;
 
@@ -9,9 +9,6 @@ pub fn upload_configuration(
     config: &[u8],
     socket: &mut std::net::TcpStream,
 ) -> CreateConfigurationResponse {
-
-
-
     let mut read_buf = BytesMut::zeroed(1024);
     let mut write_buf = BytesMut::new();
 

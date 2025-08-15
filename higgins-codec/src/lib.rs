@@ -3,8 +3,8 @@ mod codec {
 }
 
 pub use codec::*; // TODO: everything visible in codec here? 
-pub mod frame;
 pub mod errors;
+pub mod frame;
 
 #[cfg(test)]
 mod test {
