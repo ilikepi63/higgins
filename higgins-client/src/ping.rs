@@ -34,7 +34,11 @@ pub async fn ping_sync<
 
     ping(socket);
 
-    let frame = Frame::try_read_async(socket).await.unwrap();
+    println!("Writing!");
+
+    let frame = Frame::try_read_async(socket).await?;
+
+    println!("Reading!");
 
     let slice = frame.inner();
 
