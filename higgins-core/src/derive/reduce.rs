@@ -120,7 +120,7 @@ pub async fn create_reduced_stream_from_definition(
                                             let module = broker_lock
                                                 .functions
                                                 .get_function(
-                                                    &stream_def.function_name.as_ref().unwrap(),
+                                                    stream_def.function_name.as_ref().unwrap(),
                                                 )
                                                 .await;
 

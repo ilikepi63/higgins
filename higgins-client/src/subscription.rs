@@ -87,8 +87,8 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
 
     let result = match Type::try_from(message.r#type).unwrap() {
         Type::Takerecordsresponse => {
-            let take_records_response = message.take_records_response.unwrap();
-            take_records_response
+            
+            message.take_records_response.unwrap()
         }
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     };

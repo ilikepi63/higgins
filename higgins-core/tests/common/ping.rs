@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use higgins_codec::{frame::Frame, message::Type, Message, Ping};
+use higgins_codec::{Message, Ping, frame::Frame, message::Type};
 use prost::Message as _;
 
 #[allow(unused)]

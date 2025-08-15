@@ -484,7 +484,7 @@ impl fmt::Debug for IndexesMut {
         }
 
         writeln!(f, "IndexesMut {{")?;
-        writeln!(f, "    count: {},", count)?;
+        writeln!(f, "    count: {count},")?;
         writeln!(f, "    indexes: [")?;
 
         for i in 0..count {
