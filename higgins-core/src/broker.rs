@@ -56,6 +56,7 @@ type MutableCollection = Arc<
 /// This is a pretty naive implementation of what the broker might look like.
 #[derive(Debug)]
 pub struct Broker {
+    dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
     object_store: Arc<dyn ObjectStore>,
     indexes: Arc<IndexDirectory>,
@@ -111,10 +112,9 @@ impl Broker {
 
             dir.push("data");
 
-                    if !dir.exists() {
-            std::fs::create_dir(&dir).unwrap();
-        }
-
+            if !dir.exists() {
+                std::fs::create_dir(&dir).unwrap();
+            }
 
             let object_store =
                 Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap());
@@ -183,7 +183,7 @@ impl Broker {
         });
 
         let functions_dir = {
-            let mut cwd = std::env::current_dir().unwrap();
+            let mut cwd = dir.clone();
             cwd.push("functions");
             if let Err(e) = create_dir(&cwd) {
                 tracing::trace!("Error when creating functions dir: {:#?}", e);
@@ -199,6 +199,7 @@ impl Broker {
             flush_interval_in_ms,
             collection: cloned_buffer_ref,
             flush_tx,
+            dir,
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
             clients: ClientCollection::empty(),
@@ -409,13 +410,10 @@ impl Broker {
     pub fn create_subscription(
         &mut self,
         stream: &[u8],
-        //         ConsumerOffsetType offset_type = 2;
-        //   optional int64 timestamp = 3;
-        //   optional int64 offset = 4;
     ) -> Vec<u8> {
         let uuid = Uuid::new_v4();
 
-        let mut path = PathBuf::new();
+        let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
