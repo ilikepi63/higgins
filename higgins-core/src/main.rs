@@ -8,6 +8,8 @@ pub mod topography;
 pub mod utils;
 pub mod functions;
 
+use std::{path::PathBuf, str::FromStr};
+
 use higgins::run_server;
 
 #[tokio::main]
@@ -22,5 +24,7 @@ async fn main() {
 
     let port = 8080; // TODO: this needs to go to env vars.
 
-    run_server(port).await;
+    let dir = PathBuf::from_str("higgins_data").unwrap();
+
+    run_server(dir, port).await;
 }

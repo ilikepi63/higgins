@@ -29,7 +29,7 @@ impl IndexDirectory {
     }
 
     pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
-        let mut topic_path = std::env::current_dir().unwrap();
+        let mut topic_path = self.0.clone();
         topic_path.push(topic);
 
         if !topic_path.exists() {

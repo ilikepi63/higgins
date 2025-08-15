@@ -13,6 +13,7 @@ use std::{
     collections::BTreeMap,
     fs::create_dir,
     path::PathBuf,
+    str::FromStr,
     sync::{Arc, atomic::Ordering},
     time::Duration,
 };
@@ -55,6 +56,7 @@ type MutableCollection = Arc<
 /// This is a pretty naive implementation of what the broker might look like.
 #[derive(Debug)]
 pub struct Broker {
+    dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
     object_store: Arc<dyn ObjectStore>,
     indexes: Arc<IndexDirectory>,
@@ -79,15 +81,20 @@ pub struct Broker {
 
 impl Default for Broker {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::from_str("higgins_data").unwrap())
     }
 }
 
 impl Broker {
     /// Creates a new instance of a Broker.
-    pub fn new() -> Self {
+    pub fn new(dir: PathBuf) -> Self {
+        if !dir.exists() {
+            std::fs::create_dir(&dir).unwrap();
+        }
         let index_dir = {
-            let path = PathBuf::from("index");
+            let mut path = dir.clone();
+
+            path.push("index");
 
             if !path.exists() {
                 std::fs::create_dir(&path).unwrap();
@@ -100,9 +107,22 @@ impl Broker {
         let flush_interval_in_ms: u64 = 500;
         let segment_size_in_bytes: u64 = 50_000;
 
-        let object_store =
-            Arc::new(object_store::local::LocalFileSystem::new_with_prefix("data").unwrap());
-        let object_store_ref = object_store.clone();
+        let object_store_ref = {
+            let mut dir = dir.clone();
+
+            dir.push("data");
+
+            if !dir.exists() {
+                std::fs::create_dir(&dir).unwrap();
+            }
+
+            let object_store =
+                Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap());
+
+            object_store
+        };
+
+        let object_store = object_store_ref.clone();
 
         let indexes = Arc::new(IndexDirectory::new(index_dir));
         let indexes_ref = indexes.clone();
@@ -163,7 +183,7 @@ impl Broker {
         });
 
         let functions_dir = {
-            let mut cwd = std::env::current_dir().unwrap();
+            let mut cwd = dir.clone();
             cwd.push("functions");
             if let Err(e) = create_dir(&cwd) {
                 tracing::trace!("Error when creating functions dir: {:#?}", e);
@@ -179,6 +199,7 @@ impl Broker {
             flush_interval_in_ms,
             collection: cloned_buffer_ref,
             flush_tx,
+            dir,
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
             clients: ClientCollection::empty(),
@@ -389,13 +410,10 @@ impl Broker {
     pub fn create_subscription(
         &mut self,
         stream: &[u8],
-        //         ConsumerOffsetType offset_type = 2;
-        //   optional int64 timestamp = 3;
-        //   optional int64 offset = 4;
     ) -> Vec<u8> {
         let uuid = Uuid::new_v4();
 
-        let mut path = PathBuf::new();
+        let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
