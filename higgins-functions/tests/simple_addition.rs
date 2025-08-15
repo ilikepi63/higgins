@@ -70,7 +70,7 @@ fn multiple_simple_array() {
     for chunk in bytes.chunks(100) {
         let s = String::from_utf8_lossy(chunk);
 
-        println!("{:#?}", s);
+        println!("{s:#?}");
     }
 
     assert_eq!(result.unwrap(), 4);

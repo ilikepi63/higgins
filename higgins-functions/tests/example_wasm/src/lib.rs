@@ -42,7 +42,7 @@ pub unsafe fn run(array_ptr: *const FFI_ArrowArray, schema_ptr: *const FFI_Arrow
     let array = unsafe { FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray) };
     let schema = unsafe { FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema) };
 
-    log_error(&format!("{:#?}", array));
+    log_error(&format!("{array:#?}"));
 
     let array = unsafe { from_ffi(array, &schema) }.unwrap();
 

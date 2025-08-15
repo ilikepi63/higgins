@@ -78,7 +78,7 @@ fn simple_map_value() {
     for chunk in bytes.chunks(100) {
         let s = String::from_utf8_lossy(chunk);
 
-        println!("{:#?}", s);
+        println!("{s:#?}");
     }
 
     println!("{:#?}", result.unwrap());

@@ -22,7 +22,7 @@ pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
         let schema = unsafe { FFI_ArrowSchema::from_raw(*schema_ptr as *mut FFI_ArrowSchema) };
 
         let data = unsafe { from_ffi(array, &schema) }
-            .inspect_err(|err| log::info!("Received an Error from Arrow: {:#?}", err));
+            .inspect_err(|err| log::info!("Received an Error from Arrow: {err:#?}"));
 
         match data {
             Ok(data) => {
@@ -36,7 +36,7 @@ pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
                 // Push the array.
                 arrays.push(make_array(data));
             }
-            Err(err) => panic!("{:#?}", err),
+            Err(err) => panic!("{err:#?}"),
         }
     }
 

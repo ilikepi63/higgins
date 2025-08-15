@@ -116,10 +116,9 @@ impl Broker {
                 std::fs::create_dir(&dir).unwrap();
             }
 
-            let object_store =
-                Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap());
+            
 
-            object_store
+            Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap())
         };
 
         let object_store = object_store_ref.clone();
@@ -666,7 +665,7 @@ impl Broker {
                         .map(|(key, def)| (key.clone(), def.clone()))
                         .unwrap();
 
-                    let _ = create_mapped_stream_from_definition(
+                    create_mapped_stream_from_definition(
                         derived_stream_key,
                         derived_stream_definition,
                         left,
@@ -687,7 +686,7 @@ impl Broker {
                         .map(|(key, def)| (key.clone(), def.clone()))
                         .unwrap();
 
-                    let _ = create_reduced_stream_from_definition(
+                    create_reduced_stream_from_definition(
                         derived_stream_key,
                         derived_stream_definition,
                         left,
@@ -750,7 +749,7 @@ impl Broker {
 
         // We create a
         let (batch_response_tx, batch_reponse_rx) =
-            tokio::sync::mpsc::channel(if objects_to_retrieve.len() > 0 {
+            tokio::sync::mpsc::channel(if !objects_to_retrieve.is_empty() {
                 objects_to_retrieve.len()
             } else {
                 1
@@ -771,7 +770,9 @@ impl Broker {
                     Ok(get_result) => {
                         if let Ok(b) = get_result.bytes().await {
                             // Retrieve the current fetch Responses by name.
-                            let batch_responses_for_object = batch_responses
+                            
+
+                            batch_responses
                                 .iter()
                                 .flat_map(|res| {
                                     res.batches
@@ -785,9 +786,7 @@ impl Broker {
                                 .filter_map(|(res, batch)| {
                                     ConsumeBatch::try_from((res, batch, &b)).ok()
                                 })
-                                .collect::<Vec<_>>();
-
-                            batch_responses_for_object
+                                .collect::<Vec<_>>()
                         } else {
                             tracing::trace!(
                                 "Could not retrieve bytes for given GetObject query: {}",
