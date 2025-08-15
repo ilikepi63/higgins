@@ -1,17 +1,7 @@
 use std::time::Duration;
 
-use bytes::BytesMut;
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
-use higgins_codec::{
-    CreateConfigurationRequest, CreateSubscriptionRequest, Message, Ping, ProduceRequest,
-    TakeRecordsRequest, message::Type,
-};
-use prost::Message as _;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-};
 use tracing_test::traced_test;
 
 #[traced_test]
@@ -27,16 +17,17 @@ fn can_achieve_basic_broker_functionality() {
     .unwrap();
 
     let handle = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap(); 
-       rt.block_on(run_server(port));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(run_server(port));
     });
 
     std::thread::sleep(Duration::from_millis(100));
 
-    let mut client = higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), Some(Duration::from_secs(10))).unwrap();
+    let mut client =
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
     // 1. Do a basic Ping test.
-    client.ping().unwrap() ;
+    client.ping().unwrap();
 
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
@@ -50,15 +41,19 @@ fn can_achieve_basic_broker_functionality() {
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    client.produce(
-        "update_customer",
-        "test_partition".as_bytes(),
-        payload.as_bytes(),
-    ).unwrap();
+    client
+        .produce(
+            "update_customer",
+            "test_partition".as_bytes(),
+            payload.as_bytes(),
+        )
+        .unwrap();
+
 
     // Consume from the stream.
-    client.take(sub_id, "update_customer".as_bytes(), 1).unwrap();
+    client
+        .take(sub_id, "update_customer".as_bytes(), 1)
+        .unwrap();
 
-    handle.join().unwrap();
-
+    
 }

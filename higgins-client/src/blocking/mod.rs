@@ -1,16 +1,8 @@
 use std::time::Duration;
 
-use crate::{
-    configuration::upload_configuration,
-    error::HigginsClientError,
-    functions::upload_module,
-    ping::ping,
-    produce::produce_sync,
-    query::{query_by_timestamp, query_latest},
-    subscription::{create_subscription, take},
-};
+use crate::error::HigginsClientError;
 use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
-use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::net::ToSocketAddrs;
 pub struct Client(crate::Client, tokio::runtime::Runtime);
 
 impl Client {
