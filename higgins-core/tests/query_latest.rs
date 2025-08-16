@@ -34,7 +34,7 @@ fn can_arbitrarily_query_for_time_based_values() {
         dir
     };
 
-    let dir_remove= dir .clone();
+    let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();

@@ -48,8 +48,6 @@ impl ClientCollection {
     }
 
     pub fn insert(&mut self, _client: ClientRef) -> u64 {
-        
-
         self.get_open_index()
     }
 

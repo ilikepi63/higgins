@@ -414,14 +414,15 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
             Frame::new(val.to_vec())
                 .try_write_async(&mut write_socket)
-                .await.unwrap();
+                .await
+                .unwrap();
             // let _result = write_socket.write_all(&val).await;
             write_socket.flush().await.unwrap();
         }
     });
 }
 
-pub async fn run_server(dir: PathBuf,port: u16) {
+pub async fn run_server(dir: PathBuf, port: u16) {
     let broker = Arc::new(RwLock::new(Broker::new(dir)));
 
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port))

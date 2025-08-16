@@ -10,7 +10,6 @@ use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 /*** */
 #[test]
 fn simple_map_value() {
-
     let wasm = std::fs::read("../higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm")
         .unwrap();
 
@@ -37,11 +36,18 @@ fn simple_map_value() {
     let mut memory = instance.get_memory(&mut store, "memory").unwrap();
 
     let id_array = StringArray::from(vec!["id"]);
-    let data_array =         Int32Array::from(vec![1]);
+    let data_array = Int32Array::from(vec![1]);
 
-    let schema = Schema::new(vec![Field::new("id", DataType::Utf8, false), Field::new("data", DataType::Int32, false)]);
+    let schema = Schema::new(vec![
+        Field::new("id", DataType::Utf8, false),
+        Field::new("data", DataType::Int32, false),
+    ]);
 
-    let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array), Arc::new(data_array)]).unwrap();
+    let batch = RecordBatch::try_new(
+        Arc::new(schema),
+        vec![Arc::new(id_array), Arc::new(data_array)],
+    )
+    .unwrap();
 
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
@@ -55,10 +61,9 @@ fn simple_map_value() {
 
     let result = wasm_run_fn.call(&mut store, ptr);
 
-
     // Get errors.
 
-        let wasm_error_fn = instance
+    let wasm_error_fn = instance
         .get_typed_func::<(), u32>(&mut store, "get_errors")
         .unwrap();
 

@@ -407,10 +407,7 @@ impl Broker {
         Ok(())
     }
 
-    pub fn create_subscription(
-        &mut self,
-        stream: &[u8],
-    ) -> Vec<u8> {
+    pub fn create_subscription(&mut self, stream: &[u8]) -> Vec<u8> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();

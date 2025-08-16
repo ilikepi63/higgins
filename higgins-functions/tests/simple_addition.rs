@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use arrow::{array::{Array, Int32Array}, datatypes::Field};
+use arrow::{
+    array::{Array, Int32Array},
+    datatypes::Field,
+};
 use higgins_functions::{copy_array, copy_schema, utils::WasmAllocator};
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
@@ -39,7 +42,12 @@ fn multiple_simple_array() {
 
     let ptr = copy_array(&array.to_data(), &mut allocator);
 
-    let ffi_schema_ptr = copy_schema(array.data_type(), Arc::new(Field::new("hello", array.data_type().clone(), false)), &mut allocator).unwrap();
+    let ffi_schema_ptr = copy_schema(
+        array.data_type(),
+        Arc::new(Field::new("hello", array.data_type().clone(), false)),
+        &mut allocator,
+    )
+    .unwrap();
 
     let wasm_run_fn = instance
         .get_typed_func::<(u32, u32), u32>(&mut store, "run")
