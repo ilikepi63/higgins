@@ -69,7 +69,9 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
 
     tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
 
-    let record_batch = {
+    
+
+    {
         let mut buf = [0_u8; 8];
 
         memory
@@ -86,10 +88,8 @@ pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
 
         let array = ArbitraryLengthBuffer::new(buf);
 
-        let record_batch = read_arrow(array.data()).nth(0).unwrap().unwrap();
+        
 
-        record_batch
-    };
-
-    record_batch
+        read_arrow(array.data()).next().unwrap().unwrap()
+    }
 }

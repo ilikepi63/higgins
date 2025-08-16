@@ -174,7 +174,7 @@ impl Subscription {
                 .1
         };
 
-        println!("Count: {:#?}", count);
+        println!("Count: {count:#?}");
 
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
@@ -532,7 +532,7 @@ mod tests {
 
         // Take 4 offsets (should distribute across partitions)
         let offsets = sub.take(1, 4).expect("Failed to take offsets");
-        println!("{:?}", offsets);
+        println!("{offsets:?}");
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary
         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));
