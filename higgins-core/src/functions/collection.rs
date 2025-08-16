@@ -33,7 +33,6 @@ impl FunctionCollection {
     }
 
     pub async fn get_function(&self, name: &str) -> Vec<u8> {
-
         let path = {
             let mut path = self.base_dir.clone();
             path.push(name);
@@ -41,20 +40,13 @@ impl FunctionCollection {
             path
         };
 
-
         tracing::info!("Reading function: {:#?}", path);
 
+        let mut file = std::fs::OpenOptions::new().read(true).open(path).unwrap();
 
-        let mut file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(path)
-            .unwrap();
+        tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
 
-            tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
-
-
-        let mut buffer = vec![0;
-            file.metadata().unwrap().size().try_into().unwrap()];
+        let mut buffer = vec![0; file.metadata().unwrap().size().try_into().unwrap()];
 
         file.read_exact(&mut buffer).unwrap();
 

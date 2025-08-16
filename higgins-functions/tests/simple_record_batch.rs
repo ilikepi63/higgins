@@ -12,7 +12,7 @@ use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 fn simple_record_batch() {
     let current_dir = std::env::current_dir();
 
-    println!("{:#?}", current_dir);
+    println!("{current_dir:#?}");
 
     let wasm = std::fs::read("../target/wasm32-unknown-unknown/release/example_record_batch.wasm")
         .unwrap();

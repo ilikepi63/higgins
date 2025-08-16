@@ -136,7 +136,9 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
             let payload = payload.clone();
             let socket = socket.clone(); // arc clone.
 
-            let handle = loom::thread::spawn(move || {
+            
+
+            loom::thread::spawn(move || {
                 loom::future::block_on(async {
                     let mut socket = socket.lock().unwrap();
 
@@ -147,9 +149,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
                         &mut *socket,
                     )
                 });
-            });
-
-            handle
+            })
         });
 
         let consume_handles = (0..message_count).map(|_| {
@@ -157,7 +157,9 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
             let sub_id = sub_id.clone();
             let result_collection = result_collection.clone();
 
-            let handle = loom::thread::spawn(move || {
+            
+
+            loom::thread::spawn(move || {
                 loom::future::block_on(async {
                     let mut socket = socket.lock().unwrap();
 
@@ -168,9 +170,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
                     collection_lock.push(response);
                 });
-            });
-
-            handle
+            })
         });
 
         // Join the given handles.

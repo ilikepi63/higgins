@@ -35,13 +35,13 @@ pub fn record_batch_to_wasm(rb: RecordBatch, allocator: &mut WasmAllocator) -> W
     let arrays_ptr = allocator.copy(u32_to_u8(&arrays));
     let schema_ptr = allocator.copy(u32_to_u8(&schema));
 
-    let result = WasmRecordBatch {
+    
+
+    WasmRecordBatch {
         n_columns: len as i64,
         schema: WasmPtr::new(schema_ptr),
         columns: WasmPtr::new(arrays_ptr),
-    };
-
-    result
+    }
 }
 
 pub fn clone_record_batch(array: WasmRecordBatch, allocator: &mut WasmAllocator) -> u32 {

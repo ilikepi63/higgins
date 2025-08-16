@@ -55,8 +55,8 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<(), HigginsClientError> {
-        let result = timeout!(ping_sync(&mut self.0), self.1).await?;
-        result
+        
+        timeout!(ping_sync(&mut self.0), self.1).await?
     }
 
     pub async fn query_by_timestamp(

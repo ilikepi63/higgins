@@ -96,7 +96,10 @@ pub async fn create_mapped_stream_from_definition(
                                             .as_str(),
                                     );
 
-                                    let module = broker_lock.functions.get_function(&stream_def.function_name.as_ref().unwrap()).await;
+                                    let module = broker_lock
+                                        .functions
+                                        .get_function(stream_def.function_name.as_ref().unwrap())
+                                        .await;
 
                                     let mapped_record_batch =
                                         run_map_function(&record_batch, module);

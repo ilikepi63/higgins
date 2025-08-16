@@ -84,9 +84,7 @@ impl Subscription {
             return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
         };
 
-        let ranges = vec![
-            Range(0, offset.unwrap_or(0))
-        ];
+        let ranges = vec![Range(0, offset.unwrap_or(0))];
 
         let metadata = SubscriptionMetadata {
             max_offset: max_offset.unwrap_or(0),
@@ -108,11 +106,7 @@ impl Subscription {
         let serde_subscription_metadata = txn.get(key);
 
         let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => {
-                
-
-                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
-            }
+            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
             Ok(None) | Err(_) => {
                 return Err(
                     SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
@@ -180,7 +174,7 @@ impl Subscription {
                 .1
         };
 
-        println!("Count: {:#?}", count);
+        println!("Count: {count:#?}");
 
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
@@ -221,11 +215,7 @@ impl Subscription {
         let serde_subscription_metadata = self.db.get(key);
 
         let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => {
-                
-
-                rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?
-            }
+            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
             Ok(None) | Err(_) => {
                 return Err(
                     SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
@@ -542,7 +532,7 @@ mod tests {
 
         // Take 4 offsets (should distribute across partitions)
         let offsets = sub.take(1, 4).expect("Failed to take offsets");
-        println!("{:?}", offsets);
+        println!("{offsets:?}");
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary
         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));
