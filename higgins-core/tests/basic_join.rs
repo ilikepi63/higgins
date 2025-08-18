@@ -40,7 +40,7 @@ fn can_implement_a_basic_stream_join() {
         rt.block_on(run_server(dir, port));
     });
 
-    std::thread::sleep(Duration::from_millis(200)); // Sleep to allow 
+    std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
@@ -48,7 +48,6 @@ fn can_implement_a_basic_stream_join() {
         .set_read_timeout(Some(Duration::from_secs(3)))
         .unwrap();
 
-    // 1. Do a basic Ping test.
     ping_sync(&mut socket);
 
     // Upload a basic configuration with one stream.
@@ -56,10 +55,6 @@ fn can_implement_a_basic_stream_join() {
     let config = std::fs::read_to_string("tests/configs/join_config.toml").unwrap();
 
     upload_configuration(config.as_bytes(), &mut socket);
-
-    // let sub_id = create_subscription(b"customer_product", &mut socket).unwrap();
-
-    // tracing::info!("Sub ID: {:#?}", Uuid::from_slice(&sub_id).unwrap());
 
     produce_sync(
         b"customer",
@@ -93,8 +88,6 @@ fn can_implement_a_basic_stream_join() {
         &mut socket,
     )
     .unwrap();
-
-    // let result = consume(sub_id, b"customer_product", &mut socket).unwrap();
 
     let result = query_latest(b"customer_address", b"1", &mut socket).unwrap();
 

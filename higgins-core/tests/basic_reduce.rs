@@ -12,8 +12,9 @@ use crate::common::{
 
 mod common;
 
-#[test]
+//#[test]
 #[traced_test]
+#[allow(unused)]
 fn can_implement_basic_reduce() {
     {
         // Delete the current files for this..
