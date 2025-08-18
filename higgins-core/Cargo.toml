@@ -8,11 +8,11 @@ arrow = { version = "55.0.0", features = ["ffi"] }
 arrow-json = "55.1.0"
 async-trait = "0.1.88"
 bytes = "1.10.1"
-riskless = "0.7.2"
+riskless = "0.7.3"
 serde = { version = "1.0.219", features = ["derive"] }
 toml = "0.9.5"
 tokio = { workspace = true }
-tracing = {workspace = true}
+tracing = { workspace = true }
 tracing-subscriber = "0.3.19"
 uuid = { version = "1.16.0", features = ["v4"] }
 
