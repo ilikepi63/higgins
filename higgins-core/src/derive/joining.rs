@@ -46,6 +46,7 @@ pub async fn create_joined_stream_from_definition(
         .unwrap();
 
     tracing::trace!("Setting up a join on stream: {:#?}", left.clone());
+
     let left_broker = broker_ref.clone();
     let left_stream_name = left.0.inner().to_owned();
     let left_stream_partition_key = left.1.partition_key;
@@ -144,9 +145,6 @@ pub async fn create_joined_stream_from_definition(
                                         right_record
                                     );
 
-                                    let right_key =
-                                        String::from_utf8(join_type.key().to_vec()).unwrap();
-
                                     let new_record_batch = match &join_type {
                                         Join::Full(_) => todo!(),
                                         Join::Inner(_) => {
@@ -155,16 +153,10 @@ pub async fn create_joined_stream_from_definition(
                                                     &join_type,
                                                     Some(left),
                                                     Some(right),
-                                                    String::from_utf8(
-                                                        stream_def
-                                                            .base
-                                                            .clone()
-                                                            .unwrap()
-                                                            .inner()
-                                                            .to_vec(),
-                                                    )
-                                                    .unwrap(),
-                                                    right_key,
+                                                    String::from_utf8(left_stream_name.clone())
+                                                        .unwrap(),
+                                                    String::from_utf8(right_stream_name.clone())
+                                                        .unwrap(),
                                                     stream_def.map.clone().unwrap(),
                                                 ),
                                                 _ => None,
