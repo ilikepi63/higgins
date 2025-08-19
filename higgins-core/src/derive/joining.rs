@@ -246,6 +246,7 @@ fn values_to_batches(
                     Join::Inner(_) => match right.as_ref() {
                         Some(right) => {
                             let (col, field) = col_name_to_field_and_col(right, origin_key);
+                            let field = field.with_name(resultant_name);
 
                             columns.push(col);
                             fields.push(field);
