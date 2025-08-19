@@ -116,8 +116,6 @@ impl Broker {
                 std::fs::create_dir(&dir).unwrap();
             }
 
-            
-
             Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap())
         };
 
@@ -373,9 +371,7 @@ impl Broker {
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
             for (_, sub) in subs.values_mut() {
-                println!("Awaiting sub...");
                 let sub = sub.write().await;
-                println!("Got sub...");
 
                 sub.add_partition(partition_key, None, None)?;
             }
@@ -770,7 +766,6 @@ impl Broker {
                     Ok(get_result) => {
                         if let Ok(b) = get_result.bytes().await {
                             // Retrieve the current fetch Responses by name.
-                            
 
                             batch_responses
                                 .iter()
