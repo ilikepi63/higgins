@@ -45,6 +45,8 @@ pub async fn create_joined_stream_from_definition(
         .get_subscription_by_key(left.0.inner(), &left_subscription)
         .unwrap();
 
+    tracing::trace!("Setting up a join on stream: {:#?}", left.clone());
+
     let left_broker = broker_ref.clone();
     let left_stream_name = left.0.inner().to_owned();
     let left_stream_partition_key = left.1.partition_key;
@@ -84,6 +86,11 @@ pub async fn create_joined_stream_from_definition(
                 //Get payloads from offsets.
                 for (partition, offset) in offsets {
                     let broker_lock = left_broker.read().await;
+
+                    tracing::trace!(
+                        "Reading from stream: {:#?}",
+                        String::from_utf8(left_stream_name.clone())
+                    );
 
                     let mut consumption = broker_lock
                         .consume(&left_stream_name, &partition, offset, 50_000)
@@ -138,39 +145,46 @@ pub async fn create_joined_stream_from_definition(
                                         right_record
                                     );
 
-                                    let right_key =
-                                        String::from_utf8(join_type.key().to_vec()).unwrap();
-
-                                    let new_record_batch = values_to_batches(
-                                        &join_type,
-                                        Some(record_batch.clone()),
-                                        right_record,
-                                        String::from_utf8(
-                                            stream_def.base.clone().unwrap().inner().to_vec(),
-                                        )
-                                        .unwrap(),
-                                        right_key,
-                                        stream_def.map.clone().unwrap(),
-                                    )
-                                    .unwrap();
+                                    let new_record_batch = match &join_type {
+                                        Join::Full(_) => todo!(),
+                                        Join::Inner(_) => {
+                                            match (Some(record_batch.clone()), right_record) {
+                                                (Some(left), Some(right)) => values_to_batches(
+                                                    &join_type,
+                                                    Some(left),
+                                                    Some(right),
+                                                    String::from_utf8(left_stream_name.clone())
+                                                        .unwrap(),
+                                                    String::from_utf8(right_stream_name.clone())
+                                                        .unwrap(),
+                                                    stream_def.map.clone().unwrap(),
+                                                ),
+                                                _ => None,
+                                            }
+                                        }
+                                        Join::LeftOuter(_) => todo!(),
+                                        Join::RightOuter(_) => todo!(),
+                                    };
 
                                     tracing::trace!(
                                         "Managed to write to partition: {:#?}",
                                         stream_def.partition_key
                                     );
 
-                                    let result = broker_lock
-                                        .produce(
-                                            stream_name.inner(),
-                                            &partition_val,
-                                            new_record_batch,
-                                        )
-                                        .await;
+                                    if let Some(new_record_batch) = new_record_batch {
+                                        let result = broker_lock
+                                            .produce(
+                                                stream_name.inner(),
+                                                &partition_val,
+                                                new_record_batch,
+                                            )
+                                            .await;
 
-                                    tracing::trace!(
-                                        "Result from producing with a join: {:#?}",
-                                        result
-                                    );
+                                        tracing::trace!(
+                                            "Result from producing with a join: {:#?}",
+                                            result
+                                        );
+                                    }
                                 }
 
                                 drop(broker_lock);
@@ -229,14 +243,16 @@ fn values_to_batches(
                     Join::Full(_) => todo!(),
                 },
                 origin if origin == right_key => match join {
-                    Join::Inner(_) => {
-                        let right = right.as_ref().unwrap();
+                    Join::Inner(_) => match right.as_ref() {
+                        Some(right) => {
+                            let (col, field) = col_name_to_field_and_col(right, origin_key);
+                            let field = field.with_name(resultant_name);
 
-                        let (col, field) = col_name_to_field_and_col(right, origin_key);
-
-                        columns.push(col);
-                        fields.push(field);
-                    }
+                            columns.push(col);
+                            fields.push(field);
+                        }
+                        None => {}
+                    },
                     Join::LeftOuter(_) => todo!(),
                     Join::RightOuter(_) => todo!(),
                     Join::Full(_) => todo!(),

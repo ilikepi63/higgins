@@ -27,7 +27,7 @@ partition_key = "id"
 
 [streams.address]
 schema = "address"
-partition_key = "id"
+partition_key = "customer_id"
 
 [streams.customer_address]
 type = "join"

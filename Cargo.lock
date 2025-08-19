@@ -2294,9 +2294,9 @@ dependencies = [
 
 [[package]]
 name = "riskless"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "523164477e9e580e4e9e4cc805cb8cdfda638f961c8ec76518fce94d6a4c949f"
+checksum = "5761c2970e57e7e60b02836551cbd03170608c5e2af45c08b47e779ce6c45013"
 dependencies = [
  "async-trait",
  "bytes",

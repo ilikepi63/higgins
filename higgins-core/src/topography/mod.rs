@@ -5,6 +5,7 @@
 
 use std::{
     collections::{BTreeMap, btree_map::Entry},
+    fmt::Debug,
     sync::Arc,
 };
 
@@ -21,8 +22,16 @@ pub mod errors;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
-#[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]
 pub struct Key(Vec<u8>);
+
+impl Debug for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Key")
+            .field("inner", &String::from_utf8(self.0.clone()))
+            .finish()
+    }
+}
 
 impl Key {
     pub fn inner(&self) -> &[u8] {
@@ -115,7 +124,7 @@ impl Topography {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct StreamDefinition {
     /// From which this topic is derived.
     pub base: Option<Key>,
@@ -133,6 +142,26 @@ pub struct StreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+}
+
+impl Debug for StreamDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StreamDefinition")
+            .field(
+                "base",
+                &self.base.as_ref().map(|v| String::from_utf8(v.0.clone())),
+            )
+            .field("stream_type", &self.stream_type)
+            .field(
+                "partition_key",
+                &String::from_utf8(self.partition_key.0.clone()),
+            )
+            .field("schema", &self.schema)
+            .field("join", &self.join)
+            .field("map", &self.map)
+            .field("function_name", &self.function_name)
+            .finish()
+    }
 }
 
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
