@@ -64,5 +64,5 @@ fn can_achieve_basic_broker_functionality() {
         .take(sub_id, "update_customer".as_bytes(), 1)
         .unwrap();
 
-    // std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }

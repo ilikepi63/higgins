@@ -1,16 +1,14 @@
-schema:
-  amount:
-    id: string
-    data: int32
+[schema.amount]
+id = "string"
+data = "int32"
 
-streams:
-  amount:
-    schema: amount
-    partition_key: id
-  result:
-    base: amount
-    type: reduce
-    partition_key: id
-    schema: amount
-    fn: reduce
+[streams.amount]
+schema = "amount"
+partition_key = ""
 
+[streams.result]
+base = "amount"
+type = "reduce"
+partition_key = ""
+schema = "amount"
+fn = "reduce"
