@@ -64,7 +64,6 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
     let empty = vec![];
     let (child_data, dictionary) = match data.data_type() {
         DataType::Dictionary(_, _) => (empty.as_slice(), {
-            
             copy_array(&data.child_data()[0], allocator)
         }),
         _ => (data.child_data(), WasmPtr::<WasmArrowArray>::null()),
