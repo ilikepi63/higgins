@@ -136,8 +136,6 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
             let payload = payload.clone();
             let socket = socket.clone(); // arc clone.
 
-            
-
             loom::thread::spawn(move || {
                 loom::future::block_on(async {
                     let mut socket = socket.lock().unwrap();
@@ -156,8 +154,6 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
             let socket = socket.clone(); // arc clone.
             let sub_id = sub_id.clone();
             let result_collection = result_collection.clone();
-
-            
 
             loom::thread::spawn(move || {
                 loom::future::block_on(async {

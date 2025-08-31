@@ -55,7 +55,6 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<(), HigginsClientError> {
-        
         timeout!(ping_sync(&mut self.0), self.1).await?
     }
 
