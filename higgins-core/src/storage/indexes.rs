@@ -56,8 +56,6 @@ impl IndexDirectory {
 
         topic_dir.push(index_file_path);
 
-        
-
         topic_dir.to_string_lossy().to_string()
     }
 

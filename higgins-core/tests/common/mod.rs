@@ -60,11 +60,7 @@ pub fn produce_sync<T: std::io::Read + std::io::Write>(
     let message = Message::decode(slice).unwrap();
 
     let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Produceresponse => {
-            
-
-            message.produce_response.unwrap()
-        }
+        Type::Produceresponse => message.produce_response.unwrap(),
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     };
 
