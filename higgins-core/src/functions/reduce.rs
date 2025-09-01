@@ -35,13 +35,13 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
 
     let curr_ptr = {
         let data = ArbitraryLengthBuffer::from(write_arrow(curr).as_ref()).into_inner();
-        
+
         allocator.copy(&data)
     };
 
     let prev_ptr = {
         let data = ArbitraryLengthBuffer::from(write_arrow(prev).as_ref()).into_inner();
-        
+
         allocator.copy(&data)
     };
 
@@ -52,8 +52,6 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
     let record_batch_ptr = wasm_run_fn.call(&mut store, (prev_ptr, curr_ptr)).unwrap();
 
     tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
-
-    
 
     {
         let mut buf = [0_u8; 8];
@@ -71,8 +69,6 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
             .unwrap();
 
         let array = ArbitraryLengthBuffer::new(buf);
-
-        
 
         read_arrow(array.data()).next().unwrap().unwrap()
     }
