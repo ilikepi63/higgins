@@ -1,3 +1,5 @@
+use super::Broker;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
@@ -53,7 +55,6 @@ type MutableCollection = Arc<
     )>,
 >;
 
-
 impl Broker {
     pub fn get_stream(&self, stream_name: &[u8]) -> Option<&(Arc<Schema>, Sender, Receiver)> {
         self.streams.get(stream_name)
@@ -66,6 +67,4 @@ impl Broker {
         self.streams
             .insert(stream_name.to_owned(), (schema, tx, rx));
     }
-
-
 }

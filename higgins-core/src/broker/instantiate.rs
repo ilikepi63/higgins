@@ -1,3 +1,5 @@
+use super::Broker;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
@@ -53,9 +55,8 @@ type MutableCollection = Arc<
     )>,
 >;
 
-
-impl Broker{
- /// Creates a new instance of a Broker.
+impl Broker {
+    /// Creates a new instance of a Broker.
     pub fn new(dir: PathBuf) -> Self {
         if !dir.exists() {
             std::fs::create_dir(&dir).unwrap();
