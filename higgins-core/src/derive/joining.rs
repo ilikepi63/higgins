@@ -243,13 +243,15 @@ fn values_to_batches(
                     Join::Full(_) => todo!(),
                 },
                 origin if origin == right_key => match join {
-                    Join::Inner(_) => if let Some(right) = right.as_ref() {
-                        let (col, field) = col_name_to_field_and_col(right, origin_key);
-                        let field = field.with_name(resultant_name);
+                    Join::Inner(_) => {
+                        if let Some(right) = right.as_ref() {
+                            let (col, field) = col_name_to_field_and_col(right, origin_key);
+                            let field = field.with_name(resultant_name);
 
-                        columns.push(col);
-                        fields.push(field);
-                    },
+                            columns.push(col);
+                            fields.push(field);
+                        }
+                    }
                     Join::LeftOuter(_) => todo!(),
                     Join::RightOuter(_) => todo!(),
                     Join::Full(_) => todo!(),
