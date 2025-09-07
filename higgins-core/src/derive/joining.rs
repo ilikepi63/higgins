@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 
 mod full_join;
 mod inner_join;
+mod join;
 mod outer_join;
 
 use crate::{

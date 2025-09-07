@@ -6,10 +6,10 @@ use crate::topography::{Key, StreamDefinition};
 /// configuration data.
 pub struct FullJoin {
     /// Name and definition of the stream that these streams are joined to.
-    stream: (Key, StreamDefinition),
+    pub stream: (Key, StreamDefinition),
     /// The first stream. There is no distinction between streams as a full join
     /// does not differentiate between two streams.
-    first_stream: (Key, StreamDefinition),
+    pub first_stream: (Key, StreamDefinition),
     /// The second stream definition.
-    second_stream: (Key, StreamDefinition),
+    pub second_stream: (Key, StreamDefinition),
 }

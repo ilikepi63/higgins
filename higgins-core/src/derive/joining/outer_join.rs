@@ -6,9 +6,9 @@ use crate::topography::{Key, StreamDefinition};
 /// configuration data.
 pub struct OuterJoin {
     /// Name and definition of the stream that these streams are joined to.
-    stream: (Key, StreamDefinition),
+    pub stream: (Key, StreamDefinition),
     /// The left (or derivative) stream that this stream is joined from.
-    left_stream: (Key, StreamDefinition),
+    pub left_stream: (Key, StreamDefinition),
     /// The right or outer stream that this stream is joined from.
-    right_stream: (Key, StreamDefinition),
+    pub right_stream: (Key, StreamDefinition),
 }
