@@ -1,3 +1,5 @@
+use crate::topography::{Key, StreamDefinition};
+
 use super::Broker;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
@@ -17,5 +19,10 @@ impl Broker {
 
         self.streams
             .insert(stream_name.to_owned(), (schema, tx, rx));
+    }
+
+    /// Get a stream inside of the topography.
+    pub fn get_topography_stream(&self, key: &Key) -> Option<(&Key, &StreamDefinition)> {
+        self.topography.streams.iter().find(|(k, _)| *k == key)
     }
 }
