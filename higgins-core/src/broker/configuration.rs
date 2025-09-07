@@ -1,3 +1,5 @@
+use super::Broker;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
@@ -53,7 +55,7 @@ type MutableCollection = Arc<
     )>,
 >;
 
-
+impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
     // and then the state of the topography creates resources inside of the broker. However,
     // due to focus on naive implementations, we're going to just apply the configuration directly.
@@ -194,3 +196,4 @@ type MutableCollection = Arc<
 
         Ok(())
     }
+}

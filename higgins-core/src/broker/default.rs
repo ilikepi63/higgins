@@ -1,3 +1,5 @@
+use super::Broker;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
@@ -52,8 +54,6 @@ type MutableCollection = Arc<
         Vec<Request<ProduceRequest, ProduceResponse>>,
     )>,
 >;
-
-
 
 impl Default for Broker {
     fn default() -> Self {

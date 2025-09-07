@@ -1,3 +1,5 @@
+use super::Broker;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
@@ -53,7 +55,7 @@ type MutableCollection = Arc<
     )>,
 >;
 
-impl Broker{
+impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(
         &self,
@@ -246,7 +248,4 @@ impl Broker{
 
         Ok(())
     }
-
-
-
 }
