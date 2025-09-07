@@ -6,59 +6,31 @@ mod produce;
 mod streams;
 mod subscriptions;
 
-pub use configuration::*;
-pub use consume::*;
-pub use default::*;
-pub use instantiate::*;
-pub use produce::*;
-pub use streams::*;
-pub use subscriptions::*;
 
 
 use arrow::{array::RecordBatch, datatypes::Schema};
-use bytes::BytesMut;
-use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
-use prost::Message as _;
 use riskless::{
-    batch_coordinator::FindBatchResponse,
     messages::{
-        ConsumeRequest, ConsumeResponse, ProduceRequest, ProduceRequestCollection, ProduceResponse,
+        ProduceRequest, ProduceRequestCollection, ProduceResponse,
     },
     object_store::{self, ObjectStore},
 };
 use std::{
     collections::BTreeMap,
-    fs::create_dir,
     path::PathBuf,
-    str::FromStr,
-    sync::{Arc, atomic::Ordering},
-    time::Duration,
+    sync::Arc,
 };
 use tokio::sync::{Notify, RwLock};
-use uuid::Uuid;
 
-use crate::{
-    broker::object_store::path::Path,
-    derive::{
-        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition,
-        reduce::create_reduced_stream_from_definition,
-    },
-    functions::collection::FunctionCollection,
-    topography::FunctionType,
-};
+use crate::functions::collection::FunctionCollection;
 use crate::{
     client::ClientCollection,
     error::HigginsError,
-    storage::{
-        arrow_ipc::{read_arrow, write_arrow},
-        indexes::IndexDirectory,
-    },
+    storage::indexes::IndexDirectory,
     subscription::Subscription,
-    topography::{Topography, apply_configuration_to_topography, config::from_toml},
+    topography::Topography,
     utils::request_response::Request,
 };
-use riskless::messages::ConsumeBatch;
-use std::collections::HashSet;
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
 type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
