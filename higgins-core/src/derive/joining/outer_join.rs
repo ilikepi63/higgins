@@ -1,3 +1,5 @@
+use crate::topography::{Key, StreamDefinition};
+
 /// A structure representing an Outer Join.
 ///
 /// This structure is primarily implemented for transporting join

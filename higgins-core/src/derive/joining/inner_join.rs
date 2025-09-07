@@ -1,3 +1,5 @@
+use crate::topography::{Key, StreamDefinition};
+
 /// A structure representing an Inner Join.
 ///
 /// This structure is primarily implemented for transporting inner join
