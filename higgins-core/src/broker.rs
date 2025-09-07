@@ -6,30 +6,18 @@ mod produce;
 mod streams;
 mod subscriptions;
 
-
-
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
-    messages::{
-        ProduceRequest, ProduceRequestCollection, ProduceResponse,
-    },
+    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self, ObjectStore},
 };
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection,
-    error::HigginsError,
-    storage::indexes::IndexDirectory,
-    subscription::Subscription,
-    topography::Topography,
-    utils::request_response::Request,
+    client::ClientCollection, error::HigginsError, storage::indexes::IndexDirectory,
+    subscription::Subscription, topography::Topography, utils::request_response::Request,
 };
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
@@ -68,12 +56,7 @@ pub struct Broker {
     pub functions: FunctionCollection,
 }
 
-
 impl Broker {
-
-
-
-
     /// Retrieve the receiver for a named stream.
     pub fn get_receiver(&self, stream_name: &[u8]) -> Option<Receiver> {
         self.streams
@@ -81,8 +64,6 @@ impl Broker {
             .find(|(id, _)| *id == stream_name)
             .map(|(_, (_, tx, _rx))| tx.subscribe())
     }
-
-
 
     /// Apply a reduction function to the stream.
     pub fn reduce(
@@ -125,7 +106,6 @@ impl Broker {
 
         Ok(())
     }
-
 }
 
 pub trait ReductionFnTypeSig:
