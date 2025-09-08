@@ -21,7 +21,10 @@ mod outer_join;
 use crate::{
     broker::Broker,
     client::ClientRef,
-    derive::utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
+    derive::{
+        joining::{join::JoinDefinition, outer_join::{OuterJoin, OuterSide}},
+        utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
+    },
     error::HigginsError,
     storage::arrow_ipc::read_arrow,
     topography::{Join, Key, StreamDefinition},
@@ -29,19 +32,46 @@ use crate::{
 };
 
 pub async fn create_joined_stream_from_definition(
-    stream_name: Key,
-    stream_def: StreamDefinition,
-    left: (Key, StreamDefinition),
-    right: (Key, StreamDefinition),
-    join_type: Join,
+    definition: JoinDefinition,
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
+    // We want a client, but we do not want it to be notified.
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
+    let left = match definition {
+        JoinDefinition::Inner(inner) => inner.left_stream,
+        JoinDefinition::Outer(outer) => outer.left_stream,
+        JoinDefinition::Full(full) => full.first_stream,
+    };
+
+    let right = match definition {
+        JoinDefinition::Inner(inner) => inner.right_stream,
+        JoinDefinition::Outer(outer) => outer.right_stream,
+        JoinDefinition::Full(full) => full.second_stream,
+    };
+
+    let (left_subscription, right_subscription) = match definition {
+        JoinDefinition::Inner(inner) => {
+            let left_subscription = broker.create_subscription(left.0.inner());
+            let right_subscription = broker.create_subscription(right.0.inner());
+
+            (Some(left_subscription), Some(right_subscription))
+        }
+        JoinDefinition::Outer(outer) => {
+            match outer.side {
+                OuterSide::Left => ,
+                OuterSide::Right => {
+                    let left_subscription = broker.create_subscription(left.0.inner());
+                    let right_subscription = broker.create_subscription(right.0.inner());
+
+                },
+            }
+        }
+        JoinDefinition::Full(full) => full.second_stream,
+    };
+
     // Subscribe to both streams.
-    let left_subscription = broker.create_subscription(left.0.inner());
-    let _right_subscription = broker.create_subscription(right.0.inner());
 
     let (left_notify, left_subscription_ref) = broker
         .get_subscription_by_key(left.0.inner(), &left_subscription)
