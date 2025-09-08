@@ -79,8 +79,8 @@ pub async fn create_joined_stream_from_definition(
             tokio::task::spawn(async move {
                 loop {
                     let offsets = eager_take_from_subscription_or_wait(
-                        left_subscription,
-                        left_notify,
+                        left_subscription.clone(),
+                        left_notify.clone(),
                         client_id,
                     );
                 }
@@ -89,8 +89,8 @@ pub async fn create_joined_stream_from_definition(
             tokio::task::spawn(async move {
                 loop {
                     let offsets = eager_take_from_subscription_or_wait(
-                        right_subscription,
-                        right_notify,
+                        right_subscription.clone(),
+                        right_notify.clone(),
                         client_id,
                     );
                 }
