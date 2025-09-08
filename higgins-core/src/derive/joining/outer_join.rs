@@ -1,6 +1,6 @@
-/// A structure representing an Inner Join.
+/// A structure representing an Outer Join.
 ///
-/// This structure is primarily implemented for transporting inner join
+/// This structure is primarily implemented for transporting join
 /// configuration data.
 pub struct OuterJoin {
     /// Name and definition of the stream that these streams are joined to.
