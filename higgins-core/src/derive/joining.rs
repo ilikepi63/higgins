@@ -12,6 +12,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use tokio::sync::RwLock;
+use tracing_subscriber::fmt::format::Full;
 
 mod full_join;
 mod inner_join;
@@ -22,7 +23,10 @@ use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{join::JoinDefinition, outer_join::{OuterJoin, OuterSide}},
+        joining::{
+            join::JoinDefinition,
+            outer_join::{OuterJoin, OuterSide},
+        },
         utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
     },
     error::HigginsError,
@@ -30,6 +34,14 @@ use crate::{
     topography::{Join, Key, StreamDefinition},
     utils::epoch,
 };
+
+macro_rules! get_sub {
+    ($broker: ident, $left: ident, $sub: ident) => {
+        $broker
+            .get_subscription_by_key($left.0.inner(), &$sub)
+            .ok_or(HigginsError::SubscriptionRetrievalFailed)
+    };
+}
 
 pub async fn create_joined_stream_from_definition(
     definition: JoinDefinition,
@@ -39,48 +51,42 @@ pub async fn create_joined_stream_from_definition(
     // We want a client, but we do not want it to be notified.
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
+    // Retrieve the left stream for this join.
     let left = match definition {
         JoinDefinition::Inner(inner) => inner.left_stream,
         JoinDefinition::Outer(outer) => outer.left_stream,
         JoinDefinition::Full(full) => full.first_stream,
     };
 
+    // Retrieve the right stream for this join.
     let right = match definition {
         JoinDefinition::Inner(inner) => inner.right_stream,
         JoinDefinition::Outer(outer) => outer.right_stream,
         JoinDefinition::Full(full) => full.second_stream,
     };
 
-    let (left_subscription, right_subscription) = match definition {
+    // Create the subscriptions inside of the broker for each join.
+    match definition {
         JoinDefinition::Inner(inner) => {
             let left_subscription = broker.create_subscription(left.0.inner());
             let right_subscription = broker.create_subscription(right.0.inner());
 
-            (Some(left_subscription), Some(right_subscription))
+            let (left_notify, left_subscription) = get_sub!(broker, left, left_subscription);
+            let (right_notify, right_subscription) = get_sub!(broker, right, right_subscription);
         }
-        JoinDefinition::Outer(outer) => {
-            match outer.side {
-                OuterSide::Left => ,
-                OuterSide::Right => {
-                    let left_subscription = broker.create_subscription(left.0.inner());
-                    let right_subscription = broker.create_subscription(right.0.inner());
-
-                },
+        JoinDefinition::Outer(outer) => match outer.side {
+            OuterSide::Left => {
+                let left_subscription = broker.create_subscription(left.0.inner());
             }
+            OuterSide::Right => {
+                let subscription = broker.create_subscription(left.0.inner());
+            }
+        },
+        JoinDefinition::Full(full) => {
+            let left_subscription = broker.create_subscription(left.0.inner());
+            let right_subscription = broker.create_subscription(right.0.inner());
         }
-        JoinDefinition::Full(full) => full.second_stream,
     };
-
-    // Subscribe to both streams.
-
-    let (left_notify, left_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
-        .unwrap();
-    let (_right_notify, _right_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
-        .unwrap();
-
-    tracing::trace!("Setting up a join on stream: {:#?}", left.clone());
 
     let left_broker = broker_ref.clone();
     let left_stream_name = left.0.inner().to_owned();
