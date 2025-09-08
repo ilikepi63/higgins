@@ -23,7 +23,7 @@ pub mod errors;
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]
-pub struct Key(Vec<u8>);
+pub struct Key(pub Vec<u8>);
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
