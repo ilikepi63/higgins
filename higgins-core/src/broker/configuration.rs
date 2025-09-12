@@ -5,8 +5,8 @@ use tokio::sync::RwLock;
 
 use crate::{
     derive::{
-        joining::create_joined_stream_from_definition, map::create_mapped_stream_from_definition,
-        reduce::create_reduced_stream_from_definition,
+        joining::create_joined_stream_from_definition, joining::join::JoinDefinition,
+        map::create_mapped_stream_from_definition, reduce::create_reduced_stream_from_definition,
     },
     topography::FunctionType,
 };
@@ -81,29 +81,19 @@ impl Broker {
                         .map(|(key, def)| (key.clone(), def.clone()))
                         .unwrap();
 
-                    create_joined_stream_from_definition(
-                        derived_stream_key.clone(),
-                        derived_stream_definition.clone(),
-                        left.clone(),
-                        right.clone(),
-                        join.clone(),
-                        self,
-                        broker.clone(),
-                    )
-                    .await
-                    .unwrap();
+                    let definition = {
+                        let b: &Broker = self;
 
-                    create_joined_stream_from_definition(
-                        derived_stream_key,
-                        derived_stream_definition,
-                        right,
-                        left,
-                        join,
-                        self,
-                        broker.clone(),
-                    )
-                    .await
-                    .unwrap();
+                        JoinDefinition::try_from((
+                            derived_stream_key,
+                            derived_stream_definition,
+                            b,
+                        ))?
+                    };
+
+                    create_joined_stream_from_definition(definition, self, broker.clone())
+                        .await
+                        .unwrap();
                 }
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");
