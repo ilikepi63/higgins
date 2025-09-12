@@ -52,23 +52,12 @@ pub async fn create_joined_stream_from_definition(
     // We want a client, but we do not want it to be notified.
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
-    // Retrieve the left stream for this join.
-    let left = match definition {
-        JoinDefinition::Inner(inner) => inner.left_stream,
-        JoinDefinition::Outer(outer) => outer.left_stream,
-        JoinDefinition::Full(full) => full.first_stream,
-    };
-
-    // Retrieve the right stream for this join.
-    let right = match definition {
-        JoinDefinition::Inner(inner) => inner.right_stream,
-        JoinDefinition::Outer(outer) => outer.right_stream,
-        JoinDefinition::Full(full) => full.second_stream,
-    };
-
     // Create the subscriptions inside of the broker for each join.
     match definition {
         JoinDefinition::Inner(inner) => {
+            let left = inner.left_stream;
+            let right = inner.right_stream;
+
             let left_subscription = broker.create_subscription(left.0.inner());
             let right_subscription = broker.create_subscription(right.0.inner());
 
@@ -116,22 +105,31 @@ pub async fn create_joined_stream_from_definition(
         }
         JoinDefinition::Outer(outer) => match outer.side {
             OuterSide::Left => {
+                let left = outer.left_stream;
+
                 let left_subscription = broker.create_subscription(left.0.inner());
+
+                todo!();
             }
             OuterSide::Right => {
-                let subscription = broker.create_subscription(left.0.inner());
+                let right = outer.right_stream;
+                let subscription = broker.create_subscription(right.0.inner());
+
+                todo!();
             }
         },
         JoinDefinition::Full(full) => {
+            let left = full.first_stream;
+            let right = full.second_stream;
             let left_subscription = broker.create_subscription(left.0.inner());
             let right_subscription = broker.create_subscription(right.0.inner());
         }
     };
 
-    let left_broker = broker_ref.clone();
-    let left_stream_name = left.0.inner().to_owned();
-    let left_stream_partition_key = left.1.partition_key;
-    let right_stream_name = right.0.inner().to_owned();
+    // let left_broker = broker_ref.clone();
+    // let left_stream_name = left.0.inner().to_owned();
+    // let left_stream_partition_key = left.1.partition_key;
+    // let right_stream_name = right.0.inner().to_owned();
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
