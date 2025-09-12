@@ -61,26 +61,6 @@ impl Broker {
         for (derived_stream_key, derived_stream_definition) in derived_streams {
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
-                    let join = derived_stream_definition.join.as_ref().cloned().unwrap();
-
-                    let left = self
-                        .topography
-                        .streams
-                        .iter()
-                        .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
-                        .map(|(key, def)| (key.clone(), def.clone()))
-                        .unwrap();
-
-                    let right = self
-                        .topography
-                        .streams
-                        .iter()
-                        .find(|(key, _)| {
-                            key.inner() == derived_stream_definition.join.as_ref().unwrap().key()
-                        })
-                        .map(|(key, def)| (key.clone(), def.clone()))
-                        .unwrap();
-
                     let definition = {
                         let b: &Broker = self;
 
