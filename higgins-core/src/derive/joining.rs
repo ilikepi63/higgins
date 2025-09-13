@@ -12,11 +12,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use tokio::sync::RwLock;
-use tracing_subscriber::fmt::format::Full;
 
 mod full_join;
 mod inner_join;
-mod join;
+pub mod join;
 mod outer_join;
 
 use crate::{
