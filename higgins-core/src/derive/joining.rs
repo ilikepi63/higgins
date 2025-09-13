@@ -82,7 +82,23 @@ pub async fn create_joined_stream_from_definition(
                         left_subscription.clone(),
                         left_notify.clone(),
                         client_id,
-                    );
+                    )
+                    .await;
+
+                    match offsets {
+                        Ok(offsets) => {
+                            for offset in offsets {
+                                // save each index into the new joined stream index.
+                            }
+                        }
+                        Err(err) => {
+                            tracing::error!(
+                                "An error occurred when trying to retrieve offsets for  a joined stream: {:#?}. Closing this task.",
+                                err
+                            );
+                            break;
+                        }
+                    };
                 }
             });
 
