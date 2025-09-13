@@ -22,17 +22,12 @@ use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{
-            join::JoinDefinition,
-            outer_join::{OuterJoin, OuterSide},
-        },
-        utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
+        joining::{join::JoinDefinition, outer_join::OuterSide},
+        utils::col_name_to_field_and_col,
     },
     error::HigginsError,
-    storage::arrow_ipc::read_arrow,
     subscription::Subscription,
-    topography::{Join, Key, StreamDefinition},
-    utils::epoch,
+    topography::Join,
 };
 
 macro_rules! get_sub {
