@@ -15,8 +15,9 @@ use riskless::{
     },
     messages::CommitBatchRequest,
 };
+use tokio::io::AsyncWriteExt;
 
-use crate::storage::index::{Index, index_reader::IndexReader, index_writer::IndexWriter};
+use crate::storage::index::{Index, index_reader::IndexReader};
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
@@ -242,16 +243,13 @@ impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
 
             let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
-            let index_file_exists = std::fs::exists(&index_file_path).unwrap();
-
-            let mut index_writer = IndexWriter::new(
-                &index_file_path,
-                Arc::new(AtomicU64::new(u64::MAX)),
-                true,
-                index_file_exists,
-            )
-            .await
-            .unwrap();
+            let mut file = tokio::fs::OpenOptions::new()
+                .write(true)
+                .append(true)
+                .create(true)
+                .open(&index_file_path)
+                .await
+                .unwrap();
 
             let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
@@ -280,7 +278,9 @@ impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            index_writer.save_indexes(&index).await.unwrap();
+            file.write_all(&index);
+
+            file.sync_all();
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 
