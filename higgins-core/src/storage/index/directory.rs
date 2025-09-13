@@ -1,5 +1,4 @@
 use std::{
-    marker::PhantomData,
     os::unix::fs::MetadataExt,
     path::PathBuf,
     sync::{Arc, atomic::AtomicU64},
@@ -21,15 +20,15 @@ use crate::storage::index::{Index, index_reader::IndexReader};
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
-pub struct IndexDirectory<T: Send + Sync>(pub PathBuf, PhantomData<T>);
+pub struct IndexDirectory(pub PathBuf);
 
-impl<T: Send + Sync> IndexDirectory<T> {
+impl IndexDirectory {
     pub fn new(directory: PathBuf) -> Result<Self, IndexError> {
         if !directory.is_dir() {
             return Err(IndexError::IndexFileIsNotADirectory);
         }
 
-        Ok(Self(directory, PhantomData::default()))
+        Ok(Self(directory))
     }
 
     pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
@@ -228,7 +227,7 @@ impl<T: Send + Sync> IndexDirectory<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
+impl CommitFile for IndexDirectory {
     async fn commit_file(
         &self,
         object_key: [u8; 16],
@@ -278,9 +277,9 @@ impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            file.write_all(&index);
+            file.write_all(&index).await.unwrap();
 
-            file.sync_all();
+            file.sync_all().await.unwrap();
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 
@@ -299,7 +298,7 @@ impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: Send + Sync + std::fmt::Debug> FindBatches for IndexDirectory<T> {
+impl FindBatches for IndexDirectory {
     async fn find_batches(
         &self,
         batch_requests: Vec<FindBatchRequest>,
