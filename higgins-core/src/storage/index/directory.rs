@@ -6,6 +6,8 @@ use std::{
     time::SystemTime,
 };
 
+use super::IndexError;
+
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -21,10 +23,12 @@ use crate::storage::index::{Index, index_reader::IndexReader, index_writer::Inde
 pub struct IndexDirectory<T: Send + Sync>(pub PathBuf, PhantomData<T>);
 
 impl<T: Send + Sync> IndexDirectory<T> {
-    pub fn new(directory: PathBuf) -> Self {
-        assert!(directory.is_dir());
+    pub fn new(directory: PathBuf) -> Result<Self, IndexError> {
+        if !directory.is_dir() {
+            return Err(IndexError::IndexFileIsNotADirectory);
+        }
 
-        Self(directory, PhantomData::default())
+        Ok(Self(directory, PhantomData::default()))
     }
 
     pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
