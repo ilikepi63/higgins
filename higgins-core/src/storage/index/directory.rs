@@ -13,9 +13,7 @@ use riskless::{
     messages::CommitBatchRequest,
 };
 
-use crate::storage::index::{Index, index_writer::IndexWriter};
-
-use super::index::index_reader::IndexReader;
+use crate::storage::index::{Index, index_reader::IndexReader, index_writer::IndexWriter};
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]

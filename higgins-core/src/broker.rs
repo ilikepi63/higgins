@@ -16,7 +16,7 @@ use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, error::HigginsError, storage::indexes::IndexDirectory,
+    client::ClientCollection, error::HigginsError, storage::index::directory::IndexDirectory,
     subscription::Subscription, topography::Topography, utils::request_response::Request,
 };
 

@@ -25,8 +25,9 @@ use std::ops::{Deref, Index as StdIndex};
 
 use bytes::{Buf, BufMut, BytesMut};
 
-pub mod index_reader;
-pub mod index_writer;
+pub mod directory;
+mod index_reader;
+mod index_writer;
 
 pub struct Index {
     pub offset: u32,
