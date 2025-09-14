@@ -26,8 +26,11 @@ use std::ops::{Deref, Index as StdIndex};
 use bytes::{Buf, BufMut, BytesMut};
 
 pub mod directory;
+mod error;
 mod index_reader;
 mod index_writer;
+
+pub use error::IndexError;
 
 pub struct Index {
     pub offset: u32,
