@@ -1,4 +1,5 @@
 use std::{
+    marker::PhantomData,
     os::unix::fs::MetadataExt,
     path::PathBuf,
     sync::{Arc, atomic::AtomicU64},
@@ -17,13 +18,13 @@ use crate::storage::index::{Index, index_reader::IndexReader, index_writer::Inde
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
-pub struct IndexDirectory(pub PathBuf);
+pub struct IndexDirectory<T: Send + Sync>(pub PathBuf, PhantomData<T>);
 
-impl IndexDirectory {
+impl<T: Send + Sync> IndexDirectory<T> {
     pub fn new(directory: PathBuf) -> Self {
         assert!(directory.is_dir());
 
-        Self(directory)
+        Self(directory, PhantomData::default())
     }
 
     pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
@@ -222,7 +223,7 @@ impl IndexDirectory {
 }
 
 #[async_trait::async_trait]
-impl CommitFile for IndexDirectory {
+impl<T: Send + Sync + std::fmt::Debug> CommitFile for IndexDirectory<T> {
     async fn commit_file(
         &self,
         object_key: [u8; 16],
@@ -294,7 +295,7 @@ impl CommitFile for IndexDirectory {
 }
 
 #[async_trait::async_trait]
-impl FindBatches for IndexDirectory {
+impl<T: Send + Sync + std::fmt::Debug> FindBatches for IndexDirectory<T> {
     async fn find_batches(
         &self,
         batch_requests: Vec<FindBatchRequest>,
