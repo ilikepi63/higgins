@@ -47,7 +47,7 @@ pub async fn load_all_indexes_from_disk(
         }
     };
     let index_count = file_size / INDEX_SIZE as u32;
-    let indexes = IndexesMut::from_bytes(buf, 0);
+    let indexes = IndexesMut::from_bytes(buf);
     if indexes.count() != index_count {
         error!(
             "Loaded {} indexes from disk, expected {}, file {} is probably corrupted!",
