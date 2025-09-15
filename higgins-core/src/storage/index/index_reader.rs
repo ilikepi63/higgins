@@ -5,7 +5,7 @@ use std::{fs::File as StdFile, io::ErrorKind, os::unix::fs::FileExt, sync::Arc};
 use tokio::task::spawn_blocking;
 use tracing::error;
 
-use super::{IndexesMut, default::INDEX_SIZE};
+use super::{IndexesMut, default::DefaultIndex};
 
 fn file_size(path: &str) -> Result<u32, IndexError> {
     Ok(std::fs::metadata(path)
@@ -46,7 +46,7 @@ pub async fn load_all_indexes_from_disk(
             return Err(Box::new(error));
         }
     };
-    let index_count = file_size / INDEX_SIZE as u32;
+    let index_count = file_size / DefaultIndex::size() as u32;
     let indexes = IndexesMut::from_bytes(buf);
     if indexes.count() != index_count {
         error!(
