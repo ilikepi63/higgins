@@ -16,7 +16,9 @@ use riskless::{
 };
 use tokio::io::AsyncWriteExt;
 
-use crate::storage::index::{Index, index_reader::IndexReader};
+use crate::storage::index::{
+    Index, index_reader::IndexReader, index_reader::load_all_indexes_from_disk,
+};
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
@@ -83,12 +85,14 @@ impl IndexDirectory {
 
         let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
-        let index_reader =
-            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                .await
-                .unwrap();
+        let read_file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&index_file_path)
+            .unwrap();
 
-        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+        let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
+            .await
+            .unwrap();
 
         let index = indexes.find_by_timestamp(timestamp);
 
@@ -159,14 +163,14 @@ impl IndexDirectory {
             return vec![];
         }
 
-        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
+        let read_file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&index_file_path)
+            .unwrap();
 
-        let index_reader =
-            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                .await
-                .unwrap();
-
-        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+        let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
+            .await
+            .unwrap();
 
         let index = indexes.last();
 
@@ -250,14 +254,14 @@ impl CommitFile for IndexDirectory {
                 .await
                 .unwrap();
 
-            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
+            let read_file = std::fs::OpenOptions::new()
+                .read(true)
+                .open(&index_file_path)
+                .unwrap();
 
-            let index_reader =
-                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                    .await
-                    .unwrap();
-
-            let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+            let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
+                .await
+                .unwrap();
 
             let offset = indexes.count() + 1;
             let position = batch.byte_offset;
@@ -322,12 +326,14 @@ impl FindBatches for IndexDirectory {
 
             let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
-            let index_reader =
-                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                    .await
-                    .unwrap();
+            let read_file = std::fs::OpenOptions::new()
+                .read(true)
+                .open(&index_file_path)
+                .unwrap();
 
-            let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+            let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
+                .await
+                .unwrap();
 
             tracing::info!("Reading at offset: {}", 0);
 
