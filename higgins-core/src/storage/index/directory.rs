@@ -2,6 +2,7 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::IndexError;
 
+use super::default::Index;
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -11,7 +12,7 @@ use riskless::{
 };
 use tokio::io::AsyncWriteExt;
 
-use crate::storage::index::{Index, index_reader::load_all_indexes_from_disk};
+use crate::storage::index::index_reader::load_all_indexes_from_disk;
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]

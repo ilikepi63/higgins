@@ -5,7 +5,7 @@ use std::{fs::File as StdFile, io::ErrorKind, os::unix::fs::FileExt, sync::Arc};
 use tokio::task::spawn_blocking;
 use tracing::error;
 
-use super::{INDEX_SIZE, IndexesMut};
+use super::{IndexesMut, default::INDEX_SIZE};
 
 fn file_size(path: &str) -> Result<u32, IndexError> {
     Ok(std::fs::metadata(path)
