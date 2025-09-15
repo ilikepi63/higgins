@@ -1,7 +1,32 @@
+use memmap2::MmapMut;
+
+use super::IndexError;
+
+/// Represents a file that holds an index. These indexes can be retrieved directly through
+/// the memory-mapped implementation of this file.
 pub struct IndexFile {
     path: String,
     file_handle: std::fs::File,
-    memmap: memmap2::MmapMut,
+    mmap: memmap2::MmapMut,
 }
 
-impl IndexFile {}
+impl IndexFile {
+    /// Create an instance from a path variable.
+    pub fn new(path: String) -> Result<Self, IndexError> {
+        let file_handle = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)?;
+
+        // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrenct executions.
+        let mmap = unsafe { MmapMut::map_mut(&file_handle)? };
+
+        Ok(Self {
+            path,
+            file_handle,
+            mmap,
+        })
+    }
+}
