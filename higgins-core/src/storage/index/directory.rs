@@ -1,9 +1,4 @@
-use std::{
-    os::unix::fs::MetadataExt,
-    path::PathBuf,
-    sync::{Arc, atomic::AtomicU64},
-    time::SystemTime,
-};
+use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::IndexError;
 
@@ -16,9 +11,7 @@ use riskless::{
 };
 use tokio::io::AsyncWriteExt;
 
-use crate::storage::index::{
-    Index, index_reader::IndexReader, index_reader::load_all_indexes_from_disk,
-};
+use crate::storage::index::{Index, index_reader::load_all_indexes_from_disk};
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
@@ -82,8 +75,6 @@ impl IndexDirectory {
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
         }
-
-        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
 
         let read_file = std::fs::OpenOptions::new()
             .read(true)
@@ -324,8 +315,6 @@ impl FindBatches for IndexDirectory {
 
             tracing::info!("Reading metadata for file : {index_file_path}");
 
-            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
-
             let read_file = std::fs::OpenOptions::new()
                 .read(true)
                 .open(&index_file_path)
@@ -340,8 +329,6 @@ impl FindBatches for IndexDirectory {
             let index = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
 
             tracing::info!("Reading index: {:#?}", index);
-
-            // tracing::info!("SIZE: {}", index.unwrap().size());
 
             match index {
                 Some(index) => {
