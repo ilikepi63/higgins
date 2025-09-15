@@ -27,6 +27,7 @@ use bytes::{Buf, BufMut, BytesMut};
 
 pub mod directory;
 mod error;
+mod file;
 mod index_reader;
 
 pub use error::IndexError;

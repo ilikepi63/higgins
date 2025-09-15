@@ -1233,6 +1233,7 @@ dependencies = [
  "higgins-codec",
  "higgins-functions",
  "loom",
+ "memmap2",
  "prost",
  "riskless",
  "rkyv",
@@ -1770,6 +1771,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2cffa4ad52c6f791f4f8b15f0c05f9824b2ced1160e88cc393d64fff9a8ac64"
 dependencies = [
  "rustix 0.38.44",
+]
+
+[[package]]
+name = "memmap2"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "843a98750cd611cc2965a8213b53b43e715f13c37a9e096c6408e69990961db7"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
