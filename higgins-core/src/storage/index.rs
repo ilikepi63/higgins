@@ -1,70 +1,16 @@
-/* Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/***
- * THIS IS NOT MY WORK -> THIS IS BORROWED FROM THE APACHE IGGY PROJECT.
- */
-
 use std::fmt::{self, Debug};
 use std::ops::{Deref, Index as StdIndex};
 
 use bytes::{Buf, BufMut, BytesMut};
 
+mod default;
 pub mod directory;
 mod error;
 mod file;
 mod index_reader;
+use default::Index;
 
 pub use error::IndexError;
-
-pub struct Index {
-    pub offset: u32,
-    pub object_key: [u8; 16],
-    pub position: u32,
-    pub timestamp: u64,
-    pub size: u64,
-}
-
-impl Index {
-    pub fn timestamp(&self) -> u64 {
-        self.timestamp
-    }
-
-    pub fn object_key(&self) -> [u8; 16] {
-        self.object_key
-    }
-
-    pub fn position(&self) -> u32 {
-        self.position
-    }
-
-    pub fn to_bytes(&self) -> BytesMut {
-        let mut buf = BytesMut::with_capacity(INDEX_SIZE);
-
-        buf.put_u32(self.offset);
-        buf.put_slice(&self.object_key);
-        buf.put_u32(self.position);
-        buf.put_u64(self.timestamp);
-        buf.put_u64(self.size);
-
-        buf
-    }
-}
 
 /// A view into a slice of bytes that represent a
 /// packed Index.
@@ -85,11 +31,12 @@ impl Debug for IndexView<'_> {
 
 impl<'a> IndexView<'a> {
     /// Creates a new index view from a byte slice
-    /// Slice must be exactly INDEX_SIZE (16 bytes) long
+    /// Slice must be exactly Index::size() (16 bytes) long
     pub fn new(data: &'a [u8]) -> Self {
         debug_assert!(
-            data.len() == INDEX_SIZE,
-            "Index data must be exactly {INDEX_SIZE} bytes"
+            data.len() == Index::size(),
+            "Index data must be exactly {} bytes",
+            Index::size()
         );
         Self(data)
     }
@@ -141,11 +88,6 @@ impl std::fmt::Display for IndexView<'_> {
         )
     }
 }
-const INDEX_SIZE: usize = std::mem::size_of::<u32>() // offset
-    + std::mem::size_of::<u32>() // position
-    + std::mem::size_of::<u64>() // timestamp
-    + std::mem::size_of::<[u8; 16]>() // object_key
-    + std::mem::size_of::<u64>(); // size
 
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
@@ -201,7 +143,7 @@ impl IndexesMut {
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
         tracing::trace!("Len: {}", self.buffer.len());
-        self.buffer.len() as u32 / INDEX_SIZE as u32
+        self.buffer.len() as u32 / Index::size() as u32
     }
 
     /// Checks if the container is empty
@@ -215,8 +157,8 @@ impl IndexesMut {
             return None;
         }
 
-        let start = index as usize * INDEX_SIZE;
-        let end = start + INDEX_SIZE;
+        let start = index as usize * Index::size();
+        let end = start + Index::size();
 
         if end <= self.buffer.len() {
             Some(IndexView::new(&self.buffer[start..end]))
@@ -232,7 +174,7 @@ impl IndexesMut {
         }
 
         Some(IndexView::new(
-            &self.buffer[(self.count() - 1) as usize * INDEX_SIZE..],
+            &self.buffer[(self.count() - 1) as usize * Index::size()..],
         ))
     }
 
@@ -285,8 +227,8 @@ impl StdIndex<usize> for IndexesMut {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * INDEX_SIZE;
-        let end = start + INDEX_SIZE;
+        let start = index * Index::size();
+        let end = start + Index::size();
         &self.buffer[start..end]
     }
 }
@@ -341,7 +283,7 @@ mod tests {
         size: u64,
     ) -> IndexView<'static> {
         // Use a Vec<u8> to hold the data and leak it to get a 'static lifetime
-        let mut buffer = Vec::with_capacity(INDEX_SIZE);
+        let mut buffer = Vec::with_capacity(Index::size());
         buffer.extend_from_slice(&offset.to_be_bytes());
         buffer.extend_from_slice(&object_key);
         buffer.extend_from_slice(&position.to_be_bytes());
@@ -358,7 +300,7 @@ mod tests {
         timestamp: u64,
         size: u64,
     ) -> BytesMut {
-        let mut buffer = BytesMut::with_capacity(INDEX_SIZE);
+        let mut buffer = BytesMut::with_capacity(Index::size());
         buffer.put_u32(offset);
         buffer.put_slice(&object_key);
         buffer.put_u32(position);
@@ -497,6 +439,6 @@ mod tests {
         assert_eq!(view.timestamp(), 1000);
 
         let deref_slice: &[u8] = &indexes;
-        assert_eq!(deref_slice.len(), INDEX_SIZE);
+        assert_eq!(deref_slice.len(), Index::size());
     }
 }
