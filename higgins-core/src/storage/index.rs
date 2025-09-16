@@ -152,8 +152,8 @@ const INDEX_SIZE: usize = std::mem::size_of::<u32>() // offset
 #[derive(Default)]
 pub struct IndexesMut {
     buffer: BytesMut,
-    saved_count: u32,
-    base_position: u32,
+    // saved_count: u32,
+    // base_position: u32,
 }
 
 impl IndexesMut {
@@ -161,65 +161,22 @@ impl IndexesMut {
     pub fn empty() -> Self {
         Self {
             buffer: BytesMut::new(),
-            saved_count: 0,
-            base_position: 0,
+            // saved_count: 0,
+            // base_position: 0,
         }
     }
 
     /// Creates indexes from bytes
-    pub fn from_bytes(indexes: BytesMut, base_position: u32) -> Self {
+    pub fn from_bytes(indexes: BytesMut) -> Self {
         Self {
             buffer: indexes,
-            saved_count: 0,
-            base_position,
+            // saved_count: 0,
+            // base_position,
         }
-    }
-
-    /// Decompose the container into its components
-    pub fn decompose(mut self) -> (u32, BytesMut) {
-        let base_position = self.base_position;
-        let buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
-        (base_position, buffer)
-    }
-
-    /// Gets the size of all indexes messages
-    pub fn messages_size(&self) -> u32 {
-        self.last_position() - self.base_position
-    }
-
-    /// Gets the base position of the indexes
-    pub fn base_position(&self) -> u32 {
-        self.base_position
-    }
-
-    /// Sets the base position of the indexes
-    pub fn set_base_position(&mut self, base_position: u32) {
-        self.base_position = base_position;
-    }
-
-    /// Helper method to get the last index position
-    pub fn last_position(&self) -> u32 {
-        self.count()
-            .checked_sub(1)
-            .and_then(|index| self.get(index).map(|index_view| index_view.position()))
-            .unwrap_or(0)
-    }
-
-    /// Creates a new container with the specified capacity
-    pub fn with_capacity(capacity: usize, base_position: u32) -> Self {
-        Self {
-            buffer: BytesMut::with_capacity(capacity * INDEX_SIZE),
-            saved_count: 0,
-            base_position,
-        }
-    }
-
-    /// Gets the capacity of the buffer
-    pub fn capacity(&self) -> usize {
-        self.buffer.capacity()
     }
 
     /// Inserts a new index at the end of buffer
+    #[cfg(test)]
     pub fn insert(
         &mut self,
         offset: u32,
@@ -236,24 +193,20 @@ impl IndexesMut {
     }
 
     /// Appends another slice of indexes to this one.
+    #[cfg(test)]
     pub fn append_slice(&mut self, other: &[u8]) {
         self.buffer.put_slice(other);
     }
 
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
-        println!("Len: {}", self.buffer.len());
+        tracing::trace!("Len: {}", self.buffer.len());
         self.buffer.len() as u32 / INDEX_SIZE as u32
     }
 
     /// Checks if the container is empty
     pub fn is_empty(&self) -> bool {
         self.count() == 0
-    }
-
-    /// Gets the size of the buffer in bytes
-    pub fn size(&self) -> u32 {
-        self.buffer.len() as u32
     }
 
     /// Gets a view of the Index at the specified index
@@ -270,24 +223,6 @@ impl IndexesMut {
         } else {
             None
         }
-    }
-
-    // Set the offset at the given index position
-    pub fn set_offset_at(&mut self, index: u32, offset: u32) {
-        let pos = index as usize * INDEX_SIZE;
-        self.buffer[pos..pos + 4].copy_from_slice(&offset.to_be_bytes());
-    }
-
-    // Set the position at the given index
-    pub fn set_position_at(&mut self, index: u32, position: u32) {
-        let pos = (index as usize * INDEX_SIZE) + 4 + 16;
-        self.buffer[pos..pos + 4].copy_from_slice(&position.to_be_bytes());
-    }
-
-    // Set the timestamp at the given index
-    pub fn set_timestamp_at(&mut self, index: u32, timestamp: u64) {
-        let pos = (index as usize * INDEX_SIZE) + 4 + 4 + 16;
-        self.buffer[pos..pos + 8].copy_from_slice(&timestamp.to_be_bytes());
     }
 
     /// Gets a last index
@@ -345,122 +280,7 @@ impl IndexesMut {
 
         result
     }
-
-    /// Clears the container, removing all indexes but preserving already allocated buffer capacity
-    pub fn clear(&mut self) {
-        self.saved_count = 0;
-        self.buffer.clear();
-    }
-
-    /// Gets the number of unsaved indexes
-    pub fn unsaved_count(&self) -> u32 {
-        self.count().saturating_sub(self.saved_count)
-    }
-
-    /// Gets the unsaved part of the index buffer
-    pub fn unsaved_slice(&self) -> &[u8] {
-        let start_pos = self.saved_count as usize * INDEX_SIZE;
-        &self.buffer[start_pos..]
-    }
-
-    /// Mark all indexes as saved to disk
-    pub fn mark_saved(&mut self) {
-        self.saved_count = self.count();
-    }
-
-    /// Slices the container to return a view of a specific range of indexes
-    pub fn slice_by_offset(&self, relative_start_offset: u32, count: u32) -> Option<IndexesMut> {
-        let available_count = self.count().saturating_sub(relative_start_offset);
-        let actual_count = std::cmp::min(count, available_count);
-
-        if actual_count == 0 || relative_start_offset >= self.count() {
-            return None;
-        }
-
-        let end_pos = relative_start_offset + actual_count;
-
-        let start_byte = relative_start_offset as usize * INDEX_SIZE;
-        let end_byte = end_pos as usize * INDEX_SIZE;
-        let slice = BytesMut::from(&self.buffer[start_byte..end_byte]);
-
-        if relative_start_offset == 0 {
-            Some(IndexesMut::from_bytes(slice, self.base_position))
-        } else {
-            let position_offset = self.get(relative_start_offset - 1).unwrap().position();
-            Some(IndexesMut::from_bytes(slice, position_offset))
-        }
-    }
-
-    /// Loads indexes from cache based on timestamp
-    pub fn slice_by_timestamp(&self, timestamp: u64, count: u32) -> Option<IndexesMut> {
-        if self.count() == 0 {
-            return None;
-        }
-
-        let start_index_pos = self.binary_search_position_for_timestamp_sync(timestamp)?;
-
-        let available_count = self.count().saturating_sub(start_index_pos);
-        let actual_count = std::cmp::min(count, available_count);
-
-        if actual_count == 0 {
-            return None;
-        }
-
-        let end_pos = start_index_pos + actual_count;
-
-        let start_byte = start_index_pos as usize * INDEX_SIZE;
-        let end_byte = end_pos as usize * INDEX_SIZE;
-        let slice = BytesMut::from(&self.buffer[start_byte..end_byte]);
-
-        let base_position = if start_index_pos > 0 {
-            self.get(start_index_pos - 1).unwrap().position()
-        } else {
-            0
-        };
-
-        Some(IndexesMut::from_bytes(slice, base_position))
-    }
-
-    /// Find the position of the index with timestamp closest to (but not exceeding) the target
-    fn binary_search_position_for_timestamp_sync(&self, target_timestamp: u64) -> Option<u32> {
-        if self.count() == 0 {
-            return None;
-        }
-
-        let last_index = self.get(self.count() - 1)?;
-        if target_timestamp > last_index.timestamp() {
-            return Some(self.count() - 1);
-        }
-
-        let first_index = self.get(0)?;
-        if target_timestamp <= first_index.timestamp() {
-            return Some(0);
-        }
-
-        let mut low = 0;
-        let mut high = self.count() - 1;
-
-        while low <= high {
-            let mid = low + (high - low) / 2;
-            let mid_index = self.get(mid)?;
-            let mid_timestamp = mid_index.timestamp();
-
-            match mid_timestamp.cmp(&target_timestamp) {
-                std::cmp::Ordering::Equal => return Some(mid),
-                std::cmp::Ordering::Less => low = mid + 1,
-                std::cmp::Ordering::Greater => {
-                    if mid == 0 {
-                        break;
-                    }
-                    high = mid - 1;
-                }
-            }
-        }
-
-        Some(low)
-    }
 }
-
 impl StdIndex<usize> for IndexesMut {
     type Output = [u8];
 
@@ -584,19 +404,8 @@ mod tests {
         let indexes = IndexesMut::empty();
         assert_eq!(indexes.count(), 0);
         assert!(indexes.is_empty());
-        assert_eq!(indexes.size(), 0);
-        assert_eq!(indexes.base_position(), 0);
-        assert_eq!(indexes.last_position(), 0);
         assert!(indexes.get(0).is_none());
         assert!(indexes.last().is_none());
-    }
-
-    #[test]
-    fn test_indexes_mut_with_capacity() {
-        let indexes = IndexesMut::with_capacity(10, 100);
-        assert_eq!(indexes.capacity(), 10 * INDEX_SIZE);
-        assert_eq!(indexes.base_position(), 100);
-        assert_eq!(indexes.count(), 0);
     }
 
     #[test]
@@ -606,7 +415,6 @@ mod tests {
         indexes.insert(2, [0; 16], 200, 1234567891, 1);
 
         assert_eq!(indexes.count(), 2);
-        assert_eq!(indexes.size(), 2 * INDEX_SIZE as u32);
         assert!(!indexes.is_empty());
 
         let view1 = indexes.get(0).unwrap();
@@ -620,21 +428,6 @@ mod tests {
         assert_eq!(view2.timestamp(), 1234567891);
 
         assert!(indexes.get(2).is_none());
-    }
-
-    #[test]
-    fn test_indexes_mut_set_methods() {
-        let mut indexes = IndexesMut::empty();
-        indexes.insert(1, [0; 16], 100, 1234567890, 1);
-
-        indexes.set_offset_at(0, 10);
-        indexes.set_position_at(0, 200);
-        indexes.set_timestamp_at(0, 9876543210);
-
-        let view = indexes.get(0).unwrap();
-        assert_eq!(view.offset(), 10);
-        assert_eq!(view.position(), 200);
-        assert_eq!(view.timestamp(), 9876543210);
     }
 
     #[test]
@@ -690,89 +483,6 @@ mod tests {
         // Empty indexes
         let empty = IndexesMut::empty();
         assert!(empty.find_by_timestamp(1000).is_none());
-    }
-
-    #[test]
-    fn test_indexes_mut_slice_by_offset() {
-        let mut indexes = IndexesMut::with_capacity(3, 100);
-        indexes.insert(1, [0; 16], 100, 1000, 1);
-        indexes.insert(2, [0; 16], 200, 2000, 1);
-        indexes.insert(3, [0; 16], 300, 3000, 1);
-
-        // Valid slice
-        let slice = indexes.slice_by_offset(1, 2).unwrap();
-        assert_eq!(slice.count(), 2);
-        assert_eq!(slice.base_position(), 100);
-        let view = slice.get(0).unwrap();
-        assert_eq!(view.offset(), 2);
-        assert_eq!(view.position(), 200);
-
-        // Invalid offset
-        assert!(indexes.slice_by_offset(4, 1).is_none());
-
-        // Zero count
-        assert!(indexes.slice_by_offset(1, 0).is_none());
-    }
-
-    #[test]
-    fn test_indexes_mut_slice_by_timestamp() {
-        let mut indexes = IndexesMut::with_capacity(3, 100);
-        indexes.insert(1, [0; 16], 100, 1000, 1);
-        indexes.insert(2, [0; 16], 200, 2000, 1);
-        indexes.insert(3, [0; 16], 300, 3000, 1);
-
-        // Valid slice
-        let slice = indexes.slice_by_timestamp(1500, 2).unwrap();
-        assert_eq!(slice.count(), 2);
-        assert_eq!(slice.base_position(), 100);
-        let view = slice.get(0).unwrap();
-        assert_eq!(view.timestamp(), 2000);
-
-        // Timestamp after last
-        let slice = indexes.slice_by_timestamp(3500, 1).unwrap();
-        assert_eq!(slice.count(), 1);
-        assert_eq!(slice.get(0).unwrap().timestamp(), 3000);
-
-        // Empty indexes
-        let empty = IndexesMut::empty();
-        assert!(empty.slice_by_timestamp(1000, 1).is_none());
-    }
-
-    #[test]
-    fn test_indexes_mut_clear() {
-        let mut indexes = IndexesMut::with_capacity(2, 100);
-        indexes.insert(1, [0; 16], 100, 1000, 1);
-        indexes.insert(2, [0; 16], 200, 2000, 1);
-
-        indexes.clear();
-        assert_eq!(indexes.count(), 0);
-        assert!(indexes.is_empty());
-        assert_eq!(indexes.capacity(), 2 * INDEX_SIZE);
-        assert_eq!(indexes.base_position(), 100);
-    }
-
-    #[test]
-    fn test_indexes_mut_unsaved() {
-        let mut indexes = IndexesMut::empty();
-        indexes.insert(1, [0; 16], 100, 1000, 1);
-        indexes.insert(2, [0; 16], 200, 2000, 1);
-
-        assert_eq!(indexes.unsaved_count(), 2);
-        assert_eq!(indexes.unsaved_slice().len(), 2 * INDEX_SIZE);
-
-        indexes.mark_saved();
-        assert_eq!(indexes.unsaved_count(), 0);
-        assert_eq!(indexes.unsaved_slice().len(), 0);
-    }
-
-    #[test]
-    fn test_indexes_mut_decompose() {
-        let mut indexes = IndexesMut::with_capacity(1, 100);
-        indexes.insert(1, [0; 16], 100, 1000, 1);
-
-        let (base_position, buffer) = indexes.decompose();
-        assert_eq!(base_position, 100);
-        assert_eq!(buffer.len(), INDEX_SIZE);
     }
 
     #[test]
