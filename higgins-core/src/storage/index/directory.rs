@@ -1,6 +1,8 @@
 use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::IndexError;
+use super::IndexesMut;
+use super::file::IndexFile;
 
 use super::default::DefaultIndex;
 use riskless::{
@@ -12,7 +14,7 @@ use riskless::{
 };
 use tokio::io::AsyncWriteExt;
 
-use crate::storage::index::index_reader::load_all_indexes_from_disk;
+// use crate::storage::index::index_reader::load_all_indexes_from_disk;
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
@@ -82,9 +84,10 @@ impl IndexDirectory {
             .open(&index_file_path)
             .unwrap();
 
-        let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
-            .await
-            .unwrap();
+        let index_file = IndexFile::new(&index_file_path).unwrap();
+        let indexes = IndexesMut {
+            buffer: index_file.as_slice(),
+        };
 
         let index = indexes.find_by_timestamp(timestamp);
 
@@ -160,9 +163,10 @@ impl IndexDirectory {
             .open(&index_file_path)
             .unwrap();
 
-        let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
-            .await
-            .unwrap();
+        let index_file = IndexFile::new(&index_file_path).unwrap();
+        let indexes = IndexesMut {
+            buffer: index_file.as_slice(),
+        };
 
         let index = indexes.last();
 
@@ -251,9 +255,10 @@ impl CommitFile for IndexDirectory {
                 .open(&index_file_path)
                 .unwrap();
 
-            let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
-                .await
-                .unwrap();
+            let index_file = IndexFile::new(&index_file_path).unwrap();
+            let indexes = IndexesMut {
+                buffer: index_file.as_slice(),
+            };
 
             let offset = indexes.count() + 1;
             let position = batch.byte_offset;
@@ -321,9 +326,10 @@ impl FindBatches for IndexDirectory {
                 .open(&index_file_path)
                 .unwrap();
 
-            let indexes = load_all_indexes_from_disk(index_file_path, Arc::new(read_file))
-                .await
-                .unwrap();
+            let index_file = IndexFile::new(&index_file_path).unwrap();
+            let indexes = IndexesMut {
+                buffer: index_file.as_slice(),
+            };
 
             tracing::info!("Reading at offset: {}", 0);
 
