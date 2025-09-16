@@ -48,7 +48,11 @@ impl IndexDirectory {
         )
     }
 
-    pub fn index_file_from_stream_and_partition(&self, stream: String, partition: &[u8]) -> String {
+    pub fn index_file_name_from_stream_and_partition(
+        &self,
+        stream: String,
+        partition: &[u8],
+    ) -> String {
         let mut topic_dir = self.create_topic_dir(&stream);
 
         let index_file_path = Self::index_file_path_from_partition(partition);
@@ -71,7 +75,7 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+        let index_file_path = self.index_file_name_from_stream_and_partition(stream_str, partition);
 
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
@@ -145,7 +149,7 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+        let index_file_path = self.index_file_name_from_stream_and_partition(stream_str, partition);
 
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
@@ -229,7 +233,7 @@ impl CommitFile for IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
+            let index_file_path = self.index_file_name_from_stream_and_partition(topic, &partition);
 
             let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
             let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
@@ -292,7 +296,7 @@ impl FindBatches for IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
+            let index_file_path = self.index_file_name_from_stream_and_partition(topic, &partition);
 
             tracing::info!("Reading metadata for file : {index_file_path}");
 
