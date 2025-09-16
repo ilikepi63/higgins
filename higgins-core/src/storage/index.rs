@@ -1,42 +1,29 @@
 use std::fmt::{self, Debug};
 use std::ops::{Deref, Index as StdIndex};
 
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut as _, BytesMut};
 
 mod default;
 pub mod directory;
 mod error;
 mod file;
 mod index_reader;
-use default::Index;
+use default::DefaultIndex;
 
 pub use error::IndexError;
 
 /// A view into a slice of bytes that represent a
-/// packed Index.
-///
+/// packed DefaultIndex.
 pub struct IndexView<'a>(&'a [u8]);
-
-impl Debug for IndexView<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("IndexView")
-            .field("offset", &self.offset())
-            .field("object_key", &self.object_key())
-            .field("position", &self.position())
-            .field("timestamp", &self.timestamp())
-            .field("size", &self.size())
-            .finish()
-    }
-}
 
 impl<'a> IndexView<'a> {
     /// Creates a new index view from a byte slice
-    /// Slice must be exactly Index::size() (16 bytes) long
+    /// Slice must be exactly DefaultIndex::size() (16 bytes) long
     pub fn new(data: &'a [u8]) -> Self {
         debug_assert!(
-            data.len() == Index::size(),
-            "Index data must be exactly {} bytes",
-            Index::size()
+            data.len() == DefaultIndex::size(),
+            "DefaultIndex data must be exactly {} bytes",
+            DefaultIndex::size()
         );
         Self(data)
     }
@@ -65,8 +52,8 @@ impl<'a> IndexView<'a> {
         buf.get_u64()
     }
 
-    pub fn to_index(self) -> Index {
-        Index {
+    pub fn to_index(self) -> DefaultIndex {
+        DefaultIndex {
             offset: self.offset(),
             position: self.position(),
             object_key: self.object_key(),
@@ -143,7 +130,7 @@ impl IndexesMut {
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
         tracing::trace!("Len: {}", self.buffer.len());
-        self.buffer.len() as u32 / Index::size() as u32
+        self.buffer.len() as u32 / DefaultIndex::size() as u32
     }
 
     /// Checks if the container is empty
@@ -151,14 +138,14 @@ impl IndexesMut {
         self.count() == 0
     }
 
-    /// Gets a view of the Index at the specified index
+    /// Gets a view of the DefaultIndex at the specified index
     pub fn get(&self, index: u32) -> Option<IndexView> {
         if index >= self.count() {
             return None;
         }
 
-        let start = index as usize * Index::size();
-        let end = start + Index::size();
+        let start = index as usize * DefaultIndex::size();
+        let end = start + DefaultIndex::size();
 
         if end <= self.buffer.len() {
             Some(IndexView::new(&self.buffer[start..end]))
@@ -174,7 +161,7 @@ impl IndexesMut {
         }
 
         Some(IndexView::new(
-            &self.buffer[(self.count() - 1) as usize * Index::size()..],
+            &self.buffer[(self.count() - 1) as usize * DefaultIndex::size()..],
         ))
     }
 
@@ -227,8 +214,8 @@ impl StdIndex<usize> for IndexesMut {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * Index::size();
-        let end = start + Index::size();
+        let start = index * DefaultIndex::size();
+        let end = start + DefaultIndex::size();
         &self.buffer[start..end]
     }
 }
@@ -283,7 +270,7 @@ mod tests {
         size: u64,
     ) -> IndexView<'static> {
         // Use a Vec<u8> to hold the data and leak it to get a 'static lifetime
-        let mut buffer = Vec::with_capacity(Index::size());
+        let mut buffer = Vec::with_capacity(DefaultIndex::size());
         buffer.extend_from_slice(&offset.to_be_bytes());
         buffer.extend_from_slice(&object_key);
         buffer.extend_from_slice(&position.to_be_bytes());
@@ -300,7 +287,7 @@ mod tests {
         timestamp: u64,
         size: u64,
     ) -> BytesMut {
-        let mut buffer = BytesMut::with_capacity(Index::size());
+        let mut buffer = BytesMut::with_capacity(DefaultIndex::size());
         buffer.put_u32(offset);
         buffer.put_slice(&object_key);
         buffer.put_u32(position);
@@ -311,15 +298,15 @@ mod tests {
 
     #[test]
     fn test_index_methods() {
-        let index = Index {
+        let index = DefaultIndex {
             offset: 1,
             position: 100,
             timestamp: 1234567890,
             object_key: [0; 16],
             size: 12,
         };
-        assert_eq!(index.timestamp(), 1234567890);
-        assert_eq!(index.position(), 100);
+        assert_eq!(index.timestamp, 1234567890);
+        assert_eq!(index.position, 100);
     }
 
     #[test]
@@ -337,8 +324,8 @@ mod tests {
         let view = create_index_view(1, [0; 16], 100, 1234567890, 1);
         let index = view.to_index();
         assert_eq!(index.offset, 1);
-        assert_eq!(index.position(), 100);
-        assert_eq!(index.timestamp(), 1234567890);
+        assert_eq!(index.position, 100);
+        assert_eq!(index.timestamp, 1234567890);
     }
 
     #[test]
@@ -439,6 +426,6 @@ mod tests {
         assert_eq!(view.timestamp(), 1000);
 
         let deref_slice: &[u8] = &indexes;
-        assert_eq!(deref_slice.len(), Index::size());
+        assert_eq!(deref_slice.len(), DefaultIndex::size());
     }
 }

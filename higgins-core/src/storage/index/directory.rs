@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc, time::SystemTime};
 
 use super::IndexError;
 
-use super::default::Index;
+use super::default::DefaultIndex;
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -262,7 +262,7 @@ impl CommitFile for IndexDirectory {
                 .unwrap()
                 .as_secs();
 
-            let index = Index {
+            let index = DefaultIndex {
                 offset,
                 object_key,
                 position: position.try_into().unwrap(),
@@ -328,8 +328,6 @@ impl FindBatches for IndexDirectory {
             tracing::info!("Reading at offset: {}", 0);
 
             let index = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
-
-            tracing::info!("Reading index: {:#?}", index);
 
             match index {
                 Some(index) => {
