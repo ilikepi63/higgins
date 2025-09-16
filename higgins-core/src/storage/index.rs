@@ -1,4 +1,5 @@
 use std::fmt::{self, Debug};
+use std::marker::PhantomData;
 use std::ops::{Deref, Index as StdIndex};
 
 #[allow(unused_imports)]
@@ -16,22 +17,28 @@ pub use error::IndexError;
 /// A view into a slice of bytes that represent a
 /// packed DefaultIndex.
 #[derive(Debug)]
-pub struct IndexView<'a>(pub &'a [u8]);
+pub struct IndexView<'a, T> {
+    pub buf: &'a [u8],
+    _t: PhantomData<T>,
+}
 
-impl<'a> IndexView<'a> {
+impl<'a, T> IndexView<'a, T> {
     /// Creates a new index view from a byte slice
-    /// Slice must be exactly DefaultIndex::size() (16 bytes) long
+    /// Slice must be exactly std::mem::size_of::<T>() (16 bytes) long
     pub fn new(data: &'a [u8]) -> Self {
         debug_assert!(
-            data.len() == DefaultIndex::size(),
+            data.len() == std::mem::size_of::<T>(),
             "DefaultIndex data must be exactly {} bytes",
-            DefaultIndex::size()
+            std::mem::size_of::<T>()
         );
-        Self(data)
+        Self {
+            buf: data,
+            _t: PhantomData,
+        }
     }
 
     fn get_archived_index(&self) -> &ArchivedDefaultIndex {
-        let index = rkyv::access::<ArchivedDefaultIndex, rkyv::rancor::Error>(self.0).unwrap();
+        let index = rkyv::access::<ArchivedDefaultIndex, rkyv::rancor::Error>(self.buf).unwrap();
         index
     }
 
@@ -66,7 +73,7 @@ impl<'a> IndexView<'a> {
     }
 }
 
-impl std::fmt::Display for IndexView<'_> {
+impl<T> std::fmt::Display for IndexView<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -82,24 +89,24 @@ impl std::fmt::Display for IndexView<'_> {
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
 #[derive(Default)]
-pub struct IndexesMut<'a> {
+pub struct IndexesMut<'a, T> {
     buffer: &'a [u8],
+    _t: PhantomData<T>,
 }
 
-impl<'a> IndexesMut<'a> {
+impl<'a, T> IndexesMut<'a, T> {
     /// Creates a new empty container
     pub fn empty() -> Self {
         Self {
             buffer: &[0; 0],
-            // saved_count: 0,
-            // base_position: 0,
+            _t: PhantomData,
         }
     }
 
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
         tracing::trace!("Len: {}", self.buffer.len());
-        self.buffer.len() as u32 / DefaultIndex::size() as u32
+        self.buffer.len() as u32 / std::mem::size_of::<T>() as u32
     }
 
     /// Checks if the container is empty
@@ -108,13 +115,13 @@ impl<'a> IndexesMut<'a> {
     }
 
     /// Gets a view of the DefaultIndex at the specified index
-    pub fn get(&self, index: u32) -> Option<IndexView> {
+    pub fn get(&self, index: u32) -> Option<IndexView<T>> {
         if index >= self.count() {
             return None;
         }
 
-        let start = index as usize * DefaultIndex::size();
-        let end = start + DefaultIndex::size();
+        let start = index as usize * std::mem::size_of::<T>();
+        let end = start + std::mem::size_of::<T>();
 
         if end <= self.buffer.len() {
             Some(IndexView::new(&self.buffer[start..end]))
@@ -124,20 +131,20 @@ impl<'a> IndexesMut<'a> {
     }
 
     /// Gets a last index
-    pub fn last(&self) -> Option<IndexView> {
+    pub fn last(&self) -> Option<IndexView<T>> {
         if self.count() == 0 {
             return None;
         }
 
         Some(IndexView::new(
-            &self.buffer[(self.count() - 1) as usize * DefaultIndex::size()..],
+            &self.buffer[(self.count() - 1) as usize * std::mem::size_of::<T>()..],
         ))
     }
 
     /// Finds an index by timestamp using binary search
     /// If an exact match isn't found, returns the index with the nearest timestamp
     /// that is greater than or equal to the requested timestamp
-    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<IndexView> {
+    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<IndexView<T>> {
         if self.count() == 0 {
             return None;
         }
@@ -154,7 +161,7 @@ impl<'a> IndexesMut<'a> {
 
         let mut left = 0;
         let mut right = self.count() as isize - 1;
-        let mut result: Option<IndexView> = None;
+        let mut result: Option<IndexView<T>> = None;
 
         while left <= right {
             let mid = left + (right - left) / 2;
@@ -179,17 +186,17 @@ impl<'a> IndexesMut<'a> {
         result
     }
 }
-impl<'a> StdIndex<usize> for IndexesMut<'a> {
+impl<'a, T> StdIndex<usize> for IndexesMut<'a, T> {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * DefaultIndex::size();
-        let end = start + DefaultIndex::size();
+        let start = index * std::mem::size_of::<T>();
+        let end = start + std::mem::size_of::<T>();
         &self.buffer[start..end]
     }
 }
 
-impl<'a> Deref for IndexesMut<'a> {
+impl<'a, T> Deref for IndexesMut<'a, T> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -197,7 +204,7 @@ impl<'a> Deref for IndexesMut<'a> {
     }
 }
 
-impl<'a> fmt::Debug for IndexesMut<'a> {
+impl<'a, T> fmt::Debug for IndexesMut<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let count = self.count();
 
@@ -237,9 +244,9 @@ mod tests {
         position: u32,
         timestamp: u64,
         size: u64,
-    ) -> IndexView<'static> {
+    ) -> IndexView<'static, DefaultIndex> {
         // Use a Vec<u8> to hold the data and leak it to get a 'static lifetime
-        let mut buffer = Vec::with_capacity(DefaultIndex::size());
+        let mut buffer = Vec::with_capacity(std::mem::size_of::<DefaultIndex>());
         buffer.extend_from_slice(&offset.to_be_bytes());
         buffer.extend_from_slice(&object_key);
         buffer.extend_from_slice(&position.to_be_bytes());
@@ -256,7 +263,7 @@ mod tests {
         timestamp: u64,
         size: u64,
     ) -> BytesMut {
-        let mut buffer = BytesMut::with_capacity(DefaultIndex::size());
+        let mut buffer = BytesMut::with_capacity(std::mem::size_of::<DefaultIndex>());
         buffer.put_u32(offset);
         buffer.put_slice(&object_key);
         buffer.put_u32(position);
@@ -282,7 +289,7 @@ mod tests {
     fn test_index_view_new() {
         let buffer = make_index_buffer(1, [0; 16], 100, 1234567890, 1);
 
-        let view = IndexView::new(&buffer[..]);
+        let view: IndexView<'_, DefaultIndex> = IndexView::new(&buffer[..]);
         assert_eq!(view.offset(), 1);
         assert_eq!(view.position(), 100);
         assert_eq!(view.timestamp(), 1234567890);
@@ -299,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_indexes_mut_empty() {
-        let indexes = IndexesMut::empty();
+        let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut::empty();
         assert_eq!(indexes.count(), 0);
         assert!(indexes.is_empty());
         assert!(indexes.get(0).is_none());
@@ -395,7 +402,7 @@ mod tests {
     //         assert_eq!(view.timestamp(), 1000);
 
     //         let deref_slice: &[u8] = &indexes;
-    //         assert_eq!(deref_slice.len(), DefaultIndex::size());
+    //         assert_eq!(deref_slice.len(), std::mem::size_of::<T>());
     //     }
     // }
 }

@@ -1,16 +1,17 @@
 use super::IndexError;
 use memmap2::MmapMut;
-use std::io::Write as _;
+use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
-pub struct IndexFile {
+pub struct IndexFile<T> {
     // path: String,
     // file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
+    _t: PhantomData<T>,
 }
 
-impl IndexFile {
+impl<T> IndexFile<T> {
     /// Create an instance from a path variable.
     pub fn new(path: &str) -> Result<Self, IndexError> {
         let file_handle = std::fs::OpenOptions::new()
@@ -26,6 +27,7 @@ impl IndexFile {
             // path: path.to_owned(),
             // file_handle,
             mmap,
+            _t: PhantomData,
         })
     }
 
@@ -127,15 +129,16 @@ mod tests {
         ];
         // let (file_path, file) = create_temp_file_with_indexes(indexes);
         let (file_path, _) = create_temp_file();
-        let mut index_file = IndexFile::new(&file_path).unwrap();
+        let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
 
         for index in indexes {
             index_file.append(&index.to_bytes()).unwrap();
         }
 
         // Act
-        let indexes_mut = IndexesMut {
+        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         // Assert
@@ -170,9 +173,10 @@ mod tests {
         let file_name = format!("test_index_empty_{}.bin", rand::random::<u64>());
         let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
         // Act
-        let index_file = IndexFile::new(&file_path).unwrap();
-        let indexes_mut = IndexesMut {
+        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
+        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         // Assert
@@ -203,9 +207,10 @@ mod tests {
         file.flush().unwrap();
 
         // Act
-        let index_file = IndexFile::new(&file_path).unwrap();
-        let indexes_mut = IndexesMut {
+        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
+        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         // Assert
@@ -232,9 +237,10 @@ mod tests {
         file_to_corrupt.flush().unwrap();
 
         // Act
-        let index_file = IndexFile::new(&file_path).unwrap();
-        let indexes_mut = IndexesMut {
+        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
+        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         assert_eq!(
@@ -255,15 +261,16 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (file_path, _) = create_temp_file();
-        let mut index_file = IndexFile::new(&file_path).unwrap();
+        let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
 
         for index in indexes {
             index_file.append(&index.to_bytes()).unwrap();
         }
 
         // Act
-        let indexes_mut = IndexesMut {
+        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         // Assert
