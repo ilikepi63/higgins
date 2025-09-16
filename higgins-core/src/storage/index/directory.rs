@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc, time::SystemTime};
+use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
 use super::IndexesMut;
@@ -12,7 +12,6 @@ use riskless::{
     },
     messages::CommitBatchRequest,
 };
-use tokio::io::AsyncWriteExt;
 
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
@@ -149,11 +148,6 @@ impl IndexDirectory {
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
         }
-
-        let read_file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(&index_file_path)
-            .unwrap();
 
         let index_file = IndexFile::new(&index_file_path).unwrap();
         let indexes = IndexesMut {

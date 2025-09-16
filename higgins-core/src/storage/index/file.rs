@@ -1,12 +1,12 @@
 use super::IndexError;
-use memmap2::{Mmap, MmapMut};
+use memmap2::MmapMut;
 use std::io::Write as _;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
 pub struct IndexFile {
-    path: String,
-    file_handle: std::fs::File,
+    // path: String,
+    // file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
 }
 
@@ -23,8 +23,8 @@ impl IndexFile {
         let mmap = unsafe { MmapMut::map_mut(&file_handle)? };
 
         Ok(Self {
-            path: path.to_owned(),
-            file_handle,
+            // path: path.to_owned(),
+            // file_handle,
             mmap,
         })
     }
@@ -221,7 +221,7 @@ mod tests {
     async fn test_load_all_indexes_corrupted_file() {
         // Arrange: Create a temp file with valid and invalid index data
         let indexes = vec![create_default_index(0, 1000, 1024)];
-        let (file_path, file) = create_temp_file_with_indexes(indexes);
+        let (file_path, _) = create_temp_file_with_indexes(indexes);
         // Append invalid data to simulate corruption
         let mut file_to_corrupt = OpenOptions::new()
             .write(true)

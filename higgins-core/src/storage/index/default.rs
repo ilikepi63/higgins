@@ -1,3 +1,4 @@
+#[allow(unused_imports)] // No idea why this is throwing a warning.
 use bytes::{BufMut as _, BytesMut};
 use rkyv::{Archive, Deserialize, Serialize};
 
