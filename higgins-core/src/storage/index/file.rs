@@ -51,6 +51,20 @@ mod tests {
     use std::path::Path;
     use std::sync::Arc;
 
+    fn create_temp_file() -> (String, Arc<StdFile>) {
+        let temp_dir = std::env::temp_dir();
+        let file_name = format!("test_index_{}.bin", rand::random::<u64>());
+        let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
+
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .read(true)
+            .open(&file_path)
+            .unwrap();
+        (file_path, Arc::new(file))
+    }
+
     // Helper function to create a temporary file with serialized DefaultIndex data
     fn create_temp_file_with_indexes(indexes: Vec<DefaultIndex>) -> (String, Arc<StdFile>) {
         let temp_dir = std::env::temp_dir();
@@ -96,20 +110,35 @@ mod tests {
     async fn test_load_all_indexes_success() {
         // Arrange: Create a temp file with two valid indexes
         let indexes = vec![
-            create_default_index(0, 1000, 1024),
-            create_default_index(512, 2000, 2048),
+            DefaultIndex {
+                offset: 0,
+                object_key: [0u8; 16],
+                position: 0,
+                timestamp: 1000,
+                size: 1024,
+            },
+            DefaultIndex {
+                offset: 512,
+                object_key: [0u8; 16],
+                position: 0,
+                timestamp: 2000,
+                size: 2048,
+            },
         ];
-        let (file_path, file) = create_temp_file_with_indexes(indexes);
+        // let (file_path, file) = create_temp_file_with_indexes(indexes);
+        let (file_path, _) = create_temp_file();
+        let mut index_file = IndexFile::new(&file_path).unwrap();
+
+        for index in indexes {
+            index_file.append(&index.to_bytes()).unwrap();
+        }
 
         // Act
-        let index_file = IndexFile::new(&file_path).unwrap();
         let indexes_mut = IndexesMut {
             buffer: index_file.as_slice(),
         };
 
         // Assert
-        // assert!(result.is_ok(), "Expected successful load, got {:?}", result);
-        // let indexes_mut = result.unwrap();
         assert_eq!(indexes_mut.count(), 2, "Expected 2 indexes");
 
         // Verify the first index
@@ -140,15 +169,6 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let file_name = format!("test_index_empty_{}.bin", rand::random::<u64>());
         let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
-        let file = Arc::new(
-            OpenOptions::new()
-                .write(true)
-                .create(true)
-                .read(true)
-                .open(&file_path)
-                .unwrap(),
-        );
-
         // Act
         let index_file = IndexFile::new(&file_path).unwrap();
         let indexes_mut = IndexesMut {
@@ -156,8 +176,6 @@ mod tests {
         };
 
         // Assert
-        // assert!(result.is_ok(), "Expected successful load, got {:?}", result);
-        // let indexes_mut = result.unwrap();
         assert!(indexes_mut.is_empty(), "Expected empty IndexesMut");
         assert_eq!(indexes_mut.count(), 0, "Expected count to be 0");
 
@@ -183,7 +201,6 @@ mod tests {
         buffer.truncate(DefaultIndex::size() / 2);
         file.write_all(&buffer).unwrap();
         file.flush().unwrap();
-        let file = Arc::new(file);
 
         // Act
         let index_file = IndexFile::new(&file_path).unwrap();
@@ -220,9 +237,6 @@ mod tests {
             buffer: index_file.as_slice(),
         };
 
-        // Assert
-        // assert!(result.is_ok(), "Expected successful load, got {:?}", result);
-        // let indexes_mut = result.unwrap();
         assert_eq!(
             indexes_mut.count(),
             1,
@@ -239,23 +253,21 @@ mod tests {
         let indexes = (0..100)
             .map(|i| create_default_index(i * 512, i as u64 * 1000, 1024))
             .collect::<Vec<_>>();
-        let (file_path, file) = create_temp_file_with_indexes(indexes);
 
-        println!("Size: {:#?}", std::fs::metadata(&file_path));
+        let (file_path, _) = create_temp_file();
+        let mut index_file = IndexFile::new(&file_path).unwrap();
+
+        for index in indexes {
+            index_file.append(&index.to_bytes()).unwrap();
+        }
 
         // Act
-        let index_file = IndexFile::new(&file_path).unwrap();
-
-        println!("Index file size:  {}", index_file.as_slice().len());
-
         let indexes_mut = IndexesMut {
             buffer: index_file.as_slice(),
         };
 
         // Assert
-        // assert!(result.is_ok(), "Expected successful load, got {:?}", result);
-        // let indexes_mut = result.unwrap();
-        // assert_eq!(indexes_mut.count(), 100, "Expected 100 indexes");
+        assert_eq!(indexes_mut.count(), 100, "Expected 100 indexes");
 
         // Verify a few indexes
         for i in 0..100 {
