@@ -1,4 +1,4 @@
-use memmap2::Mmap;
+use memmap2::{Mmap, MmapMut};
 
 use super::IndexError;
 
@@ -7,7 +7,7 @@ use super::IndexError;
 pub struct IndexFile {
     path: String,
     file_handle: std::fs::File,
-    mmap: memmap2::Mmap,
+    mmap: memmap2::MmapMut,
 }
 
 impl IndexFile {
@@ -20,7 +20,7 @@ impl IndexFile {
             .open(&path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrenct executions.
-        let mmap = unsafe { Mmap::map(&file_handle)? };
+        let mmap = unsafe { MmapMut::map_mut(&file_handle)? };
 
         Ok(Self {
             path: path.to_owned(),
