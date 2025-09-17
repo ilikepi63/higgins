@@ -52,6 +52,7 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
     use std::sync::Arc;
+    use crate::storage::index::default::ArchivedDefaultIndex;
 
     fn create_temp_file() -> (String, Arc<StdFile>) {
         let temp_dir = std::env::temp_dir();
@@ -136,7 +137,7 @@ mod tests {
         }
 
         // Act
-        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -147,9 +148,8 @@ mod tests {
         // Verify the first index
         let index_view = indexes_mut.get(0).unwrap();
 
-        println!("Index View: {:#?}", index_view);
         assert_eq!(
-            index_view.timestamp(),
+            index_view.timestamp,
             1000,
             "Incorrect timestamp for first index"
         );
@@ -157,7 +157,7 @@ mod tests {
         // Verify the second index
         let index_view = indexes_mut.get(1).unwrap();
         assert_eq!(
-            index_view.timestamp(),
+            index_view.timestamp,
             2000,
             "Incorrect timestamp for second index"
         );
@@ -174,7 +174,7 @@ mod tests {
         let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
         // Act
         let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
-        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -238,7 +238,7 @@ mod tests {
 
         // Act
         let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
-        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -268,7 +268,7 @@ mod tests {
         }
 
         // Act
-        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -280,7 +280,7 @@ mod tests {
         for i in 0..100 {
             let index_view = indexes_mut.get(i).unwrap();
             assert_eq!(
-                index_view.timestamp(),
+                index_view.timestamp,
                 i as u64 * 1000,
                 "Incorrect timestamp for index {}",
                 i
