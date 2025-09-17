@@ -1,7 +1,8 @@
 use std::fmt::{self, Debug};
 use std::ops::{Deref, Index as StdIndex};
 
-use bytes::{Buf, BufMut as _, BytesMut};
+#[allow(unused_imports)]
+use bytes::BufMut as _;
 use default::ArchivedDefaultIndex;
 
 mod default;
