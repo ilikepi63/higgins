@@ -8,7 +8,6 @@ mod default;
 pub mod directory;
 mod error;
 mod file;
-mod index_reader;
 use default::DefaultIndex;
 
 pub use error::IndexError;
