@@ -305,11 +305,10 @@ impl FindBatches for IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let index_file_path = self.index_file_name_from_stream_and_partition(topic, &partition);
+            let index_file = self
+                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+                .unwrap();
 
-            tracing::info!("Reading metadata for file : {index_file_path}");
-
-            let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
             let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
