@@ -82,13 +82,8 @@ mod tests {
             .unwrap();
         let mut buffer = BytesMut::new();
         for index in indexes {
-            println!(
-                "Extending from slice with index: {:#?}",
-                index.to_bytes().to_vec()
-            );
             buffer.extend_from_slice(&index.to_bytes());
         }
-        println!("Writing to file: {:#?}", buffer.to_vec());
 
         file.write_all(&buffer).unwrap();
         file.flush().unwrap();
@@ -263,8 +258,13 @@ mod tests {
             .collect::<Vec<_>>();
         let (file_path, file) = create_temp_file_with_indexes(indexes);
 
+        println!("Size: {:#?}", std::fs::metadata(&file_path));
+
         // Act
         let index_file = IndexFile::new(&file_path).unwrap();
+
+        println!("Index file size:  {}", index_file.as_slice().len());
+
         let indexes_mut = IndexesMut {
             buffer: index_file.as_slice(),
         };
