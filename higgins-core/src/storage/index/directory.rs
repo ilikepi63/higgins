@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
@@ -75,9 +76,10 @@ impl IndexDirectory {
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
         }
-        let index_file = IndexFile::new(&index_file_path).unwrap();
-        let indexes = IndexesMut {
+        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
+        let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         let index = indexes.find_by_timestamp(timestamp);
@@ -149,9 +151,10 @@ impl IndexDirectory {
             return vec![];
         }
 
-        let index_file = IndexFile::new(&index_file_path).unwrap();
-        let indexes = IndexesMut {
+        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
+        let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
+            _t: PhantomData,
         };
 
         let index = indexes.last();
@@ -228,9 +231,10 @@ impl CommitFile for IndexDirectory {
 
             let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
-            let mut index_file = IndexFile::new(&index_file_path).unwrap();
-            let indexes = IndexesMut {
+            let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
+            let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
+                _t: PhantomData,
             };
 
             let offset = indexes.count() + 1;
@@ -292,9 +296,10 @@ impl FindBatches for IndexDirectory {
 
             tracing::info!("Reading metadata for file : {index_file_path}");
 
-            let index_file = IndexFile::new(&index_file_path).unwrap();
-            let indexes = IndexesMut {
+            let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
+            let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
+                _t: PhantomData,
             };
 
             tracing::info!("Reading at offset: {}", 0);
