@@ -62,6 +62,19 @@ impl IndexDirectory {
         topic_dir.to_string_lossy().to_string()
     }
 
+    /// Retrieves an index file instance given a stream and partition.
+    pub fn index_file_from_stream_and_partition<T>(
+        &self,
+        stream: String,
+        partition: &[u8],
+    ) -> Result<IndexFile<T>, IndexError> {
+        let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
+
+        let index_file: IndexFile<T> = IndexFile::new(&index_file_name)?;
+
+        Ok(index_file)
+    }
+
     /// Retrieves the timestamp before the given one.
     pub async fn get_by_timestamp(
         &self,
@@ -75,12 +88,10 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_name_from_stream_and_partition(stream_str, partition);
+        let index_file = self
+            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+            .unwrap();
 
-        if !std::fs::exists(&index_file_path).unwrap_or(false) {
-            return vec![];
-        }
-        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
         let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
@@ -149,13 +160,10 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_name_from_stream_and_partition(stream_str, partition);
+        let index_file = self
+            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+            .unwrap();
 
-        if !std::fs::exists(&index_file_path).unwrap_or(false) {
-            return vec![];
-        }
-
-        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
         let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
@@ -233,9 +241,10 @@ impl CommitFile for IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let index_file_path = self.index_file_name_from_stream_and_partition(topic, &partition);
+            let mut index_file = self
+                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+                .unwrap();
 
-            let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&index_file_path).unwrap();
             let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
