@@ -1,6 +1,6 @@
-use memmap2::{Mmap, MmapMut};
-
 use super::IndexError;
+use memmap2::{Mmap, MmapMut};
+use std::io::Write as _;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
@@ -31,6 +31,12 @@ impl IndexFile {
 
     pub fn as_slice(&self) -> &[u8] {
         self.mmap.as_ref()
+    }
+
+    pub fn append(&mut self, b: &[u8]) -> Result<(), IndexError> {
+        (&mut self.mmap[..]).write_all(b)?;
+        self.mmap.flush()?;
+        Ok(())
     }
 }
 
