@@ -234,14 +234,6 @@ impl CommitFile for IndexDirectory {
 
             let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
-            let mut file = tokio::fs::OpenOptions::new()
-                .write(true)
-                .append(true)
-                .create(true)
-                .open(&index_file_path)
-                .await
-                .unwrap();
-
             let mut index_file = IndexFile::new(&index_file_path).unwrap();
             let indexes = IndexesMut {
                 buffer: index_file.as_slice(),
