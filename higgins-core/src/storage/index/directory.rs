@@ -14,8 +14,6 @@ use riskless::{
 };
 use tokio::io::AsyncWriteExt;
 
-// use crate::storage::index::index_reader::load_all_indexes_from_disk;
-
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
 pub struct IndexDirectory(pub PathBuf);
@@ -78,12 +76,6 @@ impl IndexDirectory {
         if !std::fs::exists(&index_file_path).unwrap_or(false) {
             return vec![];
         }
-
-        let read_file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(&index_file_path)
-            .unwrap();
-
         let index_file = IndexFile::new(&index_file_path).unwrap();
         let indexes = IndexesMut {
             buffer: index_file.as_slice(),
@@ -250,12 +242,7 @@ impl CommitFile for IndexDirectory {
                 .await
                 .unwrap();
 
-            let read_file = std::fs::OpenOptions::new()
-                .read(true)
-                .open(&index_file_path)
-                .unwrap();
-
-            let index_file = IndexFile::new(&index_file_path).unwrap();
+            let mut index_file = IndexFile::new(&index_file_path).unwrap();
             let indexes = IndexesMut {
                 buffer: index_file.as_slice(),
             };
@@ -278,9 +265,7 @@ impl CommitFile for IndexDirectory {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            file.write_all(&index).await.unwrap();
-
-            file.sync_all().await.unwrap();
+            index_file.append(&index).unwrap();
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 
@@ -320,11 +305,6 @@ impl FindBatches for IndexDirectory {
             let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
 
             tracing::info!("Reading metadata for file : {index_file_path}");
-
-            let read_file = std::fs::OpenOptions::new()
-                .read(true)
-                .open(&index_file_path)
-                .unwrap();
 
             let index_file = IndexFile::new(&index_file_path).unwrap();
             let indexes = IndexesMut {
