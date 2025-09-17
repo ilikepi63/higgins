@@ -1,6 +1,7 @@
 #[allow(unused_imports)] // No idea why this is throwing a warning.
 use bytes::{BufMut as _, BytesMut};
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::storage::index::Timestamped;
 
 /// A default index for us with generic streams.
 #[derive(Archive, Debug, Deserialize, Serialize)]
@@ -23,5 +24,12 @@ impl DefaultIndex {
 
     pub const fn size() -> usize {
         std::mem::size_of::<ArchivedDefaultIndex>()
+    }
+}
+
+
+impl Timestamped for ArchivedDefaultIndex {
+    fn timestamp(&self) -> u64 {
+        self.timestamp.to_native()
     }
 }
