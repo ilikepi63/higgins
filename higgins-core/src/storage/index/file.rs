@@ -34,16 +34,16 @@ impl IndexFile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use super::super::IndexesMut;
+    use super::super::default::DefaultIndex;
     use super::*;
     use bytes::BytesMut;
     use std::fs::{File as StdFile, OpenOptions};
     use std::io::Write;
     use std::path::Path;
     use std::sync::Arc;
-    use tokio::fs;
 
     // Helper function to create a temporary file with serialized DefaultIndex data
     fn create_temp_file_with_indexes(indexes: Vec<DefaultIndex>) -> (String, Arc<StdFile>) {
