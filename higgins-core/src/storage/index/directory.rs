@@ -309,14 +309,16 @@ impl FindBatches for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
+            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let index: Option<&ArchivedDefaultIndex> = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
+            let offset: u32 = offset.try_into().unwrap();
+
+            let index: Option<&ArchivedDefaultIndex> = indexes.get(offset);
 
             match index {
                 Some(index) => {
