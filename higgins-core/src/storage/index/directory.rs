@@ -5,7 +5,7 @@ use super::IndexError;
 use super::IndexesMut;
 use super::file::IndexFile;
 
-use super::default::DefaultIndex;
+use super::default::{ArchivedDefaultIndex, DefaultIndex};
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -92,7 +92,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
+        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -101,7 +101,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -110,8 +110,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
+                        byte_offset: index.position.to_native().into(),
+                        byte_size: index.size.to_native().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -164,7 +164,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
+        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -173,7 +173,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -182,8 +182,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
+                        byte_offset: index.position.to_native().into(),
+                        byte_size: index.size.to_native().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -245,7 +245,7 @@ impl CommitFile for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesMut<'_, DefaultIndex> = IndexesMut {
+            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };
@@ -316,11 +316,11 @@ impl FindBatches for IndexDirectory {
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let index = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
+            let index: Option<&ArchivedDefaultIndex> = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
 
             match index {
                 Some(index) => {
-                    let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                    let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                     tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -329,8 +329,8 @@ impl FindBatches for IndexDirectory {
                         object_key,
                         metadata: BatchMetadata {
                             topic_id_partition,
-                            byte_offset: index.position().into(),
-                            byte_size: index.size().try_into().unwrap(),
+                            byte_offset: index.position.to_native().into(),
+                            byte_size: index.size.to_native().try_into().unwrap(),
                             base_offset: 0,
                             last_offset: 0,
                             log_append_timestamp: 0,
