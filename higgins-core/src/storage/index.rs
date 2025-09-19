@@ -141,7 +141,7 @@ impl<'a, T> Deref for IndexesMut<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::default::{DefaultIndex, ArchivedDefaultIndex};
+    use super::default::{ArchivedDefaultIndex, DefaultIndex};
     use super::*;
 
     #[test]
@@ -157,16 +157,6 @@ mod tests {
         assert_eq!(index.position, 100);
     }
 
-    // #[test]
-    // fn test_index_view_new() {
-    //     let buffer = make_index_buffer(1, [0; 16], 100, 1234567890, 1);
-
-    //     let view: IndexView<'_, DefaultIndex> = IndexView::new(&buffer[..]);
-    //     assert_eq!(view.offset(), 1);
-    //     assert_eq!(view.position(), 100);
-    //     assert_eq!(view.timestamp(), 1234567890);
-    // }
-
     #[test]
     fn test_indexes_mut_empty() {
         let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut::empty();
@@ -175,97 +165,4 @@ mod tests {
         assert!(indexes.get(0).is_none());
         assert!(indexes.last().is_none());
     }
-
-    //     #[test]
-    //     fn test_indexes_mut_insert_and_get() {
-    //         let mut indexes = IndexesMut::empty();
-    //         indexes.insert(1, [0; 16], 100, 1234567890, 1);
-    //         indexes.insert(2, [0; 16], 200, 1234567891, 1);
-
-    //         assert_eq!(indexes.count(), 2);
-    //         assert!(!indexes.is_empty());
-
-    //         let view1 = indexes.get(0).unwrap();
-    //         assert_eq!(view1.offset(), 1);
-    //         assert_eq!(view1.position(), 100);
-    //         assert_eq!(view1.timestamp(), 1234567890);
-
-    //         let view2 = indexes.get(1).unwrap();
-    //         assert_eq!(view2.offset(), 2);
-    //         assert_eq!(view2.position(), 200);
-    //         assert_eq!(view2.timestamp(), 1234567891);
-
-    //         assert!(indexes.get(2).is_none());
-    //     }
-
-    //     #[test]
-    //     fn test_indexes_mut_append_slice() {
-    //         let mut indexes = IndexesMut::empty();
-
-    //         let buffer = make_index_buffer(1, [0; 16], 100, 1234567890, 1);
-
-    //         indexes.append_slice(&buffer[..]);
-    //         assert_eq!(indexes.count(), 1);
-
-    //         let view = indexes.get(0).unwrap();
-    //         assert_eq!(view.offset(), 1);
-    //         assert_eq!(view.position(), 100);
-    //         assert_eq!(view.timestamp(), 1234567890);
-    //     }
-
-    //     #[test]
-    //     fn test_indexes_mut_last() {
-    //         let mut indexes = IndexesMut::empty();
-    //         indexes.insert(1, [0; 16], 100, 1234567890, 1);
-    //         indexes.insert(2, [0; 16], 200, 1234567891, 1);
-
-    //         let last = indexes.last().unwrap();
-    //         assert_eq!(last.offset(), 2);
-    //         assert_eq!(last.position(), 200);
-    //         assert_eq!(last.timestamp(), 1234567891);
-    //     }
-
-    //     #[test]
-    //     fn test_indexes_mut_find_by_timestamp() {
-    //         let mut indexes = IndexesMut::empty();
-    //         indexes.insert(1, [0; 16], 100, 1000, 1);
-    //         indexes.insert(2, [0; 16], 200, 2000, 1);
-    //         indexes.insert(3, [0; 16], 300, 3000, 1);
-    //         indexes.insert(4, [0; 16], 400, 4000, 1);
-
-    //         // Exact match
-    //         let view = indexes.find_by_timestamp(2000).unwrap();
-    //         assert_eq!(view.timestamp(), 2000);
-
-    //         // Find closest greater or equal
-    //         let view = indexes.find_by_timestamp(2500).unwrap();
-    //         assert_eq!(view.timestamp(), 3000);
-
-    //         // Before first
-    //         let view = indexes.find_by_timestamp(500).unwrap();
-    //         assert_eq!(view.timestamp(), 1000);
-
-    //         // After last
-    //         assert!(indexes.find_by_timestamp(5000).is_none());
-
-    //         // Empty indexes
-    //         let empty = IndexesMut::empty();
-    //         assert!(empty.find_by_timestamp(1000).is_none());
-    //     }
-
-    //     #[test]
-    //     fn test_indexes_mut_index_and_deref() {
-    //         let mut indexes = IndexesMut::empty();
-    //         indexes.insert(1, [0; 16], 100, 1000, 1);
-
-    //         let slice = &indexes[0];
-    //         let view = IndexView::new(slice);
-    //         assert_eq!(view.offset(), 1);
-    //         assert_eq!(view.position(), 100);
-    //         assert_eq!(view.timestamp(), 1000);
-
-    //         let deref_slice: &[u8] = &indexes;
-    //         assert_eq!(deref_slice.len(), std::mem::size_of::<T>());
-    //     }
-    // }
 }
