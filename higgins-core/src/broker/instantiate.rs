@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, storage::indexes::IndexDirectory, topography::Topography,
+    client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
     utils::request_response::Request,
 };
 
@@ -56,7 +56,7 @@ impl Broker {
 
         let object_store = object_store_ref.clone();
 
-        let indexes = Arc::new(IndexDirectory::new(index_dir));
+        let indexes = Arc::new(IndexDirectory::new(index_dir).unwrap());
         let indexes_ref = indexes.clone();
 
         let buffer: MutableCollection =

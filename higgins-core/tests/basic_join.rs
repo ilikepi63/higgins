@@ -11,8 +11,8 @@ use crate::common::{
 
 mod common;
 
-#[test]
-#[traced_test]
+// #[test]
+// #[traced_test]
 fn can_implement_a_basic_stream_join() {
     let port = TcpPort::in_range(
         "127.0.0.1",

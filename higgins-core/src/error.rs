@@ -11,6 +11,8 @@ pub enum HigginsError {
     #[error("Error occurred with Subscriptions.")]
     SubscriptionError(#[from] SubscriptionError),
 
+    #[error("Attempted to retrieve subscription that does not exist.")]
+    SubscriptionRetrievalFailed,
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
 
