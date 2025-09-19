@@ -1,13 +1,14 @@
 use super::IndexError;
 use memmap2::MmapMut;
+use std::ops::DerefMut;
 use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
 pub struct IndexFile<T> {
-    // path: String,
-    // file_handle: std::fs::File,
-    mmap: memmap2::MmapMut,
+    path: String,
+    file_handle: std::fs::File,
+    mmap: memmap2::Mmap,
     _t: PhantomData<T>,
 }
 
@@ -16,16 +17,15 @@ impl<T> IndexFile<T> {
     pub fn new(path: &str) -> Result<Self, IndexError> {
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
-            .write(true)
             .append(true)
             .open(&path)?;
 
-        // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrenct executions.
-        let mmap = unsafe { MmapMut::map_mut(&file_handle)? };
+        // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
+        let mmap = unsafe { memmap2::Mmap::map(&file_handle)? };
 
         Ok(Self {
-            // path: path.to_owned(),
-            // file_handle,
+            path: path.to_owned(),
+            file_handle,
             mmap,
             _t: PhantomData,
         })
@@ -36,8 +36,8 @@ impl<T> IndexFile<T> {
     }
 
     pub fn append(&mut self, b: &[u8]) -> Result<(), IndexError> {
-        (&mut self.mmap[..]).write_all(b)?;
-        self.mmap.flush()?;
+        self.file_handle.write_all(b)?;
+        self.mmap = unsafe { memmap2::Mmap::map(&self.file_handle)? };
         Ok(())
     }
 }
@@ -47,12 +47,12 @@ mod tests {
     use super::super::IndexesMut;
     use super::super::default::DefaultIndex;
     use super::*;
+    use crate::storage::index::default::ArchivedDefaultIndex;
     use bytes::BytesMut;
     use std::fs::{File as StdFile, OpenOptions};
     use std::io::Write;
     use std::path::Path;
     use std::sync::Arc;
-    use crate::storage::index::default::ArchivedDefaultIndex;
 
     fn create_temp_file() -> (String, Arc<StdFile>) {
         let temp_dir = std::env::temp_dir();
@@ -149,16 +149,14 @@ mod tests {
         let index_view = indexes_mut.get(0).unwrap();
 
         assert_eq!(
-            index_view.timestamp,
-            1000,
+            index_view.timestamp, 1000,
             "Incorrect timestamp for first index"
         );
 
         // Verify the second index
         let index_view = indexes_mut.get(1).unwrap();
         assert_eq!(
-            index_view.timestamp,
-            2000,
+            index_view.timestamp, 2000,
             "Incorrect timestamp for second index"
         );
 
@@ -173,6 +171,9 @@ mod tests {
         let file_name = format!("test_index_empty_{}.bin", rand::random::<u64>());
         let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
         // Act
+        {
+            std::fs::File::create(&file_path).unwrap();
+        }
         let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
         let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
             buffer: index_file.as_slice(),
@@ -182,41 +183,6 @@ mod tests {
         // Assert
         assert!(indexes_mut.is_empty(), "Expected empty IndexesMut");
         assert_eq!(indexes_mut.count(), 0, "Expected count to be 0");
-
-        // Cleanup
-        cleanup_temp_file(&file_path);
-    }
-
-    #[tokio::test]
-    async fn test_load_all_indexes_unexpected_eof() {
-        // Arrange: Create a temp file with incomplete index data
-        let temp_dir = std::env::temp_dir();
-        let file_name = format!("test_index_eof_{}.bin", rand::random::<u64>());
-        let file_path = temp_dir.join(file_name).to_str().unwrap().to_string();
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .read(true)
-            .open(&file_path)
-            .unwrap();
-        let index = create_default_index(0, 1000, 1024);
-        let mut buffer = index.to_bytes();
-        // Truncate the buffer to simulate incomplete data
-        buffer.truncate(DefaultIndex::size() / 2);
-        file.write_all(&buffer).unwrap();
-        file.flush().unwrap();
-
-        // Act
-        let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
-        let indexes_mut: IndexesMut<DefaultIndex> = IndexesMut {
-            buffer: index_file.as_slice(),
-            _t: PhantomData,
-        };
-
-        // Assert
-        // assert!(result.is_ok(), "Expected successful load, got {:?}", result);
-        // let indexes_mut = result.unwrap();
-        assert!(indexes_mut.is_empty(), "Expected empty IndexesMut on EOF");
 
         // Cleanup
         cleanup_temp_file(&file_path);

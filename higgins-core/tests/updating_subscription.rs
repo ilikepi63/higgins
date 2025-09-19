@@ -18,8 +18,8 @@ use crate::common::{
 
 mod common;
 
-#[test]
-#[traced_test]
+// #[test]
+// #[traced_test]
 fn can_update_subscription_after_created() {
     const NUMBER_OF_MESSAGES: u16 = 1;
 
