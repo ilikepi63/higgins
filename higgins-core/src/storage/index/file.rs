@@ -161,6 +161,93 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_iterative_append_record() {
+        // Arrange: Create a temp file with two valid indexes
+        let first_index = DefaultIndex {
+            offset: 0,
+            object_key: [0u8; 16],
+            position: 0,
+            timestamp: 1000,
+            size: 1024,
+        };
+        let second_index = DefaultIndex {
+            offset: 512,
+            object_key: [0u8; 16],
+            position: 0,
+            timestamp: 2000,
+            size: 2048,
+        };
+        // let (file_path, file) = create_temp_file_with_indexes(indexes);
+        let (file_path, _) = create_temp_file();
+        let mut index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
+
+        index_file.append(&first_index.to_bytes()).unwrap();
+
+        // Act
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+            buffer: index_file.as_slice(),
+            _t: PhantomData,
+        };
+
+        // Assert
+        assert_eq!(indexes_mut.count(), 1);
+
+        let first_index_archived = indexes_mut.get(0).unwrap();
+
+        assert_eq!(
+            (
+                first_index_archived.object_key,
+                first_index_archived.offset.to_native(),
+                first_index_archived.position.to_native(),
+                first_index_archived.size.to_native(),
+                first_index_archived.timestamp.to_native()
+            ),
+            (
+                first_index.object_key,
+                first_index.offset,
+                first_index.position,
+                first_index.size,
+                first_index.timestamp
+            )
+        );
+
+        drop(indexes_mut);
+
+        // Act
+        index_file.append(&second_index.to_bytes()).unwrap();
+
+        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+            buffer: index_file.as_slice(),
+            _t: PhantomData,
+        };
+
+        // Assert
+        assert_eq!(indexes_mut.count(), 2);
+
+        let second_index_archived = indexes_mut.get(1).unwrap();
+
+        assert_eq!(
+            (
+                second_index_archived.object_key,
+                second_index_archived.offset.to_native(),
+                second_index_archived.position.to_native(),
+                second_index_archived.size.to_native(),
+                second_index_archived.timestamp.to_native()
+            ),
+            (
+                second_index.object_key,
+                second_index.offset,
+                second_index.position,
+                second_index.size,
+                second_index.timestamp
+            )
+        );
+
+        // Cleanup
+        cleanup_temp_file(&file_path);
+    }
+
+    #[tokio::test]
     async fn test_load_all_indexes_empty_file() {
         // Arrange: Create an empty temp file
         let temp_dir = std::env::temp_dir();

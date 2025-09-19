@@ -40,7 +40,8 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
 
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
-        tracing::trace!("Len: {}", self.buffer.len());
+        println!("Len: {}", self.buffer.len());
+        println!("Size: {}", size_of::<T>());
         self.buffer.len() as u32 / size_of::<T>() as u32
     }
 
