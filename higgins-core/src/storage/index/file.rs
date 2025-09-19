@@ -1,12 +1,9 @@
 use super::IndexError;
-use memmap2::MmapMut;
-use std::ops::DerefMut;
 use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
 pub struct IndexFile<T> {
-    path: String,
     file_handle: std::fs::File,
     mmap: memmap2::Mmap,
     _t: PhantomData<T>,
@@ -24,7 +21,6 @@ impl<T> IndexFile<T> {
         let mmap = unsafe { memmap2::Mmap::map(&file_handle)? };
 
         Ok(Self {
-            path: path.to_owned(),
             file_handle,
             mmap,
             _t: PhantomData,
