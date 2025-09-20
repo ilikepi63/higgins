@@ -15,85 +15,9 @@ use default::DefaultIndex;
 pub use error::IndexError;
 use rkyv::{Archive, Deserialize, Portable};
 
-
 pub trait Timestamped {
     fn timestamp(&self) -> u64;
 }
-
-/// A view into a slice of bytes that represent a
-/// packed DefaultIndex.
-// #[derive(Debug)]
-// pub struct IndexView<'a, T> {
-    // pub buf: &'a [u8],
-    // _t: PhantomData<T>,
-// }
-
-
-
-// impl<'a, T> IndexView<'a, T> {
-//     /// Creates a new index view from a byte slice
-//     /// Slice must be exactly std::mem::size_of::<T>() (16 bytes) long
-//     pub fn new(data: &'a [u8]) -> Self {
-//         debug_assert!(
-//             data.len() == std::mem::size_of::<T>(),
-//             "DefaultIndex data must be exactly {} bytes",
-//             std::mem::size_of::<T>()
-//         );
-//         Self {
-//             buf: data,
-//             _t: PhantomData,
-//         }
-//     }
-
-//     fn get_archived_index(&self) -> &ArchivedDefaultIndex {
-//         let index = rkyv::access::<ArchivedDefaultIndex, rkyv::rancor::Error>(self.buf).unwrap();
-//         index
-//     }
-
-//     pub fn offset(&self) -> u32 {
-//         self.get_archived_index().offset.into()
-//     }
-
-//     pub fn object_key(&self) -> [u8; 16] {
-//         self.get_archived_index().object_key.into()
-//     }
-
-//     pub fn position(&self) -> u32 {
-//         self.get_archived_index().position.into()
-//     }
-
-//     pub fn timestamp(&self) -> u64 {
-//         self.get_archived_index().timestamp.into()
-//     }
-
-//     pub fn size(&self) -> u64 {
-//         self.get_archived_index().size.into()
-//     }
-
-//     pub fn to_index(self) -> DefaultIndex {
-//         DefaultIndex {
-//             offset: self.offset(),
-//             position: self.position(),
-//             object_key: self.object_key(),
-//             timestamp: self.timestamp(),
-//             size: self.size(),
-//         }
-//     }
-// }
-
-// // impl<T> std::fmt::Display for IndexView<'_, T> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "offset: {}, position: {}, timestamp: {}, object_key: {}",
-//             self.offset(),
-//             self.position(),
-//             self.timestamp(),
-//             uuid::Uuid::from_bytes(self.object_key())
-//         )
-//     }
-// }
-//
 
 fn get_archived_value<T: Portable>(buf: &[u8]) -> &T {
     // #SAFETY: These bytes are always guaranteed to be protected from external changes.
@@ -120,7 +44,7 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
     /// Gets the number of indexes in the container
     pub fn count(&self) -> u32 {
         tracing::trace!("Len: {}", self.buffer.len());
-        self.buffer.len() as u32 / std::mem::size_of::<T>() as u32
+        self.buffer.len() as u32 / size_of::<T>() as u32
     }
 
     /// Checks if the container is empty
@@ -134,8 +58,8 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
             return None;
         }
 
-        let start = index as usize * std::mem::size_of::<T>();
-        let end = start + std::mem::size_of::<T>();
+        let start = index as usize * size_of::<T>();
+        let end = start + size_of::<T>();
 
         if end <= self.buffer.len() {
             Some(get_archived_value(&self.buffer[start..end]))
@@ -150,9 +74,9 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
             return None;
         }
 
-        Some(
-             get_archived_value(   &self.buffer[(self.count() - 1) as usize * std::mem::size_of::<T>()..]),
-        )
+        Some(get_archived_value(
+            &self.buffer[(self.count() - 1) as usize * size_of::<T>()..],
+        ))
     }
 
     /// Finds an index by timestamp using binary search
@@ -204,8 +128,8 @@ impl<'a, T> StdIndex<usize> for IndexesMut<'a, T> {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * std::mem::size_of::<T>();
-        let end = start + std::mem::size_of::<T>();
+        let start = index * size_of::<T>();
+        let end = start + size_of::<T>();
         &self.buffer[start..end]
     }
 }
@@ -218,69 +142,9 @@ impl<'a, T> Deref for IndexesMut<'a, T> {
     }
 }
 
-// impl<'a, T> fmt::Debug for IndexesMut<'a, T> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         let count = self.count();
-//
-//         if count == 0 {
-//             return write!(f, "IndexesMut {{ count: 0, indexes: [] }}");
-//         }
-//
-//         writeln!(f, "IndexesMut {{")?;
-//         writeln!(f, "    count: {count},")?;
-//         writeln!(f, "    indexes: [")?;
-//
-//         for i in 0..count {
-//             if let Some(index) = self.get(i) {
-//                 writeln!(
-//                     f,
-//                     "        {{ offset: {}, position: {}, timestamp: {} }},",
-//                     index.offset(),
-//                     index.position(),
-//                     index.timestamp()
-//                 )?;
-//             }
-//         }
-//
-//         writeln!(f, "    ]")?;
-//         write!(f, "}}")
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::BytesMut;
-    use rkyv::access_unchecked;
-
-    fn create_index_view<'a>(
-        offset: u32,
-        object_key: [u8; 16],
-        position: u32,
-        timestamp: u64,
-        size: u64,
-    ) -> &'a ArchivedDefaultIndex {
-        // Use a Vec<u8> to hold the data and leak it to get a 'static lifetime
-        let mut buffer = make_index_buffer(offset, object_key, position, timestamp, size).to_vec();
-        let buffer: &'static [u8] = Box::leak(Box::new(buffer)).as_slice();
-        unsafe { access_unchecked::<ArchivedDefaultIndex>(&buffer) }
-    }
-
-    fn make_index_buffer(
-        offset: u32,
-        object_key: [u8; 16],
-        position: u32,
-        timestamp: u64,
-        size: u64,
-    ) -> BytesMut {
-        let mut buffer = BytesMut::with_capacity(std::mem::size_of::<DefaultIndex>());
-        buffer.put_u32(offset);
-        buffer.put_slice(&object_key);
-        buffer.put_u32(position);
-        buffer.put_u64(timestamp);
-        buffer.put_u64(size);
-        buffer
-    }
 
     #[test]
     fn test_index_methods() {
@@ -303,15 +167,6 @@ mod tests {
     //     assert_eq!(view.offset(), 1);
     //     assert_eq!(view.position(), 100);
     //     assert_eq!(view.timestamp(), 1234567890);
-    // }
-
-    // #[test]
-    // fn test_index_view_to_index() {
-    //     let view = create_index_view(1, [0; 16], 100, 1234567890, 1);
-    //     let index = view.to_index();
-    //     assert_eq!(index.offset, 1);
-    //     assert_eq!(index.position, 100);
-    //     assert_eq!(index.timestamp, 1234567890);
     // }
 
     #[test]
