@@ -1,19 +1,16 @@
-use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 use std::ops::{Deref, Index as StdIndex};
 
 #[allow(unused_imports)]
 use bytes::BufMut as _;
-use default::ArchivedDefaultIndex;
 
 mod default;
 pub mod directory;
 mod error;
 mod file;
-use default::DefaultIndex;
 
 pub use error::IndexError;
-use rkyv::{Archive, Deserialize, Portable};
+use rkyv::Portable;
 
 pub trait Timestamped {
     fn timestamp(&self) -> u64;
@@ -144,6 +141,7 @@ impl<'a, T> Deref for IndexesMut<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use super::default::{DefaultIndex, ArchivedDefaultIndex};
     use super::*;
 
     #[test]
