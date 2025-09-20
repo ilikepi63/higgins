@@ -38,7 +38,15 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
                 left_stream: left,
                 right_stream: right,
             }),
-            Join::LeftOuter(_) | Join::RightOuter(_) => JoinDefinition::Outer(OuterJoin {
+            Join::LeftOuter(_) => JoinDefinition::Outer(OuterJoin {
+                side: super::outer_join::OuterSide::Left,
+                stream: (key, stream_definition),
+                left_stream: left,
+                right_stream: right,
+            }),
+
+            Join::RightOuter(_) => JoinDefinition::Outer(OuterJoin {
+                side: super::outer_join::OuterSide::Right,
                 stream: (key, stream_definition),
                 left_stream: left,
                 right_stream: right,

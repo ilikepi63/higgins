@@ -1,10 +1,11 @@
-use std::{
-    os::unix::fs::MetadataExt,
-    path::PathBuf,
-    sync::{Arc, atomic::AtomicU64},
-    time::SystemTime,
-};
+use std::marker::PhantomData;
+use std::{path::PathBuf, time::SystemTime};
 
+use super::IndexError;
+use super::IndexesMut;
+use super::file::IndexFile;
+
+use super::default::{ArchivedDefaultIndex, DefaultIndex};
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -13,19 +14,17 @@ use riskless::{
     messages::CommitBatchRequest,
 };
 
-use crate::storage::index::{Index, index_writer::IndexWriter};
-
-use super::index::index_reader::IndexReader;
-
 /// A struct representing the management of indexes for all of higgins' record batches.
 #[derive(Debug)]
 pub struct IndexDirectory(pub PathBuf);
 
 impl IndexDirectory {
-    pub fn new(directory: PathBuf) -> Self {
-        assert!(directory.is_dir());
+    pub fn new(directory: PathBuf) -> Result<Self, IndexError> {
+        if !directory.is_dir() {
+            return Err(IndexError::IndexFileIsNotADirectory);
+        }
 
-        Self(directory)
+        Ok(Self(directory))
     }
 
     pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
@@ -49,7 +48,11 @@ impl IndexDirectory {
         )
     }
 
-    pub fn index_file_from_stream_and_partition(&self, stream: String, partition: &[u8]) -> String {
+    pub fn index_file_name_from_stream_and_partition(
+        &self,
+        stream: String,
+        partition: &[u8],
+    ) -> String {
         let mut topic_dir = self.create_topic_dir(&stream);
 
         let index_file_path = Self::index_file_path_from_partition(partition);
@@ -57,6 +60,19 @@ impl IndexDirectory {
         topic_dir.push(index_file_path);
 
         topic_dir.to_string_lossy().to_string()
+    }
+
+    /// Retrieves an index file instance given a stream and partition.
+    pub fn index_file_from_stream_and_partition<T>(
+        &self,
+        stream: String,
+        partition: &[u8],
+    ) -> Result<IndexFile<T>, IndexError> {
+        let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
+
+        let index_file: IndexFile<T> = IndexFile::new(&index_file_name)?;
+
+        Ok(index_file)
     }
 
     /// Retrieves the timestamp before the given one.
@@ -72,26 +88,20 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+        let index_file = self
+            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+            .unwrap();
 
-        if !std::fs::exists(&index_file_path).unwrap_or(false) {
-            return vec![];
-        }
-
-        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
-
-        let index_reader =
-            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                .await
-                .unwrap();
-
-        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+            buffer: index_file.as_slice(),
+            _t: PhantomData,
+        };
 
         let index = indexes.find_by_timestamp(timestamp);
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -100,8 +110,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
+                        byte_offset: index.position.to_native().into(),
+                        byte_size: index.size.to_native().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -150,26 +160,20 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file_path = self.index_file_from_stream_and_partition(stream_str, partition);
+        let index_file = self
+            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+            .unwrap();
 
-        if !std::fs::exists(&index_file_path).unwrap_or(false) {
-            return vec![];
-        }
-
-        let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
-
-        let index_reader =
-            IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                .await
-                .unwrap();
-
-        let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+            buffer: index_file.as_slice(),
+            _t: PhantomData,
+        };
 
         let index = indexes.last();
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -178,8 +182,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
+                        byte_offset: index.position.to_native().into(),
+                        byte_size: index.size.to_native().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -237,27 +241,14 @@ impl CommitFile for IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
+            let mut index_file = self
+                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+                .unwrap();
 
-            let index_file_exists = std::fs::exists(&index_file_path).unwrap();
-
-            let mut index_writer = IndexWriter::new(
-                &index_file_path,
-                Arc::new(AtomicU64::new(u64::MAX)),
-                true,
-                index_file_exists,
-            )
-            .await
-            .unwrap();
-
-            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
-
-            let index_reader =
-                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                    .await
-                    .unwrap();
-
-            let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+                buffer: index_file.as_slice(),
+                _t: PhantomData,
+            };
 
             let offset = indexes.count() + 1;
             let position = batch.byte_offset;
@@ -266,7 +257,7 @@ impl CommitFile for IndexDirectory {
                 .unwrap()
                 .as_secs();
 
-            let index = Index {
+            let index = DefaultIndex {
                 offset,
                 object_key,
                 position: position.try_into().unwrap(),
@@ -277,7 +268,7 @@ impl CommitFile for IndexDirectory {
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            index_writer.save_indexes(&index).await.unwrap();
+            index_file.append(&index).unwrap();
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 
@@ -314,30 +305,24 @@ impl FindBatches for IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let index_file_path = self.index_file_from_stream_and_partition(topic, &partition);
+            let index_file = self
+                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+                .unwrap();
 
-            tracing::info!("Reading metadata for file : {index_file_path}");
-
-            let index_size_bytes = std::fs::metadata(&index_file_path).unwrap().size();
-
-            let index_reader =
-                IndexReader::new(&index_file_path, Arc::new(AtomicU64::new(index_size_bytes)))
-                    .await
-                    .unwrap();
-
-            let indexes = index_reader.load_all_indexes_from_disk().await.unwrap();
+            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+                buffer: index_file.as_slice(),
+                _t: PhantomData,
+            };
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let index = indexes.get(offset.try_into().unwrap()); // offset.try_into().unwrap());
+            let offset: u32 = offset.try_into().unwrap();
 
-            tracing::info!("Reading index: {:#?}", index);
-
-            // tracing::info!("SIZE: {}", index.unwrap().size());
+            let index: Option<&ArchivedDefaultIndex> = indexes.get(offset);
 
             match index {
                 Some(index) => {
-                    let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                    let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
 
                     tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -346,8 +331,8 @@ impl FindBatches for IndexDirectory {
                         object_key,
                         metadata: BatchMetadata {
                             topic_id_partition,
-                            byte_offset: index.position().into(),
-                            byte_size: index.size().try_into().unwrap(),
+                            byte_offset: index.position.to_native().into(),
+                            byte_size: index.size.to_native().try_into().unwrap(),
                             base_offset: 0,
                             last_offset: 0,
                             log_append_timestamp: 0,

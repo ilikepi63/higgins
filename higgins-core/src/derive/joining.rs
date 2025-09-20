@@ -15,198 +15,37 @@ use tokio::sync::RwLock;
 
 mod full_join;
 mod inner_join;
-mod join;
+pub mod join;
+mod opts;
 mod outer_join;
 
 use crate::{
     broker::Broker,
     client::ClientRef,
-    derive::utils::{col_name_to_field_and_col, get_partition_key_from_record_batch},
+    derive::{
+        joining::{join::JoinDefinition, outer_join::OuterSide},
+        utils::col_name_to_field_and_col,
+    },
     error::HigginsError,
-    storage::arrow_ipc::read_arrow,
-    topography::{Join, Key, StreamDefinition},
-    utils::epoch,
+    subscription::Subscription,
+    topography::Join,
 };
 
 pub async fn create_joined_stream_from_definition(
-    stream_name: Key,
-    stream_def: StreamDefinition,
-    left: (Key, StreamDefinition),
-    right: (Key, StreamDefinition),
-    join_type: Join,
+    definition: JoinDefinition,
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    let client_id = broker.clients.insert(ClientRef::NoOp);
-
-    // Subscribe to both streams.
-    let left_subscription = broker.create_subscription(left.0.inner());
-    let _right_subscription = broker.create_subscription(right.0.inner());
-
-    let (left_notify, left_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
-        .unwrap();
-    let (_right_notify, _right_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
-        .unwrap();
-
-    tracing::trace!("Setting up a join on stream: {:#?}", left.clone());
-
-    let left_broker = broker_ref.clone();
-    let left_stream_name = left.0.inner().to_owned();
-    let left_stream_partition_key = left.1.partition_key;
-    let right_stream_name = right.0.inner().to_owned();
+    // let left_broker = broker_ref.clone();
+    // let left_stream_name = left.0.inner().to_owned();
+    // let left_stream_partition_key = left.1.partition_key;
+    // let right_stream_name = right.0.inner().to_owned();
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
         tracing::trace!("[DERIVED TAKE] We are being initiated");
 
-        loop {
-            let mut lock = left_subscription_ref.write().await;
-
-            let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
-
-            let offsets_result = lock.take(client_id, n);
-
-            drop(lock);
-
-            if let Ok(mut offsets) = offsets_result {
-                // If there are no given offsts, await the wakener then.
-                if offsets.is_empty() {
-                    tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
-                    left_notify.notified().await;
-                    tracing::trace!("[DERIVED TAKE] We've been notified!");
-
-                    offsets = {
-                        let mut lock = left_subscription_ref.write().await;
-                        lock.take(client_id, n).unwrap()
-                    };
-                }
-
-                tracing::trace!(
-                    "[DERIVED TAKE] Received offsets {:#?}. Initiating join.",
-                    offsets
-                );
-
-                //Get payloads from offsets.
-                for (partition, offset) in offsets {
-                    let broker_lock = left_broker.read().await;
-
-                    tracing::trace!(
-                        "Reading from stream: {:#?}",
-                        String::from_utf8(left_stream_name.clone())
-                    );
-
-                    let mut consumption = broker_lock
-                        .consume(&left_stream_name, &partition, offset, 50_000)
-                        .await;
-
-                    drop(broker_lock);
-
-                    while let Some(val) = consumption.recv().await {
-                        tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
-
-                        for consume_batch in val.batches.iter() {
-                            let stream_reader = read_arrow(&consume_batch.data);
-
-                            let batches =
-                                stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
-
-                            for record_batch in batches {
-                                let mut broker_lock = left_broker.write().await;
-
-                                let epoch_val = epoch();
-
-                                for index in 0..record_batch.num_rows() {
-                                    let partition_val = get_partition_key_from_record_batch(
-                                        &record_batch,
-                                        index,
-                                        String::from_utf8_lossy(left_stream_partition_key.inner())
-                                            .to_string()
-                                            .as_str(),
-                                    );
-
-                                    let right_record = broker_lock
-                                        .get_by_timestamp(
-                                            &right_stream_name,
-                                            &partition_val,
-                                            epoch_val,
-                                        )
-                                        .await
-                                        .and_then(|consume| {
-                                            consume.batches.first().map(|batch| {
-                                                let stream_reader = read_arrow(&batch.data);
-
-                                                let batches = stream_reader
-                                                    .filter_map(|val| val.ok())
-                                                    .collect::<Vec<_>>();
-                                                batches.into_iter().next()
-                                            })
-                                        })
-                                        .flatten();
-
-                                    tracing::trace!(
-                                        "[DERIVED TAKE] Right record: {:#?}",
-                                        right_record
-                                    );
-
-                                    let new_record_batch = match &join_type {
-                                        Join::Full(_) => todo!(),
-                                        Join::Inner(_) => {
-                                            match (Some(record_batch.clone()), right_record) {
-                                                (Some(left), Some(right)) => values_to_batches(
-                                                    &join_type,
-                                                    Some(left),
-                                                    Some(right),
-                                                    String::from_utf8(left_stream_name.clone())
-                                                        .unwrap(),
-                                                    String::from_utf8(right_stream_name.clone())
-                                                        .unwrap(),
-                                                    stream_def.map.clone().unwrap(),
-                                                ),
-                                                _ => None,
-                                            }
-                                        }
-                                        Join::LeftOuter(_) => todo!(),
-                                        Join::RightOuter(_) => todo!(),
-                                    };
-
-                                    tracing::trace!(
-                                        "Managed to write to partition: {:#?}",
-                                        stream_def.partition_key
-                                    );
-
-                                    if let Some(new_record_batch) = new_record_batch {
-                                        let result = broker_lock
-                                            .produce(
-                                                stream_name.inner(),
-                                                &partition_val,
-                                                new_record_batch,
-                                            )
-                                            .await;
-
-                                        tracing::trace!(
-                                            "Result from producing with a join: {:#?}",
-                                            result
-                                        );
-                                    }
-                                }
-
-                                drop(broker_lock);
-                            }
-                        }
-                    }
-
-                    let lock = left_subscription_ref.write().await;
-
-                    lock.acknowledge(&partition, offset).unwrap();
-
-                    drop(lock);
-                }
-            } else {
-                tracing::info!("Nothing to take, will just continue..");
-            };
-        }
+        loop {}
     });
 
     Ok(())
