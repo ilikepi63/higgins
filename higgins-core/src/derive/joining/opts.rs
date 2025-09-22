@@ -26,6 +26,7 @@ pub struct JoinDeriveOperator {
 
 impl JoinDeriveOperator {
     pub fn on(definition: JoinDefinition, broker: Arc<RwLock<Broker>>) -> Self {
+        // We leak this handle.
         let operator: &'static JoinDeriveOperator = Box::leak(Box::new(Self {
             is_working: AtomicBool::new(true),
             handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
@@ -38,6 +39,13 @@ impl JoinDeriveOperator {
 
                 let left = inner.left_stream;
                 let right = inner.right_stream;
+
+                // We create the resultant stream that data is zipped into.
+                let stream_handle = {
+                    let broker = broker.write();
+
+                    broker.await.create_stream(stream_name, schema);
+                };
 
                 // First task just adds in the indexing to the value.
                 let left_broker = broker.clone();
