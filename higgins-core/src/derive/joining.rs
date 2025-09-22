@@ -23,7 +23,7 @@ use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{join::JoinDefinition, outer_join::OuterSide},
+        joining::{join::JoinDefinition, opts::JoinDeriveOperator, outer_join::OuterSide},
         utils::col_name_to_field_and_col,
     },
     error::HigginsError,
@@ -33,20 +33,11 @@ use crate::{
 
 pub async fn create_joined_stream_from_definition(
     definition: JoinDefinition,
-    broker: &mut Broker,
+    _broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    // let left_broker = broker_ref.clone();
-    // let left_stream_name = left.0.inner().to_owned();
-    // let left_stream_partition_key = left.1.partition_key;
-    // let right_stream_name = right.0.inner().to_owned();
-
-    // Left join runner for this subscription.
-    tokio::task::spawn(async move {
-        tracing::trace!("[DERIVED TAKE] We are being initiated");
-
-        loop {}
-    });
+    // Instantiate Operator on this definition.
+    let operator = JoinDeriveOperator::on(definition, broker_ref);
 
     Ok(())
 }
