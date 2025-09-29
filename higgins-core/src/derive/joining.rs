@@ -23,7 +23,11 @@ use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{join::JoinDefinition, opts::JoinDeriveOperator, outer_join::OuterSide},
+        joining::{
+            join::JoinDefinition,
+            opts::{JoinOperatorHandle, create_join_operator},
+            outer_join::OuterSide,
+        },
         utils::col_name_to_field_and_col,
     },
     error::HigginsError,
@@ -37,7 +41,10 @@ pub async fn create_joined_stream_from_definition(
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
     // Instantiate Operator on this definition.
-    let operator = JoinDeriveOperator::on(definition, broker_ref);
+    let operator = create_join_operator(definition, broker_ref);
+
+    // Add the operator to a referencable struct.
+    // broker.add_operator();
 
     Ok(())
 }
