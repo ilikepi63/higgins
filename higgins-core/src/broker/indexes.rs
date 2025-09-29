@@ -16,7 +16,11 @@ impl<T> BrokerIndexFile<T> {
 }
 
 impl Broker {
-    pub fn get_index<T>(&mut self, stream: String, partition: &[u8]) -> Option<BrokerIndexFile<T>> {
+    pub fn get_index_file<T>(
+        &mut self,
+        stream: String,
+        partition: &[u8],
+    ) -> Option<BrokerIndexFile<T>> {
         let index_file_get_result = self
             .indexes
             .index_file_from_stream_and_partition(stream.clone(), partition);

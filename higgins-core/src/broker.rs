@@ -7,6 +7,8 @@ mod produce;
 mod streams;
 mod subscriptions;
 
+pub use indexes::BrokerIndexFile;
+
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
     messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},

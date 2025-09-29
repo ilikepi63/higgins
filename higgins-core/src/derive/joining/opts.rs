@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
+use crate::broker::BrokerIndexFile;
 use crate::storage::index::{IndexFile, joined_index::JoinedIndex};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -81,9 +82,8 @@ pub async fn create_join_operator(
                                 // Get the handle to the resultant streams indexing file.
                                 let index_file = {
                                     let broker = left_broker.read().await;
-                                    let index_file: IndexFile<JoinedIndex> = broker
-                                        .indexes
-                                        .index_file_from_stream_and_partition(
+                                    let index_file: BrokerIndexFile<JoinedIndex> = broker
+                                        .get_index_file(
                                             String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
                                             &partition,
                                         )
