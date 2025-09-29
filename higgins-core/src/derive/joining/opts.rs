@@ -81,7 +81,7 @@ pub async fn create_join_operator(
                             for (partition, offset) in offsets {
                                 // Get the handle to the resultant streams indexing file.
                                 let index_file = {
-                                    let broker = left_broker.read().await;
+                                    let mut broker = left_broker.write().await;
                                     let index_file: BrokerIndexFile<JoinedIndex> = broker
                                         .get_index_file(
                                             String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
@@ -292,10 +292,6 @@ pub async fn create_join_operator(
     // };
 
     todo!()
-}
-
-impl JoinDeriveOperator {
-    pub fn kill(self) {}
 }
 
 use crate::{error::HigginsError, subscription::Subscription};
