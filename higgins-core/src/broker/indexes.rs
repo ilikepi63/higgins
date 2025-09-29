@@ -1,5 +1,10 @@
+use rkyv::{api::high::HighSerializer, rancor, ser::allocator::ArenaHandle, util::AlignedVec};
+
 use super::Broker;
-use crate::storage::index::IndexFile;
+use crate::{
+    error::HigginsError,
+    storage::index::{IndexError, IndexFile},
+};
 use std::sync::Arc;
 
 pub struct BrokerIndexFile<T> {
@@ -8,11 +13,24 @@ pub struct BrokerIndexFile<T> {
 }
 
 impl<T> BrokerIndexFile<T> {
+    /// Create a new instance of a BrokerIndexFile.
     pub fn new(index_file: IndexFile<T>, mutex: Arc<tokio::sync::Mutex<()>>) -> Self {
         Self { index_file, mutex }
     }
 
-    pub fn append() {}
+    /// Append a new T to this index file.
+    pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
+        // Acquire this lock, this ensures the operation gets done atomically.
+        let lock = self.mutex.lock();
+
+        // Append this data to the underlying file.
+        self.index_file.append(val)?;
+
+        // Drop the lock.
+        drop(lock);
+
+        Ok(())
+    }
 }
 
 impl Broker {

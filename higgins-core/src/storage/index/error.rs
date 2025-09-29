@@ -11,7 +11,8 @@ pub enum IndexError {
 
     #[error("TryFromInt Error")]
     TryFromIntError(#[from] TryFromIntError),
-
+    #[error("Rancor Error")]
+    RancorError(#[from] rkyv::rancor::Error),
     #[error("Unknown Index Error")]
     Unknown,
 }
