@@ -36,7 +36,7 @@ pub struct Broker {
     dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
     object_store: Arc<dyn ObjectStore>,
-    indexes: Arc<IndexDirectory>,
+    pub indexes: Arc<IndexDirectory>,
     pub flush_interval_in_ms: u64,
     pub segment_size_in_bytes: u64,
     collection: MutableCollection,
