@@ -23,15 +23,10 @@ use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{
-            join::JoinDefinition,
-            opts::{JoinOperatorHandle, create_join_operator},
-            outer_join::OuterSide,
-        },
+        joining::{join::JoinDefinition, opts::create_join_operator, outer_join::OuterSide},
         utils::col_name_to_field_and_col,
     },
     error::HigginsError,
-    subscription::Subscription,
     topography::Join,
 };
 
