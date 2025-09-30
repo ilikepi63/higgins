@@ -32,11 +32,8 @@ impl<T> BrokerIndexFile<T> {
         BrokerIndexFileLock(lock)
     }
 
-    pub fn as_indexes_mut<T>(&mut self) -> IndexesMut<T> {
-        let indexes_mut: IndexesMut<T> = IndexesMut {
-            buffer: self.index_file.as_slice(),
-            _t: PhantomData,
-        };
+    pub fn as_indexes_mut(&mut self) -> IndexesMut<T> {
+        self.index_file.as_index_mut()
     }
 }
 
