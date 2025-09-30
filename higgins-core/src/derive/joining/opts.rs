@@ -82,7 +82,7 @@ pub async fn create_join_operator(
                         Ok(offsets) => {
                             for (partition, offset) in offsets {
                                 // Get the handle to the resultant streams indexing file.
-                                let index_file = {
+                                let mut index_file = {
                                     let mut broker = left_broker.write().await;
                                     let index_file: BrokerIndexFile<ArchivedJoinedIndex> = broker
                                         .get_index_file(
@@ -94,13 +94,11 @@ pub async fn create_join_operator(
                                 };
 
                                 {
-                                    let lock = index_file.lock().await;
+                                    let mut lock = index_file.lock().await;
 
-                                    let indexes = index_file.as_indexes_mut();
+                                    let indexes = lock.as_indexes_mut();
 
                                     let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
-
-                                    drop(indexes);
 
                                     let timestamp = epoch();
 
@@ -112,20 +110,18 @@ pub async fn create_join_operator(
 
                                     match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
                                         Ok(serialized) => {
-                                            index_file.append(&serialized, lock);
+                                            lock.append(&serialized);
+                                            drop(lock);
                                         }
                                         Err(err) => {
                                             tracing::error!(
-                                                "Conversion to Rkyv serialization format failed. This should never happen."
+                                                "Conversion to Rkyv serialization format failed. This should never happen. Err: {:#?}",
+                                                err
                                             );
                                             unimplemented!()
                                         }
                                     };
-
-                                    drop(lock);
                                 }
-
-                                //
 
                                 // save each index into the new joined stream index.
                                 // Notify the other stream that there are updates to this stream.
