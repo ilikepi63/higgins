@@ -14,31 +14,37 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
         Self { index_file, mutex }
     }
 
+    pub async fn lock<'a>(&'a mut self) -> BrokerIndexFileLock<'a, T> {
+        let lock = self.mutex.lock().await;
+
+        BrokerIndexFileLock {
+            index_file: &mut self.index_file,
+            mutex: self.mutex.clone(),
+            lock_guard: lock,
+        }
+    }
+}
+
+#[allow(unused)]
+pub struct BrokerIndexFileLock<'a, T: Portable + Timestamped> {
+    index_file: &'a mut IndexFile<T>,
+    mutex: Arc<tokio::sync::Mutex<()>>,
+    lock_guard: tokio::sync::MutexGuard<'a, ()>,
+}
+
+impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
     /// Append a new T to this index file.
-    pub async fn append<'a>(
-        &'a mut self,
-        val: &[u8],
-        _lock: BrokerIndexFileLock<'a>,
-    ) -> Result<(), IndexError> {
+    pub async fn append(&'a mut self, val: &[u8]) -> Result<(), IndexError> {
         // Append this data to the underlying file.
         self.index_file.append(val)?;
 
         Ok(())
     }
 
-    pub async fn lock<'a>(&'a self) -> BrokerIndexFileLock<'a> {
-        let lock = self.mutex.lock().await;
-
-        BrokerIndexFileLock(lock)
-    }
-
     pub fn as_indexes_mut(&mut self) -> IndexesMut<T> {
         self.index_file.as_index_mut()
     }
 }
-
-#[allow(unused)]
-pub struct BrokerIndexFileLock<'a>(tokio::sync::MutexGuard<'a, ()>);
 
 impl Broker {
     pub fn get_index_file<T: Portable + Timestamped>(
