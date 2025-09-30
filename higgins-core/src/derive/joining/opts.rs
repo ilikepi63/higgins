@@ -91,6 +91,11 @@ pub async fn create_join_operator(
                                     index_file
                                 };
 
+                                {
+                                    let lock = index_file.lock().await;
+                                    index_file.append(val, lock);
+                                }
+
                                 //
 
                                 // save each index into the new joined stream index.

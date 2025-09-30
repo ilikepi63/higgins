@@ -1,5 +1,6 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile};
+use crate::storage::index::{IndexError, IndexFile, IndexesMut};
+use rkyv::Portable;
 use std::sync::Arc;
 
 pub struct BrokerIndexFile<T> {
@@ -29,6 +30,13 @@ impl<T> BrokerIndexFile<T> {
         let lock = self.mutex.lock().await;
 
         BrokerIndexFileLock(lock)
+    }
+
+    pub fn as_indexes_mut<T>(&mut self) -> IndexesMut<T> {
+        let indexes_mut: IndexesMut<T> = IndexesMut {
+            buffer: self.index_file.as_slice(),
+            _t: PhantomData,
+        };
     }
 }
 

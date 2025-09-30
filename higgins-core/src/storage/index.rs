@@ -123,6 +123,16 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
 
         result
     }
+
+    /// Get this as a mutable slice of Indexes.
+    pub fn as_indexes_mut(&self) -> IndexesMut<T> {
+        let indexes_mut: IndexesMut<T> = IndexesMut {
+            buffer: self.buffer,
+            _t: PhantomData,
+        };
+
+        indexes_mut
+    }
 }
 impl<'a, T> StdIndex<usize> for IndexesMut<'a, T> {
     type Output = [u8];
