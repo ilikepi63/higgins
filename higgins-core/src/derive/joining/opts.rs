@@ -93,6 +93,11 @@ pub async fn create_join_operator(
 
                                 {
                                     let lock = index_file.lock().await;
+
+                                    let indexes = index_file.as_indexes_mut();
+
+                                    let offset = indexes.count() + 1;
+
                                     index_file.append(val, lock);
                                 }
 
