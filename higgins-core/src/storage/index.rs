@@ -8,9 +8,11 @@ mod default;
 pub mod directory;
 mod error;
 mod file;
-
+pub mod joined_index;
 pub use error::IndexError;
 use rkyv::Portable;
+
+pub use file::IndexFile;
 
 pub trait Timestamped {
     fn timestamp(&self) -> u64;
