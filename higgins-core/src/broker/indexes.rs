@@ -41,7 +41,7 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
 pub struct BrokerIndexFileLock<'a>(tokio::sync::MutexGuard<'a, ()>);
 
 impl Broker {
-    pub fn get_index_file<T>(
+    pub fn get_index_file<T: Portable + Timestamped>(
         &mut self,
         stream: String,
         partition: &[u8],
