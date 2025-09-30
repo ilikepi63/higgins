@@ -44,7 +44,7 @@ pub struct Broker {
 
     // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
-    broker_indexes: Vec<(String, Vec<u8>, Notify)>,
+    broker_indexes: Vec<(String, Vec<u8>, tokio::sync::Mutex<()>)>,
     pub flush_interval_in_ms: u64,
     pub segment_size_in_bytes: u64,
     collection: MutableCollection,
