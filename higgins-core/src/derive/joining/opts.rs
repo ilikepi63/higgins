@@ -91,6 +91,8 @@ pub async fn create_join_operator(
                                     index_file
                                 };
 
+                                //
+
                                 // save each index into the new joined stream index.
                                 // Notify the other stream that there are updates to this stream.
                             }

@@ -1,10 +1,5 @@
-use rkyv::{api::high::HighSerializer, rancor, ser::allocator::ArenaHandle, util::AlignedVec};
-
 use super::Broker;
-use crate::{
-    error::HigginsError,
-    storage::index::{IndexError, IndexFile},
-};
+use crate::storage::index::{IndexError, IndexFile};
 use std::sync::Arc;
 
 pub struct BrokerIndexFile<T> {
