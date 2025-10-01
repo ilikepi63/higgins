@@ -19,30 +19,32 @@ pub struct JoinedIndex {
     pub timestamp: u64,
 }
 
-impl Timestamped for JoinedIndex {
+impl Timestamped for ArchivedJoinedIndex {
     fn timestamp(&self) -> u64 {
-        self.timestamp
+        self.timestamp.to_native()
     }
 }
 
 impl JoinedIndex {
     /// Creates a new instance of this given a right_offset only.
-    pub fn new_with_right_offset(offset: u64, right_offset: u64) -> Self {
+    pub fn new_with_right_offset(offset: u64, right_offset: u64, timestamp: u64) -> Self {
         Self {
             offset,
             right_offset: Some(right_offset),
             left_offset: None,
             object_key: None,
+            timestamp,
         }
     }
 
     /// Creates a new instance of this given a left_offset.
-    pub fn new_with_left_offset(offset: u64, left_offset: u64) -> Self {
+    pub fn new_with_left_offset(offset: u64, left_offset: u64, timestamp: u64) -> Self {
         Self {
             offset,
             right_offset: None,
             left_offset: Some(left_offset),
             object_key: None,
+            timestamp,
         }
     }
 }
