@@ -7,6 +7,7 @@ use crate::broker::BrokerIndexFile;
 use crate::storage::index::joined_index::ArchivedJoinedIndex;
 use crate::storage::index::{IndexFile, joined_index::JoinedIndex};
 use crate::topography::config::schema_to_arrow_schema;
+use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
 static INITIAL_SIZE_OF_HANDLE_VEC: usize = 100;
@@ -97,9 +98,31 @@ pub async fn create_join_operator(
 
                                     let indexes = index_file.as_indexes_mut();
 
-                                    let offset = indexes.count() + 1;
+                                    let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
 
-                                    index_file.append(val, lock);
+                                    drop(indexes);
+
+                                    let timestamp = epoch();
+
+                                    let joined_index = JoinedIndex::new_with_left_offset(
+                                        joined_offset,
+                                        offset,
+                                        timestamp,
+                                    );
+
+                                    match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
+                                        Ok(serialized) => {
+                                            index_file.append(&serialized, lock);
+                                        }
+                                        Err(err) => {
+                                            tracing::error!(
+                                                "Conversion to Rkyv serialization format failed. This should never happen."
+                                            );
+                                            unimplemented!()
+                                        }
+                                    };
+
+                                    drop(lock);
                                 }
 
                                 //
