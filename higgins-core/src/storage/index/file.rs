@@ -1,4 +1,4 @@
-use super::IndexError;
+use super::{IndexError, IndexesMut};
 use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
@@ -35,6 +35,13 @@ impl<T> IndexFile<T> {
         self.file_handle.write_all(b)?;
         self.mmap = unsafe { memmap2::Mmap::map(&self.file_handle)? };
         Ok(())
+    }
+
+    pub fn as_index_mut(&self) -> IndexesMut<'_, T> {
+        IndexesMut {
+            buffer: self.as_slice(),
+            _t: PhantomData,
+        }
     }
 }
 
