@@ -1,6 +1,8 @@
 use rkyv::{Archive, Serialize};
 use serde::Deserialize;
 
+use crate::storage::index::Timestamped;
+
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
 #[derive(Serialize, Deserialize, Archive)]
@@ -13,6 +15,14 @@ pub struct JoinedIndex {
     pub left_offset: Option<u64>,
     /// The object key holding the resultant data from the joining.
     pub object_key: Option<[u8; 16]>,
+    /// The timestamp for this index.
+    pub timestamp: u64,
+}
+
+impl Timestamped for JoinedIndex {
+    fn timestamp(&self) -> u64 {
+        self.timestamp
+    }
 }
 
 impl JoinedIndex {

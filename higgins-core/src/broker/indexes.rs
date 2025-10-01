@@ -1,14 +1,14 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexesMut};
+use crate::storage::index::{IndexError, IndexFile, IndexesMut, Timestamped};
 use rkyv::Portable;
 use std::sync::Arc;
 
-pub struct BrokerIndexFile<T> {
+pub struct BrokerIndexFile<T: Portable + Timestamped> {
     index_file: IndexFile<T>,
     mutex: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl<T> BrokerIndexFile<T> {
+impl<T: Portable + Timestamped> BrokerIndexFile<T> {
     /// Create a new instance of a BrokerIndexFile.
     pub fn new(index_file: IndexFile<T>, mutex: Arc<tokio::sync::Mutex<()>>) -> Self {
         Self { index_file, mutex }
