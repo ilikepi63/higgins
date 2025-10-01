@@ -14,19 +14,26 @@ impl<T> BrokerIndexFile<T> {
     }
 
     /// Append a new T to this index file.
-    pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
-        // Acquire this lock, this ensures the operation gets done atomically.
-        let lock = self.mutex.lock();
-
+    pub async fn append<'a>(
+        &'a mut self,
+        val: &[u8],
+        _lock: BrokerIndexFileLock<'a>,
+    ) -> Result<(), IndexError> {
         // Append this data to the underlying file.
         self.index_file.append(val)?;
 
-        // Drop the lock.
-        drop(lock);
-
         Ok(())
     }
+
+    pub async fn lock<'a>(&'a self) -> BrokerIndexFileLock<'a> {
+        let lock = self.mutex.lock().await;
+
+        BrokerIndexFileLock(lock)
+    }
 }
+
+#[allow(unused)]
+pub struct BrokerIndexFileLock<'a>(tokio::sync::MutexGuard<'a, ()>);
 
 impl Broker {
     pub fn get_index_file<T>(
