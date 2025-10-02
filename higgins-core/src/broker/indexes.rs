@@ -34,7 +34,7 @@ pub struct BrokerIndexFileLock<'a, T: Portable + Timestamped> {
 
 impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
     /// Append a new T to this index file.
-    pub async fn append(&'a mut self, val: &[u8]) -> Result<(), IndexError> {
+    pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
         // Append this data to the underlying file.
         self.index_file.append(val)?;
 
