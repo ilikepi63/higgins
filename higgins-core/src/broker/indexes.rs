@@ -24,7 +24,7 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
         }
     }
 
-    pub async fn view<'a>(&'a self) -> IndexesView<'a, T> {
+    pub fn view<'a>(&'a self) -> IndexesView<'a, T> {
         self.index_file.as_view()
     }
 }
@@ -45,7 +45,9 @@ impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
         Ok(())
     }
 
-    pub fn as_indexes_mut(&mut self) -> IndexesView<T> {
+    pub fn put_at(&mut self, index: u64, val: &[u8]) {}
+
+    pub fn as_indexes_mut(&self) -> IndexesView<T> {
         self.index_file.as_view()
     }
 }
