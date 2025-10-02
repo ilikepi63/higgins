@@ -114,7 +114,23 @@ pub async fn create_join_operator(
                                 match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
                                     Ok(serialized) => {
                                         let mut lock = index_file.lock().await;
-                                        lock.append(&serialized);
+
+                                        match lock.append(&serialized).await {
+                                            Ok(_) => {
+                                                // Another task to reverse iterate through each remaining index looking for the alternate index.
+                                                // This will then fill this index with that alternate index.
+                                                tokio::spawn(async move {});
+                                            }
+                                            Err(err) => {
+                                                tracing::error!(
+                                                    "Append returned an error: {:#?}",
+                                                    err
+                                                );
+                                                panic!(
+                                                    "This should never panic - append returned an error."
+                                                );
+                                            }
+                                        }
                                     }
                                     Err(err) => {
                                         tracing::error!(
