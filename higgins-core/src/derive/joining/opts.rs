@@ -93,7 +93,7 @@ pub async fn create_join_operator(
                                     index_file
                                 };
 
-                                {
+                                let joined_index = {
                                     let mut lock = index_file.lock().await;
 
                                     let indexes = lock.as_indexes_mut();
@@ -108,20 +108,22 @@ pub async fn create_join_operator(
                                         timestamp,
                                     );
 
-                                    match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
-                                        Ok(serialized) => {
-                                            lock.append(&serialized);
-                                            drop(lock);
-                                        }
-                                        Err(err) => {
-                                            tracing::error!(
-                                                "Conversion to Rkyv serialization format failed. This should never happen. Err: {:#?}",
-                                                err
-                                            );
-                                            unimplemented!()
-                                        }
-                                    };
-                                }
+                                    joined_index
+                                };
+
+                                match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
+                                    Ok(serialized) => {
+                                        let mut lock = index_file.lock().await;
+                                        lock.append(&serialized);
+                                    }
+                                    Err(err) => {
+                                        tracing::error!(
+                                            "Conversion to Rkyv serialization format failed. This should never happen. Err: {:#?}",
+                                            err
+                                        );
+                                        unimplemented!()
+                                    }
+                                };
 
                                 // save each index into the new joined stream index.
                                 // Notify the other stream that there are updates to this stream.
