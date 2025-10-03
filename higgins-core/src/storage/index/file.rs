@@ -37,6 +37,10 @@ impl<T> IndexFile<T> {
         Ok(())
     }
 
+    pub fn put_at(&mut self, index: u64, bytes: &[u8]) {
+        // TODO: perhaps a const assert here?
+    }
+
     pub fn as_view(&self) -> IndexesView<'_, T> {
         IndexesView {
             buffer: self.as_slice(),

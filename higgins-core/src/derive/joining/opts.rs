@@ -117,9 +117,31 @@ pub async fn create_join_operator(
 
                                         match lock.append(&serialized).await {
                                             Ok(_) => {
+                                                drop(lock);
                                                 // Another task to reverse iterate through each remaining index looking for the alternate index.
                                                 // This will then fill this index with that alternate index.
-                                                tokio::spawn(async move {});
+                                                tokio::spawn(async move {
+                                                    let view = index_file.view();
+                                                    for i in (view.count() - 1)..=0 {
+                                                        let index = view.get(i);
+                                                        match index {
+                                                            Some(val) => {
+                                                                if let Some(right_offset) =
+                                                                    val.right_offset.as_ref()
+                                                                {
+                                                                    let lock = index_file.lock();
+                                                                    break;
+                                                                }
+                                                            }
+                                                            None => {
+                                                                tracing::trace!(
+                                                                    "Index not found for stream, moving on."
+                                                                );
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                });
                                             }
                                             Err(err) => {
                                                 tracing::error!(
