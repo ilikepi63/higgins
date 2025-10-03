@@ -1,17 +1,24 @@
 mod configuration;
 mod consume;
 mod default;
+mod indexes;
 mod instantiate;
 mod produce;
 mod streams;
 mod subscriptions;
+
+pub use indexes::BrokerIndexFile;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
     messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self, ObjectStore},
 };
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicBool},
+};
 use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
@@ -36,7 +43,10 @@ pub struct Broker {
     dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
     object_store: Arc<dyn ObjectStore>,
+
+    // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
+    broker_indexes: Vec<(String, Vec<u8>, std::sync::Arc<tokio::sync::Mutex<()>>)>,
     pub flush_interval_in_ms: u64,
     pub segment_size_in_bytes: u64,
     collection: MutableCollection,
