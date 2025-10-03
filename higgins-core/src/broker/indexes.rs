@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexesMut, Timestamped};
+use crate::storage::index::{IndexError, IndexFile, IndexesView, Timestamped};
 use rkyv::Portable;
 use std::sync::Arc;
 
@@ -23,6 +23,10 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
             lock_guard: lock,
         }
     }
+
+    pub async fn view<'a>(&'a self) -> IndexesView<'a, T> {
+        self.index_file.as_view()
+    }
 }
 
 #[allow(unused)]
@@ -41,8 +45,8 @@ impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
         Ok(())
     }
 
-    pub fn as_indexes_mut(&mut self) -> IndexesMut<T> {
-        self.index_file.as_index_mut()
+    pub fn as_indexes_mut(&mut self) -> IndexesView<T> {
+        self.index_file.as_view()
     }
 }
 

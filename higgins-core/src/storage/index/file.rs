@@ -1,4 +1,4 @@
-use super::{IndexError, IndexesMut};
+use super::{IndexError, IndexesView};
 use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
@@ -37,8 +37,8 @@ impl<T> IndexFile<T> {
         Ok(())
     }
 
-    pub fn as_index_mut(&self) -> IndexesMut<'_, T> {
-        IndexesMut {
+    pub fn as_view(&self) -> IndexesView<'_, T> {
+        IndexesView {
             buffer: self.as_slice(),
             _t: PhantomData,
         }
@@ -47,7 +47,7 @@ impl<T> IndexFile<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::IndexesMut;
+    use super::super::IndexesView;
     use super::super::default::DefaultIndex;
     use super::*;
     use crate::storage::index::default::ArchivedDefaultIndex;
@@ -140,7 +140,7 @@ mod tests {
         }
 
         // Act
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -191,7 +191,7 @@ mod tests {
         index_file.append(&first_index.to_bytes()).unwrap();
 
         // Act
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -223,7 +223,7 @@ mod tests {
         // Act
         index_file.append(&second_index.to_bytes()).unwrap();
 
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -265,13 +265,13 @@ mod tests {
             std::fs::File::create(&file_path).unwrap();
         }
         let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
 
         // Assert
-        assert!(indexes_mut.is_empty(), "Expected empty IndexesMut");
+        assert!(indexes_mut.is_empty(), "Expected empty IndexesView");
         assert_eq!(indexes_mut.count(), 0, "Expected count to be 0");
 
         // Cleanup
@@ -294,7 +294,7 @@ mod tests {
 
         // Act
         let index_file: IndexFile<DefaultIndex> = IndexFile::new(&file_path).unwrap();
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -324,7 +324,7 @@ mod tests {
         }
 
         // Act
-        let indexes_mut: IndexesMut<ArchivedDefaultIndex> = IndexesMut {
+        let indexes_mut: IndexesView<ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
