@@ -2,15 +2,13 @@ use crate::broker::Broker;
 use crate::error::HigginsError;
 use crate::topography::{Join, Key, StreamDefinition};
 
-use super::{full_join::FullJoin, inner_join::InnerJoin, outer_join::OuterJoin};
-
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.
 pub struct JoinDefinition {
     /// The base stream that this join definition comes from.
-    base: (Key, StreamDefinition),
+    pub base: (Key, StreamDefinition),
     /// The different joins that will
-    joins: Vec<JoinWithStream>,
+    pub joins: Vec<JoinWithStream>,
 }
 
 // impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
@@ -63,8 +61,45 @@ pub struct JoinDefinition {
 //         })
 //     }
 // }
+
+/// # JoinWithStream
+///
+/// Structure primarily used as a ADT over different join types.
 pub enum JoinWithStream {
     Full(FullJoin),
     Outer(OuterJoin),
     Inner(InnerJoin),
+}
+
+/// A structure representing an Inner Join.
+///
+/// This structure is primarily implemented for transporting inner join
+/// configuration data.
+pub struct InnerJoin {
+    /// Name and definition of the stream that this is joined to.
+    pub stream: (Key, StreamDefinition),
+}
+
+/// A structure representing an Full Join.
+///
+/// This structure is primarily implemented for transporting full join
+/// configuration data.
+pub struct FullJoin {
+    /// Name and definition of the stream that this is joined to.
+    pub stream: (Key, StreamDefinition),
+}
+
+/// The side to which a stream is being joined.
+pub enum OuterSide {
+    Left,
+    Right,
+}
+
+/// A structure representing an Outer Join.
+///
+/// This structure is primarily implemented for transporting join
+/// configuration data.
+pub struct OuterJoin {
+    /// Name and definition of the stream that this is joined to.
+    pub stream: (Key, StreamDefinition),
 }
