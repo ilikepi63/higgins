@@ -45,9 +45,11 @@ impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
         Ok(())
     }
 
-    pub fn put_at(&mut self, index: u64, val: &[u8]) {}
+    pub fn put_at(&mut self, index: u64, val: &mut [u8]) -> Result<(), IndexError> {
+        self.index_file.put_at(index, val)
+    }
 
-    pub fn as_indexes_mut(&self) -> IndexesView<T> {
+    pub fn as_indexes_mut(&'a self) -> IndexesView<'a, T> {
         self.index_file.as_view()
     }
 }
