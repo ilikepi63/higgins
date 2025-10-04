@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
-use super::IndexesMut;
+use super::IndexesView;
 use super::file::IndexFile;
 
 use super::default::{ArchivedDefaultIndex, DefaultIndex};
@@ -92,7 +92,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+        let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -164,7 +164,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+        let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -245,7 +245,7 @@ impl CommitFile for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+            let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };
@@ -309,7 +309,7 @@ impl FindBatches for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut {
+            let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };

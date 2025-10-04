@@ -136,6 +136,7 @@ impl Broker {
             topography: Topography::new(),
             clients: ClientCollection::empty(),
             functions: FunctionCollection::new(functions_dir),
+            broker_indexes: Vec::new(),
         }
     }
 }

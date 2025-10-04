@@ -8,9 +8,11 @@ mod default;
 pub mod directory;
 mod error;
 mod file;
-
+pub mod joined_index;
 pub use error::IndexError;
 use rkyv::Portable;
+
+pub use file::IndexFile;
 
 pub trait Timestamped {
     fn timestamp(&self) -> u64;
@@ -24,12 +26,12 @@ fn get_archived_value<T: Portable>(buf: &[u8]) -> &T {
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
 #[derive(Default)]
-pub struct IndexesMut<'a, T> {
+pub struct IndexesView<'a, T> {
     buffer: &'a [u8],
     _t: PhantomData<T>,
 }
 
-impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
+impl<'a, T: Portable + Timestamped> IndexesView<'a, T> {
     /// Creates a new empty container
     pub fn empty() -> Self {
         Self {
@@ -121,8 +123,18 @@ impl<'a, T: Portable + Timestamped> IndexesMut<'a, T> {
 
         result
     }
+
+    /// Get this as a mutable slice of Indexes.
+    pub fn as_indexes_mut(&self) -> IndexesView<T> {
+        let indexes_mut: IndexesView<T> = IndexesView {
+            buffer: self.buffer,
+            _t: PhantomData,
+        };
+
+        indexes_mut
+    }
 }
-impl<'a, T> StdIndex<usize> for IndexesMut<'a, T> {
+impl<'a, T> StdIndex<usize> for IndexesView<'a, T> {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -132,7 +144,7 @@ impl<'a, T> StdIndex<usize> for IndexesMut<'a, T> {
     }
 }
 
-impl<'a, T> Deref for IndexesMut<'a, T> {
+impl<'a, T> Deref for IndexesView<'a, T> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -160,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_indexes_mut_empty() {
-        let indexes: IndexesMut<'_, ArchivedDefaultIndex> = IndexesMut::empty();
+        let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView::empty();
         assert_eq!(indexes.count(), 0);
         assert!(indexes.is_empty());
         assert!(indexes.get(0).is_none());
