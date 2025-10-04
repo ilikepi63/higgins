@@ -129,7 +129,20 @@ pub async fn create_join_operator(
                                                                 if let Some(right_offset) =
                                                                     val.right_offset.as_ref()
                                                                 {
-                                                                    let lock = index_file.lock();
+                                                                    let join_index = JoinedIndex {
+                                                                        offset: joined_index.offset,
+                                                                        right_offset: Some(
+                                                                            right_offset
+                                                                                .to_native(),
+                                                                        ),
+                                                                        left_offset: joined_index
+                                                                            .left_offset,
+                                                                        object_key: joined_index
+                                                                            .object_key,
+                                                                        timestamp: joined_index
+                                                                            .timestamp,
+                                                                    };
+
                                                                     break;
                                                                 }
                                                             }
