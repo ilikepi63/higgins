@@ -8,7 +8,8 @@ pub enum IndexError {
     IndexFileIsNotADirectory,
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
-
+    #[error("Attempt to swap out index with incorrectly sized byte array.")]
+    IndexSwapSizeError,
     #[error("TryFromInt Error")]
     TryFromIntError(#[from] TryFromIntError),
     #[error("Rancor Error")]

@@ -5,7 +5,7 @@ use std::{io::Write as _, marker::PhantomData};
 /// the memory-mapped implementation of this file.
 pub struct IndexFile<T> {
     file_handle: std::fs::File,
-    mmap: memmap2::Mmap,
+    mmap: memmap2::MmapMut,
     _t: PhantomData<T>,
 }
 
@@ -18,7 +18,7 @@ impl<T> IndexFile<T> {
             .open(&path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
-        let mmap = unsafe { memmap2::Mmap::map(&file_handle)? };
+        let mmap = unsafe { memmap2::MmapMut::map_mut(&file_handle)? };
 
         Ok(Self {
             file_handle,
@@ -33,12 +33,21 @@ impl<T> IndexFile<T> {
 
     pub fn append(&mut self, b: &[u8]) -> Result<(), IndexError> {
         self.file_handle.write_all(b)?;
-        self.mmap = unsafe { memmap2::Mmap::map(&self.file_handle)? };
+        self.mmap = unsafe { memmap2::MmapMut::map_mut(&self.file_handle)? };
         Ok(())
     }
 
-    pub fn put_at(&mut self, index: u64, bytes: &[u8]) {
-        // TODO: perhaps a const assert here?
+    // Put the index at a specific offset.
+    pub fn put_at(&mut self, offset: u64, bytes: &mut [u8]) -> Result<(), IndexError> {
+        // length check to avoid panic.
+        if bytes.len() == size_of::<T>() {
+            return Err(IndexError::IndexSwapSizeError);
+        }
+
+        // Get the byte offset.
+        let offset = offset as usize * size_of::<T>();
+
+        Ok(self.mmap[offset..offset + size_of::<T>()].swap_with_slice(bytes))
     }
 
     pub fn as_view(&self) -> IndexesView<'_, T> {
