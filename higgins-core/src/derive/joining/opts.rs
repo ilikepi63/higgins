@@ -40,6 +40,30 @@ pub async fn create_join_operator(
         handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
     }));
 
+    // We create the resultant stream that data is zipped into.
+    {
+        let mut broker = broker.write().await;
+
+        let schema = schema_to_arrow_schema(&definition.base.1.map.unwrap());
+
+        // Create the actual derived stream.
+        broker.create_stream(&definition.base.0.0, Arc::new(schema));
+    };
+
+    for join_stream in definition.joins {
+        let handle = tokio::spawn(async move {
+            // Create a subscription on each derivative
+            let (client_id, condvar, subscription) = {
+                let mut broker = broker.write().await;
+                let client_id = broker.clients.insert(super::ClientRef::NoOp);
+                let left_subscription = broker.create_subscription(join_stream.0.inner());
+                let (left_notify, left_subscription) = get_sub!(broker, left, left_subscription);
+
+                (client_id, left_notify, left_subscription)
+            };
+        });
+    }
+
     // Create the subscriptions inside of the broker for each join.
     match definition {
         JoinDefinition::Inner(inner) => {
@@ -60,16 +84,6 @@ pub async fn create_join_operator(
             // First task just adds in the indexing to the value.
             let left_broker = broker.clone();
             tokio::task::spawn(async move {
-                let (client_id, left_notify, left_subscription) = {
-                    let mut broker = left_broker.write().await;
-                    let client_id = broker.clients.insert(super::ClientRef::NoOp);
-                    let left_subscription = broker.create_subscription(left.0.inner());
-                    let (left_notify, left_subscription) =
-                        get_sub!(broker, left, left_subscription);
-
-                    (client_id, left_notify, left_subscription)
-                };
-
                 loop {
                     let offsets = eager_take_from_subscription_or_wait(
                         left_subscription.clone(),

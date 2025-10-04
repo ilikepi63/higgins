@@ -65,41 +65,15 @@ pub struct JoinDefinition {
 /// # JoinWithStream
 ///
 /// Structure primarily used as a ADT over different join types.
-pub enum JoinWithStream {
-    Full(FullJoin),
-    Outer(OuterJoin),
-    Inner(InnerJoin),
-}
-
-/// A structure representing an Inner Join.
-///
-/// This structure is primarily implemented for transporting inner join
-/// configuration data.
-pub struct InnerJoin {
+pub struct JoinWithStream {
+    /// The type of this join.
+    pub join_type: JoinType,
     /// Name and definition of the stream that this is joined to.
     pub stream: (Key, StreamDefinition),
 }
 
-/// A structure representing an Full Join.
-///
-/// This structure is primarily implemented for transporting full join
-/// configuration data.
-pub struct FullJoin {
-    /// Name and definition of the stream that this is joined to.
-    pub stream: (Key, StreamDefinition),
-}
-
-/// The side to which a stream is being joined.
-pub enum OuterSide {
-    Left,
-    Right,
-}
-
-/// A structure representing an Outer Join.
-///
-/// This structure is primarily implemented for transporting join
-/// configuration data.
-pub struct OuterJoin {
-    /// Name and definition of the stream that this is joined to.
-    pub stream: (Key, StreamDefinition),
+pub enum JoinType {
+    Full,
+    Outer,
+    Inner,
 }
