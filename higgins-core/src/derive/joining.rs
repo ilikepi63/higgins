@@ -13,17 +13,14 @@ use std::{collections::BTreeMap, sync::Arc};
 use arrow::{array::RecordBatch, datatypes::Schema};
 use tokio::sync::RwLock;
 
-mod full_join;
-mod inner_join;
 pub mod join;
 mod opts;
-mod outer_join;
 
 use crate::{
     broker::Broker,
     client::ClientRef,
     derive::{
-        joining::{join::JoinDefinition, opts::create_join_operator, outer_join::OuterSide},
+        joining::{join::JoinDefinition, opts::create_join_operator},
         utils::col_name_to_field_and_col,
     },
     error::HigginsError,
