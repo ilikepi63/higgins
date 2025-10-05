@@ -93,10 +93,36 @@ pub async fn create_join_operator(
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
-                // let joined_index
+                let mut index_file = {
+                    let mut broker = broker.write().await;
+                    let index_file: BrokerIndexFile<JoinedIndex> = broker
+                        .get_index_file(
+                            String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+                            &partition,
+                        )
+                        .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+                    index_file
+                };
+
+                let joined_index = {
+                    let mut lock = index_file.lock().await;
+
+                    let indexes = lock.as_indexes_mut();
+
+                    let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
+
+                    let timestamp = epoch();
+
+                    let joined_index =
+                        JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
+
+                    joined_index
+                };
             }
         }
     });
+
+    operator.handles.push(collection_handle);
 
     // // Create the subscriptions inside of the broker for each join.
     // match definition {
