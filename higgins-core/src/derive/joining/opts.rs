@@ -90,6 +90,7 @@ pub async fn create_join_operator(
     // This task awaits all of the given derivative partitions and accumulates them into the
     // new joined stream.
     let stream = definition.base.0.0;
+    let n_offsets = definition.joins.len();
     let collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
@@ -115,12 +116,12 @@ pub async fn create_join_operator(
 
                     let timestamp = epoch();
 
-                    let mut joined_index_bytes = [0; JoinedIndex::size_of()];
+                    let mut joined_index_bytes = [0; JoinedIndex::size_of(n_offsets)];
 
-                    let joined_index =
-                        JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
+                    // let joined_index =
+                    //     JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
 
-                    joined_index
+                    // joined_index
                 };
             }
         }
