@@ -143,6 +143,17 @@ pub async fn create_join_operator(
                                                                             .timestamp,
                                                                     };
 
+                                                                    let joined_index_bytes =
+                                                                        rkyv::to_bytes::<
+                                                                            rkyv::rancor::Error,
+                                                                        >(
+                                                                            &joined_index
+                                                                        )
+                                                                        .unwrap();
+
+                                                                    index_file
+                                                                        .put_at(index, join_index);
+
                                                                     break;
                                                                 }
                                                             }
