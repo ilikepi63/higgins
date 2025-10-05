@@ -3,7 +3,6 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::index::joined_index::ArchivedJoinedIndex;
 use crate::storage::index::{IndexFile, joined_index::JoinedIndex};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
@@ -15,7 +14,7 @@ macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
             .get_subscription_by_key($left.0.inner(), &$sub)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)?
+            .ok_or(HigginsError::SubscriptionRetrievalFailed)
     };
 }
 
@@ -34,7 +33,7 @@ pub async fn create_join_operator(
 ) -> JoinOperatorHandle {
     // We leak this handle. This is primarily so that we can access this handle from multiple
     // tasks without having to use a form a reference checking.
-    let operator: &'static JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
+    let operator: &'static mut JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
         is_working: AtomicBool::new(true),
         handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
     }));
@@ -51,18 +50,22 @@ pub async fn create_join_operator(
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
-    let (derivative_channel_tx, derivative_channel_rx) = tokio::sync::mpsc::channel(100);
+    let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
 
     // For each stream in the
     for (i, join_stream) in definition.joins.iter().enumerate() {
+        let join_stream = join_stream.clone();
+        let broker = broker.clone();
+        let derivative_channel_tx = derivative_channel_tx.clone();
         let handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
                 let mut broker = broker.write().await;
                 let client_id = broker.clients.insert(super::ClientRef::NoOp);
                 let left_subscription = broker.create_subscription(join_stream.stream.0.inner());
-                let stream = join_stream.stream;
-                let (left_notify, left_subscription) = get_sub!(broker, stream, left_subscription);
+                let stream = join_stream.stream.clone();
+                let (left_notify, left_subscription) =
+                    get_sub!(broker, stream, left_subscription).unwrap();
 
                 (client_id, left_notify, left_subscription)
             };
@@ -89,213 +92,213 @@ pub async fn create_join_operator(
         }
     });
 
-    // Create the subscriptions inside of the broker for each join.
-    match definition {
-        JoinDefinition::Inner(inner) => {
-            // we want one task to listen on the subscription,
-            let left = inner.left_stream;
-            let right = inner.right_stream;
+    // // Create the subscriptions inside of the broker for each join.
+    // match definition {
+    //     JoinDefinition::Inner(inner) => {
+    //         // we want one task to listen on the subscription,
+    //         let left = inner.left_stream;
+    //         let right = inner.right_stream;
 
-            // We create the resultant stream that data is zipped into.
-            {
-                let mut broker = broker.write().await;
+    //         // We create the resultant stream that data is zipped into.
+    //         {
+    //             let mut broker = broker.write().await;
 
-                let schema = schema_to_arrow_schema(&inner.stream.1.map.unwrap());
+    //             let schema = schema_to_arrow_schema(&inner.stream.1.map.unwrap());
 
-                // Create the actual derived stream.
-                broker.create_stream(&inner.stream.0.0, Arc::new(schema));
-            };
+    //             // Create the actual derived stream.
+    //             broker.create_stream(&inner.stream.0.0, Arc::new(schema));
+    //         };
 
-            // First task just adds in the indexing to the value.
-            let left_broker = broker.clone();
-            tokio::task::spawn(async move {
-                loop {
-                    match offsets {
-                        Ok(offsets) => {
-                            for (partition, offset) in offsets {
-                                // Get the handle to the resultant streams indexing file.
-                                let mut index_file = {
-                                    let mut broker = left_broker.write().await;
-                                    let index_file: BrokerIndexFile<ArchivedJoinedIndex> = broker
-                                        .get_index_file(
-                                            String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
-                                            &partition,
-                                        )
-                                        .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
-                                    index_file
-                                };
+    //         // First task just adds in the indexing to the value.
+    //         let left_broker = broker.clone();
+    //         tokio::task::spawn(async move {
+    //             loop {
+    //                 match offsets {
+    //                     Ok(offsets) => {
+    //                         for (partition, offset) in offsets {
+    //                             // Get the handle to the resultant streams indexing file.
+    //                             let mut index_file = {
+    //                                 let mut broker = left_broker.write().await;
+    //                                 let index_file: BrokerIndexFile<ArchivedJoinedIndex> = broker
+    //                                     .get_index_file(
+    //                                         String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+    //                                         &partition,
+    //                                     )
+    //                                     .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+    //                                 index_file
+    //                             };
 
-                                let joined_index = {
-                                    let mut lock = index_file.lock().await;
+    //                             let joined_index = {
+    //                                 let mut lock = index_file.lock().await;
 
-                                    let indexes = lock.as_indexes_mut();
+    //                                 let indexes = lock.as_indexes_mut();
 
-                                    let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
+    //                                 let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
 
-                                    let timestamp = epoch();
+    //                                 let timestamp = epoch();
 
-                                    let joined_index = JoinedIndex::new_with_left_offset(
-                                        joined_offset,
-                                        offset,
-                                        timestamp,
-                                    );
+    //                                 let joined_index = JoinedIndex::new_with_left_offset(
+    //                                     joined_offset,
+    //                                     offset,
+    //                                     timestamp,
+    //                                 );
 
-                                    joined_index
-                                };
+    //                                 joined_index
+    //                             };
 
-                                match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
-                                    Ok(serialized) => {
-                                        let mut lock = index_file.lock().await;
+    //                             match rkyv::to_bytes::<rkyv::rancor::Error>(&joined_index) {
+    //                                 Ok(serialized) => {
+    //                                     let mut lock = index_file.lock().await;
 
-                                        match lock.append(&serialized).await {
-                                            Ok(_) => {
-                                                drop(lock);
-                                                // Another task to reverse iterate through each remaining index looking for the alternate index.
-                                                // This will then fill this index with that alternate index.
-                                                tokio::spawn(async move {
-                                                    let view = index_file.view();
-                                                    for i in (view.count() - 1)..=0 {
-                                                        let index = view.get(i);
-                                                        match index {
-                                                            Some(val) => {
-                                                                if let Some(right_offset) =
-                                                                    val.right_offset.as_ref()
-                                                                {
-                                                                    let join_index = JoinedIndex {
-                                                                        offset: joined_index.offset,
-                                                                        right_offset: Some(
-                                                                            right_offset
-                                                                                .to_native(),
-                                                                        ),
-                                                                        left_offset: joined_index
-                                                                            .left_offset,
-                                                                        object_key: joined_index
-                                                                            .object_key,
-                                                                        timestamp: joined_index
-                                                                            .timestamp,
-                                                                    };
+    //                                     match lock.append(&serialized).await {
+    //                                         Ok(_) => {
+    //                                             drop(lock);
+    //                                             // Another task to reverse iterate through each remaining index looking for the alternate index.
+    //                                             // This will then fill this index with that alternate index.
+    //                                             tokio::spawn(async move {
+    //                                                 let view = index_file.view();
+    //                                                 for i in (view.count() - 1)..=0 {
+    //                                                     let index = view.get(i);
+    //                                                     match index {
+    //                                                         Some(val) => {
+    //                                                             if let Some(right_offset) =
+    //                                                                 val.right_offset.as_ref()
+    //                                                             {
+    //                                                                 let join_index = JoinedIndex {
+    //                                                                     offset: joined_index.offset,
+    //                                                                     right_offset: Some(
+    //                                                                         right_offset
+    //                                                                             .to_native(),
+    //                                                                     ),
+    //                                                                     left_offset: joined_index
+    //                                                                         .left_offset,
+    //                                                                     object_key: joined_index
+    //                                                                         .object_key,
+    //                                                                     timestamp: joined_index
+    //                                                                         .timestamp,
+    //                                                                 };
 
-                                                                    let joined_index_bytes =
-                                                                        rkyv::to_bytes::<
-                                                                            rkyv::rancor::Error,
-                                                                        >(
-                                                                            &joined_index
-                                                                        )
-                                                                        .unwrap();
+    //                                                                 let joined_index_bytes =
+    //                                                                     rkyv::to_bytes::<
+    //                                                                         rkyv::rancor::Error,
+    //                                                                     >(
+    //                                                                         &joined_index
+    //                                                                     )
+    //                                                                     .unwrap();
 
-                                                                    index_file
-                                                                        .put_at(index, join_index);
+    //                                                                 index_file
+    //                                                                     .put_at(index, join_index);
 
-                                                                    break;
-                                                                }
-                                                            }
-                                                            None => {
-                                                                tracing::trace!(
-                                                                    "Index not found for stream, moving on."
-                                                                );
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-                                                });
-                                            }
-                                            Err(err) => {
-                                                tracing::error!(
-                                                    "Append returned an error: {:#?}",
-                                                    err
-                                                );
-                                                panic!(
-                                                    "This should never panic - append returned an error."
-                                                );
-                                            }
-                                        }
-                                    }
-                                    Err(err) => {
-                                        tracing::error!(
-                                            "Conversion to Rkyv serialization format failed. This should never happen. Err: {:#?}",
-                                            err
-                                        );
-                                        unimplemented!()
-                                    }
-                                };
+    //                                                                 break;
+    //                                                             }
+    //                                                         }
+    //                                                         None => {
+    //                                                             tracing::trace!(
+    //                                                                 "Index not found for stream, moving on."
+    //                                                             );
+    //                                                             break;
+    //                                                         }
+    //                                                     }
+    //                                                 }
+    //                                             });
+    //                                         }
+    //                                         Err(err) => {
+    //                                             tracing::error!(
+    //                                                 "Append returned an error: {:#?}",
+    //                                                 err
+    //                                             );
+    //                                             panic!(
+    //                                                 "This should never panic - append returned an error."
+    //                                             );
+    //                                         }
+    //                                     }
+    //                                 }
+    //                                 Err(err) => {
+    //                                     tracing::error!(
+    //                                         "Conversion to Rkyv serialization format failed. This should never happen. Err: {:#?}",
+    //                                         err
+    //                                     );
+    //                                     unimplemented!()
+    //                                 }
+    //                             };
 
-                                // save each index into the new joined stream index.
-                                // Notify the other stream that there are updates to this stream.
-                            }
-                        }
-                        Err(err) => {
-                            tracing::error!(
-                                "An error occurred when trying to retrieve offsets for  a joined stream: {:#?}. Closing this task.",
-                                err
-                            );
-                            return Err::<(), HigginsError>(HigginsError::Unknown);
-                        }
-                    };
-                }
-            });
+    //                             // save each index into the new joined stream index.
+    //                             // Notify the other stream that there are updates to this stream.
+    //                         }
+    //                     }
+    //                     Err(err) => {
+    //                         tracing::error!(
+    //                             "An error occurred when trying to retrieve offsets for  a joined stream: {:#?}. Closing this task.",
+    //                             err
+    //                         );
+    //                         return Err::<(), HigginsError>(HigginsError::Unknown);
+    //                     }
+    //                 };
+    //             }
+    //         });
 
-            let right_broker = broker.clone();
-            tokio::task::spawn(async move {
-                let (client_id, notify, subscription) = {
-                    let mut broker = right_broker.write().await;
-                    let client_id = broker.clients.insert(super::ClientRef::NoOp);
-                    let subscription = broker.create_subscription(right.0.inner());
-                    let (notify, subscription) = get_sub!(broker, right, subscription);
+    //         // let right_broker = broker.clone();
+    //         // tokio::task::spawn(async move {
+    //         //     let (client_id, notify, subscription) = {
+    //         //         let mut broker = right_broker.write().await;
+    //         //         let client_id = broker.clients.insert(super::ClientRef::NoOp);
+    //         //         let subscription = broker.create_subscription(right.0.inner());
+    //         //         let (notify, subscription) = get_sub!(broker, right, subscription);
 
-                    (client_id, notify, subscription)
-                };
+    //         //         (client_id, notify, subscription)
+    //         //     };
 
-                loop {
-                    let offsets = eager_take_from_subscription_or_wait(
-                        subscription.clone(),
-                        notify.clone(),
-                        client_id,
-                    )
-                    .await;
+    //         //     loop {
+    //         //         let offsets = eager_take_from_subscription_or_wait(
+    //         //             subscription.clone(),
+    //         //             notify.clone(),
+    //         //             client_id,
+    //         //         )
+    //         //         .await;
 
-                    match offsets {
-                        Ok(offsets) => {
-                            for offset in offsets {
-                                // save each index into the new joined stream index.
-                                // Notify the other stream that there are updates to this stream.
-                            }
-                        }
-                        Err(err) => {
-                            tracing::error!(
-                                "An error occurred when trying to retrieve offsets for  a joined stream: {:#?}. Closing this task.",
-                                err
-                            );
-                            return Err::<(), HigginsError>(HigginsError::Unknown);
-                        }
-                    };
-                }
-            });
+    //         //         match offsets {
+    //         //             Ok(offsets) => {
+    //         //                 for offset in offsets {
+    //         //                     // save each index into the new joined stream index.
+    //         //                     // Notify the other stream that there are updates to this stream.
+    //         //                 }
+    //         //             }
+    //         //             Err(err) => {
+    //         //                 tracing::error!(
+    //         //                     "An error occurred when trying to retrieve offsets for  a joined stream: {:#?}. Closing this task.",
+    //         //                     err
+    //         //                 );
+    //         //                 return Err::<(), HigginsError>(HigginsError::Unknown);
+    //         //             }
+    //         //         };
+    //         //     }
+    //         // });
 
-            // and another to action on that subscription.
-        }
-        JoinDefinition::Outer(outer) => match outer.side {
-            OuterSide::Left => {
-                let left = outer.left_stream;
+    //         // // and another to action on that subscription.
+    //     }
+    //     JoinDefinition::Outer(outer) => match outer.side {
+    //         OuterSide::Left => {
+    //             let left = outer.left_stream;
 
-                // let left_subscription = broker.create_subscription(left.0.inner());
+    //             // let left_subscription = broker.create_subscription(left.0.inner());
 
-                todo!();
-            }
-            OuterSide::Right => {
-                let right = outer.right_stream;
-                // let subscription = broker.create_subscription(right.0.inner());
+    //             todo!();
+    //         }
+    //         OuterSide::Right => {
+    //             let right = outer.right_stream;
+    //             // let subscription = broker.create_subscription(right.0.inner());
 
-                todo!();
-            }
-        },
-        JoinDefinition::Full(full) => {
-            let left = full.first_stream;
-            let right = full.second_stream;
-            todo!()
-            // let left_subscription = broker.create_subscription(left.0.inner());
-            // let right_subscription = broker.create_subscription(right.0.inner());
-        }
-    };
+    //             todo!();
+    //         }
+    //     },
+    //     JoinDefinition::Full(full) => {
+    //         let left = full.first_stream;
+    //         let right = full.second_stream;
+    //         todo!()
+    //         // let left_subscription = broker.create_subscription(left.0.inner());
+    //         // let right_subscription = broker.create_subscription(right.0.inner());
+    //     }
+    // };
 
     // Second task updates that value with the previous other streams' value.
     // Third task generates the data underlying both of them.
