@@ -36,14 +36,24 @@ impl<'a> JoinedIndex<'a> {
     fn put(
         &mut self,
         offset: u64,
-        object_key: [u8; 16],
+        object_key: Option<[u8; 16]>,
         timestamp: u64,
         indexes: &[u64],
         mut data: &mut [u8],
     ) -> Result<(), std::io::Error> {
         data.write_all(offset.to_be_bytes().as_slice())?;
-        data.write_all(object_key.as_slice())?;
         data.write_all(timestamp.to_be_bytes().as_slice())?;
+
+        match object_key {
+            Some(object_key) => {
+                data.write_all(&u8::to_be_bytes(1));
+                data.write_all(object_key.as_slice())?;
+            }
+            None => {
+                data.write_all(&u8::to_be_bytes(0));
+                data.write_all([0_u8; 16].as_slice())?;
+            }
+        }
 
         for index in indexes {
             data.write_all(index.to_be_bytes().as_slice())?;
@@ -126,7 +136,7 @@ mod tests {
     fn test_put_returns_error_on_short_data() {
         let mut index = JoinedIndex::from(&[0u8; 0][..]); // Empty slice for mut self
         let mut short_data = vec![0u8; 10]; // Too short
-        let result = index.put(0, [0u8; 16], 0, &[], &mut short_data);
+        let result = index.put(0, Some([0u8; 16]), 0, &[], &mut short_data);
 
         assert!(matches!(result, Err(_)));
     }
@@ -140,7 +150,7 @@ mod tests {
         let indexes = vec![0x1111111111111111u64, 0x2222222222222222u64];
 
         let mut data = vec![0u8; 32 + indexes.len() * 8];
-        index.put(offset, object_key, timestamp, &indexes, &mut data);
+        index.put(offset, Some(object_key), timestamp, &indexes, &mut data);
 
         // Verify written data
         let read_offset = u64::from_be_bytes(data[0..8].try_into().unwrap());
