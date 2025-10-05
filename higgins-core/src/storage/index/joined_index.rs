@@ -8,7 +8,7 @@ use crate::storage::index::Timestamped;
 #[derive(Serialize, Deserialize, Archive)]
 pub struct JoinedIndex {
     /// The offset of the resultant index.
-    offset: u64,
+    pub offset: u64,
     /// The index of the right stream that this was joined from.
     pub right_offset: Option<u64>,
     /// The index of the left stream that this was joined from.

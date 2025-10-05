@@ -24,6 +24,15 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
         }
     }
 
+    /// `put_at` is not meant to be used in a multithread environment if multiple
+    /// concurrent processes have access to this file. This operations swaps out bytes
+    /// at a specific offset with another set of bytes.
+    ///
+    /// You will run into race conditions if you attempt to use this concurrently.
+    pub fn put_at(&mut self, index: u64, val: &mut [u8]) -> Result<(), IndexError> {
+        self.index_file.put_at(index, val)
+    }
+
     pub fn view<'a>(&'a self) -> IndexesView<'a, T> {
         self.index_file.as_view()
     }
@@ -45,9 +54,7 @@ impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
         Ok(())
     }
 
-    pub fn put_at(&mut self, index: u64, val: &[u8]) {}
-
-    pub fn as_indexes_mut(&self) -> IndexesView<T> {
+    pub fn as_indexes_mut(&'a self) -> IndexesView<'a, T> {
         self.index_file.as_view()
     }
 }
