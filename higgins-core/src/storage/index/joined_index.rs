@@ -4,20 +4,20 @@ use std::io::Write;
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
 pub struct JoinedIndex<'a>(&'a [u8]);
-
 // /// The offset of the resultant index.
 // pub offset: u64,
-// /// The object key holding the resultant data from the joining.
-// pub object_key: Option<[u8; 16]>,
 // /// The timestamp for this index.
 // pub timestamp: u64,
+// /// The object key holding the resultant data from the joining.
+// pub object_key: Option<[u8; 16]>,
 // /// The offsets of the derivative streams.
 // pub offsets: T,
 
 const OFFSET_INDEX: usize = 0;
-const OBJECT_KEY_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
-const TIMESTAMP_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
-const INDEXES_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
+const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
+const OBJECT_KEY_OPTIONAL_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
+const OBJECT_KEY_INDEX: usize = OBJECT_KEY_OPTIONAL_INDEX + size_of::<bool>();
+const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
 
 impl<'a> JoinedIndex<'a> {
     // Properties.
@@ -30,10 +30,7 @@ impl<'a> JoinedIndex<'a> {
             .try_into()
             .unwrap()
     }
-    // pub fn offset(&self) -> u64 {
-    //     u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
-    // }
-    //
+
     // Constructors
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     fn put(
