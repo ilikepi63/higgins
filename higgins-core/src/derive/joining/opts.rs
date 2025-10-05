@@ -89,15 +89,17 @@ pub async fn create_join_operator(
 
     // This task awaits all of the given derivative partitions and accumulates them into the
     // new joined stream.
+    let stream = definition.base.0.0;
     let collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
+                // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
                     let mut broker = broker.write().await;
                     let index_file: BrokerIndexFile<JoinedIndex> = broker
                         .get_index_file(
-                            String::from_utf8(inner.stream.0.0.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+                            String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
                             &partition,
                         )
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
