@@ -50,17 +50,29 @@ pub async fn create_join_operator(
         broker.create_stream(&definition.base.0.0, Arc::new(schema));
     };
 
+    // We collect the results of each derivative stream into a channel, with which we
+    // iterate over and push onto the resultant stream.
+    let derivative_channel = tokio::sync::mpsc::channel(100);
+
     for join_stream in definition.joins {
         let handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
                 let mut broker = broker.write().await;
                 let client_id = broker.clients.insert(super::ClientRef::NoOp);
-                let left_subscription = broker.create_subscription(join_stream.0.inner());
-                let (left_notify, left_subscription) = get_sub!(broker, left, left_subscription);
+                let left_subscription = broker.create_subscription(join_stream.stream.0.inner());
+                let stream = join_stream.stream;
+                let (left_notify, left_subscription) = get_sub!(broker, stream, left_subscription);
 
                 (client_id, left_notify, left_subscription)
             };
+
+            let offsets = eager_take_from_subscription_or_wait(
+                subscription.clone(),
+                condvar.clone(),
+                client_id,
+            )
+            .await;
         });
     }
 
@@ -85,13 +97,6 @@ pub async fn create_join_operator(
             let left_broker = broker.clone();
             tokio::task::spawn(async move {
                 loop {
-                    let offsets = eager_take_from_subscription_or_wait(
-                        left_subscription.clone(),
-                        left_notify.clone(),
-                        client_id,
-                    )
-                    .await;
-
                     match offsets {
                         Ok(offsets) => {
                             for (partition, offset) in offsets {
