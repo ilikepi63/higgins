@@ -1,4 +1,3 @@
-use super::OuterSide;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
@@ -26,7 +25,7 @@ pub struct JoinOperatorHandle {
     /// Describes whether or not this Join is still operating.
     is_working: AtomicBool,
     /// The handles that are currently spawned for this join.
-    handles: Vec<tokio::runtime::Handle>,
+    handles: Vec<tokio::task::JoinHandle<()>>,
 }
 
 pub async fn create_join_operator(
@@ -52,9 +51,10 @@ pub async fn create_join_operator(
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
-    let derivative_channel = tokio::sync::mpsc::channel(100);
+    let (derivative_channel_tx, derivative_channel_rx) = tokio::sync::mpsc::channel(100);
 
-    for join_stream in definition.joins {
+    // For each stream in the
+    for (i, join_stream) in definition.joins.iter().enumerate() {
         let handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
@@ -67,14 +67,27 @@ pub async fn create_join_operator(
                 (client_id, left_notify, left_subscription)
             };
 
-            let offsets = eager_take_from_subscription_or_wait(
-                subscription.clone(),
-                condvar.clone(),
-                client_id,
-            )
-            .await;
+            loop {
+                let offsets = eager_take_from_subscription_or_wait(
+                    subscription.clone(),
+                    condvar.clone(),
+                    client_id,
+                )
+                .await;
+
+                derivative_channel_tx.send((i, offsets)).await;
+            }
         });
+
+        // Add the handle to the operator here.
+        operator.handles.push(handle);
     }
+
+    let collection_handle = tokio::spawn(async move {
+        while let Some((index, offsets)) = derivative_channel_rx.recv().await {
+            // push this onto the resultant stream.
+        }
+    });
 
     // Create the subscriptions inside of the broker for each join.
     match definition {
