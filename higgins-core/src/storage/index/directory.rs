@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 use std::{path::PathBuf, time::SystemTime};
 
+use crate::storage::index::WrapBytes;
+
 use super::IndexError;
 use super::IndexesView;
 use super::file::IndexFile;
@@ -101,7 +103,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -110,8 +112,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position.to_native().into(),
-                        byte_size: index.size.to_native().try_into().unwrap(),
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -164,7 +166,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
+        let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };
@@ -173,7 +175,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -182,8 +184,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position.to_native().into(),
-                        byte_size: index.size.to_native().try_into().unwrap(),
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -245,26 +247,30 @@ impl CommitFile for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
+            let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };
 
-            let offset = indexes.count() + 1;
+            let offset = (indexes.count() + 1) as u64;
             let position = batch.byte_offset;
             let timestamp = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
 
-            let index = DefaultIndex {
+            let mut val = [0; DefaultIndex::size_of()];
+
+            DefaultIndex::put(
                 offset,
                 object_key,
-                position: position.try_into().unwrap(),
+                position.try_into().unwrap(),
                 timestamp,
-                size: batch.size.into(),
-            }
-            .to_bytes();
+                batch.size.into(),
+                &mut val,
+            );
+
+            let index = DefaultIndex::wrap(&val).to_bytes();
 
             tracing::info!("Saving Index: {:#?}", index);
 
@@ -309,7 +315,7 @@ impl FindBatches for IndexDirectory {
                 .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
                 .unwrap();
 
-            let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
+            let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
                 buffer: index_file.as_slice(),
                 _t: PhantomData,
             };
@@ -318,11 +324,11 @@ impl FindBatches for IndexDirectory {
 
             let offset: u32 = offset.try_into().unwrap();
 
-            let index: Option<&ArchivedDefaultIndex> = indexes.get(offset);
+            let index: Option<DefaultIndex> = indexes.get(offset);
 
             match index {
                 Some(index) => {
-                    let object_key = uuid::Uuid::from_bytes(index.object_key).to_string();
+                    let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
 
                     tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -331,8 +337,8 @@ impl FindBatches for IndexDirectory {
                         object_key,
                         metadata: BatchMetadata {
                             topic_id_partition,
-                            byte_offset: index.position.to_native().into(),
-                            byte_size: index.size.to_native().try_into().unwrap(),
+                            byte_offset: index.position().into(),
+                            byte_size: index.size().try_into().unwrap(),
                             base_offset: 0,
                             last_offset: 0,
                             log_append_timestamp: 0,
