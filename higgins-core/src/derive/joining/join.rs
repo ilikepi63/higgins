@@ -4,10 +4,13 @@ use crate::topography::{Join, Key, StreamDefinition};
 
 use super::{full_join::FullJoin, inner_join::InnerJoin, outer_join::OuterJoin};
 
-pub enum JoinDefinition {
-    Inner(InnerJoin),
-    Outer(OuterJoin),
-    Full(FullJoin),
+/// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
+/// metadata.
+pub struct JoinDefinition {
+    /// The base stream that this join definition comes from.
+    base: (Key, StreamDefinition),
+    /// The different joins that will
+    joins: Vec<JoinWithStream>,
 }
 
 impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
@@ -59,4 +62,9 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
             }),
         })
     }
+}
+pub enum JoinWithStream {
+    Full(FullJoin),
+    Outer(OuterJoin),
+    Inner(InnerJoin),
 }
