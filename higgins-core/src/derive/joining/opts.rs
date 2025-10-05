@@ -52,7 +52,7 @@ pub async fn create_join_operator(
     // iterate over and push onto the resultant stream.
     let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
 
-    // For each stream in the
+    // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
         let join_stream = join_stream.clone();
         let broker = broker.clone();
@@ -76,7 +76,8 @@ pub async fn create_join_operator(
                     condvar.clone(),
                     client_id,
                 )
-                .await;
+                .await
+                .unwrap();
 
                 derivative_channel_tx.send((i, offsets)).await;
             }
@@ -86,9 +87,14 @@ pub async fn create_join_operator(
         operator.handles.push(handle);
     }
 
+    // This task awaits all of the given derivative partitions and accumulates them into the
+    // new joined stream.
     let collection_handle = tokio::spawn(async move {
-        while let Some((index, offsets)) = derivative_channel_rx.recv().await {
+        while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
+            for (partition, offset) in partition_offset_vec {
+                // let joined_index
+            }
         }
     });
 

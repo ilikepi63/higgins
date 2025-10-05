@@ -43,14 +43,16 @@ impl<'a> JoinedIndex<'a> {
         timestamp: u64,
         indexes: &[u64],
         mut data: &mut [u8],
-    ) {
-        data.write_all(offset.to_be_bytes().as_slice());
-        data.write_all(object_key.as_slice());
-        data.write_all(timestamp.to_be_bytes().as_slice());
+    ) -> Result<(), std::io::Error> {
+        data.write_all(offset.to_be_bytes().as_slice())?;
+        data.write_all(object_key.as_slice())?;
+        data.write_all(timestamp.to_be_bytes().as_slice())?;
 
         for index in indexes {
-            data.write_all(index.to_be_bytes().as_slice());
+            data.write_all(index.to_be_bytes().as_slice())?;
         }
+
+        Ok(())
     }
 }
 
@@ -118,11 +120,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "tried to write whole buffer")]
-    fn test_put_panics_on_short_data() {
+    fn test_put_returns_error_on_short_data() {
         let mut index = JoinedIndex::from(&[0u8; 0][..]); // Empty slice for mut self
         let mut short_data = vec![0u8; 10]; // Too short
-        let _ = index.put(0, [0u8; 16], 0, &[], &mut short_data);
+        let result = index.put(0, [0u8; 16], 0, &[], &mut short_data);
+
+        assert!(matches!(result, Err(_)));
     }
 
     #[test]
