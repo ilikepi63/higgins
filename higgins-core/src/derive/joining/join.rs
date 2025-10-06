@@ -65,6 +65,7 @@ pub struct JoinDefinition {
 /// # JoinWithStream
 ///
 /// Structure primarily used as a ADT over different join types.
+#[derive(Clone)]
 pub struct JoinWithStream {
     /// The type of this join.
     pub join_type: JoinType,
@@ -72,6 +73,7 @@ pub struct JoinWithStream {
     pub stream: (Key, StreamDefinition),
 }
 
+#[derive(Clone)]
 pub enum JoinType {
     Full,
     Outer,
