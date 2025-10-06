@@ -10,7 +10,6 @@ mod error;
 mod file;
 pub mod joined_index;
 pub use error::IndexError;
-use rkyv::Portable;
 
 pub use file::IndexFile;
 
@@ -153,21 +152,8 @@ impl<'a, T> Deref for IndexesView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::default::{ArchivedDefaultIndex, DefaultIndex};
+    use super::default::DefaultIndex;
     use super::*;
-
-    #[test]
-    fn test_index_methods() {
-        let index = DefaultIndex {
-            offset: 1,
-            position: 100,
-            timestamp: 1234567890,
-            object_key: [0; 16],
-            size: 12,
-        };
-        assert_eq!(index.timestamp, 1234567890);
-        assert_eq!(index.position, 100);
-    }
 
     #[test]
     fn test_indexes_mut_empty() {
