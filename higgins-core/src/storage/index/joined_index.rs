@@ -8,6 +8,9 @@ pub struct JoinedIndex<'a>(&'a [u8]);
 // pub offset: u64,
 // /// The timestamp for this index.
 // pub timestamp: u64,
+// /// Whether or not this join has been completed by alternative join data. This
+// /// Generally means that the join has been appended with the other joined data.
+// pub completed: bool,
 // /// The object key holding the resultant data from the joining.
 // pub object_key: Option<[u8; 16]>,
 // /// The offsets of the derivative streams.
@@ -15,7 +18,8 @@ pub struct JoinedIndex<'a>(&'a [u8]);
 
 const OFFSET_INDEX: usize = 0;
 const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
-const OBJECT_KEY_OPTIONAL_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
+const COMPLETED_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
+const OBJECT_KEY_OPTIONAL_INDEX: usize = COMPLETED_INDEX + size_of::<u8>();
 const OBJECT_KEY_INDEX: usize = OBJECT_KEY_OPTIONAL_INDEX + size_of::<bool>();
 const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
 
@@ -29,6 +33,15 @@ impl<'a> JoinedIndex<'a> {
         self.0[OBJECT_KEY_INDEX..INDEXES_INDEX].try_into().unwrap()
     }
 
+    /// Retrieve whether or not this join is completed.
+    pub fn completed(&self) -> bool {
+        u8::from_be_bytes(
+            (self.0[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<u8>()]
+                .try_into()
+                .unwrap()),
+        ) == 1
+    }
+
     // Constructors
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
@@ -40,6 +53,8 @@ impl<'a> JoinedIndex<'a> {
     ) -> Result<(), std::io::Error> {
         data.write_all(offset.to_be_bytes().as_slice())?;
         data.write_all(timestamp.to_be_bytes().as_slice())?;
+        // Completed is false by default.
+        data.write_all(0_u8.to_be_bytes().as_slice())?;
 
         match object_key {
             Some(object_key) => {

@@ -79,7 +79,16 @@ pub async fn create_join_operator(
                 .await
                 .unwrap();
 
-                derivative_channel_tx.send((i, offsets)).await;
+                derivative_channel_tx
+                    .send((i, offsets))
+                    .await
+                    .inspect_err(|err| {
+                        tracing::error!(
+                            "Error attempting to send to derivative channel: {:#?}",
+                            err
+                        );
+                    })
+                    .unwrap();
             }
         });
 
