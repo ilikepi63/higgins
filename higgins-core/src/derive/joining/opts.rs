@@ -116,7 +116,11 @@ pub async fn create_join_operator(
 
                     let timestamp = epoch();
 
-                    let mut joined_index_bytes = [0; JoinedIndex::size_of(n_offsets)];
+                    // Initialize zero byte array.
+                    let mut joined_index_bytes =
+                        Vec::<u8>::with_capacity(JoinedIndex::size_of(n_offsets))
+                            .iter_mut()
+                            .for_each(|val| *val = 0);
 
                     // let joined_index =
                     //     JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
