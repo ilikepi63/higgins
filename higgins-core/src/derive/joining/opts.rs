@@ -170,6 +170,17 @@ pub async fn create_join_operator(
 
                     drop(lock);
                 };
+
+                // Task that checks if previous value is completed, if not stops.
+                // If the previous task has been completed, query if the next index has been completed,
+                // if not, then complete it.
+                tokio::spawn(async move {
+                    let index_file_view = index_file.view();
+                    let previous_joined_index =
+                        index_file_view.get((index - 1).try_into().unwrap());
+
+                    if let Some(joined_index) = previous_joined_index {}
+                });
             }
         }
     });
