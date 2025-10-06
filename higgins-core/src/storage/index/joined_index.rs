@@ -72,7 +72,7 @@ impl<'a> JoinedIndex<'a> {
 
     /// Gets the offset at the specified index.
     pub fn get_offset(&self, index: usize) -> Result<u64, IndexError> {
-        match self.within_bounds(index) {
+        match Self::within_bounds(self.0, index) {
             true => {
                 let relative_index = (index * (size_of::<u8>() + size_of::<u64>())) + INDEXES_INDEX;
 
@@ -92,7 +92,27 @@ impl<'a> JoinedIndex<'a> {
     }
 
     /// Puts the offset at the specified index.
-    pub fn put_offset() {}
+    pub fn put_offset(buffer: &mut [u8], index: usize, put_offset: u64) -> Result<(), IndexError> {
+        match Self::within_bounds(buffer, index) {
+            true => {
+                let relative_index = (index * (size_of::<u8>() + size_of::<u64>())) + INDEXES_INDEX;
+
+                let offset = &mut buffer
+                    [relative_index..relative_index + (size_of::<u8>() + size_of::<u64>())][..];
+
+                let (optional, offset) = offset.split_at_mut(1);
+
+                let optional: &mut [u8; 1] = optional.try_into().unwrap();
+                let offset: &mut [u8; 8] = offset.try_into().unwrap();
+
+                *optional = u8::to_be_bytes(1);
+                *offset = put_offset.to_be_bytes();
+
+                Ok(())
+            }
+            false => Err(IndexError::IndexGivenOutOfBoundsForJoinedIndex),
+        }
+    }
 
     // Helpers
     pub fn size_of(n_offsets: usize) -> usize {
@@ -101,9 +121,9 @@ impl<'a> JoinedIndex<'a> {
     }
 
     /// Checks whether an index given is within the specific bounds of this JoinedIndex.
-    fn within_bounds(&self, index: usize) -> bool {
-        index + INDEXES_INDEX < (self.0.len() - 1)
-            && (index + (size_of::<u8>() + size_of::<u64>())) < (self.0.len() - 1)
+    fn within_bounds(buffer: &[u8], index: usize) -> bool {
+        index + INDEXES_INDEX < (buffer.len() - 1)
+            && (index + (size_of::<u8>() + size_of::<u64>())) < (buffer.len() - 1)
     }
 }
 
