@@ -115,6 +115,8 @@ pub async fn create_join_operator(
 
                     let timestamp = epoch();
 
+                    let mut joined_index_bytes = [0; JoinedIndex::size_of()];
+
                     let joined_index =
                         JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
 
