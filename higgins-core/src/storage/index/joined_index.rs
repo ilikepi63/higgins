@@ -26,9 +26,7 @@ impl<'a> JoinedIndex<'a> {
         u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
     }
     pub fn object_key(&self) -> [u8; 16] {
-        self.0[OBJECT_KEY_INDEX..TIMESTAMP_INDEX]
-            .try_into()
-            .unwrap()
+        self.0[OBJECT_KEY_INDEX..INDEXES_INDEX].try_into().unwrap()
     }
 
     // Constructors
@@ -60,6 +58,12 @@ impl<'a> JoinedIndex<'a> {
         }
 
         Ok(())
+    }
+
+    // Helpers
+    pub fn size_of(n_offsets: usize) -> usize {
+        // last index (add one to make length), plus the amount of indexes times the size of the optional and the size of the offset.
+        INDEXES_INDEX + 1 + (n_offsets * (size_of::<u8>() + size_of::<u64>()))
     }
 }
 
