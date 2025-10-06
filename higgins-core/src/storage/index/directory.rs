@@ -5,7 +5,7 @@ use super::IndexError;
 use super::IndexesView;
 use super::file::IndexFile;
 
-use super::default::{ArchivedDefaultIndex, DefaultIndex};
+use super::default::DefaultIndex;
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -92,7 +92,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
             .unwrap();
 
-        let indexes: IndexesView<'_, ArchivedDefaultIndex> = IndexesView {
+        let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
             buffer: index_file.as_slice(),
             _t: PhantomData,
         };

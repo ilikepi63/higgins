@@ -18,8 +18,8 @@ pub trait Timestamped {
     fn timestamp(&self) -> u64;
 }
 
-pub trait WrapBytes {
-    fn wrap(bytes: &[u8]) -> Self;
+pub trait WrapBytes<'a> {
+    fn wrap(bytes: &'a [u8]) -> Self;
 }
 
 /// A container for binary-encoded index data.
@@ -30,7 +30,7 @@ pub struct IndexesView<'a, T> {
     _t: PhantomData<T>,
 }
 
-impl<'a, T: Timestamped + WrapBytes> IndexesView<'a, T> {
+impl<'a, T: Timestamped + WrapBytes<'a>> IndexesView<'a, T> {
     /// Creates a new empty container
     pub fn empty() -> Self {
         Self {
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_indexes_mut_empty() {
-        let indexes: IndexesView<'_, Defa> = IndexesView::empty();
+        let indexes: IndexesView<'_, DefaultIndex> = IndexesView::empty();
         assert_eq!(indexes.count(), 0);
         assert!(indexes.is_empty());
         assert!(indexes.get(0).is_none());
