@@ -1,4 +1,4 @@
-use crate::storage::index::Timestamped;
+use crate::storage::index::{Timestamped, WrapBytes};
 use std::io::Write;
 
 /// JoinedIndex represents the index metadata that one will use to
@@ -65,6 +65,12 @@ impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
 impl<'a> Timestamped for JoinedIndex<'a> {
     fn timestamp(&self) -> u64 {
         u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
+    }
+}
+
+impl<'a> WrapBytes<'a> for JoinedIndex<'a> {
+    fn wrap(bytes: &'a [u8]) -> Self {
+        Self(bytes)
     }
 }
 
