@@ -142,7 +142,28 @@ impl<'a> JoinedIndex<'a> {
 
     /// Iterates through the other joined index's offsets, copying them over to the current
     /// index's offsets if the current ones are not available.
-    pub fn copy_filled_from(current: &mut JoinedIndex, other: &JoinedIndex) {}
+    pub fn copy_filled_from(current: &mut [u8], other: &[u8]) {
+        const OFFSET_SIZE: usize = size_of::<u8>() + size_of::<u64>();
+
+        let length = (current.len() - INDEXES_INDEX - 1) / OFFSET_SIZE;
+
+        for i in 0..length {
+            let current_index = (i * (OFFSET_SIZE)) + INDEXES_INDEX;
+
+            let current_joined_offset =
+                JoinedIndexOffset::of(&current[current_index..current_index + OFFSET_SIZE]);
+
+            let other_joined_offset =
+                JoinedIndexOffset::of(&other[current_index..current_index + OFFSET_SIZE]);
+
+            if !current_joined_offset.present() && other_joined_offset.present() {
+                current[current_index..current_index + OFFSET_SIZE]
+                    .iter_mut()
+                    .zip(other[current_index..current_index + OFFSET_SIZE].iter())
+                    .for_each(|(current, other)| *current = *other);
+            }
+        }
+    }
 }
 
 impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
