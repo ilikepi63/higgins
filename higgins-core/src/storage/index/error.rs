@@ -14,6 +14,10 @@ pub enum IndexError {
     TryFromIntError(#[from] TryFromIntError),
     #[error("Rancor Error")]
     RancorError(#[from] rkyv::rancor::Error),
+    #[error("The given index does not exist in the JoinedIndex.")]
+    IndexInJoinedIndexNotFound,
+    #[error("Index out of bounds for the JoinedIndex.")]
+    IndexGivenOutOfBoundsForJoinedIndex,
     #[error("Unknown Index Error")]
     Unknown,
 }
