@@ -139,6 +139,10 @@ impl<'a> JoinedIndex<'a> {
         index + INDEXES_INDEX < (buffer.len() - 1)
             && (index + (size_of::<u8>() + size_of::<u64>())) < (buffer.len() - 1)
     }
+
+    /// Iterates through the other joined index's offsets, copying them over to the current
+    /// index's offsets if the current ones are not available.
+    pub fn copy_filled_from(current: &mut JoinedIndex, other: &JoinedIndex) {}
 }
 
 impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
@@ -156,5 +160,34 @@ impl<'a> Timestamped for JoinedIndex<'a> {
 impl<'a> WrapBytes<'a> for JoinedIndex<'a> {
     fn wrap(bytes: &'a [u8]) -> Self {
         Self(bytes)
+    }
+}
+
+/// A byte sequence representing an Optional offset,
+/// which is a big-endian u64 value prepended by a single
+/// big-endian byte that is either 1 or 2.
+pub struct JoinedIndexOffset<'a>(&'a [u8]);
+
+impl<'a> JoinedIndexOffset<'a> {
+    /// Create this from a byte array.
+    pub fn of(val: &'a [u8]) -> JoinedIndexOffset<'a> {
+        Self(val)
+    }
+
+    pub fn present(&self) -> bool {
+        self.0[0] == 1
+    }
+
+    /// Check if this value is Some or None.
+    pub fn get_unchecked(&self) -> u64 {
+        u64::from_be_bytes(self.0[1..=9].try_into().unwrap())
+    }
+
+    /// Check if this value is Some or None.
+    pub fn get(&self) -> Option<u64> {
+        match self.present() {
+            true => Some(self.get_unchecked()),
+            false => None,
+        }
     }
 }
