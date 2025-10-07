@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::index::{IndexFile, joined_index::JoinedIndex};
+use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -107,7 +107,8 @@ pub async fn create_join_operator(
                     index_file
                 };
 
-                let joined_index = {
+                // Read before write operation to append a joined index to the index file.
+                {
                     let mut lock = index_file.lock().await;
 
                     let indexes = lock.as_indexes_mut();
@@ -120,12 +121,45 @@ pub async fn create_join_operator(
                     let mut joined_index_bytes =
                         Vec::<u8>::with_capacity(JoinedIndex::size_of(n_offsets))
                             .iter_mut()
-                            .for_each(|val| *val = 0);
+                            .map(|_| 0)
+                            .collect::<Vec<_>>();
 
-                    // let joined_index =
-                    //     JoinedIndex::new_with_left_offset(joined_offset, offset, timestamp);
+                    let offsets = (0..(n_offsets - 1))
+                        .map(|offset_val| {
+                            if offset_val == index {
+                                Some(offset)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
-                    // joined_index
+                    JoinedIndex::put(
+                        joined_offset,
+                        None,
+                        timestamp,
+                        &offsets,
+                        &mut joined_index_bytes,
+                    )
+                    .inspect_err(|err| {
+                        tracing::error!(
+                            "Failed to put Joined Index bytes into buffer with error: {:#?}",
+                            err,
+                        );
+                    })
+                    .unwrap();
+
+                    lock.append(&joined_index_bytes)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!(
+                                "Failed to append data to the index file with error: {:#?}",
+                                err
+                            );
+                        })
+                        .unwrap();
+
+                    drop(lock);
                 };
             }
         }

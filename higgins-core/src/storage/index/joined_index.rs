@@ -31,8 +31,7 @@ impl<'a> JoinedIndex<'a> {
 
     // Constructors
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
-    fn put(
-        &mut self,
+    pub fn put(
         offset: u64,
         object_key: Option<[u8; 16]>,
         timestamp: u64,
