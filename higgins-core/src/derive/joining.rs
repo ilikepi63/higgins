@@ -14,6 +14,7 @@ use arrow::{array::RecordBatch, datatypes::Schema};
 use tokio::sync::RwLock;
 
 pub mod join;
+pub mod mapping;
 mod opts;
 
 use crate::{
