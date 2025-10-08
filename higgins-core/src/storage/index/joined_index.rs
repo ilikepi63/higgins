@@ -84,6 +84,11 @@ impl<'a> JoinedIndex<'a> {
         Ok(())
     }
 
+    // Destructors
+    pub fn inner(self) -> &'a [u8] {
+        self.0
+    }
+
     /// Gets the offset at the specified index.
     pub fn get_offset(&self, index: usize) -> Result<u64, IndexError> {
         match Self::within_bounds(self.0, index) {
@@ -163,6 +168,15 @@ impl<'a> JoinedIndex<'a> {
                     .for_each(|(current, other)| *current = *other);
             }
         }
+    }
+
+    /// Retrieve whether or not this join is completed.
+    pub fn set_completed(buf: &mut [u8]) {
+        buf[COMPLETED_INDEX..(COMPLETED_INDEX + size_of::<u8>())]
+            .iter_mut()
+            .for_each(|val| {
+                *val = 1_u8;
+            });
     }
 }
 
