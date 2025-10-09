@@ -3,7 +3,6 @@ use std::{env::temp_dir, net::TcpStream, time::Duration};
 use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use serde_json::json;
-use tracing_test::traced_test;
 
 use crate::common::{
     configuration::upload_configuration, functions::upload_module_sync, ping::ping_sync,
