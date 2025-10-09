@@ -61,19 +61,21 @@ impl Broker {
         for (derived_stream_key, derived_stream_definition) in derived_streams {
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
-                    let definition = {
-                        let b: &Broker = self;
+                    todo!();
 
-                        JoinDefinition::try_from((
-                            derived_stream_key,
-                            derived_stream_definition,
-                            b,
-                        ))?
-                    };
+                    // let definition = {
+                    //     let b: &Broker = self;
 
-                    create_joined_stream_from_definition(definition, self, broker.clone())
-                        .await
-                        .unwrap();
+                    //     JoinDefinition::try_from((
+                    //         derived_stream_key,
+                    //         derived_stream_definition,
+                    //         b,
+                    //     ))?
+                    // };
+
+                    // create_joined_stream_from_definition(definition, self, broker.clone())
+                    //     .await
+                    //     .unwrap();
                 }
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");
