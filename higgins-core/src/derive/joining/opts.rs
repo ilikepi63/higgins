@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::{IndexFile, WrapBytes};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -176,10 +177,39 @@ pub async fn create_join_operator(
                 // if not, then complete it.
                 tokio::spawn(async move {
                     let index_file_view = index_file.view();
+                    // Get the index preceding this one.
                     let previous_joined_index =
                         index_file_view.get((index - 1).try_into().unwrap());
 
-                    if let Some(joined_index) = previous_joined_index {}
+                    let current_joined_index =
+                        index_file_view.get(index.try_into().unwrap()).unwrap(); // Unwrap as this should always exist.
+
+                    if let Some(joined_index) = previous_joined_index {
+                        let mut inner_current_joined_index = current_joined_index.inner();
+
+                        let mut owned_slice: Vec<u8> =
+                            Vec::with_capacity(inner_current_joined_index.len());
+                        // If the previous index has been `completed`. Then we run the copy
+                        // over operation for this index and save it at the index offset.
+                        if joined_index.completed() {
+                            JoinedIndex::copy_filled_from(&mut owned_slice, joined_index.inner());
+                            JoinedIndex::set_completed(&mut owned_slice);
+
+                            index_file
+                                .put_at(index.try_into().unwrap(), &mut owned_slice)
+                                .inspect_err(|err| {
+                                    tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
+                                }).unwrap();
+
+                            // So now that the current is completed, we can iterate over the rest
+                            // and check if they need completing.
+                            iterate_from_index_and_complete(
+                                &mut index_file,
+                                index.try_into().unwrap(),
+                            )
+                            .await;
+                        }
+                    }
                 });
             }
         }
@@ -521,6 +551,52 @@ pub async fn create_join_operator(
 }
 
 use crate::{error::HigginsError, subscription::Subscription};
+
+/// This function iterates over the next index, using the current index to complete it.
+pub async fn iterate_from_index_and_complete(
+    index_file: &mut BrokerIndexFile<JoinedIndex<'_>>,
+    index: u64,
+) {
+    let mut index = index;
+
+    loop {
+        let index_view = index_file.view();
+        let next_joined_index = index_view.get((index + 1).try_into().unwrap()); // TODO: Remove this as we want offsets to be u64.
+
+        // Return early if the next index is either completed, or the
+        // index itself has yet to be written.
+        if next_joined_index
+            .as_ref()
+            .is_none_or(|index| index.completed())
+        {
+            break;
+        }
+
+        let current_joined_index = index_view.get(index.try_into().unwrap()).unwrap(); // Asumption is that this is always Some(_).
+
+        let mut copied_next: Vec<u8> = next_joined_index
+            .unwrap()
+            .inner()
+            .iter()
+            .map(|b| b.clone())
+            .collect();
+
+        JoinedIndex::copy_filled_from(&mut copied_next, &current_joined_index.inner());
+
+        index_file
+            .put_at((index + 1).try_into().unwrap(), &mut copied_next)
+            .inspect_err(|err| {
+                tracing::error!(
+                    "Failed to put Index at offset: {}. Error: {:#?}",
+                    index + 1,
+                    err,
+                )
+            })
+            .unwrap();
+
+        index += 1;
+    }
+}
 
 static N: u64 = 10;
 
