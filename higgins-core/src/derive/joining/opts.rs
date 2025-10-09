@@ -4,7 +4,6 @@ use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{IndexFile, WrapBytes};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -185,7 +184,7 @@ pub async fn create_join_operator(
                         index_file_view.get(index.try_into().unwrap()).unwrap(); // Unwrap as this should always exist.
 
                     if let Some(joined_index) = previous_joined_index {
-                        let mut inner_current_joined_index = current_joined_index.inner();
+                        let inner_current_joined_index = current_joined_index.inner();
 
                         let mut owned_slice: Vec<u8> =
                             Vec::with_capacity(inner_current_joined_index.len());
