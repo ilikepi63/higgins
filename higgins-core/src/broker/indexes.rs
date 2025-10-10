@@ -1,14 +1,13 @@
 use super::Broker;
 use crate::storage::index::{IndexError, IndexFile, IndexesView, Timestamped};
-use rkyv::Portable;
 use std::sync::Arc;
 
-pub struct BrokerIndexFile<T: Portable + Timestamped> {
+pub struct BrokerIndexFile<T: Timestamped> {
     index_file: IndexFile<T>,
     mutex: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl<T: Portable + Timestamped> BrokerIndexFile<T> {
+impl<T: Timestamped> BrokerIndexFile<T> {
     /// Create a new instance of a BrokerIndexFile.
     pub fn new(index_file: IndexFile<T>, mutex: Arc<tokio::sync::Mutex<()>>) -> Self {
         Self { index_file, mutex }
@@ -39,13 +38,13 @@ impl<T: Portable + Timestamped> BrokerIndexFile<T> {
 }
 
 #[allow(unused)]
-pub struct BrokerIndexFileLock<'a, T: Portable + Timestamped> {
+pub struct BrokerIndexFileLock<'a, T: Timestamped> {
     index_file: &'a mut IndexFile<T>,
     mutex: Arc<tokio::sync::Mutex<()>>,
     lock_guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
-impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
+impl<'a, T: Timestamped> BrokerIndexFileLock<'a, T> {
     /// Append a new T to this index file.
     pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
         // Append this data to the underlying file.
@@ -60,7 +59,7 @@ impl<'a, T: Portable + Timestamped> BrokerIndexFileLock<'a, T> {
 }
 
 impl Broker {
-    pub fn get_index_file<T: Portable + Timestamped>(
+    pub fn get_index_file<T: Timestamped>(
         &mut self,
         stream: String,
         partition: &[u8],
