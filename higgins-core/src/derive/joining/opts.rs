@@ -171,6 +171,9 @@ pub async fn create_join_operator(
                     drop(lock);
                 };
 
+                let (completed_index_collector_tx, mut completed_index_collector_rx) =
+                    tokio::sync::mpsc::channel(100);
+
                 // Task that checks if previous value is completed, if not stops.
                 // If the previous task has been completed, query if the next index has been completed,
                 // if not, then complete it.
@@ -205,9 +208,21 @@ pub async fn create_join_operator(
                             iterate_from_index_and_complete(
                                 &mut index_file,
                                 index.try_into().unwrap(),
+                                completed_index_collector_tx,
                             )
                             .await;
                         }
+                    }
+                });
+
+                tokio::spawn(async move {
+                    while let Some(completed_index) = completed_index_collector_rx.recv().await {
+
+                        // Query the offset from this index_file,
+                        // Query the other offset data from this index_file.
+                        // Amalgamate the data into a record
+                        // Save the record to the backing store.
+                        // complete.
                     }
                 });
             }
@@ -555,6 +570,7 @@ use crate::{error::HigginsError, subscription::Subscription};
 pub async fn iterate_from_index_and_complete(
     index_file: &mut BrokerIndexFile<JoinedIndex<'_>>,
     index: u64,
+    tx: tokio::sync::mpsc::Sender<u64>,
 ) {
     let mut index = index;
 
@@ -593,9 +609,15 @@ pub async fn iterate_from_index_and_complete(
             })
             .unwrap();
 
+        tx.send(index + 1);
+
         index += 1;
     }
 }
+
+/// Takes an index for a specified stream definition, queries the created (and completed) offset
+/// and joined all of the underlying data together, making the conformed join spec.
+pub async fn make_joined_data() {}
 
 static N: u64 = 10;
 
