@@ -41,6 +41,7 @@ pub async fn create_join_operator(
 
     // Redefined for movements.
     let amalgamate_definition = definition.clone();
+    let amalgamate_broker = broker.clone();
 
     // We create the resultant stream that data is zipped into.
     {
@@ -111,6 +112,7 @@ pub async fn create_join_operator(
             for (partition, offset) in partition_offset_vec {
                 // Redefinition for tokio copies.
                 let amalgamate_partition = partition.clone();
+                let amalgamate_broker = amalgamate_broker.clone();
 
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
@@ -237,9 +239,12 @@ pub async fn create_join_operator(
                     index_file
                 };
 
+                let amalgamate_definition = amalgamate_definition.clone();
+                let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
                     let stream = amalgamate_definition;
                     let partition = amalgamate_partition;
+                    let broker = amalgamate_broker;
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
                         // Query the offset from this index_file,
