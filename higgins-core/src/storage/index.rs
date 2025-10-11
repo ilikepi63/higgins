@@ -24,143 +24,111 @@ pub trait WrapBytes<'a> {
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
 #[derive(Default)]
-pub struct IndexesView<'a, T> {
+pub struct IndexesView<'a> {
     buffer: &'a [u8],
-    _t: PhantomData<T>,
+    element_size: usize,
 }
 
-impl<'a, T: Timestamped + WrapBytes<'a>> IndexesView<'a, T> {
+impl<'a> IndexesView<'a> {
     /// Creates a new empty container
     pub fn empty() -> Self {
         Self {
             buffer: &[0; 0],
-            _t: PhantomData,
+            element_size: 0,
         }
     }
 
     /// Gets the number of indexes in the container
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> usize {
         println!("Len: {}", self.buffer.len());
-        println!("Size: {}", size_of::<T>());
-        self.buffer.len() as u32 / size_of::<T>() as u32
-    }
-
-    /// Checks if the container is empty
-    pub fn is_empty(&self) -> bool {
-        self.count() == 0
+        println!("Size: {}", self.element_size);
+        self.buffer.len() / self.element_size
     }
 
     /// Gets a view of the DefaultIndex at the specified index
-    pub fn get(&self, index: u32) -> Option<T> {
+    pub fn get(&self, index: usize) -> Option<&[u8]> {
         if index >= self.count() {
             return None;
         }
 
-        let start = index as usize * size_of::<T>();
-        let end = start + size_of::<T>();
+        let start = index as usize * self.element_size;
+        let end = start + self.element_size;
 
         if end <= self.buffer.len() {
-            Some(T::wrap(&self.buffer[start..end]))
+            Some(&self.buffer[start..end])
         } else {
             None
         }
     }
 
     /// Gets a last index
-    pub fn last(&self) -> Option<T> {
+    pub fn last(&self) -> Option<&[u8]> {
         if self.count() == 0 {
             return None;
         }
 
-        Some(T::wrap(
-            &self.buffer[(self.count() - 1) as usize * size_of::<T>()..],
-        ))
+        Some(&self.buffer[(self.count() - 1) as usize * self.element_size..])
     }
 
-    /// Finds an index by timestamp using binary search
-    /// If an exact match isn't found, returns the index with the nearest timestamp
-    /// that is greater than or equal to the requested timestamp
-    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<T> {
-        if self.count() == 0 {
-            return None;
-        }
+    // // Finds an index by timestamp using binary search
+    // /// If an exact match isn't found, returns the index with the nearest timestamp
+    // /// that is greater than or equal to the requested timestamp
+    // pub fn find_by_timestamp(&self, timestamp: u64) -> Option<T> {
+    //     if self.count() == 0 {
+    //         return None;
+    //     }
 
-        let first_idx = self.get(0)?;
-        if timestamp <= first_idx.timestamp() {
-            return Some(first_idx);
-        }
+    //     let first_idx = self.get(0)?;
+    //     if timestamp <= first_idx.timestamp() {
+    //         return Some(first_idx);
+    //     }
 
-        let last_saved_idx = self.get(self.count() - 1)?;
-        if timestamp > last_saved_idx.timestamp() {
-            return None;
-        }
+    //     let last_saved_idx = self.get(self.count() - 1)?;
+    //     if timestamp > last_saved_idx.timestamp() {
+    //         return None;
+    //     }
 
-        let mut left = 0;
-        let mut right = self.count() as isize - 1;
-        let mut result: Option<T> = None;
+    //     let mut left = 0;
+    //     let mut right = self.count() as isize - 1;
+    //     let mut result: Option<T> = None;
 
-        while left <= right {
-            let mid = left + (right - left) / 2;
-            let view = self.get(mid as u32).unwrap();
-            let current_timestamp = view.timestamp();
+    //     while left <= right {
+    //         let mid = left + (right - left) / 2;
+    //         let view = self.get(mid as u32).unwrap();
+    //         let current_timestamp = view.timestamp();
 
-            match current_timestamp.cmp(&timestamp) {
-                std::cmp::Ordering::Equal => {
-                    result = Some(view);
-                    right = mid - 1;
-                }
-                std::cmp::Ordering::Less => {
-                    left = mid + 1;
-                }
-                std::cmp::Ordering::Greater => {
-                    result = Some(view);
-                    right = mid - 1;
-                }
-            }
-        }
+    //         match current_timestamp.cmp(&timestamp) {
+    //             std::cmp::Ordering::Equal => {
+    //                 result = Some(view);
+    //                 right = mid - 1;
+    //             }
+    //             std::cmp::Ordering::Less => {
+    //                 left = mid + 1;
+    //             }
+    //             std::cmp::Ordering::Greater => {
+    //                 result = Some(view);
+    //                 right = mid - 1;
+    //             }
+    //         }
+    //     }
 
-        result
-    }
-
-    /// Get this as a mutable slice of Indexes.
-    pub fn as_indexes_mut(&self) -> IndexesView<T> {
-        let indexes_mut: IndexesView<T> = IndexesView {
-            buffer: self.buffer,
-            _t: PhantomData,
-        };
-
-        indexes_mut
-    }
+    //     result
+    // }
 }
-impl<'a, T> StdIndex<usize> for IndexesView<'a, T> {
+impl<'a> StdIndex<usize> for IndexesView<'a> {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * size_of::<T>();
-        let end = start + size_of::<T>();
+        let start = index * self.element_size;
+        let end = start + self.element_size;
         &self.buffer[start..end]
     }
 }
 
-impl<'a, T> Deref for IndexesView<'a, T> {
+impl<'a> Deref for IndexesView<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
         &self.buffer
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::default::DefaultIndex;
-    use super::*;
-
-    #[test]
-    fn test_indexes_mut_empty() {
-        let indexes: IndexesView<'_, DefaultIndex> = IndexesView::empty();
-        assert_eq!(indexes.count(), 0);
-        assert!(indexes.is_empty());
-        assert!(indexes.get(0).is_none());
-        assert!(indexes.last().is_none());
     }
 }

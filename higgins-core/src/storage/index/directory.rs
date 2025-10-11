@@ -65,14 +65,15 @@ impl IndexDirectory {
     }
 
     /// Retrieves an index file instance given a stream and partition.
-    pub fn index_file_from_stream_and_partition<T>(
+    pub fn index_file_from_stream_and_partition(
         &self,
         stream: String,
         partition: &[u8],
-    ) -> Result<IndexFile<T>, IndexError> {
+        element_size: usize,
+    ) -> Result<IndexFile, IndexError> {
         let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
 
-        let index_file: IndexFile<T> = IndexFile::new(&index_file_name)?;
+        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size)?;
 
         Ok(index_file)
     }
@@ -84,70 +85,71 @@ impl IndexDirectory {
         partition: &[u8],
         timestamp: u64,
     ) -> Vec<FindBatchResponse> {
-        let mut responses = vec![];
+        todo!();
+        // let mut responses = vec![];
 
-        let stream_str = String::from_utf8_lossy(stream).to_string();
+        // let stream_str = String::from_utf8_lossy(stream).to_string();
 
-        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+        // let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_file = self
-            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
-            .unwrap();
+        // let index_file = self
+        //     .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+        //     .unwrap();
 
-        let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
-            buffer: index_file.as_slice(),
-            _t: PhantomData,
-        };
+        // let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
+        //     buffer: index_file.as_slice(),
+        //     _t: PhantomData,
+        // };
 
-        let index = indexes.find_by_timestamp(timestamp);
+        // let index = indexes.find_by_timestamp(timestamp);
 
-        match index {
-            Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+        // match index {
+        //     Some(index) => {
+        //         let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
 
-                tracing::info!("Reading from object: {:#?}", object_key);
+        //         tracing::info!("Reading from object: {:#?}", object_key);
 
-                let batch = BatchInfo {
-                    batch_id: 1,
-                    object_key,
-                    metadata: BatchMetadata {
-                        topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
-                        base_offset: 0,
-                        last_offset: 0,
-                        log_append_timestamp: 0,
-                        batch_max_timestamp: 0,
-                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
-                        producer_id: 0,
-                        producer_epoch: 0,
-                        base_sequence: 0,
-                        last_sequence: 0,
-                    },
-                };
+        //         let batch = BatchInfo {
+        //             batch_id: 1,
+        //             object_key,
+        //             metadata: BatchMetadata {
+        //                 topic_id_partition,
+        //                 byte_offset: index.position().into(),
+        //                 byte_size: index.size().try_into().unwrap(),
+        //                 base_offset: 0,
+        //                 last_offset: 0,
+        //                 log_append_timestamp: 0,
+        //                 batch_max_timestamp: 0,
+        //                 timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+        //                 producer_id: 0,
+        //                 producer_epoch: 0,
+        //                 base_sequence: 0,
+        //                 last_sequence: 0,
+        //             },
+        //         };
 
-                let response = FindBatchResponse {
-                    errors: vec![],
-                    batches: vec![batch],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
+        //         let response = FindBatchResponse {
+        //             errors: vec![],
+        //             batches: vec![batch],
+        //             log_start_offset: 0,
+        //             high_watermark: 0,
+        //         };
 
-                responses.push(response);
-            }
-            None => {
-                tracing::error!("No Index found at offset {}", 0);
-                let response = FindBatchResponse {
-                    errors: vec!["Failed to find index for Topic and offset".to_string()],
-                    batches: vec![],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
-                responses.push(response);
-            }
-        }
+        //         responses.push(response);
+        //     }
+        //     None => {
+        //         tracing::error!("No Index found at offset {}", 0);
+        //         let response = FindBatchResponse {
+        //             errors: vec!["Failed to find index for Topic and offset".to_string()],
+        //             batches: vec![],
+        //             log_start_offset: 0,
+        //             high_watermark: 0,
+        //         };
+        //         responses.push(response);
+        //     }
+        // }
 
-        responses
+        // responses
     }
 
     /// Retrieves the latest value to be placed on this partition.
@@ -163,15 +165,17 @@ impl IndexDirectory {
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
         let index_file = self
-            .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
+            .index_file_from_stream_and_partition(stream_str, partition, size_of::<DefaultIndex>())
             .unwrap();
 
-        let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
+        let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
-            _t: PhantomData,
+            element_size: size_of::<usize>(),
         };
 
         let index = indexes.last();
+
+        let index = index.map(DefaultIndex::of);
 
         match index {
             Some(index) => {
@@ -244,12 +248,12 @@ impl CommitFile for IndexDirectory {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
             let mut index_file = self
-                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+                .index_file_from_stream_and_partition(topic, &partition, size_of::<DefaultIndex>())
                 .unwrap();
 
-            let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
+            let indexes = IndexesView {
                 buffer: index_file.as_slice(),
-                _t: PhantomData,
+                element_size: size_of::<DefaultIndex>(),
             };
 
             let offset = (indexes.count() + 1) as u64;
@@ -311,20 +315,20 @@ impl FindBatches for IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let index_file = self
-                .index_file_from_stream_and_partition::<DefaultIndex>(topic, &partition)
+            let mut index_file = self
+                .index_file_from_stream_and_partition(topic, &partition, size_of::<DefaultIndex>())
                 .unwrap();
 
-            let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
+            let indexes = IndexesView {
                 buffer: index_file.as_slice(),
-                _t: PhantomData,
+                element_size: size_of::<DefaultIndex>(),
             };
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let offset: u32 = offset.try_into().unwrap();
-
-            let index: Option<DefaultIndex> = indexes.get(offset);
+            let index: Option<DefaultIndex> = indexes
+                .get(offset.try_into().unwrap())
+                .map(DefaultIndex::of);
 
             match index {
                 Some(index) => {
