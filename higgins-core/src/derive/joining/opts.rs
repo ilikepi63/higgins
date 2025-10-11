@@ -259,10 +259,16 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let stream =
-                                        stream.joined_stream_from_index(offset.try_into().unwrap());
+                                    let stream = stream
+                                        .joined_stream_from_index(offset.try_into().unwrap())
+                                        .unwrap();
 
                                     let broker_lock = broker.read().await;
+
+                                    let index_file = broker_lock.get_index_file(
+                                        String::from_utf8(stream.0.inner().to_vec()).unwrap(),
+                                        &partition,
+                                    );
 
                                     // Retrieve the data from the other stream.
                                     // broker_lock.
