@@ -43,6 +43,12 @@ impl<'a> JoinedIndex<'a> {
     }
 
     // Constructors
+
+    /// Creates a instance of this, wrapping the given bytes.
+    pub fn of(val: &'a [u8]) -> Self {
+        Self(val)
+    }
+
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
