@@ -39,6 +39,9 @@ pub async fn create_join_operator(
         handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
     }));
 
+    // Redefined for movements.
+    let amalgamate_definition = definition.clone();
+
     // We create the resultant stream that data is zipped into.
     {
         let mut broker = broker.write().await;
@@ -52,7 +55,6 @@ pub async fn create_join_operator(
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
     let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
-    let stream_definition = definition.clone();
 
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
@@ -107,6 +109,9 @@ pub async fn create_join_operator(
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
+                // Redefinition for tokio copies.
+                let amalgamate_partition = partition.clone();
+
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
                     let mut broker = broker.write().await;
@@ -233,6 +238,9 @@ pub async fn create_join_operator(
                 };
 
                 tokio::spawn(async move {
+                    let stream = amalgamate_definition;
+                    let partition = amalgamate_partition;
+
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
                         // Query the offset from this index_file,
                         let index = index_file
@@ -246,10 +254,15 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let stream = stream_definition
-                                        .joined_stream_from_index(offset.try_into().unwrap());
-                                    // Get the partition.
+                                    let stream =
+                                        stream.joined_stream_from_index(offset.try_into().unwrap());
+
+                                    let broker_lock = broker.read().await;
+
+                                    // Retrieve the data from the other stream.
+                                    // broker_lock.
                                     // Amalgamate the data into a record
+
                                     // Save the record to the backing store.
                                     // complete.
                                 }
