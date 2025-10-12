@@ -215,10 +215,28 @@ pub async fn create_join_operator(
                     }
                 });
 
+                // This is not the most ideal place to get another reference to this index_file.
+                // Ideally we don't want multiple mutable references to the same broker index file,
+                // and therefore we may need to create more restrictions on this.
+                let mut index_file = {
+                    let mut broker = broker.write().await;
+                    let index_file: BrokerIndexFile<JoinedIndex> = broker
+                        .get_index_file(
+                            String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+                            &partition,
+                        )
+                        .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+                    index_file
+                };
+
                 tokio::spawn(async move {
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
-
                         // Query the offset from this index_file,
+                        let index = index_file
+                            .view()
+                            .get(completed_index.try_into().unwrap())
+                            .unwrap();
+
                         // Query the other offset data from this index_file.
                         // Amalgamate the data into a record
                         // Save the record to the backing store.
