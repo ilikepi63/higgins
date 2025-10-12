@@ -1,14 +1,19 @@
-use crate::broker::Broker;
-use crate::error::HigginsError;
-use crate::topography::{Join, Key, StreamDefinition};
+use crate::topography::{Key, StreamDefinition};
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.
+#[derive(Clone)]
 pub struct JoinDefinition {
     /// The base stream that this join definition comes from.
     pub base: (Key, StreamDefinition),
     /// The different joins that will
     pub joins: Vec<JoinWithStream>,
+}
+
+impl JoinDefinition {
+    pub fn joined_stream_from_index(&self, i: usize) -> Option<&(Key, StreamDefinition)> {
+        self.joins.get(i).as_ref().map(|v| &v.stream)
+    }
 }
 
 // impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {

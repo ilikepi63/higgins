@@ -133,6 +133,11 @@ impl<'a> JoinedIndex<'a> {
         }
     }
 
+    /// Get the amount of offsets that are in this index.
+    pub fn offset_len(&self) -> usize {
+        (self.0.len() - INDEXES_INDEX + 1) / size_of::<u64>()
+    }
+
     // Helpers
     pub fn size_of(n_offsets: usize) -> usize {
         // last index (add one to make length), plus the amount of indexes times the size of the optional and the size of the offset.
