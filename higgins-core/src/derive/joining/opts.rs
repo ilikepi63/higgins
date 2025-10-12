@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
+use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
@@ -238,6 +239,22 @@ pub async fn create_join_operator(
                             .unwrap();
 
                         // Query the other offset data from this index_file.
+                        for i in 0..index.offset_len() {
+                            let offset = index.get_offset(i);
+
+                            match offset {
+                                Ok(offset) => {}
+                                Err(IndexError::IndexInJoinedIndexNotFound) => {}
+                                Err(err) => {
+                                    tracing::error!(
+                                        "Unexpected Error wheen reading offsets of Joined Index: {:#?}, offset: {}",
+                                        err,
+                                        i
+                                    )
+                                }
+                            }
+                        }
+
                         // Amalgamate the data into a record
                         // Save the record to the backing store.
                         // complete.

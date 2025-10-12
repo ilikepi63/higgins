@@ -11,6 +11,12 @@ pub struct JoinDefinition {
     pub joins: Vec<JoinWithStream>,
 }
 
+impl JoinDefinition {
+    pub fn joined_stream_from_index(&self, i: usize) -> Option<&(Key, StreamDefinition)> {
+        self.joins.get(i).as_ref().map(|v| &v.stream)
+    }
+}
+
 // impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
 //     type Error = HigginsError;
 
