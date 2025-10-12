@@ -1,9 +1,8 @@
-use crate::broker::Broker;
-use crate::error::HigginsError;
-use crate::topography::{Join, Key, StreamDefinition};
+use crate::topography::{Key, StreamDefinition};
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.
+#[derive(Clone)]
 pub struct JoinDefinition {
     /// The base stream that this join definition comes from.
     pub base: (Key, StreamDefinition),

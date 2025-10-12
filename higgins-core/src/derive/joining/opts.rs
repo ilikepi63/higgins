@@ -52,12 +52,14 @@ pub async fn create_join_operator(
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
     let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
+    let stream_definition = definition.clone();
 
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
         let join_stream = join_stream.clone();
         let broker = broker.clone();
         let derivative_channel_tx = derivative_channel_tx.clone();
+
         let handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
@@ -243,7 +245,10 @@ pub async fn create_join_operator(
                             let offset = index.get_offset(i);
 
                             match offset {
-                                Ok(offset) => {}
+                                Ok(offset) => {
+                                    let stream = stream_definition
+                                        .joined_stream_from_index(offset.try_into().unwrap());
+                                }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {}
                                 Err(err) => {
                                     tracing::error!(
