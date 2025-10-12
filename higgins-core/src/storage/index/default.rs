@@ -19,6 +19,11 @@ pub struct DefaultIndex<'a>(&'a [u8]);
 //     pub size: u64,
 
 impl<'a> DefaultIndex<'a> {
+    /// Creates a new instance of this index, wrapping the old.
+    pub fn of(data: &'a [u8]) -> Self {
+        Self(data)
+    }
+
     /// Returns the offset as a u64, converted from big-endian bytes.
     pub fn offset(&self) -> u64 {
         u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())

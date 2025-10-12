@@ -3,15 +3,15 @@ use std::{io::Write as _, marker::PhantomData};
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
-pub struct IndexFile<T> {
+pub struct IndexFile {
     file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
-    _t: PhantomData<T>,
+    element_size: usize,
 }
 
-impl<T> IndexFile<T> {
+impl IndexFile {
     /// Create an instance from a path variable.
-    pub fn new(path: &str) -> Result<Self, IndexError> {
+    pub fn new(path: &str, element_size: usize) -> Result<Self, IndexError> {
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
@@ -23,7 +23,7 @@ impl<T> IndexFile<T> {
         Ok(Self {
             file_handle,
             mmap,
-            _t: PhantomData,
+            element_size,
         })
     }
 
@@ -40,20 +40,20 @@ impl<T> IndexFile<T> {
     // Put the index at a specific offset.
     pub fn put_at(&mut self, offset: u64, bytes: &mut [u8]) -> Result<(), IndexError> {
         // length check to avoid panic.
-        if bytes.len() == size_of::<T>() {
+        if bytes.len() == self.element_size {
             return Err(IndexError::IndexSwapSizeError);
         }
 
         // Get the byte offset.
-        let offset = offset as usize * size_of::<T>();
+        let offset = offset as usize * self.element_size;
 
-        Ok(self.mmap[offset..offset + size_of::<T>()].swap_with_slice(bytes))
+        Ok(self.mmap[offset..offset + self.element_size].swap_with_slice(bytes))
     }
 
-    pub fn as_view(&self) -> IndexesView<'_, T> {
+    pub fn as_view(&self) -> IndexesView<'_> {
         IndexesView {
             buffer: self.as_slice(),
-            _t: PhantomData,
+            element_size: self.element_size,
         }
     }
 }
