@@ -248,6 +248,10 @@ pub async fn create_join_operator(
                                 Ok(offset) => {
                                     let stream = stream_definition
                                         .joined_stream_from_index(offset.try_into().unwrap());
+                                    // Get the partition.
+                                    // Amalgamate the data into a record
+                                    // Save the record to the backing store.
+                                    // complete.
                                 }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {}
                                 Err(err) => {
@@ -259,10 +263,6 @@ pub async fn create_join_operator(
                                 }
                             }
                         }
-
-                        // Amalgamate the data into a record
-                        // Save the record to the backing store.
-                        // complete.
                     }
                 });
             }
