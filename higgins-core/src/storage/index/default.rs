@@ -86,14 +86,14 @@ mod tests {
     #[test]
     fn test_wrap() {
         let data = vec![0u8; DefaultIndex::size_of()];
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.0, data.as_slice());
     }
 
     #[test]
     fn test_to_bytes() {
         let data = vec![0xAAu8; DefaultIndex::size_of()];
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         let buf = index.to_bytes();
         assert_eq!(buf.as_ref(), data.as_slice());
     }
@@ -110,7 +110,7 @@ mod tests {
         let expected_offset: u64 = 0x123456789ABCDEF0;
         data[OFFSET_INDEX..OBJECT_KEY_INDEX].copy_from_slice(&expected_offset.to_be_bytes());
 
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.offset(), expected_offset);
     }
 
@@ -120,7 +120,7 @@ mod tests {
         let expected_key = [0xAA; 16];
         data[OBJECT_KEY_INDEX..POSITION_INDEX].copy_from_slice(&expected_key);
 
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.object_key(), expected_key);
     }
 
@@ -130,18 +130,8 @@ mod tests {
         let expected_position: u32 = 0x12345678;
         data[POSITION_INDEX..TIMESTAMP_INDEX].copy_from_slice(&expected_position.to_be_bytes());
 
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.position(), expected_position);
-    }
-
-    #[test]
-    fn test_timestamp() {
-        let mut data = vec![0u8; DefaultIndex::size_of()];
-        let expected_timestamp: u64 = 0xFEDCBA9876543210;
-        data[TIMESTAMP_INDEX..SIZE_INDEX].copy_from_slice(&expected_timestamp.to_be_bytes());
-
-        let index = DefaultIndex::wrap(&data[..]);
-        assert_eq!(index.timestamp(), expected_timestamp);
     }
 
     #[test]
@@ -151,7 +141,7 @@ mod tests {
         let end = SIZE_INDEX + size_of::<u64>();
         data[SIZE_INDEX..end].copy_from_slice(&expected_size.to_be_bytes());
 
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.size(), expected_size);
     }
 
@@ -159,7 +149,7 @@ mod tests {
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     fn test_offset_panics_on_short_slice() {
         let short_data = vec![0u8; OBJECT_KEY_INDEX - 1];
-        let index = DefaultIndex::wrap(&short_data[..]);
+        let index = DefaultIndex::of(&short_data[..]);
         let _ = index.offset();
     }
 
@@ -167,7 +157,7 @@ mod tests {
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     fn test_object_key_panics_on_short_slice() {
         let short_data = vec![0u8; POSITION_INDEX - 1];
-        let index = DefaultIndex::wrap(&short_data[..]);
+        let index = DefaultIndex::of(&short_data[..]);
         let _ = index.object_key();
     }
 
@@ -175,30 +165,22 @@ mod tests {
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     fn test_position_panics_on_short_slice() {
         let short_data = vec![0u8; TIMESTAMP_INDEX - 1];
-        let index = DefaultIndex::wrap(&short_data[..]);
+        let index = DefaultIndex::of(&short_data[..]);
         let _ = index.position();
-    }
-
-    #[test]
-    #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
-    fn test_timestamp_panics_on_short_slice() {
-        let short_data = vec![0u8; SIZE_INDEX - 1];
-        let index = DefaultIndex::wrap(&short_data[..]);
-        let _ = index.timestamp();
     }
 
     #[test]
     #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
     fn test_size_getter_panics_on_short_slice() {
         let short_data = vec![0u8; SIZE_INDEX + size_of::<u64>() - 1];
-        let index = DefaultIndex::wrap(&short_data[..]);
+        let index = DefaultIndex::of(&short_data[..]);
         let _ = index.size();
     }
 
     #[test]
     fn test_debug() {
         let data = vec![0xBBu8; DefaultIndex::size_of()];
-        let index = DefaultIndex::wrap(&data[..]);
+        let index = DefaultIndex::of(&data[..]);
         let debug_str = format!("{:?}", index);
         assert!(debug_str.starts_with("DefaultIndex("));
         assert!(debug_str.contains("["));
