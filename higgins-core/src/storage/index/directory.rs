@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 use std::{path::PathBuf, time::SystemTime};
 
-use crate::storage::index::WrapBytes;
-
 use super::IndexError;
 use super::IndexesView;
 use super::file::IndexFile;
