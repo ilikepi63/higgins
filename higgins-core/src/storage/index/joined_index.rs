@@ -189,6 +189,10 @@ impl<'a> JoinedIndex<'a> {
                 *val = 1_u8;
             });
     }
+
+    pub fn timestamp(&self) -> u64 {
+        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
+    }
 }
 
 impl<'a> From<&'a [u8]> for JoinedIndex<'a> {

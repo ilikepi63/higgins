@@ -71,6 +71,10 @@ impl<'a> DefaultIndex<'a> {
 
         Ok(())
     }
+
+    pub fn timestamp(&self) -> u64 {
+        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into().unwrap())
+    }
 }
 
 #[cfg(test)]
@@ -135,6 +139,16 @@ mod tests {
     }
 
     #[test]
+    fn test_timestamp() {
+        let mut data = vec![0u8; DefaultIndex::size_of()];
+        let expected_timestamp: u64 = 0xFEDCBA9876543210;
+        data[TIMESTAMP_INDEX..SIZE_INDEX].copy_from_slice(&expected_timestamp.to_be_bytes());
+
+        let index = DefaultIndex::of(&data[..]);
+        assert_eq!(index.timestamp(), expected_timestamp);
+    }
+
+    #[test]
     fn test_size_getter() {
         let mut data = vec![0u8; DefaultIndex::size_of()];
         let expected_size: u64 = 0xABCDEF0123456789;
@@ -167,6 +181,14 @@ mod tests {
         let short_data = vec![0u8; TIMESTAMP_INDEX - 1];
         let index = DefaultIndex::of(&short_data[..]);
         let _ = index.position();
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+    fn test_timestamp_panics_on_short_slice() {
+        let short_data = vec![0u8; SIZE_INDEX - 1];
+        let index = DefaultIndex::of(&short_data[..]);
+        let _ = index.timestamp();
     }
 
     #[test]
