@@ -1,4 +1,4 @@
-use crate::storage::index::{IndexError, Timestamped, WrapBytes};
+use crate::storage::index::IndexError;
 use std::io::Write;
 
 /// JoinedIndex represents the index metadata that one will use to

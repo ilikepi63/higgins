@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexesView, Timestamped};
+use crate::storage::index::{IndexError, IndexFile, IndexesView};
 use std::sync::Arc;
 
 pub struct BrokerIndexFile {

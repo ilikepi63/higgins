@@ -3,8 +3,8 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::{IndexError, index_size_from_stream_definition};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -252,9 +252,9 @@ pub async fn create_join_operator(
                     let broker = amalgamate_broker;
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        let index_view = index_file.view();
                         // Query the offset from this index_file,
-                        let index = index_file
-                            .view()
+                        let index = index_view
                             .get(completed_index.try_into().unwrap())
                             .map(JoinedIndex::of)
                             .unwrap();
@@ -269,12 +269,23 @@ pub async fn create_join_operator(
                                         .joined_stream_from_index(offset.try_into().unwrap())
                                         .unwrap();
 
-                                    let broker_lock = broker.read().await;
+                                    let mut broker_lock = broker.write().await;
 
-                                    let index_file = broker_lock.get_index_file(
-                                        String::from_utf8(stream.0.inner().to_vec()).unwrap(),
-                                        &partition,
-                                    );
+                                    broker_lock.get_at();
+
+                                    // let index_file = broker_lock
+                                    //     .get_index_file(
+                                    //         String::from_utf8(stream.0.inner().to_vec()).unwrap(),
+                                    //         &partition,
+                                    //         index_size_from_stream_definition(
+                                    //             &definition.joins.get(i).unwrap().stream.1,
+                                    //         ),
+                                    //     )
+                                    //     .unwrap();
+
+                                    // let index_view = index_file.view();
+
+                                    // let index = index_view.get(offset.try_into().unwrap()).unwrap();
 
                                     // Retrieve the data from the other stream.
                                     // broker_lock.
