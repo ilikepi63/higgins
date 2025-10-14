@@ -81,12 +81,6 @@ impl<'a> DefaultIndex<'a> {
 mod tests {
     use super::*;
 
-    const OFFSET_INDEX: usize = 0;
-    const OBJECT_KEY_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
-    const POSITION_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
-    const TIMESTAMP_INDEX: usize = POSITION_INDEX + size_of::<u32>();
-    const SIZE_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
-
     #[test]
     fn test_wrap() {
         let data = vec![0u8; DefaultIndex::size_of()];
