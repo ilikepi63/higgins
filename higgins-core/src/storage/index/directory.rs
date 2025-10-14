@@ -247,11 +247,23 @@ impl IndexDirectory {
             element_size: index_size,
         };
 
-        let index = indexes.get(offset.try_into().unwrap());
+        let index = indexes
+            .get(offset.try_into().unwrap())
+            .map(DefaultIndex::of);
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let reference = index.reference();
+
+                let object_key = match reference {
+                    crate::storage::index::Reference::S3(val) => {
+                        uuid::Uuid::from_bytes(index.object_key()).to_string()
+                    }
+                    _ => {
+                        tracing::error!("Currently S3 References are only implemented.");
+                        panic!("Expected an S3 reference, got something different.");
+                    }
+                };
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
