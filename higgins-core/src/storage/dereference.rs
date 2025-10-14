@@ -37,8 +37,23 @@ impl Dereferencable {
             }
         }
     }
+
+    /// The general size of this struct if it is written to bytes.
+    ///
+    /// This is a static value that represents the largest amount of metadata that can be written to this
+    pub fn size_of() -> usize {
+        S3Dereferencable::size_of()
+    }
 }
 
 pub struct S3Dereferencable {
     pub object_key: [u8; 16],
+}
+
+impl S3Dereferencable {
+    /// This is always the amount of a bytes that this data will use once it
+    /// has been written to a byte array.
+    pub fn size_of() -> usize {
+        16 // The size of the embedded buffer.
+    }
 }
