@@ -83,70 +83,73 @@ impl IndexDirectory {
         timestamp: u64,
     ) -> Vec<FindBatchResponse> {
         todo!();
-        // let mut responses = vec![];
+        let mut responses = vec![];
 
-        // let stream_str = String::from_utf8_lossy(stream).to_string();
+        let stream_str = String::from_utf8_lossy(stream).to_string();
 
-        // let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        // let index_file = self
-        //     .index_file_from_stream_and_partition::<DefaultIndex>(stream_str, partition)
-        //     .unwrap();
+        // TODO: We need to get the index size from the stream definition.
+        todo!();
 
-        // let indexes: IndexesView<'_, DefaultIndex> = IndexesView {
-        //     buffer: index_file.as_slice(),
-        //     _t: PhantomData,
-        // };
+        let index_file = self
+            .index_file_from_stream_and_partition(stream_str, partition, size_of::<DefaultIndex>())
+            .unwrap();
 
-        // let index = indexes.find_by_timestamp(timestamp);
+        let indexes: IndexesView = IndexesView {
+            buffer: index_file.as_slice(),
+            element_size: size_of::<usize>(),
+        };
 
-        // match index {
-        //     Some(index) => {
-        //         let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+        let index = indexes.find_by_timestamp(timestamp);
 
-        //         tracing::info!("Reading from object: {:#?}", object_key);
+        match index {
+            Some(index) => {
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
 
-        //         let batch = BatchInfo {
-        //             batch_id: 1,
-        //             object_key,
-        //             metadata: BatchMetadata {
-        //                 topic_id_partition,
-        //                 byte_offset: index.position().into(),
-        //                 byte_size: index.size().try_into().unwrap(),
-        //                 base_offset: 0,
-        //                 last_offset: 0,
-        //                 log_append_timestamp: 0,
-        //                 batch_max_timestamp: 0,
-        //                 timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
-        //                 producer_id: 0,
-        //                 producer_epoch: 0,
-        //                 base_sequence: 0,
-        //                 last_sequence: 0,
-        //             },
-        //         };
+                tracing::info!("Reading from object: {:#?}", object_key);
 
-        //         let response = FindBatchResponse {
-        //             errors: vec![],
-        //             batches: vec![batch],
-        //             log_start_offset: 0,
-        //             high_watermark: 0,
-        //         };
+                let batch = BatchInfo {
+                    batch_id: 1,
+                    object_key,
+                    metadata: BatchMetadata {
+                        topic_id_partition,
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
+                        base_offset: 0,
+                        last_offset: 0,
+                        log_append_timestamp: 0,
+                        batch_max_timestamp: 0,
+                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                        producer_id: 0,
+                        producer_epoch: 0,
+                        base_sequence: 0,
+                        last_sequence: 0,
+                    },
+                };
 
-        //         responses.push(response);
-        //     }
-        //     None => {
-        //         tracing::error!("No Index found at offset {}", 0);
-        //         let response = FindBatchResponse {
-        //             errors: vec!["Failed to find index for Topic and offset".to_string()],
-        //             batches: vec![],
-        //             log_start_offset: 0,
-        //             high_watermark: 0,
-        //         };
-        //         responses.push(response);
-        //     }
-        // }
+                let response = FindBatchResponse {
+                    errors: vec![],
+                    batches: vec![batch],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
 
-        // responses
+                responses.push(response);
+            }
+            None => {
+                tracing::error!("No Index found at offset {}", 0);
+                let response = FindBatchResponse {
+                    errors: vec!["Failed to find index for Topic and offset".to_string()],
+                    batches: vec![],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+                responses.push(response);
+            }
+        }
+
+        responses
     }
 
     /// Retrieves the latest value to be placed on this partition.
@@ -160,6 +163,9 @@ impl IndexDirectory {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        // TODO: We need to get the index size from the stream definition.
+        todo!();
 
         let index_file = self
             .index_file_from_stream_and_partition(stream_str, partition, size_of::<DefaultIndex>())
