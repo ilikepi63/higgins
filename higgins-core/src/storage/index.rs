@@ -1,7 +1,5 @@
-use std::marker::PhantomData;
 use std::ops::{Deref, Index as StdIndex};
 
-use arrow::ipc::reader::StreamDecoder;
 #[allow(unused_imports)]
 use bytes::BufMut as _;
 
@@ -20,25 +18,37 @@ use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
 
 /// A data type representing all of the different indexes that may be represented in higgins.
-pub enum Index<'a> {
-    Default(DefaultIndex<'a>),
-    Join(JoinedIndex<'a>),
+pub struct Index<'a> {
+    index_type: IndexType,
+    data: &'a [u8],
+}
+
+#[derive(Default, Clone)]
+pub enum IndexType {
+    #[default]
+    Default,
+    Join,
 }
 
 impl<'a> Index<'a> {
+    // Constructors
+    pub fn of(data: &'a [u8], index_type: IndexType) -> Self {
+        Self { index_type, data }
+    }
+
     /// Query for the timestamp of this given
     pub fn timestamp(&self) -> u64 {
-        match self {
-            Self::Default(d) => d.timestamp(),
-            Self::Join(j) => j.timestamp(),
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(self.data).timestamp(),
+            IndexType::Join => JoinedIndex::of(self.data).timestamp(),
         }
     }
 
     /// Retrieve the underlying Reference data of this index.
     pub fn get_reference(&self) -> Reference {
-        match self {
-            Self::Default(d) => d.reference(),
-            Self::Join(j) => j.reference(),
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(self.data).reference(),
+            IndexType::Join => JoinedIndex::of(self.data).reference(),
         }
     }
 }
@@ -62,14 +72,16 @@ pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
 pub struct IndexesView<'a> {
     buffer: &'a [u8],
     element_size: usize,
+    index_type: IndexType,
 }
 
 impl<'a> IndexesView<'a> {
     /// Creates a new empty container
-    pub fn empty() -> Self {
+    pub fn empty(index_type: IndexType) -> Self {
         Self {
             buffer: &[0; 0],
             element_size: 0,
+            index_type,
         }
     }
 
@@ -105,50 +117,57 @@ impl<'a> IndexesView<'a> {
         Some(&self.buffer[(self.count() - 1) as usize * self.element_size..])
     }
 
-    // // Finds an index by timestamp using binary search
-    // /// If an exact match isn't found, returns the index with the nearest timestamp
-    // /// that is greater than or equal to the requested timestamp
-    // pub fn find_by_timestamp(&self, timestamp: u64) -> Option<T> {
-    //     if self.count() == 0 {
-    //         return None;
-    //     }
+    // Finds an index by timestamp using binary search
+    /// If an exact match isn't found, returns the index with the nearest timestamp
+    /// that is greater than or equal to the requested timestamp
+    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<Index> {
+        if self.count() == 0 {
+            return None;
+        }
 
-    //     let first_idx = self.get(0)?;
-    //     if timestamp <= first_idx.timestamp() {
-    //         return Some(first_idx);
-    //     }
+        let first_idx = self
+            .get(0)
+            .map(|data| Index::of(data, self.index_type.clone()))?;
+        if timestamp <= first_idx.timestamp() {
+            return Some(first_idx);
+        }
 
-    //     let last_saved_idx = self.get(self.count() - 1)?;
-    //     if timestamp > last_saved_idx.timestamp() {
-    //         return None;
-    //     }
+        let last_saved_idx = self
+            .get(self.count() - 1)
+            .map(|data| Index::of(data, self.index_type.clone()))?;
+        if timestamp > last_saved_idx.timestamp() {
+            return None;
+        }
 
-    //     let mut left = 0;
-    //     let mut right = self.count() as isize - 1;
-    //     let mut result: Option<T> = None;
+        let mut left = 0;
+        let mut right = self.count() as usize - 1;
+        let mut result: Option<Index> = None;
 
-    //     while left <= right {
-    //         let mid = left + (right - left) / 2;
-    //         let view = self.get(mid as u32).unwrap();
-    //         let current_timestamp = view.timestamp();
+        while left <= right {
+            let mid = left + (right - left) / 2;
+            let view = self
+                .get(mid)
+                .map(|data| Index::of(data, self.index_type.clone()))
+                .unwrap();
+            let current_timestamp = view.timestamp();
 
-    //         match current_timestamp.cmp(&timestamp) {
-    //             std::cmp::Ordering::Equal => {
-    //                 result = Some(view);
-    //                 right = mid - 1;
-    //             }
-    //             std::cmp::Ordering::Less => {
-    //                 left = mid + 1;
-    //             }
-    //             std::cmp::Ordering::Greater => {
-    //                 result = Some(view);
-    //                 right = mid - 1;
-    //             }
-    //         }
-    //     }
+            match current_timestamp.cmp(&timestamp) {
+                std::cmp::Ordering::Equal => {
+                    result = Some(view);
+                    right = mid - 1;
+                }
+                std::cmp::Ordering::Less => {
+                    left = mid + 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    result = Some(view);
+                    right = mid - 1;
+                }
+            }
+        }
 
-    //     result
-    // }
+        result
+    }
 }
 impl<'a> StdIndex<usize> for IndexesView<'a> {
     type Output = [u8];

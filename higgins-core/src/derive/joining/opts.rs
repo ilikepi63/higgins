@@ -271,7 +271,7 @@ pub async fn create_join_operator(
 
                                     let mut broker_lock = broker.write().await;
 
-                                    broker_lock.get_at();
+                                    // broker_lock.get_at();
 
                                     // let index_file = broker_lock
                                     //     .get_index_file(
