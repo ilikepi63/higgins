@@ -14,6 +14,7 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
+use crate::storage::dereference::Dereferencable;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
@@ -25,8 +26,18 @@ pub enum Index<'a> {
 }
 
 impl<'a> Index<'a> {
-    pub fn timestamp(&self) {}
-    pub fn dereference() {}
+    /// Query for the timestamp of this given
+    pub fn timestamp(&self) -> u64 {
+        match self {
+            Self::Default(d) => d.timestamp(),
+            Self::Join(j) => j.timestamp(),
+        }
+    }
+
+    /// Retrieve the underlying Reference data of this index.
+    pub fn get_reference() -> Dereferencable {
+        todo!()
+    }
 }
 
 /// Returns the index size indicated by the stream definition. Each Stream definition will
