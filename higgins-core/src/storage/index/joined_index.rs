@@ -197,18 +197,6 @@ impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
     }
 }
 
-impl<'a> Timestamped for JoinedIndex<'a> {
-    fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
-    }
-}
-
-impl<'a> WrapBytes<'a> for JoinedIndex<'a> {
-    fn wrap(bytes: &'a [u8]) -> Self {
-        Self(bytes)
-    }
-}
-
 /// A byte sequence representing an Optional offset,
 /// which is a big-endian u64 value prepended by a single
 /// big-endian byte that is either 1 or 2.
