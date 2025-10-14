@@ -18,18 +18,21 @@ use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
 
-pub trait Timestamped {
-    fn timestamp(&self) -> u64;
+/// A data type representing all of the different indexes that may be represented in higgins.
+pub enum Index<'a> {
+    Default(DefaultIndex<'a>),
+    Join(JoinedIndex<'a>),
 }
 
-pub trait WrapBytes<'a> {
-    fn wrap(bytes: &'a [u8]) -> Self;
+impl<'a> Index<'a> {
+    pub fn timestamp(&self) {}
+    pub fn dereference() {}
 }
 
 /// Returns the index size indicated by the stream definition. Each Stream definition will
 /// decide which index to use, and therefore will decide how large each
-pub fn index_size_from_stream_definition(def: StreamDefinition) -> usize {
-    match def.stream_type {
+pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
+    match def.stream_type.as_ref() {
         Some(t) if matches!(t, FunctionType::Join) => {
             // JoinedIndex::size_of(def.)
             // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.

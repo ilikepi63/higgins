@@ -228,8 +228,77 @@ impl IndexDirectory {
 
     /// Retrieves the offset by its offset number.
     #[allow(unused)]
-    pub async fn get_by_offset(&self, stream: &[u8], partition: &[u8]) -> Vec<FindBatchResponse> {
-        vec![]
+    pub async fn get_by_offset(
+        &self,
+        stream: &[u8],
+        partition: &[u8],
+        offset: u64,
+        index_size: usize,
+    ) -> Vec<FindBatchResponse> {
+        let mut responses = vec![];
+
+        let stream_str = String::from_utf8_lossy(stream).to_string();
+
+        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        let index_file = self
+            .index_file_from_stream_and_partition(stream_str, partition, index_size)
+            .unwrap();
+
+        let indexes = IndexesView {
+            buffer: index_file.as_slice(),
+            element_size: index_size,
+        };
+
+        let index = indexes.get(offset.try_into().unwrap());
+
+        match index {
+            Some(index) => {
+                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+
+                tracing::info!("Reading from object: {:#?}", object_key);
+
+                let batch = BatchInfo {
+                    batch_id: 1,
+                    object_key,
+                    metadata: BatchMetadata {
+                        topic_id_partition,
+                        byte_offset: index.position().into(),
+                        byte_size: index.size().try_into().unwrap(),
+                        base_offset: 0,
+                        last_offset: 0,
+                        log_append_timestamp: 0,
+                        batch_max_timestamp: 0,
+                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                        producer_id: 0,
+                        producer_epoch: 0,
+                        base_sequence: 0,
+                        last_sequence: 0,
+                    },
+                };
+
+                let response = FindBatchResponse {
+                    errors: vec![],
+                    batches: vec![batch],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+
+                responses.push(response);
+            }
+            None => {
+                tracing::error!("No Index found at offset {}", 0);
+                let response = FindBatchResponse {
+                    errors: vec!["Failed to find index for Topic and offset".to_string()],
+                    batches: vec![],
+                    log_start_offset: 0,
+                    high_watermark: 0,
+                };
+                responses.push(response);
+            }
+        }
+
+        responses
     }
 }
 

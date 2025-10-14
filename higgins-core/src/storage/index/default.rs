@@ -1,4 +1,3 @@
-use crate::storage::index::{Timestamped, WrapBytes};
 #[allow(unused_imports)] // No idea why this is throwing a warning.
 use bytes::{BufMut as _, BytesMut};
 use std::io::Write as _;
@@ -74,18 +73,6 @@ impl<'a> DefaultIndex<'a> {
     }
 }
 
-impl<'a> Timestamped for DefaultIndex<'a> {
-    fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into().unwrap())
-    }
-}
-
-impl<'a> WrapBytes<'a> for DefaultIndex<'a> {
-    fn wrap(bytes: &'a [u8]) -> Self {
-        Self(bytes)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,16 +142,6 @@ mod tests {
 
         let index = DefaultIndex::wrap(&data[..]);
         assert_eq!(index.timestamp(), expected_timestamp);
-    }
-
-    #[test]
-    fn test_timestamped_trait() {
-        let mut data = vec![0u8; DefaultIndex::size_of()];
-        let expected_timestamp: u64 = 0xFEDCBA9876543210;
-        data[TIMESTAMP_INDEX..SIZE_INDEX].copy_from_slice(&expected_timestamp.to_be_bytes());
-
-        let index = DefaultIndex::wrap(&data[..]);
-        assert_eq!(Timestamped::timestamp(&index), expected_timestamp);
     }
 
     #[test]
