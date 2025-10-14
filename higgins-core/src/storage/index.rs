@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{Deref, Index as StdIndex};
 
+use arrow::ipc::reader::StreamDecoder;
 #[allow(unused_imports)]
 use bytes::BufMut as _;
 
@@ -13,12 +14,29 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
+use crate::storage::index::default::DefaultIndex;
+use crate::storage::index::joined_index::JoinedIndex;
+use crate::topography::{FunctionType, StreamDefinition};
+
 pub trait Timestamped {
     fn timestamp(&self) -> u64;
 }
 
 pub trait WrapBytes<'a> {
     fn wrap(bytes: &'a [u8]) -> Self;
+}
+
+/// Returns the index size indicated by the stream definition. Each Stream definition will
+/// decide which index to use, and therefore will decide how large each
+pub fn index_size_from_stream_definition(def: StreamDefinition) -> usize {
+    match def.stream_type {
+        Some(t) if matches!(t, FunctionType::Join) => {
+            // JoinedIndex::size_of(def.)
+            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
+            todo!()
+        }
+        _ => DefaultIndex::size_of(),
+    }
 }
 
 /// A container for binary-encoded index data.

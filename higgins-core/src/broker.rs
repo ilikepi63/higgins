@@ -14,11 +14,7 @@ use riskless::{
     messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self, ObjectStore},
 };
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-    sync::{Arc, atomic::AtomicBool},
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
