@@ -14,7 +14,7 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
-use crate::storage::dereference::Dereferencable;
+use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
@@ -35,7 +35,7 @@ impl<'a> Index<'a> {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn get_reference(&self) -> Dereferencable {
+    pub fn get_reference(&self) -> Reference {
         match self {
             Self::Default(d) => d.reference(),
             Self::Join(j) => j.reference(),

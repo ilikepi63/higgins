@@ -2,9 +2,11 @@
 use bytes::{BufMut as _, BytesMut};
 use std::io::Write as _;
 
+use crate::storage::dereference::Reference;
+
 const OFFSET_INDEX: usize = 0;
 const OBJECT_KEY_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
-const POSITION_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
+const POSITION_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
 const TIMESTAMP_INDEX: usize = POSITION_INDEX + size_of::<u32>();
 const SIZE_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
 
@@ -74,6 +76,11 @@ impl<'a> DefaultIndex<'a> {
 
     pub fn timestamp(&self) -> u64 {
         u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into().unwrap())
+    }
+
+    /// Retrieve the reference of this Index.
+    pub fn reference(&self) -> Reference {
+        Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
 }
 
