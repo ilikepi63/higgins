@@ -6,11 +6,11 @@ use std::io::Write;
 ///
 /// 1. Embedded into an Index and
 /// 2. Read to allow for the dereferencing of a byte vector from the underlying storage implementation.
-pub enum Dereferencable {
-    S3(S3Dereferencable),
+pub enum Reference {
+    S3(S3Reference),
 }
 
-impl Dereferencable {
+impl Reference {
     /// Write this struct to bytes.
     pub fn to_bytes(&self, mut w: &mut [u8]) {
         match self {
@@ -29,7 +29,7 @@ impl Dereferencable {
             1 => {
                 let object_key: [u8; 16] = data[2..19].try_into()?;
 
-                Ok(Self::S3(S3Dereferencable { object_key }))
+                Ok(Self::S3(S3Reference { object_key }))
             }
             _ => {
                 tracing::error!("Unable to interpret byte array for Dereferencable. ");
@@ -42,15 +42,15 @@ impl Dereferencable {
     ///
     /// This is a static value that represents the largest amount of metadata that can be written to this
     pub fn size_of() -> usize {
-        S3Dereferencable::size_of()
+        S3Reference::size_of()
     }
 }
 
-pub struct S3Dereferencable {
+pub struct S3Reference {
     pub object_key: [u8; 16],
 }
 
-impl S3Dereferencable {
+impl S3Reference {
     /// This is always the amount of a bytes that this data will use once it
     /// has been written to a byte array.
     pub fn size_of() -> usize {
