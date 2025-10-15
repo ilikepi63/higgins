@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
@@ -341,7 +340,7 @@ impl CommitFile for IndexDirectory {
                 &mut val,
             );
 
-            let index = DefaultIndex::wrap(&val).to_bytes();
+            let index = DefaultIndex::of(&val).to_bytes();
 
             tracing::info!("Saving Index: {:#?}", index);
 
