@@ -1,8 +1,9 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
+use super::IndexFile;
+use super::IndexType;
 use super::IndexesView;
-use super::file::IndexFile;
 
 use super::default::DefaultIndex;
 use riskless::{
@@ -67,10 +68,11 @@ impl IndexDirectory {
         stream: String,
         partition: &[u8],
         element_size: usize,
+        index_type: IndexType,
     ) -> Result<IndexFile, IndexError> {
         let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
 
-        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size)?;
+        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)?;
 
         Ok(index_file)
     }
@@ -81,6 +83,7 @@ impl IndexDirectory {
         stream: &[u8],
         partition: &[u8],
         timestamp: u64,
+        index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
         todo!();
         let mut responses = vec![];
@@ -93,12 +96,18 @@ impl IndexDirectory {
         todo!();
 
         let index_file = self
-            .index_file_from_stream_and_partition(stream_str, partition, size_of::<DefaultIndex>())
+            .index_file_from_stream_and_partition(
+                stream_str,
+                partition,
+                DefaultIndex::size_of(),
+                index_type,
+            )
             .unwrap();
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
             element_size: size_of::<usize>(),
+            index_type,
         };
 
         let index = indexes.find_by_timestamp(timestamp);
@@ -237,6 +246,7 @@ impl IndexDirectory {
         partition: &[u8],
         offset: u64,
         index_size: usize,
+        index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -245,12 +255,18 @@ impl IndexDirectory {
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
         let index_file = self
-            .index_file_from_stream_and_partition(stream_str, partition, index_size)
+            .index_file_from_stream_and_partition(
+                stream_str,
+                partition,
+                index_size,
+                index_type.clone(),
+            )
             .unwrap();
 
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
             element_size: index_size,
+            index_type,
         };
 
         let index = indexes

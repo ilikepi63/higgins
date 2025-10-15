@@ -1,5 +1,6 @@
+use super::IndexType;
 use super::{IndexError, IndexesView};
-use std::{io::Write as _, marker::PhantomData};
+use std::io::Write as _;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
@@ -7,11 +8,12 @@ pub struct IndexFile {
     file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
     element_size: usize,
+    index_type: crate::storage::index::IndexType,
 }
 
 impl IndexFile {
     /// Create an instance from a path variable.
-    pub fn new(path: &str, element_size: usize) -> Result<Self, IndexError> {
+    pub fn new(path: &str, element_size: usize, index_type: IndexType) -> Result<Self, IndexError> {
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
@@ -24,6 +26,7 @@ impl IndexFile {
             file_handle,
             mmap,
             element_size,
+            index_type,
         })
     }
 
@@ -54,6 +57,7 @@ impl IndexFile {
         IndexesView {
             buffer: self.as_slice(),
             element_size: self.element_size,
+            index_type: self.index_type.clone(),
         }
     }
 }
