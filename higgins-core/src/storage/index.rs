@@ -35,8 +35,11 @@ impl<'a> Index<'a> {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn get_reference() -> Dereferencable {
-        todo!()
+    pub fn get_reference(&self) -> Dereferencable {
+        match self {
+            Self::Default(d) => d.reference(),
+            Self::Join(j) => j.reference(),
+        }
     }
 }
 
