@@ -7,8 +7,9 @@ use riskless::{
 };
 use std::sync::Arc;
 
-use crate::broker::object_store::path::Path;
 use crate::error::HigginsError;
+use crate::topography::Key;
+use crate::{broker::object_store::path::Path, storage::index::IndexType};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
 
@@ -42,9 +43,19 @@ impl Broker {
         partition: &[u8],
         timestamp: u64,
     ) -> Option<ConsumeResponse> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap();
+
         let find_batch_responses = self
             .indexes
-            .get_by_timestamp(stream, partition, timestamp)
+            .get_by_timestamp(
+                stream,
+                partition,
+                timestamp,
+                IndexType::try_from(stream_def).unwrap(),
+            )
             .await;
 
         self.dereference_find_batch_response(find_batch_responses)
@@ -59,7 +70,15 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
-        let find_batch_responses = self.indexes.get_latest_offset(stream, partition).await;
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap();
+
+        let find_batch_responses = self
+            .indexes
+            .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
+            .await;
 
         self.dereference_find_batch_response(find_batch_responses)
             .await
