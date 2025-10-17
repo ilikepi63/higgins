@@ -1,5 +1,8 @@
 use std::{path::PathBuf, time::SystemTime};
 
+use crate::storage::index::index_size_from_index_type;
+use crate::storage::index::index_size_from_stream_definition;
+
 use super::IndexError;
 use super::IndexFile;
 use super::IndexType;
@@ -166,6 +169,7 @@ impl IndexDirectory {
         &self,
         stream: &[u8],
         partition: &[u8],
+        index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -173,16 +177,19 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        // TODO: We need to get the index size from the stream definition.
-        todo!();
-
         let index_file = self
-            .index_file_from_stream_and_partition(stream_str, partition, size_of::<DefaultIndex>())
+            .index_file_from_stream_and_partition(
+                stream_str,
+                partition,
+                index_size_from_index_type(index_type.clone()),
+                index_type.clone(),
+            )
             .unwrap();
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
             element_size: size_of::<usize>(),
+            index_type,
         };
 
         let index = indexes.last();

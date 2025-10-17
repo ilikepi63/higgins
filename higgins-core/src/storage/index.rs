@@ -69,18 +69,22 @@ impl<'a> Index<'a> {
     }
 }
 
+pub fn index_size_from_index_type(index_type: IndexType) -> usize {
+    match index_type {
+        IndexType::Join => {
+            // JoinedIndex::size_of(def.)
+            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
+            todo!()
+        }
+        IndexType::Default => DefaultIndex::size_of(),
+    }
+}
+
 /// Returns the index size indicated by the stream definition. Each Stream definition will
 /// decide which index to use, and therefore will decide how large each
 pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
     match IndexType::try_from(def) {
-        Ok(ty) => match ty {
-            IndexType::Join => {
-                // JoinedIndex::size_of(def.)
-                // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
-                todo!()
-            }
-            IndexType::Default => DefaultIndex::size_of(),
-        },
+        Ok(ty) => index_size_from_index_type(ty),
         Err(err) => panic!(
             "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
             err
