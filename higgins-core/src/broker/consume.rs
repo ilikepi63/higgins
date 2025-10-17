@@ -1,7 +1,7 @@
 use super::Broker;
 
 use riskless::{
-    batch_coordinator::FindBatchResponse,
+    batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::{ConsumeRequest, ConsumeResponse},
     object_store::ObjectStore,
 };
@@ -18,23 +18,35 @@ impl Broker {
         topic: &[u8],
         partition: &[u8],
         offset: u64,
-        max_partition_fetch_bytes: u32,
+        _max_partition_fetch_bytes: u32,
     ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
-        let object_store = self.object_store.clone();
         let indexes = self.indexes.clone();
 
-        riskless::consume(
-            ConsumeRequest {
-                topic: String::from_utf8_lossy(topic).to_string(),
-                partition: partition.to_vec(),
-                offset,
-                max_partition_fetch_bytes,
-            },
-            object_store,
-            indexes,
+        let index_type = IndexType::try_from(
+            self.topography
+                .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
+                .unwrap(),
         )
-        .await
-        .unwrap()
+        .unwrap();
+
+        let batch_responses = indexes
+            .find_batches(
+                vec![FindBatchRequest {
+                    topic_id_partition: TopicIdPartition(
+                        String::from_utf8(topic.to_owned()).unwrap(),
+                        partition.to_owned(),
+                    ),
+                    offset: offset,
+                    max_partition_fetch_bytes: 0,
+                }],
+                0,
+                index_type,
+            )
+            .await;
+
+        self.dereference_find_batch_response(batch_responses)
+            .await
+            .unwrap()
     }
     pub async fn get_by_timestamp(
         &self,
