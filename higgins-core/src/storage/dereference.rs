@@ -17,9 +17,13 @@ impl Reference {
         match self {
             Self::S3(data) => {
                 w.write_all(&1_u16.to_be_bytes());
-                w.write_all(&data.object_key)
+                w.write_all(&data.object_key);
+                w.write_all(&data.position.to_be_bytes());
+                w.write_all(&data.size.to_be_bytes());
             }
-            Self::Null => w.write_all(&1_u16.to_be_bytes()),
+            Self::Null => {
+                w.write_all(&1_u16.to_be_bytes());
+            }
         };
     }
 
@@ -31,8 +35,14 @@ impl Reference {
             0 => Self::Null,
             1 => {
                 let object_key: [u8; 16] = data[2..19].try_into().unwrap();
+                let position: u64 = u64::from_be_bytes(data[19..27].try_into().unwrap());
+                let size: u64 = u64::from_be_bytes(data[27..35].try_into().unwrap());
 
-                Self::S3(S3Reference { object_key })
+                Self::S3(S3Reference {
+                    object_key,
+                    position,
+                    size,
+                })
             }
             _ => {
                 tracing::error!("Unable to interpret byte array for Dereferencable. ");
