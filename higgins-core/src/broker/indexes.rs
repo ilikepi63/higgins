@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexesView};
+use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
 use std::sync::Arc;
 
 pub struct BrokerIndexFile {
@@ -65,10 +65,16 @@ impl Broker {
         partition: &[u8],
         element_size: usize,
     ) -> Option<BrokerIndexFile> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(stream.clone())
+            .unwrap();
+
         let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
             stream.clone(),
             partition,
             element_size,
+            IndexType::try_from(stream_def).unwrap(),
         );
 
         match index_file_get_result {
