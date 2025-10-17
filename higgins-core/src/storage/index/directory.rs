@@ -1,5 +1,6 @@
 use std::{path::PathBuf, time::SystemTime};
 
+use crate::storage::dereference::Reference;
 use crate::storage::index::index_size_from_index_type;
 use crate::storage::index::index_size_from_stream_definition;
 
@@ -95,9 +96,6 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        // TODO: We need to get the index size from the stream definition.
-        todo!();
-
         let index_file = self
             .index_file_from_stream_and_partition(
                 stream_str,
@@ -117,7 +115,14 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                let index_reference = index.get_reference();
+
+                let index_reference = match index_reference {
+                    Reference::S3(r) => r,
+                    _ => unimplemented!(),
+                };
+
+                let object_key = uuid::Uuid::from_bytes(index_reference.object_key).to_string();
 
                 tracing::info!("Reading from object: {:#?}", object_key);
 
@@ -126,8 +131,8 @@ impl IndexDirectory {
                     object_key,
                     metadata: BatchMetadata {
                         topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
+                        byte_offset: index_reference.position,
+                        byte_size: index_reference.size.try_into().unwrap(),
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
