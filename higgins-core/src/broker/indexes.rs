@@ -1,19 +1,19 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexesView, Timestamped};
+use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
 use std::sync::Arc;
 
-pub struct BrokerIndexFile<T: Timestamped> {
-    index_file: IndexFile<T>,
+pub struct BrokerIndexFile {
+    index_file: IndexFile,
     mutex: Arc<tokio::sync::Mutex<()>>,
 }
 
-impl<T: Timestamped> BrokerIndexFile<T> {
+impl BrokerIndexFile {
     /// Create a new instance of a BrokerIndexFile.
-    pub fn new(index_file: IndexFile<T>, mutex: Arc<tokio::sync::Mutex<()>>) -> Self {
+    pub fn new(index_file: IndexFile, mutex: Arc<tokio::sync::Mutex<()>>) -> Self {
         Self { index_file, mutex }
     }
 
-    pub async fn lock<'a>(&'a mut self) -> BrokerIndexFileLock<'a, T> {
+    pub async fn lock<'a>(&'a mut self) -> BrokerIndexFileLock {
         let lock = self.mutex.lock().await;
 
         BrokerIndexFileLock {
@@ -32,19 +32,19 @@ impl<T: Timestamped> BrokerIndexFile<T> {
         self.index_file.put_at(index, val)
     }
 
-    pub fn view<'a>(&'a self) -> IndexesView<'a, T> {
+    pub fn view<'a>(&'a self) -> IndexesView<'a> {
         self.index_file.as_view()
     }
 }
 
 #[allow(unused)]
-pub struct BrokerIndexFileLock<'a, T: Timestamped> {
-    index_file: &'a mut IndexFile<T>,
+pub struct BrokerIndexFileLock<'a> {
+    index_file: &'a mut IndexFile,
     mutex: Arc<tokio::sync::Mutex<()>>,
     lock_guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
-impl<'a, T: Timestamped> BrokerIndexFileLock<'a, T> {
+impl<'a> BrokerIndexFileLock<'a> {
     /// Append a new T to this index file.
     pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
         // Append this data to the underlying file.
@@ -53,20 +53,29 @@ impl<'a, T: Timestamped> BrokerIndexFileLock<'a, T> {
         Ok(())
     }
 
-    pub fn as_indexes_mut(&'a self) -> IndexesView<'a, T> {
+    pub fn as_indexes_mut(&'a self) -> IndexesView<'a> {
         self.index_file.as_view()
     }
 }
 
 impl Broker {
-    pub fn get_index_file<T: Timestamped>(
+    pub fn get_index_file(
         &mut self,
         stream: String,
         partition: &[u8],
-    ) -> Option<BrokerIndexFile<T>> {
-        let index_file_get_result = self
-            .indexes
-            .index_file_from_stream_and_partition(stream.clone(), partition);
+        element_size: usize,
+    ) -> Option<BrokerIndexFile> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(stream.clone())
+            .unwrap();
+
+        let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
+            stream.clone(),
+            partition,
+            element_size,
+            IndexType::try_from(stream_def).unwrap(),
+        );
 
         match index_file_get_result {
             Ok(index_file) => {

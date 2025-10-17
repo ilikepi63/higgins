@@ -122,6 +122,11 @@ impl Topography {
             Entry::Occupied(_) => Err(TopographyError::Occupied(String::new())), // TODO: add more meat to this error messag .
         }
     }
+
+    /// Retrieve the stream definition of the given stream key.
+    pub fn get_stream_definition_by_key(&self, stream: String) -> Option<&StreamDefinition> {
+        self.streams.get(&Key(stream.as_bytes().to_owned()))
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

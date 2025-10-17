@@ -1,4 +1,4 @@
-use crate::storage::index::{IndexError, Timestamped, WrapBytes};
+use crate::storage::{dereference::Reference, index::IndexError};
 use std::io::Write;
 
 /// JoinedIndex represents the index metadata that one will use to
@@ -19,18 +19,14 @@ pub struct JoinedIndex<'a>(&'a [u8]);
 const OFFSET_INDEX: usize = 0;
 const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
 const COMPLETED_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
-const OBJECT_KEY_OPTIONAL_INDEX: usize = COMPLETED_INDEX + size_of::<u8>();
-const OBJECT_KEY_INDEX: usize = OBJECT_KEY_OPTIONAL_INDEX + size_of::<bool>();
-const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + size_of::<[u8; 16]>();
+const OBJECT_KEY_INDEX: usize = COMPLETED_INDEX + size_of::<bool>();
+const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
 
 impl<'a> JoinedIndex<'a> {
     // Properties.
     /// Offset
     pub fn offset(&self) -> u64 {
         u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
-    }
-    pub fn object_key(&self) -> [u8; 16] {
-        self.0[OBJECT_KEY_INDEX..INDEXES_INDEX].try_into().unwrap()
     }
 
     /// Retrieve whether or not this join is completed.
@@ -43,6 +39,12 @@ impl<'a> JoinedIndex<'a> {
     }
 
     // Constructors
+
+    /// Creates a instance of this, wrapping the given bytes.
+    pub fn of(val: &'a [u8]) -> Self {
+        Self(val)
+    }
+
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
@@ -183,23 +185,20 @@ impl<'a> JoinedIndex<'a> {
                 *val = 1_u8;
             });
     }
+
+    pub fn timestamp(&self) -> u64 {
+        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
+    }
+
+    /// Retrieve the reference of this Index.
+    pub fn reference(&self) -> Reference {
+        Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
+    }
 }
 
 impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
     fn from(src: &'a [u8]) -> Self {
         Self(src)
-    }
-}
-
-impl<'a> Timestamped for JoinedIndex<'a> {
-    fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
-    }
-}
-
-impl<'a> WrapBytes<'a> for JoinedIndex<'a> {
-    fn wrap(bytes: &'a [u8]) -> Self {
-        Self(bytes)
     }
 }
 

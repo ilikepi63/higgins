@@ -3,8 +3,8 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::{IndexError, index_size_from_stream_definition};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -39,6 +39,10 @@ pub async fn create_join_operator(
         handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
     }));
 
+    // Redefined for movements.
+    let amalgamate_definition = definition.clone();
+    let amalgamate_broker = broker.clone();
+
     // We create the resultant stream that data is zipped into.
     {
         let mut broker = broker.write().await;
@@ -52,7 +56,6 @@ pub async fn create_join_operator(
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
     let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
-    let stream_definition = definition.clone();
 
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
@@ -107,13 +110,18 @@ pub async fn create_join_operator(
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
+                // Redefinition for tokio copies.
+                let amalgamate_partition = partition.clone();
+                let amalgamate_broker = amalgamate_broker.clone();
+
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
                     let mut broker = broker.write().await;
-                    let index_file: BrokerIndexFile<JoinedIndex> = broker
+                    let index_file: BrokerIndexFile = broker
                         .get_index_file(
                             String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
                             &partition,
+                            JoinedIndex::size_of(n_offsets),
                         )
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
                     index_file
@@ -183,11 +191,14 @@ pub async fn create_join_operator(
                 tokio::spawn(async move {
                     let index_file_view = index_file.view();
                     // Get the index preceding this one.
-                    let previous_joined_index =
-                        index_file_view.get((index - 1).try_into().unwrap());
+                    let previous_joined_index = index_file_view
+                        .get((index - 1).try_into().unwrap())
+                        .map(JoinedIndex::of);
 
-                    let current_joined_index =
-                        index_file_view.get(index.try_into().unwrap()).unwrap(); // Unwrap as this should always exist.
+                    let current_joined_index = index_file_view
+                        .get(index.try_into().unwrap())
+                        .map(JoinedIndex::of)
+                        .unwrap(); // Unwrap as this should always exist.
 
                     if let Some(joined_index) = previous_joined_index {
                         let inner_current_joined_index = current_joined_index.inner();
@@ -223,21 +234,29 @@ pub async fn create_join_operator(
                 // and therefore we may need to create more restrictions on this.
                 let mut index_file = {
                     let mut broker = broker.write().await;
-                    let index_file: BrokerIndexFile<JoinedIndex> = broker
+                    let index_file: BrokerIndexFile = broker
                         .get_index_file(
                             String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
                             &partition,
+                            JoinedIndex::size_of(n_offsets),
                         )
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
                     index_file
                 };
 
+                let amalgamate_definition = amalgamate_definition.clone();
+                let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
+                    let stream = amalgamate_definition;
+                    let partition = amalgamate_partition;
+                    let broker = amalgamate_broker;
+
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        let index_view = index_file.view();
                         // Query the offset from this index_file,
-                        let index = index_file
-                            .view()
+                        let index = index_view
                             .get(completed_index.try_into().unwrap())
+                            .map(JoinedIndex::of)
                             .unwrap();
 
                         // Query the other offset data from this index_file.
@@ -246,8 +265,34 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let stream = stream_definition
-                                        .joined_stream_from_index(offset.try_into().unwrap());
+                                    let stream = stream
+                                        .joined_stream_from_index(offset.try_into().unwrap())
+                                        .unwrap();
+
+                                    let mut broker_lock = broker.write().await;
+
+                                    // broker_lock.get_at();
+
+                                    // let index_file = broker_lock
+                                    //     .get_index_file(
+                                    //         String::from_utf8(stream.0.inner().to_vec()).unwrap(),
+                                    //         &partition,
+                                    //         index_size_from_stream_definition(
+                                    //             &definition.joins.get(i).unwrap().stream.1,
+                                    //         ),
+                                    //     )
+                                    //     .unwrap();
+
+                                    // let index_view = index_file.view();
+
+                                    // let index = index_view.get(offset.try_into().unwrap()).unwrap();
+
+                                    // Retrieve the data from the other stream.
+                                    // broker_lock.
+                                    // Amalgamate the data into a record
+
+                                    // Save the record to the backing store.
+                                    // complete.
                                 }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {}
                                 Err(err) => {
@@ -259,10 +304,6 @@ pub async fn create_join_operator(
                                 }
                             }
                         }
-
-                        // Amalgamate the data into a record
-                        // Save the record to the backing store.
-                        // complete.
                     }
                 });
             }
@@ -608,7 +649,7 @@ use crate::{error::HigginsError, subscription::Subscription};
 
 /// This function iterates over the next index, using the current index to complete it.
 pub async fn iterate_from_index_and_complete(
-    index_file: &mut BrokerIndexFile<JoinedIndex<'_>>,
+    index_file: &mut BrokerIndexFile,
     index: u64,
     tx: tokio::sync::mpsc::Sender<u64>,
 ) {
@@ -616,7 +657,9 @@ pub async fn iterate_from_index_and_complete(
 
     loop {
         let index_view = index_file.view();
-        let next_joined_index = index_view.get((index + 1).try_into().unwrap()); // TODO: Remove this as we want offsets to be u64.
+        let next_joined_index = index_view
+            .get((index + 1).try_into().unwrap())
+            .map(JoinedIndex::of); // TODO: Remove this as we want offsets to be u64.
 
         // Return early if the next index is either completed, or the
         // index itself has yet to be written.
@@ -627,7 +670,10 @@ pub async fn iterate_from_index_and_complete(
             break;
         }
 
-        let current_joined_index = index_view.get(index.try_into().unwrap()).unwrap(); // Asumption is that this is always Some(_).
+        let current_joined_index = index_view
+            .get(index.try_into().unwrap())
+            .map(JoinedIndex::of)
+            .unwrap(); // Asumption is that this is always Some(_).
 
         let mut copied_next: Vec<u8> = next_joined_index
             .unwrap()

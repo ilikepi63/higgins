@@ -1,14 +1,14 @@
 use super::Broker;
 
 use riskless::{
-    batch_coordinator::FindBatchResponse,
+    batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::{ConsumeRequest, ConsumeResponse},
     object_store::ObjectStore,
 };
 use std::sync::Arc;
 
-use crate::broker::object_store::path::Path;
 use crate::error::HigginsError;
+use crate::{broker::object_store::path::Path, storage::index::IndexType};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
 
@@ -18,23 +18,35 @@ impl Broker {
         topic: &[u8],
         partition: &[u8],
         offset: u64,
-        max_partition_fetch_bytes: u32,
+        _max_partition_fetch_bytes: u32,
     ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
-        let object_store = self.object_store.clone();
         let indexes = self.indexes.clone();
 
-        riskless::consume(
-            ConsumeRequest {
-                topic: String::from_utf8_lossy(topic).to_string(),
-                partition: partition.to_vec(),
-                offset,
-                max_partition_fetch_bytes,
-            },
-            object_store,
-            indexes,
+        let index_type = IndexType::try_from(
+            self.topography
+                .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
+                .unwrap(),
         )
-        .await
-        .unwrap()
+        .unwrap();
+
+        let batch_responses = indexes
+            .find_batches(
+                vec![FindBatchRequest {
+                    topic_id_partition: TopicIdPartition(
+                        String::from_utf8(topic.to_owned()).unwrap(),
+                        partition.to_owned(),
+                    ),
+                    offset: offset,
+                    max_partition_fetch_bytes: 0,
+                }],
+                0,
+                index_type,
+            )
+            .await;
+
+        self.dereference_find_batch_response(batch_responses)
+            .await
+            .unwrap()
     }
     pub async fn get_by_timestamp(
         &self,
@@ -42,9 +54,19 @@ impl Broker {
         partition: &[u8],
         timestamp: u64,
     ) -> Option<ConsumeResponse> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap();
+
         let find_batch_responses = self
             .indexes
-            .get_by_timestamp(stream, partition, timestamp)
+            .get_by_timestamp(
+                stream,
+                partition,
+                timestamp,
+                IndexType::try_from(stream_def).unwrap(),
+            )
             .await;
 
         self.dereference_find_batch_response(find_batch_responses)
@@ -59,7 +81,15 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
-        let find_batch_responses = self.indexes.get_latest_offset(stream, partition).await;
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap();
+
+        let find_batch_responses = self
+            .indexes
+            .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
+            .await;
 
         self.dereference_find_batch_response(find_batch_responses)
             .await
