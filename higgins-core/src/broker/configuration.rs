@@ -5,7 +5,6 @@ use tokio::sync::RwLock;
 
 use crate::{
     derive::{
-        joining::create_joined_stream_from_definition, joining::join::JoinDefinition,
         map::create_mapped_stream_from_definition, reduce::create_reduced_stream_from_definition,
     },
     topography::FunctionType,
