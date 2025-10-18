@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::ops::{Deref, Index as StdIndex};
 
 #[allow(unused_imports)]
@@ -13,95 +12,169 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
-pub trait Timestamped {
-    fn timestamp(&self) -> u64;
+use crate::storage::dereference::Reference;
+use crate::storage::index::default::DefaultIndex;
+use crate::storage::index::joined_index::JoinedIndex;
+use crate::topography::{FunctionType, StreamDefinition};
+
+/// The high-level type of index that all indexes could possibly be.
+///
+/// This is for use when the type of index is unknown as we do not have direct access to the underlying
+/// Stream.
+#[derive(Default, Clone)]
+pub enum IndexType {
+    #[default]
+    Default,
+    Join,
 }
 
-pub trait WrapBytes<'a> {
-    fn wrap(bytes: &'a [u8]) -> Self;
+/// Retrieve an IndexType from a given StreamDefinition.
+impl TryFrom<&StreamDefinition> for IndexType {
+    type Error = IndexError;
+
+    fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
+        Ok(match value.stream_type.as_ref() {
+            Some(t) if matches!(t, FunctionType::Join) => IndexType::Join,
+            _ => IndexType::Default,
+        })
+    }
+}
+
+/// A data type representing all of the different indexes that may be represented in higgins.
+pub struct Index<'a> {
+    index_type: IndexType,
+    data: &'a [u8],
+}
+
+impl<'a> Index<'a> {
+    // Constructors
+    pub fn of(data: &'a [u8], index_type: IndexType) -> Self {
+        Self { index_type, data }
+    }
+
+    /// Query for the timestamp of this given
+    pub fn timestamp(&self) -> u64 {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(self.data).timestamp(),
+            IndexType::Join => JoinedIndex::of(self.data).timestamp(),
+        }
+    }
+
+    /// Retrieve the underlying Reference data of this index.
+    pub fn get_reference(&self) -> Reference {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(self.data).reference(),
+            IndexType::Join => JoinedIndex::of(self.data).reference(),
+        }
+    }
+}
+
+pub fn index_size_from_index_type(index_type: IndexType) -> usize {
+    match index_type {
+        IndexType::Join => {
+            // JoinedIndex::size_of(def.)
+            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
+            todo!()
+        }
+        IndexType::Default => DefaultIndex::size_of(),
+    }
+}
+
+/// Returns the index size indicated by the stream definition. Each Stream definition will
+/// decide which index to use, and therefore will decide how large each
+pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
+    match IndexType::try_from(def) {
+        Ok(ty) => index_size_from_index_type(ty),
+        Err(err) => panic!(
+            "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
+            err
+        ),
+    }
 }
 
 /// A container for binary-encoded index data.
 /// Optimized for efficient storage and I/O operations.
 #[derive(Default)]
-pub struct IndexesView<'a, T> {
+pub struct IndexesView<'a> {
     buffer: &'a [u8],
-    _t: PhantomData<T>,
+    element_size: usize,
+    index_type: IndexType,
 }
 
-impl<'a, T: Timestamped + WrapBytes<'a>> IndexesView<'a, T> {
+impl<'a> IndexesView<'a> {
     /// Creates a new empty container
-    pub fn empty() -> Self {
+    pub fn empty(index_type: IndexType) -> Self {
         Self {
             buffer: &[0; 0],
-            _t: PhantomData,
+            element_size: 0,
+            index_type,
         }
     }
 
     /// Gets the number of indexes in the container
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> usize {
         println!("Len: {}", self.buffer.len());
-        println!("Size: {}", size_of::<T>());
-        self.buffer.len() as u32 / size_of::<T>() as u32
-    }
-
-    /// Checks if the container is empty
-    pub fn is_empty(&self) -> bool {
-        self.count() == 0
+        println!("Size: {}", self.element_size);
+        self.buffer.len() / self.element_size
     }
 
     /// Gets a view of the DefaultIndex at the specified index
-    pub fn get(&self, index: u32) -> Option<T> {
+    pub fn get(&self, index: usize) -> Option<&[u8]> {
         if index >= self.count() {
             return None;
         }
 
-        let start = index as usize * size_of::<T>();
-        let end = start + size_of::<T>();
+        let start = index as usize * self.element_size;
+        let end = start + self.element_size;
 
         if end <= self.buffer.len() {
-            Some(T::wrap(&self.buffer[start..end]))
+            Some(&self.buffer[start..end])
         } else {
             None
         }
     }
 
     /// Gets a last index
-    pub fn last(&self) -> Option<T> {
+    pub fn last(&self) -> Option<&[u8]> {
         if self.count() == 0 {
             return None;
         }
 
-        Some(T::wrap(
-            &self.buffer[(self.count() - 1) as usize * size_of::<T>()..],
-        ))
+        Some(&self.buffer[(self.count() - 1) as usize * self.element_size..])
     }
 
-    /// Finds an index by timestamp using binary search
+    // Finds an index by timestamp using binary search
     /// If an exact match isn't found, returns the index with the nearest timestamp
     /// that is greater than or equal to the requested timestamp
-    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<T> {
+    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<Index> {
         if self.count() == 0 {
             return None;
         }
 
-        let first_idx = self.get(0)?;
+        let first_idx = self
+            .get(0)
+            .map(|data| Index::of(data, self.index_type.clone()))?;
         if timestamp <= first_idx.timestamp() {
             return Some(first_idx);
         }
 
-        let last_saved_idx = self.get(self.count() - 1)?;
+        let last_saved_idx = self
+            .get(self.count() - 1)
+            .map(|data| Index::of(data, self.index_type.clone()))?;
         if timestamp > last_saved_idx.timestamp() {
             return None;
         }
 
         let mut left = 0;
-        let mut right = self.count() as isize - 1;
-        let mut result: Option<T> = None;
+        let mut right = self.count() as usize - 1;
+        let mut result: Option<Index> = None;
 
         while left <= right {
             let mid = left + (right - left) / 2;
-            let view = self.get(mid as u32).unwrap();
+            let view = self
+                .get(mid)
+                .map(|data| Index::of(data, self.index_type.clone()))
+                .unwrap();
             let current_timestamp = view.timestamp();
 
             match current_timestamp.cmp(&timestamp) {
@@ -121,46 +194,21 @@ impl<'a, T: Timestamped + WrapBytes<'a>> IndexesView<'a, T> {
 
         result
     }
-
-    /// Get this as a mutable slice of Indexes.
-    pub fn as_indexes_mut(&self) -> IndexesView<T> {
-        let indexes_mut: IndexesView<T> = IndexesView {
-            buffer: self.buffer,
-            _t: PhantomData,
-        };
-
-        indexes_mut
-    }
 }
-impl<'a, T> StdIndex<usize> for IndexesView<'a, T> {
+impl<'a> StdIndex<usize> for IndexesView<'a> {
     type Output = [u8];
 
     fn index(&self, index: usize) -> &Self::Output {
-        let start = index * size_of::<T>();
-        let end = start + size_of::<T>();
+        let start = index * self.element_size;
+        let end = start + self.element_size;
         &self.buffer[start..end]
     }
 }
 
-impl<'a, T> Deref for IndexesView<'a, T> {
+impl<'a> Deref for IndexesView<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
         &self.buffer
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::default::DefaultIndex;
-    use super::*;
-
-    #[test]
-    fn test_indexes_mut_empty() {
-        let indexes: IndexesView<'_, DefaultIndex> = IndexesView::empty();
-        assert_eq!(indexes.count(), 0);
-        assert!(indexes.is_empty());
-        assert!(indexes.get(0).is_none());
-        assert!(indexes.last().is_none());
     }
 }
