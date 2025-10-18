@@ -51,6 +51,8 @@ impl Reference {
 
 pub struct S3Reference {
     pub object_key: [u8; 16],
+    pub position: u64,
+    pub size: u64,
 }
 
 impl S3Reference {
