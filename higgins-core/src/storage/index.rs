@@ -17,17 +17,33 @@ use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
 
-/// A data type representing all of the different indexes that may be represented in higgins.
-pub struct Index<'a> {
-    index_type: IndexType,
-    data: &'a [u8],
-}
-
+/// The high-level type of index that all indexes could possibly be.
+///
+/// This is for use when the type of index is unknown as we do not have direct access to the underlying
+/// Stream.
 #[derive(Default, Clone)]
 pub enum IndexType {
     #[default]
     Default,
     Join,
+}
+
+/// Retrieve an IndexType from a given StreamDefinition.
+impl TryFrom<&StreamDefinition> for IndexType {
+    type Error = IndexError;
+
+    fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
+        Ok(match value.stream_type.as_ref() {
+            Some(t) if matches!(t, FunctionType::Join) => IndexType::Join,
+            _ => IndexType::Default,
+        })
+    }
+}
+
+/// A data type representing all of the different indexes that may be represented in higgins.
+pub struct Index<'a> {
+    index_type: IndexType,
+    data: &'a [u8],
 }
 
 impl<'a> Index<'a> {
@@ -56,13 +72,19 @@ impl<'a> Index<'a> {
 /// Returns the index size indicated by the stream definition. Each Stream definition will
 /// decide which index to use, and therefore will decide how large each
 pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
-    match def.stream_type.as_ref() {
-        Some(t) if matches!(t, FunctionType::Join) => {
-            // JoinedIndex::size_of(def.)
-            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
-            todo!()
-        }
-        _ => DefaultIndex::size_of(),
+    match IndexType::try_from(def) {
+        Ok(ty) => match ty {
+            IndexType::Join => {
+                // JoinedIndex::size_of(def.)
+                // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
+                todo!()
+            }
+            IndexType::Default => DefaultIndex::size_of(),
+        },
+        Err(err) => panic!(
+            "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
+            err
+        ),
     }
 }
 
