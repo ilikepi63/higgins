@@ -8,7 +8,6 @@ use riskless::{
 use std::sync::Arc;
 
 use crate::error::HigginsError;
-use crate::topography::Key;
 use crate::{broker::object_store::path::Path, storage::index::IndexType};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
