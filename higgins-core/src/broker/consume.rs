@@ -2,7 +2,7 @@ use super::Broker;
 
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
-    messages::{ConsumeRequest, ConsumeResponse},
+    messages::ConsumeResponse,
     object_store::ObjectStore,
 };
 use std::sync::Arc;
