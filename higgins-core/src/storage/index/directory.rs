@@ -253,13 +253,12 @@ impl IndexDirectory {
     }
 
     /// Retrieves the offset by its offset number.
-    #[allow(unused)]
+    // #[allow(unused)]
     pub async fn get_by_offset(
         &self,
         stream: &[u8],
         partition: &[u8],
         offset: u64,
-        index_size: usize,
         index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
@@ -267,6 +266,8 @@ impl IndexDirectory {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        let index_size = index_size_from_index_type(index_type.clone());
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -279,7 +280,7 @@ impl IndexDirectory {
 
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
-            element_size: index_size,
+            element_size: index_size.clone(),
             index_type,
         };
 

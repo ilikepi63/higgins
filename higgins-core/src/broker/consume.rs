@@ -95,6 +95,27 @@ impl Broker {
             .await
     }
 
+    /// Retrieve the data at the specified offset.
+    pub async fn get_at(
+        &self,
+        stream: &[u8],
+        partition: &[u8],
+        offset: u64,
+    ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap();
+
+        let find_batch_responses = self
+            .indexes
+            .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
+            .await;
+
+        self.dereference_find_batch_response(find_batch_responses)
+            .await
+    }
+
     pub async fn dereference_find_batch_response(
         &self,
         batch_responses: Vec<FindBatchResponse>,
