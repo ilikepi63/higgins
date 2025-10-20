@@ -8,11 +8,11 @@ use riskless::{
 use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
+use crate::functions::collection::FunctionCollection;
 use crate::{
     client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
     utils::request_response::Request,
 };
-use crate::{functions::collection::FunctionCollection, storage::index::IndexType};
 
 type MutableCollection = Arc<
     RwLock<(
