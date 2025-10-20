@@ -1,5 +1,6 @@
 use super::Broker;
 
+use ::futures::future::join_all;
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -44,7 +45,7 @@ impl Broker {
             )
             .await;
 
-        self.dereference_find_batch_response(batch_responses)
+        self.dereference_find_batch_responses(batch_responses)
             .await
             .unwrap()
     }
@@ -69,7 +70,7 @@ impl Broker {
             )
             .await;
 
-        self.dereference_find_batch_response(find_batch_responses)
+        self.dereference_find_batch_responses(find_batch_responses)
             .await
             .unwrap()
             .recv()
@@ -91,7 +92,7 @@ impl Broker {
             .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
             .await;
 
-        self.dereference_find_batch_response(find_batch_responses)
+        self.dereference_find_batch_responses(find_batch_responses)
             .await
     }
 
@@ -101,7 +102,7 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
         offset: u64,
-    ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
+    ) -> Result<ConsumeResponse, HigginsError> {
         let stream_def = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
@@ -121,7 +122,7 @@ impl Broker {
             .await
     }
 
-    pub async fn dereference_find_batch_response(
+    pub async fn dereference_find_batch_responses(
         &self,
         batch_responses: Vec<FindBatchResponse>,
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
@@ -204,5 +205,69 @@ impl Broker {
         }
 
         Ok(batch_reponse_rx)
+    }
+
+    pub async fn dereference_find_batch_response(
+        &self,
+        batch_response: FindBatchResponse,
+    ) -> Result<ConsumeResponse, HigginsError> {
+        let object_storage = self.object_store.clone();
+
+        let objects_to_retrieve = batch_response
+            .batches
+            .iter()
+            .map(|batch_info| batch_info.object_key.clone())
+            .collect::<HashSet<_>>();
+
+        let responses = join_all(objects_to_retrieve.iter().map(|object_name| {
+            async {
+            let object_name = object_name.clone();
+            let object_store = object_storage.clone();
+            let batch_response = batch_response.clone();
+
+            let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
+
+            let result = match get_object_result {
+                Ok(get_result) => {
+                    if let Ok(b) = get_result.bytes().await {
+                        // Retrieve the current fetch Responses by name.
+
+                        batch_response
+                            .batches
+                            .iter()
+                            .filter(|batch| batch.object_key == *object_name)
+                            .map(|batch| (batch_response.clone(), batch))
+                            .inspect(|val| {
+                                tracing::trace!("Result returned for query: {:#?}", val);
+                            })
+                            .filter_map(|(res, batch)| {
+                                ConsumeBatch::try_from((res, batch, &b)).ok()
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        tracing::trace!(
+                            "Could not retrieve bytes for given GetObject query: {}",
+                            object_name
+                        );
+                        vec![]
+                    }
+                }
+                Err(err) => {
+                    tracing::error!(
+                        "An error occurred trying to retrieve the object with key {}. Error: {:#?}",
+                        object_name,
+                        err
+                    );
+                    vec![]
+                }
+            };
+
+            result
+            }
+        })).await.into_iter().flatten().collect::<Vec<_>>();
+
+        Ok(ConsumeResponse {
+            batches: responses.clone(),
+        })
     }
 }
