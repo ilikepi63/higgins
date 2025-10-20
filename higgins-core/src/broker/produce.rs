@@ -39,7 +39,7 @@ impl Broker {
 
         // TODO: This is currently hardcoded to 50kb, but we possibly want to make
         if buffer_lock.0.size() > 50_000 {
-            let _ = self.flush_tx.send(()).await;
+            let _ = self.flush_tx.as_ref().unwrap().send(()).await;
         }
 
         drop(buffer_lock);

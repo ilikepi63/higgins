@@ -422,6 +422,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
 pub async fn run_server(dir: PathBuf, port: u16) {
     let broker = Arc::new(RwLock::new(Broker::new(dir)));
+    {
+        let broker_ref = broker.clone();
+        let mut broker = broker.write().await;
+        broker.start(broker_ref);
+    }
 
     let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
         .await
