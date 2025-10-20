@@ -109,7 +109,12 @@ impl Broker {
 
         let find_batch_responses = self
             .indexes
-            .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
+            .get_by_offset(
+                stream,
+                partition,
+                offset,
+                IndexType::try_from(stream_def).unwrap(),
+            )
             .await;
 
         self.dereference_find_batch_response(find_batch_responses)
