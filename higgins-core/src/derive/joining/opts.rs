@@ -3,8 +3,9 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
+use crate::storage::arrow_ipc;
+use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{IndexError, index_size_from_stream_definition};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -277,7 +278,16 @@ pub async fn create_join_operator(
                                             &partition,
                                             offset,
                                         )
-                                        .await;
+                                        .await
+                                        .unwrap();
+
+                                    // Retrieve the first record, as there should be only one record.
+                                    let arrow_data =
+                                        arrow_ipc::read_arrow(&data.batches.get(0).unwrap().data)
+                                            .nth(0)
+                                            .map(|r| r.ok())
+                                            .flatten()
+                                            .unwrap();
 
                                     // let index_file = broker_lock
                                     //     .get_index_file(
