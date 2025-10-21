@@ -260,9 +260,7 @@ impl IndexDirectory {
         partition: &[u8],
         offset: u64,
         index_type: IndexType,
-    ) -> Vec<FindBatchResponse> {
-        let mut responses = vec![];
-
+    ) -> FindBatchResponse {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
@@ -330,7 +328,7 @@ impl IndexDirectory {
                     high_watermark: 0,
                 };
 
-                responses.push(response);
+                response
             }
             None => {
                 tracing::error!("No Index found at offset {}", 0);
@@ -340,11 +338,9 @@ impl IndexDirectory {
                     log_start_offset: 0,
                     high_watermark: 0,
                 };
-                responses.push(response);
+                response
             }
         }
-
-        responses
     }
 
     pub async fn find_batches(
