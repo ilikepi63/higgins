@@ -265,13 +265,19 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let stream = stream
-                                        .joined_stream_from_index(offset.try_into().unwrap())
-                                        .unwrap();
+                                    // let stream = stream
+                                    //     .joined_stream_from_index(offset.try_into().unwrap())
+                                    //     .unwrap();
 
                                     let mut broker_lock = broker.write().await;
 
-                                    // broker_lock.get_at();
+                                    let data = broker_lock
+                                        .get_at(
+                                            stream.joins.get(i).unwrap().stream.0.inner(),
+                                            &partition,
+                                            offset,
+                                        )
+                                        .await;
 
                                     // let index_file = broker_lock
                                     //     .get_index_file(
