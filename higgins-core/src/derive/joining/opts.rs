@@ -245,7 +245,7 @@ pub async fn create_join_operator(
                     index_file
                 };
 
-                let amalgamate_definition = amalgamate_definition.clone();
+                let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
                     let stream = amalgamate_definition;

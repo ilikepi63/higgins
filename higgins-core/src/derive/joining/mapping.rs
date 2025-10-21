@@ -27,6 +27,7 @@ use crate::error::HigginsError;
 ///    customer_last_name: customer.last_name,
 ///    customer_address: address.address
 /// }
+#[derive(Clone)]
 pub struct JoinMapping(Vec<JoinMappingDerivativeToProperty>);
 
 type JoinMappingDerivativeToProperty = (String, Vec<(String, String)>);

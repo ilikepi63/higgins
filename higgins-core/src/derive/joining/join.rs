@@ -1,3 +1,4 @@
+use super::mapping::JoinMapping;
 use crate::topography::{Key, StreamDefinition};
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
@@ -8,6 +9,8 @@ pub struct JoinDefinition {
     pub base: (Key, StreamDefinition),
     /// The different joins that will
     pub joins: Vec<JoinWithStream>,
+    /// The mapping of the given joins with the overarching joined stream.
+    pub mapping: JoinMapping,
 }
 
 impl JoinDefinition {
