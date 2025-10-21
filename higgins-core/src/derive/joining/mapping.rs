@@ -50,9 +50,16 @@ impl JoinMapping {
     /// Given a list of record batches with their stream names,
     /// return a batch that represents the amalgamated result using this mapping.
     pub fn map_arrow(&self, batches: Vec<(String, RecordBatch)>) -> RecordBatch {
-        for (stream_name, properties) in self.0.iter() {}
+        for (stream_name, properties) in self.0.iter() {
+            let (name, batch) = batches
+                .iter()
+                .find(|(name, _)| stream_name == name)
+                .unwrap();
 
-        todo!()
+            for (property, joined_property) in properties.iter() {}
+        }
+
+        RecordBatch::from()
     }
 }
 
