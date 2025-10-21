@@ -253,7 +253,6 @@ impl IndexDirectory {
     }
 
     /// Retrieves the offset by its offset number.
-    // #[allow(unused)]
     pub async fn get_by_offset(
         &self,
         stream: &[u8],
