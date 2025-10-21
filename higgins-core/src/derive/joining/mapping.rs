@@ -51,6 +51,8 @@ impl JoinMapping {
     /// Given a list of record batches with their stream names,
     /// return a batch that represents the amalgamated result using this mapping.
     pub fn map_arrow(&self, batches: Vec<(String, RecordBatch)>) -> RecordBatch {
+        let mut columns = vec![];
+
         for (stream_name, properties) in self.0.iter() {
             let (name, batch) = batches
                 .iter()
@@ -60,13 +62,13 @@ impl JoinMapping {
             for (property, joined_property) in properties.iter() {}
         }
 
-        RecordBatch::from()
+        RecordBatch::try_new(Arc::new(self.0), columns)
     }
 }
 
-/// Conversion from a BTreeMap representing the Property Mapping here.
-///
-/// See 'ConfigurationStreamDefinition' for more information.
+// Conversion from a BTreeMap representing the Property Mapping here.
+
+// See 'ConfigurationStreamDefinition' for more information.
 // impl From<BTreeMap<String, String>> for JoinMapping {
 //     fn from(value: BTreeMap<String, String>) -> Self {
 //         JoinMapping(
