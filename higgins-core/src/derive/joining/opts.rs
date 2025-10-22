@@ -266,10 +266,6 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    // let stream = stream
-                                    //     .joined_stream_from_index(offset.try_into().unwrap())
-                                    //     .unwrap();
-
                                     let mut broker_lock = broker.write().await;
 
                                     let data = broker_lock
