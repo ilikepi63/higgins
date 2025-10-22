@@ -261,7 +261,7 @@ pub async fn create_join_operator(
                             .unwrap();
 
                         // Query the other offset data from this index_file.
-                        let derivative_data = (0..index.offset_len()).map(|i| {
+                        let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
                             let offset = index.get_offset(i);
 
                             match offset {
@@ -300,7 +300,7 @@ pub async fn create_join_operator(
                                     None
                                 }
                             }
-                        });
+                        })).await;
                     }
                 });
             }
