@@ -5,8 +5,6 @@ use std::collections::BTreeMap;
 
 use arrow::ipc::RecordBatch;
 
-use crate::error::HigginsError;
-
 /// JoinMapping is the mapping metadata between a joined data structs properties
 /// and its derivative properties.
 ///
@@ -30,7 +28,10 @@ use crate::error::HigginsError;
 ///    customer_address: address.address
 /// }
 #[derive(Clone)]
-pub struct JoinMapping(Vec<JoinMappingDerivativeToProperty>);
+pub struct JoinMapping(
+    arrow::datatypes::Schema,
+    Vec<JoinMappingDerivativeToProperty>,
+);
 
 type JoinMappingDerivativeToProperty = (
     StreamName,
