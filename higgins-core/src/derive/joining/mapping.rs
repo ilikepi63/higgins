@@ -1,7 +1,7 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
-use arrow::record_batch::RecordBatch;
+use arrow::{array::NullArray, record_batch::RecordBatch};
 use std::collections::BTreeMap;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
@@ -62,11 +62,23 @@ impl JoinMapping {
                 .find(|(prop_name, _)| prop_name == field_name)
                 .unwrap();
 
-            let (_, batch) = batches.iter().find(|val| name == stream_name).unwrap();
+            let batch_opt = batches
+                .iter()
+                .find(|val| match val {
+                    Some((name, _)) => name == stream_name,
+                    None => false,
+                })
+                .cloned()
+                .flatten();
 
-            let column = batch.column_by_name(stream_propery_key).unwrap();
+            columns.push(match batch_opt {
+                Some((_, batch)) => {
+                    let column = batch.column_by_name(stream_propery_key).unwrap();
 
-            columns.push(column.clone());
+                    column.clone()
+                }
+                None => std::sync::Arc::new(NullArray::new(0)),
+            })
         }
 
         Ok(RecordBatch::try_new(self.0.clone(), columns)?)
