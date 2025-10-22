@@ -46,7 +46,7 @@ pub struct Broker {
     pub flush_interval_in_ms: u64,
     pub segment_size_in_bytes: u64,
     collection: MutableCollection,
-    flush_tx: tokio::sync::mpsc::Sender<()>,
+    flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
 
     // Subscriptions.
     #[allow(clippy::type_complexity)]

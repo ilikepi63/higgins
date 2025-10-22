@@ -3,8 +3,9 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
+use crate::storage::arrow_ipc;
+use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{IndexError, index_size_from_stream_definition};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -244,7 +245,7 @@ pub async fn create_join_operator(
                     index_file
                 };
 
-                let amalgamate_definition = amalgamate_definition.clone();
+                let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
                     let stream = amalgamate_definition;
@@ -265,13 +266,24 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let stream = stream
-                                        .joined_stream_from_index(offset.try_into().unwrap())
-                                        .unwrap();
-
                                     let mut broker_lock = broker.write().await;
 
-                                    // broker_lock.get_at();
+                                    let data = broker_lock
+                                        .get_at(
+                                            stream.joins.get(i).unwrap().stream.0.inner(),
+                                            &partition,
+                                            offset,
+                                        )
+                                        .await
+                                        .unwrap();
+
+                                    // Retrieve the first record, as there should be only one record.
+                                    let arrow_data =
+                                        arrow_ipc::read_arrow(&data.batches.get(0).unwrap().data)
+                                            .nth(0)
+                                            .map(|r| r.ok())
+                                            .flatten()
+                                            .unwrap();
 
                                     // let index_file = broker_lock
                                     //     .get_index_file(

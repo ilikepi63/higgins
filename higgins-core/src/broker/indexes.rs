@@ -13,7 +13,7 @@ impl BrokerIndexFile {
         Self { index_file, mutex }
     }
 
-    pub async fn lock<'a>(&'a mut self) -> BrokerIndexFileLock {
+    pub async fn lock<'a>(&'a mut self) -> BrokerIndexFileLock<'a> {
         let lock = self.mutex.lock().await;
 
         BrokerIndexFileLock {
