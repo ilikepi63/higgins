@@ -32,7 +32,19 @@ use crate::error::HigginsError;
 #[derive(Clone)]
 pub struct JoinMapping(Vec<JoinMappingDerivativeToProperty>);
 
-type JoinMappingDerivativeToProperty = (String, Vec<(String, String)>);
+type JoinMappingDerivativeToProperty = (
+    StreamName,
+    Vec<(StreamPropertyKey, JoinedStreamPropertyKey)>,
+);
+
+/// The original stream that this derived value comes from.
+type StreamName = String;
+
+/// The name of the key that this value originates from.
+type StreamPropertyKey = String;
+
+/// The renamed property where this value will be present in the resultant joined data structure.
+type JoinedStreamPropertyKey = String;
 
 impl JoinMapping {
     /// Given a list of record batches with their stream names,
