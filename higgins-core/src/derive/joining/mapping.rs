@@ -3,6 +3,8 @@
 
 use std::collections::BTreeMap;
 
+use arrow::ipc::RecordBatch;
+
 use crate::error::HigginsError;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
@@ -31,6 +33,16 @@ use crate::error::HigginsError;
 pub struct JoinMapping(Vec<JoinMappingDerivativeToProperty>);
 
 type JoinMappingDerivativeToProperty = (String, Vec<(String, String)>);
+
+impl JoinMapping {
+    /// Given a list of record batches with their stream names,
+    /// return a batch that represents the amalgamated result using this mapping.
+    pub fn map_arrow(&self, batches: Vec<(String, RecordBatch)>) -> RecordBatch {
+        for (stream_name, properties) in self.0.iter() {}
+
+        todo!()
+    }
+}
 
 /// Conversion from a BTreeMap representing the Property Mapping here.
 ///
