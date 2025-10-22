@@ -302,8 +302,8 @@ pub async fn create_join_operator(
                             }
                         })).await.iter()
                         // Retrieve the stream names for the given indexes.
-                        .map(|data| data.map(|(index, data)| {
-                            let stream = stream.joins.get(index).unwrap();
+                        .map(|data| data.as_ref().map(|(index, data)| {
+                            let stream = stream.joins.get(index.clone()).unwrap();
                             (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data)
                         })).collect::<Vec<_>>();
 
