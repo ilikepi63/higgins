@@ -300,7 +300,14 @@ pub async fn create_join_operator(
                                     None
                                 }
                             }
-                        })).await;
+                        })).await.iter()
+                        // Retrieve the stream names for the given indexes.
+                        .map(|data| data.map(|(index, data)| {
+                            let stream = stream.joins.get(index).unwrap();
+                            (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data)
+                        })).collect::<Vec<_>>();
+
+                        // let resultant_record_batch = amalgamate_definition.mapping.map_arrow();
                     }
                 });
             }
