@@ -285,7 +285,7 @@ pub async fn create_join_operator(
                                             .flatten()
                                             .unwrap();
 
-                                    Some(arrow_data)
+                                    Some((i, arrow_data))
                                 }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {
                                     // This means that a derivative offset in the joined stream doesn't exist yet.
