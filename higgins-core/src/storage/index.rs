@@ -67,6 +67,13 @@ impl<'a> Index<'a> {
             IndexType::Join => JoinedIndex::of(self.data).reference(),
         }
     }
+
+    pub fn put_reference(&mut self, r: Reference) {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(self.data).reference(),
+            IndexType::Join => JoinedIndex::of(self.data).reference(),
+        };
+    }
 }
 
 pub fn index_size_from_index_type(index_type: IndexType) -> usize {

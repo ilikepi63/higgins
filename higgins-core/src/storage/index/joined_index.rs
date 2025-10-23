@@ -194,6 +194,14 @@ impl<'a> JoinedIndex<'a> {
     pub fn reference(&self) -> Reference {
         Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
+
+    /// Update the reference for this.
+    pub fn put_reference(&mut self, reference: Reference) -> Vec<u8> {
+        let mut cloned = self.0.to_vec();
+        reference.to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]);
+
+        cloned
+    }
 }
 
 impl<'a> From<&'a [u8]> for JoinedIndex<'a> {
