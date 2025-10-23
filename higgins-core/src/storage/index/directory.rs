@@ -1,8 +1,10 @@
 use std::{path::PathBuf, time::SystemTime};
 
+use crate::broker::Broker;
 use crate::storage::dereference::Reference;
 use crate::storage::index::index_size_from_index_type;
 use crate::storage::index::index_size_from_stream_definition;
+use crate::topography::Key;
 
 use super::IndexError;
 use super::IndexFile;
@@ -251,20 +253,18 @@ impl IndexDirectory {
     }
 
     /// Retrieves the offset by its offset number.
-    #[allow(unused)]
     pub async fn get_by_offset(
         &self,
         stream: &[u8],
         partition: &[u8],
         offset: u64,
-        index_size: usize,
         index_type: IndexType,
-    ) -> Vec<FindBatchResponse> {
-        let mut responses = vec![];
-
+    ) -> FindBatchResponse {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+
+        let index_size = index_size_from_index_type(index_type.clone());
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -277,7 +277,7 @@ impl IndexDirectory {
 
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
-            element_size: index_size,
+            element_size: index_size.clone(),
             index_type,
         };
 
@@ -327,7 +327,7 @@ impl IndexDirectory {
                     high_watermark: 0,
                 };
 
-                responses.push(response);
+                response
             }
             None => {
                 tracing::error!("No Index found at offset {}", 0);
@@ -337,11 +337,9 @@ impl IndexDirectory {
                     log_start_offset: 0,
                     high_watermark: 0,
                 };
-                responses.push(response);
+                response
             }
         }
-
-        responses
     }
 
     pub async fn find_batches(
@@ -432,69 +430,88 @@ impl IndexDirectory {
 
         responses
     }
+
+    /// Commit this file to the ObjectStore.
+    pub async fn commit_file(
+        &self,
+        object_key: [u8; 16],
+        _uploader_broker_id: u32,
+        _file_size: u64,
+        batches: Vec<CommitBatchRequest>,
+        broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
+    ) -> Vec<CommitBatchResponse> {
+        let mut responses = vec![];
+
+        for batch in batches {
+            let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
+
+            let index_type = {
+                let broker = broker.write().await;
+
+                let (_, stream_def) = broker
+                    .get_topography_stream(&Key(topic.as_bytes().to_owned()))
+                    .unwrap();
+
+                IndexType::try_from(stream_def).unwrap()
+            };
+
+            let mut index_file = self
+                .index_file_from_stream_and_partition(
+                    topic,
+                    &partition,
+                    index_size_from_index_type(index_type.clone()),
+                    index_type.clone(),
+                )
+                .unwrap();
+
+            let indexes = IndexesView {
+                buffer: index_file.as_slice(),
+                element_size: size_of::<DefaultIndex>(),
+                index_type: index_type.clone(),
+            };
+
+            let offset = (indexes.count() + 1) as u64;
+            let position = batch.byte_offset;
+            let timestamp = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
+            let mut val = [0; DefaultIndex::size_of()];
+
+            DefaultIndex::put(
+                offset,
+                object_key,
+                position.try_into().unwrap(),
+                timestamp,
+                batch.size.into(),
+                &mut val,
+            );
+
+            let index = DefaultIndex::of(&val).to_bytes();
+
+            tracing::info!("Saving Index: {:#?}", index);
+
+            index_file.append(&index).unwrap();
+
+            tracing::info!("Successfully saved Index: {:#?}", index);
+
+            responses.push(CommitBatchResponse {
+                errors: vec![],
+                assigned_base_offset: 0,
+                log_append_time: timestamp,
+                log_start_offset: offset.into(),
+                is_duplicate: false,
+                request: batch.clone(),
+            });
+        }
+
+        responses
+    }
 }
 
 // // #[async_trait::async_trait]
 // impl CommitFile for IndexDirectory {
-//     async fn commit_file(
-//         &self,
-//         object_key: [u8; 16],
-//         _uploader_broker_id: u32,
-//         _file_size: u64,
-//         batches: Vec<CommitBatchRequest>,
-//     ) -> Vec<CommitBatchResponse> {
-//         let mut responses = vec![];
-
-//         for batch in batches {
-//             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
-
-//             let mut index_file = self
-//                 .index_file_from_stream_and_partition(topic, &partition, size_of::<DefaultIndex>())
-//                 .unwrap();
-
-//             let indexes = IndexesView {
-//                 buffer: index_file.as_slice(),
-//                 element_size: size_of::<DefaultIndex>(),
-//             };
-
-//             let offset = (indexes.count() + 1) as u64;
-//             let position = batch.byte_offset;
-//             let timestamp = SystemTime::now()
-//                 .duration_since(SystemTime::UNIX_EPOCH)
-//                 .unwrap()
-//                 .as_secs();
-
-//             let mut val = [0; DefaultIndex::size_of()];
-
-//             DefaultIndex::put(
-//                 offset,
-//                 object_key,
-//                 position.try_into().unwrap(),
-//                 timestamp,
-//                 batch.size.into(),
-//                 &mut val,
-//             );
-
-//             let index = DefaultIndex::of(&val).to_bytes();
-
-//             tracing::info!("Saving Index: {:#?}", index);
-
-//             index_file.append(&index).unwrap();
-
-//             tracing::info!("Successfully saved Index: {:#?}", index);
-
-//             responses.push(CommitBatchResponse {
-//                 errors: vec![],
-//                 assigned_base_offset: 0,
-//                 log_append_time: timestamp,
-//                 log_start_offset: offset.into(),
-//                 is_duplicate: false,
-//                 request: batch.clone(),
-//             });
-//         }
-
-//         responses
-//     }
 // }
 
 // #[async_trait::async_trait]

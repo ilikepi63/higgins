@@ -1228,6 +1228,7 @@ dependencies = [
  "arrow-json",
  "async-trait",
  "bytes",
+ "futures",
  "get-port",
  "higgins-client",
  "higgins-codec",
