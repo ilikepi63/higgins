@@ -84,8 +84,12 @@ impl<'a> DefaultIndex<'a> {
     }
 
     /// Update the reference for this.
-    pub fn put_reference(&mut self, reference: Reference) {
-        reference.to_bytes(&mut self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]);
+    pub fn put_reference(&self, reference: Reference) -> Vec<u8> {
+        let mut cloned = self.0.to_vec();
+
+        reference.to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]);
+
+        cloned
     }
 }
 
