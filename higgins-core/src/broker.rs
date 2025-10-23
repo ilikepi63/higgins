@@ -11,7 +11,7 @@ pub use indexes::BrokerIndexFile;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{BatchCoordinate, ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self, ObjectStore},
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -29,7 +29,7 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 type MutableCollection = Arc<
     RwLock<(
         ProduceRequestCollection,
-        Vec<Request<ProduceRequest, ProduceResponse>>,
+        Vec<Request<ProduceRequest, BatchCoordinate>>,
     )>,
 >;
 
