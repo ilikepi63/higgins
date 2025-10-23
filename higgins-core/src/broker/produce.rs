@@ -1,7 +1,7 @@
 use super::Broker;
 
 use arrow::array::RecordBatch;
-use riskless::messages::{ProduceRequest, ProduceResponse};
+use riskless::messages::{BatchCoordinate, ProduceRequest, ProduceResponse};
 use uuid::Uuid;
 
 use crate::{
@@ -21,7 +21,7 @@ impl Broker {
         stream_name: &[u8],
         partition: &[u8],
         record_batch: RecordBatch,
-    ) -> Result<ProduceResponse, HigginsError> {
+    ) -> Result<(), HigginsError> {
         tracing::trace!(
             "[PRODUCE] Producing to stream: {}",
             String::from_utf8(stream_name.to_vec()).unwrap()
@@ -36,7 +36,7 @@ impl Broker {
             data,
         };
 
-        let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
+        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
         let mut buffer_lock = self.collection.write().await;
 
@@ -53,13 +53,9 @@ impl Broker {
 
         let response = response.recv().await.unwrap();
 
-        // TODO: fix this to actually return the error?
-        if !response.errors.is_empty() {
-            tracing::error!(
-                "Error when attempting to write out to producer. Request: {}",
-                response.request_id
-            );
-        } else {
+        // TODO: commit file for each index here.
+            // self.indexes.commit_file(object_key, uploader_broker_id, file_size, batches, broker);
+
             // Watermark the subscription.
             let subscription = self.subscriptions.get(stream_name);
 
@@ -72,7 +68,7 @@ impl Broker {
                     tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
                     // Set the max offset of the subscription.
-                    subscription.set_max_offset(partition, response.batch.offset)?;
+                    subscription.set_max_offset(partition, response.offset)?;
 
                     // Notify the tasks awaiting this subscription.
                     notify.notify_waiters();
@@ -84,13 +80,12 @@ impl Broker {
                             .iter()
                             .map(u8::to_string)
                             .collect::<String>(),
-                        response.batch.offset
+                        response.offset
                     );
                 }
             }
-        }
 
-        Ok(response)
+        Ok(())
     }
 
     /// Takes a record batch and places it given the current Index.
