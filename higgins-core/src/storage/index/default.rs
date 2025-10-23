@@ -82,6 +82,11 @@ impl<'a> DefaultIndex<'a> {
     pub fn reference(&self) -> Reference {
         Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
+
+    /// Update the reference for this.
+    pub fn put_reference(&mut self, reference: Reference) {
+        reference.to_bytes(&mut self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]);
+    }
 }
 
 #[cfg(test)]
