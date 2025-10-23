@@ -48,7 +48,7 @@ impl JoinMapping {
     /// return a batch that represents the amalgamated result using this mapping.
     pub fn map_arrow(
         &self,
-        batches: Vec<(String, RecordBatch)>,
+        batches: Vec<Option<(String, RecordBatch)>>,
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let mut columns = vec![];
 
@@ -62,10 +62,7 @@ impl JoinMapping {
                 .find(|(prop_name, _)| prop_name == field_name)
                 .unwrap();
 
-            let (_, batch) = batches
-                .iter()
-                .find(|(name, _)| name == stream_name)
-                .unwrap();
+            let (_, batch) = batches.iter().find(|val| name == stream_name).unwrap();
 
             let column = batch.column_by_name(stream_propery_key).unwrap();
 
