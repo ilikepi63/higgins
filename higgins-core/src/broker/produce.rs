@@ -6,7 +6,11 @@ use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
-    storage::{arrow_ipc::write_arrow, dereference::Reference, index::Index},
+    storage::{
+        arrow_ipc::write_arrow,
+        dereference::{Reference, S3Reference},
+        index::Index,
+    },
     utils::request_response::Request,
 };
 
@@ -139,6 +143,12 @@ impl Broker {
                     );
                     Err(HigginsError::S3PutDataFailure)
                 } else {
+                    let new_index = index.put_reference(Reference::S3(S3Reference {
+                        object_key: response.,
+                        position:
+                        size:
+                    }));
+
                     Ok(())
                 }
             }
