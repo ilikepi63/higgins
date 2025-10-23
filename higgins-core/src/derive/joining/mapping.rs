@@ -76,43 +76,47 @@ impl JoinMapping {
     }
 }
 
-// Conversion from a BTreeMap representing the Property Mapping here.
+/// Conversion from a BTreeMap representing the Property Mapping here.
+///
+/// See 'ConfigurationStreamDefinition' for more information.
+impl
+    From<(
+        std::sync::Arc<arrow::datatypes::Schema>,
+        BTreeMap<String, String>,
+    )> for JoinMapping
+{
+    fn from(
+        (schema, value): (
+            std::sync::Arc<arrow::datatypes::Schema>,
+            BTreeMap<String, String>,
+        ),
+    ) -> Self {
+        JoinMapping(
+            schema,
+            value
+                .iter()
+                .filter_map(|(resultant_name, origin)| {
+                    let mut split_origin = origin.split(".");
 
-// See 'ConfigurationStreamDefinition' for more information.
-// impl From<BTreeMap<String, String>> for JoinMapping {
-//     fn from(value: BTreeMap<String, String>) -> Self {
-//         JoinMapping(
-//             value
-//                 .iter()
-//                 .filter_map(|(resultant_name, origin)| {
-//                     let mut split_origin = origin.split(".");
+                    if let (Some(origin), Some(origin_key)) =
+                        (split_origin.next(), split_origin.next())
+                    {
+                        Some((resultant_name, origin, origin_key))
+                    } else {
+                        None
+                    }
+                })
+                .fold(
+                    Vec::<JoinMappingDerivativeToProperty>::new(),
+                    |mut acc, (resultant_name, origin, origin_key)| {
+                        acc.push((
+                            resultant_name.to_owned(),
+                            (origin.to_owned(), origin_key.to_owned()),
+                        ));
 
-//                     if let (Some(origin), Some(origin_key)) =
-//                         (split_origin.next(), split_origin.next())
-//                     {
-//                         Some((resultant_name, origin, origin_key))
-//                     } else {
-//                         None
-//                     }
-//                 })
-//                 .fold(
-//                     Vec::<JoinMappingDerivativeToProperty>::new(),
-//                     |mut acc, (resultant_name, origin, origin_key)| {
-//                         // Return the key if the origins match.
-//                         let key = acc.iter_mut().find(|val| val.0 == origin);
-
-//                         if let Some(key) = key {
-//                             key.1.push((origin_key.to_owned(), resultant_name.clone()));
-//                             acc
-//                         } else {
-//                             acc.push((
-//                                 origin.to_owned(),
-//                                 vec![(origin_key.to_owned(), resultant_name.to_owned())],
-//                             ));
-//                             acc
-//                         }
-//                     },
-//                 ),
-//         )
-//     }
-// }
+                        acc
+                    },
+                ),
+        )
+    }
+}
