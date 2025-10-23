@@ -278,8 +278,8 @@ mod tests {
         let address_batch = create_address_batch();
 
         let batches = vec![
-            ("customer".to_string(), customer_batch),
-            ("address".to_string(), address_batch),
+            Some(("customer".to_string(), customer_batch)),
+            Some(("address".to_string(), address_batch)),
         ];
 
         let result = join_mapping.map_arrow(batches).unwrap();
@@ -318,8 +318,8 @@ mod tests {
         let address_batch = create_address_batch();
 
         let batches = vec![
-            ("customer".to_string(), customer_batch),
-            ("address".to_string(), address_batch),
+            Some(("customer".to_string(), customer_batch)),
+            Some(("address".to_string(), address_batch)),
         ];
 
         let result = join_mapping.map_arrow(batches).unwrap();
@@ -356,7 +356,7 @@ mod tests {
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
         let customer_batch = create_customer_batch();
-        let batches = vec![("customer".to_string(), customer_batch)];
+        let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         let result = join_mapping.map_arrow(batches).unwrap();
 
@@ -378,7 +378,7 @@ mod tests {
 
         // Only provide address batch, missing customer batch
         let address_batch = create_address_batch();
-        let batches = vec![("address".to_string(), address_batch)];
+        let batches = vec![Some(("address".to_string(), address_batch))];
 
         // This should panic due to unwrap() on missing stream
         let _ = join_mapping.map_arrow(batches);
@@ -397,7 +397,7 @@ mod tests {
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
         let customer_batch = create_customer_batch();
-        let batches = vec![("customer".to_string(), customer_batch)];
+        let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         // This should panic due to unwrap() on missing column
         let _ = join_mapping.map_arrow(batches);
