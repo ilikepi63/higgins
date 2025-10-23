@@ -248,11 +248,14 @@ pub async fn create_join_operator(
                 let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
-                    let stream = amalgamate_definition;
+                    let stream = amalgamate_definition.clone();
                     let partition = amalgamate_partition;
                     let broker = amalgamate_broker;
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        let join_mapping = amalgamate_definition.clone().mapping;
+                        //.clone();
+
                         let index_view = index_file.view();
                         // Query the offset from this index_file,
                         let index = index_view
@@ -304,10 +307,13 @@ pub async fn create_join_operator(
                         // Retrieve the stream names for the given indexes.
                         .map(|data| data.as_ref().map(|(index, data)| {
                             let stream = stream.joins.get(index.clone()).unwrap();
-                            (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data)
+                            (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
                         })).collect::<Vec<_>>();
 
-                        // let resultant_record_batch = amalgamate_definition.mapping.map_arrow();
+                        let resultant_record_batch =
+                            join_mapping.map_arrow(derivative_data).unwrap();
+
+                        // How do we write this back to the index now??
                     }
                 });
             }
