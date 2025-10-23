@@ -28,14 +28,11 @@ use std::collections::BTreeMap;
 /// }
 #[derive(Clone)]
 pub struct JoinMapping(
-    Arc<arrow::datatypes::Schema>,
+    std::sync::Arc<arrow::datatypes::Schema>,
     Vec<JoinMappingDerivativeToProperty>,
 );
 
-type JoinMappingDerivativeToProperty = (
-    StreamName,
-    Vec<(StreamPropertyKey, JoinedStreamPropertyKey)>,
-);
+type JoinMappingDerivativeToProperty = (JoinedStreamPropertyKey, (StreamName, StreamPropertyKey));
 
 /// The original stream that this derived value comes from.
 type StreamName = String;
@@ -55,16 +52,27 @@ impl JoinMapping {
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let mut columns = vec![];
 
-        for (stream_name, properties) in self.1.iter() {
-            let (name, batch) = batches
+        // We need to order the resultant columns by the given schema.
+        for field in self.0.fields.iter() {
+            let field_name = field.name();
+
+            let (_, (stream_name, stream_propery_key)) = self
+                .1
                 .iter()
-                .find(|(name, _)| stream_name == name)
+                .find(|(prop_name, _)| prop_name == field_name)
                 .unwrap();
 
-            for (property, joined_property) in properties.iter() {}
+            let (_, batch) = batches
+                .iter()
+                .find(|(name, _)| name == stream_name)
+                .unwrap();
+
+            let column = batch.column_by_name(stream_propery_key).unwrap();
+
+            columns.push(column.clone());
         }
 
-        Ok(RecordBatch::try_new(self.0, columns)?)
+        Ok(RecordBatch::try_new(self.0.clone(), columns)?)
     }
 }
 
