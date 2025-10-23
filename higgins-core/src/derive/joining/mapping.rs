@@ -1,9 +1,8 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
+use arrow::record_batch::RecordBatch;
 use std::collections::BTreeMap;
-
-use arrow::ipc::RecordBatch;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
 /// and its derivative properties.
@@ -29,7 +28,7 @@ use arrow::ipc::RecordBatch;
 /// }
 #[derive(Clone)]
 pub struct JoinMapping(
-    arrow::datatypes::Schema,
+    Arc<arrow::datatypes::Schema>,
     Vec<JoinMappingDerivativeToProperty>,
 );
 
@@ -50,10 +49,13 @@ type JoinedStreamPropertyKey = String;
 impl JoinMapping {
     /// Given a list of record batches with their stream names,
     /// return a batch that represents the amalgamated result using this mapping.
-    pub fn map_arrow(&self, batches: Vec<(String, RecordBatch)>) -> RecordBatch {
+    pub fn map_arrow(
+        &self,
+        batches: Vec<(String, RecordBatch)>,
+    ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let mut columns = vec![];
 
-        for (stream_name, properties) in self.0.iter() {
+        for (stream_name, properties) in self.1.iter() {
             let (name, batch) = batches
                 .iter()
                 .find(|(name, _)| stream_name == name)
@@ -62,7 +64,7 @@ impl JoinMapping {
             for (property, joined_property) in properties.iter() {}
         }
 
-        RecordBatch::try_new(Arc::new(self.0), columns)
+        Ok(RecordBatch::try_new(self.0, columns)?)
     }
 }
 
