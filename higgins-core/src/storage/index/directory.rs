@@ -80,6 +80,8 @@ impl IndexDirectory {
     ) -> Result<IndexFile, IndexError> {
         let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
 
+        tracing::info!("Retrieveing Index file with name: {:#?}", index_file_name);
+
         let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)?;
 
         Ok(index_file)
