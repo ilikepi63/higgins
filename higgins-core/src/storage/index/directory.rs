@@ -446,22 +446,9 @@ impl IndexDirectory {
         partition: &[u8],
         reference: Reference,
         batch_coord: BatchCoordinate,
-
-        broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
+        index_type: &IndexType,
+        stream_def: &StreamDefinition,
     ) {
-        let (index_type, stream_def) = {
-            let broker = broker.write().await;
-
-            let (_, stream_def) = broker
-                .get_topography_stream(&Key(stream.as_bytes().to_owned()))
-                .unwrap();
-
-            (
-                IndexType::try_from(stream_def).unwrap(),
-                stream_def.to_owned(),
-            )
-        };
-
         let mut index_file = self
             .index_file_from_stream_and_partition(
                 stream,
