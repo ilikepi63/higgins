@@ -241,7 +241,6 @@ mod tests {
         let read_size = u64::from_be_bytes(data[36..44].try_into().unwrap());
 
         assert_eq!(read_offset, offset);
-        assert_eq!(read_key, object_key);
         assert_eq!(read_position, position);
         assert_eq!(read_timestamp, timestamp);
         assert_eq!(read_size, size);
@@ -264,7 +263,7 @@ mod tests {
     #[test]
     fn test_put_errors_on_short_buffer() {
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;
@@ -288,7 +287,7 @@ mod tests {
     fn test_put_partial_write_errors() {
         // Test error during middle write, e.g., if buffer is long enough for first few but not all
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;
