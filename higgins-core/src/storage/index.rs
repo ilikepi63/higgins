@@ -12,6 +12,7 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
+use crate::derive::joining::join::JoinDefinition;
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
@@ -76,13 +77,12 @@ impl<'a> Index<'a> {
     }
 }
 
-pub fn index_size_from_index_type(index_type: IndexType) -> usize {
+pub fn index_size_from_index_type_and_definition(
+    index_type: &IndexType,
+    stream_definition: &StreamDefinition,
+) -> usize {
     match index_type {
-        IndexType::Join => {
-            // JoinedIndex::size_of(def.)
-            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
-            todo!()
-        }
+        IndexType::Join => todo!(), //JoinedIndex::size_of(stream_definition.join.unwrap()),
         IndexType::Default => DefaultIndex::size_of(),
     }
 }
@@ -91,7 +91,7 @@ pub fn index_size_from_index_type(index_type: IndexType) -> usize {
 /// decide which index to use, and therefore will decide how large each
 pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
     match IndexType::try_from(def) {
-        Ok(ty) => index_size_from_index_type(ty),
+        Ok(ty) => index_size_from_index_type_and_definition(&ty, def),
         Err(err) => panic!(
             "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
             err
