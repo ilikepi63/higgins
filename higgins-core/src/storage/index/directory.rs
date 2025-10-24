@@ -199,7 +199,7 @@ impl IndexDirectory {
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
             element_size: size_of::<usize>(),
-            index_type,
+            index_type: index_type.clone(),
         };
 
         let index = indexes.last();
@@ -268,8 +268,7 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_size =
-            index_size_from_index_type_and_definition(index_type.clone(), stream_definition);
+        let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -457,14 +456,17 @@ impl IndexDirectory {
                 .get_topography_stream(&Key(stream.as_bytes().to_owned()))
                 .unwrap();
 
-            (IndexType::try_from(stream_def).unwrap(), stream_def)
+            (
+                IndexType::try_from(stream_def).unwrap(),
+                stream_def.to_owned(),
+            )
         };
 
         let mut index_file = self
             .index_file_from_stream_and_partition(
                 stream,
                 &partition,
-                index_size_from_index_type_and_definition(index_type.clone(), stream_def),
+                index_size_from_index_type_and_definition(&index_type, &stream_def),
                 index_type.clone(),
             )
             .unwrap();
@@ -482,7 +484,7 @@ impl IndexDirectory {
             .unwrap()
             .as_secs();
 
-        let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, stream_def)];
+        let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, &stream_def)];
 
         // TODO: change this to reflect the new reference API
         DefaultIndex::put(
@@ -522,14 +524,17 @@ impl IndexDirectory {
                     .get_topography_stream(&Key(topic.as_bytes().to_owned()))
                     .unwrap();
 
-                (IndexType::try_from(stream_def).unwrap(), stream_def)
+                (
+                    IndexType::try_from(stream_def).unwrap(),
+                    stream_def.to_owned(),
+                )
             };
 
             let mut index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
-                    index_size_from_index_type_and_definition(index_type.clone(), stream_def),
+                    index_size_from_index_type_and_definition(&index_type, &stream_def),
                     index_type.clone(),
                 )
                 .unwrap();
