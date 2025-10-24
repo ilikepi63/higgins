@@ -432,6 +432,7 @@ impl IndexDirectory {
         responses
     }
 
+    /// Adds a default index to the given type.
     pub async fn put_default_index(
         &self,
         stream: String,
@@ -439,14 +440,14 @@ impl IndexDirectory {
         reference: Reference,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) {
-        let (index_type, stream_def) = {
+        let index_type = {
             let broker = broker.write().await;
 
             let (_, stream_def) = broker
                 .get_topography_stream(&Key(stream.as_bytes().to_owned()))
                 .unwrap();
 
-            (IndexType::try_from(stream_def).unwrap(), stream_def)
+            IndexType::try_from(stream_def).unwrap()
         };
 
         let mut index_file = self
