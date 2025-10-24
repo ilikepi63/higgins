@@ -9,6 +9,9 @@ pub mod functions;
 pub mod ping;
 pub mod query;
 pub mod subscription;
+mod port;
+
+pub use port::get_random_port;
 
 /// produce to a stream without waiting for the response.
 ///
