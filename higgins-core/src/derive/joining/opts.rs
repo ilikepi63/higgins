@@ -248,11 +248,13 @@ pub async fn create_join_operator(
                 let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
                 tokio::spawn(async move {
-                    let stream = amalgamate_definition;
+                    let stream = amalgamate_definition.clone();
                     let partition = amalgamate_partition;
                     let broker = amalgamate_broker;
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        let join_mapping = amalgamate_definition.clone().mapping;
+
                         let index_view = index_file.view();
                         // Query the offset from this index_file,
                         let index = index_view
@@ -261,7 +263,7 @@ pub async fn create_join_operator(
                             .unwrap();
 
                         // Query the other offset data from this index_file.
-                        for i in 0..index.offset_len() {
+                        let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
                             let offset = index.get_offset(i);
 
                             match offset {
@@ -285,37 +287,32 @@ pub async fn create_join_operator(
                                             .flatten()
                                             .unwrap();
 
-                                    // let index_file = broker_lock
-                                    //     .get_index_file(
-                                    //         String::from_utf8(stream.0.inner().to_vec()).unwrap(),
-                                    //         &partition,
-                                    //         index_size_from_stream_definition(
-                                    //             &definition.joins.get(i).unwrap().stream.1,
-                                    //         ),
-                                    //     )
-                                    //     .unwrap();
-
-                                    // let index_view = index_file.view();
-
-                                    // let index = index_view.get(offset.try_into().unwrap()).unwrap();
-
-                                    // Retrieve the data from the other stream.
-                                    // broker_lock.
-                                    // Amalgamate the data into a record
-
-                                    // Save the record to the backing store.
-                                    // complete.
+                                    Some((i, arrow_data))
                                 }
-                                Err(IndexError::IndexInJoinedIndexNotFound) => {}
+                                Err(IndexError::IndexInJoinedIndexNotFound) => {
+                                    // This means that a derivative offset in the joined stream doesn't exist yet.
+                                    None
+                                }
                                 Err(err) => {
                                     tracing::error!(
                                         "Unexpected Error wheen reading offsets of Joined Index: {:#?}, offset: {}",
                                         err,
                                         i
-                                    )
+                                    );
+                                    None
                                 }
                             }
-                        }
+                        })).await.iter()
+                        // Retrieve the stream names for the given indexes.
+                        .map(|data| data.as_ref().map(|(index, data)| {
+                            let stream = stream.joins.get(index.clone()).unwrap();
+                            (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
+                        })).collect::<Vec<_>>();
+
+                        let resultant_record_batch =
+                            join_mapping.map_arrow(derivative_data).unwrap();
+
+                        // How do we write this back to the index now??
                     }
                 });
             }

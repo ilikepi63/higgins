@@ -1,7 +1,7 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
-use arrow::record_batch::RecordBatch;
+use arrow::{array::NullArray, record_batch::RecordBatch};
 use std::collections::BTreeMap;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
@@ -48,7 +48,7 @@ impl JoinMapping {
     /// return a batch that represents the amalgamated result using this mapping.
     pub fn map_arrow(
         &self,
-        batches: Vec<(String, RecordBatch)>,
+        batches: Vec<Option<(String, RecordBatch)>>,
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let mut columns = vec![];
 
@@ -62,14 +62,23 @@ impl JoinMapping {
                 .find(|(prop_name, _)| prop_name == field_name)
                 .unwrap();
 
-            let (_, batch) = batches
+            let batch_opt = batches
                 .iter()
-                .find(|(name, _)| name == stream_name)
-                .unwrap();
+                .find(|val| match val {
+                    Some((name, _)) => name == stream_name,
+                    None => false,
+                })
+                .cloned()
+                .flatten();
 
-            let column = batch.column_by_name(stream_propery_key).unwrap();
+            columns.push(match batch_opt {
+                Some((_, batch)) => {
+                    let column = batch.column_by_name(stream_propery_key).unwrap();
 
-            columns.push(column.clone());
+                    column.clone()
+                }
+                None => std::sync::Arc::new(NullArray::new(0)),
+            })
         }
 
         Ok(RecordBatch::try_new(self.0.clone(), columns)?)
@@ -269,8 +278,8 @@ mod tests {
         let address_batch = create_address_batch();
 
         let batches = vec![
-            ("customer".to_string(), customer_batch),
-            ("address".to_string(), address_batch),
+            Some(("customer".to_string(), customer_batch)),
+            Some(("address".to_string(), address_batch)),
         ];
 
         let result = join_mapping.map_arrow(batches).unwrap();
@@ -309,8 +318,8 @@ mod tests {
         let address_batch = create_address_batch();
 
         let batches = vec![
-            ("customer".to_string(), customer_batch),
-            ("address".to_string(), address_batch),
+            Some(("customer".to_string(), customer_batch)),
+            Some(("address".to_string(), address_batch)),
         ];
 
         let result = join_mapping.map_arrow(batches).unwrap();
@@ -347,7 +356,7 @@ mod tests {
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
         let customer_batch = create_customer_batch();
-        let batches = vec![("customer".to_string(), customer_batch)];
+        let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         let result = join_mapping.map_arrow(batches).unwrap();
 
@@ -369,7 +378,7 @@ mod tests {
 
         // Only provide address batch, missing customer batch
         let address_batch = create_address_batch();
-        let batches = vec![("address".to_string(), address_batch)];
+        let batches = vec![Some(("address".to_string(), address_batch))];
 
         // This should panic due to unwrap() on missing stream
         let _ = join_mapping.map_arrow(batches);
@@ -388,7 +397,7 @@ mod tests {
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
         let customer_batch = create_customer_batch();
-        let batches = vec![("customer".to_string(), customer_batch)];
+        let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         // This should panic due to unwrap() on missing column
         let _ = join_mapping.map_arrow(batches);
