@@ -23,12 +23,12 @@ impl Broker {
     ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
         let indexes = self.indexes.clone();
 
-        let index_type = IndexType::try_from(
-            self.topography
-                .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
-                .unwrap(),
-        )
-        .unwrap();
+        let stream_definition = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
+            .unwrap();
+
+        let index_type = IndexType::try_from(stream_definition).unwrap();
 
         let batch_responses = indexes
             .find_batches(
@@ -41,7 +41,8 @@ impl Broker {
                     max_partition_fetch_bytes: 0,
                 }],
                 0,
-                index_type,
+                &index_type,
+                stream_definition,
             )
             .await;
 
@@ -89,7 +90,12 @@ impl Broker {
 
         let find_batch_responses = self
             .indexes
-            .get_latest_offset(stream, partition, IndexType::try_from(stream_def).unwrap())
+            .get_latest_offset(
+                stream,
+                partition,
+                &IndexType::try_from(stream_def).unwrap(),
+                stream_def,
+            )
             .await;
 
         self.dereference_find_batch_responses(find_batch_responses)
@@ -115,6 +121,7 @@ impl Broker {
                 partition,
                 offset,
                 IndexType::try_from(stream_def).unwrap(),
+                stream_def,
             )
             .await;
 
