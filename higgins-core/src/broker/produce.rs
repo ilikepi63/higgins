@@ -54,7 +54,7 @@ impl Broker {
         let response = response.recv().await.unwrap();
 
         // TODO: commit file for each index here.
-            // self.indexes.commit_file(object_key, uploader_broker_id, file_size, batches, broker);
+            self.indexes.commit_file(object_key, uploader_broker_id, file_size, batches, broker);
 
             // Watermark the subscription.
             let subscription = self.subscriptions.get(stream_name);

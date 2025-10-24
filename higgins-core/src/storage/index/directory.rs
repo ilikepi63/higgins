@@ -431,12 +431,62 @@ impl IndexDirectory {
         responses
     }
 
+    pub async fn put_default_index(
+        &self,
+        stream: String,
+        partition: &[u8],
+        reference: Reference,
+        broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
+    ) {
+        let index_type = {
+            let broker = broker.write().await;
+
+            let (_, stream_def) = broker
+                .get_topography_stream(&Key(stream.as_bytes().to_owned()))
+                .unwrap();
+
+            IndexType::try_from(stream_def).unwrap()
+        };
+
+        let mut index_file = self
+            .index_file_from_stream_and_partition(
+                stream,
+                &partition,
+                index_size_from_index_type(index_type.clone()),
+                index_type.clone(),
+            )
+            .unwrap();
+
+        let indexes = IndexesView {
+            buffer: index_file.as_slice(),
+            element_size: size_of::<DefaultIndex>(),
+            index_type: index_type.clone(),
+        };
+
+        let mut val = [0; DefaultIndex::size_of()];
+
+        DefaultIndex::put(
+            offset,
+            object_key,
+            position.try_into().unwrap(),
+            timestamp,
+            batch.size.into(),
+            &mut val,
+        );
+
+        let index = DefaultIndex::of(&val).to_bytes();
+
+        tracing::info!("Saving Index: {:#?}", index);
+
+        index_file.append(&index).unwrap();
+
+        tracing::info!("Successfully saved Index: {:#?}", index);
+    }
+
     /// Commit this file to the ObjectStore.
     pub async fn commit_file(
         &self,
         object_key: [u8; 16],
-        _uploader_broker_id: u32,
-        _file_size: u64,
         batches: Vec<CommitBatchRequest>,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) -> Vec<CommitBatchResponse> {
