@@ -16,6 +16,12 @@ pub enum HigginsError {
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
 
+    #[error("Attempted to place data at a null reference. ")]
+    UnableToPlaceDataAtNullReference,
+
+    #[error("Attemt to write data to s3 failed.")]
+    S3PutDataFailure,
+
     #[error("Unknown Error")]
     Unknown,
 }
