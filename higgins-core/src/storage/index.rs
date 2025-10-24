@@ -69,11 +69,13 @@ impl<'a> Index<'a> {
         }
     }
 
-    pub fn put_reference(&mut self, r: Reference) {
+    /// Returns a new byte array representing a reference that is encoded to a
+    /// vector of bytes.
+    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
         match self.index_type {
-            IndexType::Default => DefaultIndex::of(self.data).reference(),
-            IndexType::Join => JoinedIndex::of(self.data).reference(),
-        };
+            IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
+            IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
+        }
     }
 }
 
