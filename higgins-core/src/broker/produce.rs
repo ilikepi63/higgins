@@ -1,7 +1,7 @@
 use super::Broker;
-use crate::storage::index::IndexType;
+use crate::storage::{index::IndexType, batch_coordinate::BatchCoordinate};
 use arrow::array::RecordBatch;
-use riskless::messages::{BatchCoordinate, ProduceRequest, ProduceResponse};
+use riskless::messages::{ ProduceRequest, ProduceResponse};
 
 use crate::{
     error::HigginsError,
@@ -53,7 +53,7 @@ impl Broker {
         let response = response.recv().await.unwrap();
 
         // TODO: commit file for each index here.
-        let reference = Reference::S3(S3Reference { object_key: response., position: response.offset, size: response.size.into() });
+        let reference = Reference::S3(S3Reference { object_key: response.object_key, position: response.offset, size: response.size.into() });
 
         let (index_type, stream_def) = {
 
@@ -152,7 +152,7 @@ impl Broker {
                     Err(HigginsError::S3PutDataFailure)
                 } else {
                     let new_index = index.put_reference(Reference::S3(S3Reference {
-                        object_key: response.,
+                        object_key: response,
                         position:
                         size:
                     }));

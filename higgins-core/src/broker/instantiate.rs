@@ -2,7 +2,7 @@ use super::Broker;
 use crate::storage::shared_log_segment::SharedLogSegment;
 
 use riskless::{
-    messages::{BatchCoordinate, ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
     object_store::{self},
 };
 use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc, time::Duration};
@@ -10,7 +10,8 @@ use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
+    client::ClientCollection, storage::batch_coordinate::BatchCoordinate,
+    storage::index::directory::IndexDirectory, topography::Topography,
     utils::request_response::Request,
 };
 

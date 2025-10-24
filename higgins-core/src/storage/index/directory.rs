@@ -1,6 +1,7 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use crate::broker::Broker;
+use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
 use crate::storage::index::index_size_from_index_type_and_definition;
@@ -13,11 +14,10 @@ use super::IndexType;
 use super::IndexesView;
 
 use super::default::DefaultIndex;
-use riskless::messages::BatchCoordinate;
 use riskless::{
     batch_coordinator::{
-        BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
-        FindBatchResponse, FindBatches, TopicIdPartition,
+        BatchInfo, BatchMetadata, CommitBatchResponse, FindBatchRequest, FindBatchResponse,
+        TopicIdPartition,
     },
     messages::CommitBatchRequest,
 };
