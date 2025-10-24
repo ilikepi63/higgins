@@ -13,6 +13,7 @@ use super::IndexType;
 use super::IndexesView;
 
 use super::default::DefaultIndex;
+use riskless::messages::BatchCoordinate;
 use riskless::{
     batch_coordinator::{
         BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
@@ -438,16 +439,17 @@ impl IndexDirectory {
         stream: String,
         partition: &[u8],
         reference: Reference,
+        batch_coord: BatchCoordinate,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) {
-        let index_type = {
+        let (index_type, stream_def) = {
             let broker = broker.write().await;
 
             let (_, stream_def) = broker
                 .get_topography_stream(&Key(stream.as_bytes().to_owned()))
                 .unwrap();
 
-            IndexType::try_from(stream_def).unwrap()
+            (IndexType::try_from(stream_def).unwrap(), stream_def)
         };
 
         let mut index_file = self
@@ -465,6 +467,13 @@ impl IndexDirectory {
             index_type: index_type.clone(),
         };
 
+        let offset = (indexes.count() + 1) as u64;
+        let position = batch_coord.offset;
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, stream_def)];
 
         // TODO: change this to reflect the new reference API
@@ -473,7 +482,7 @@ impl IndexDirectory {
             object_key,
             position.try_into().unwrap(),
             timestamp,
-            batch.size.into(),
+            batch_coord.size.into(),
             &mut val,
         );
 
