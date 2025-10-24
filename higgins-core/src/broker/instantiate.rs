@@ -155,7 +155,6 @@ impl Broker {
 // This is a shim for a workaround while we fix flush.
 use object_store::ObjectStore;
 use object_store::PutPayload;
-use riskless::messages::CommitBatchRequest;
 
 async fn flush(
     reqs: ProduceRequestCollection,
@@ -163,15 +162,13 @@ async fn flush(
     // index_dir: Arc<IndexDirectory>,
     // broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
 ) -> Result<Vec<BatchCoordinate>, Box<dyn std::error::Error>> {
-    let reqs: SharedLogSegment = reqs.try_into()?;
+    let path = uuid::Uuid::new_v4();
+
+    let reqs: SharedLogSegment = (path.as_bytes().to_owned(), reqs).try_into()?;
 
     let batch_coords = reqs.get_batch_coords().clone();
 
     let buf: bytes::Bytes = reqs.into();
-
-    // let buf_size = buf.len();
-
-    let path = uuid::Uuid::new_v4();
 
     let path_string = object_store::path::Path::from(path.to_string());
 
