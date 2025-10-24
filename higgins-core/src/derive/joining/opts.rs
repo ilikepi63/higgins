@@ -254,7 +254,6 @@ pub async fn create_join_operator(
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
                         let join_mapping = amalgamate_definition.clone().mapping;
-                        //.clone();
 
                         let index_view = index_file.view();
                         // Query the offset from this index_file,
