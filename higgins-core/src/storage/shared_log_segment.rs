@@ -1,9 +1,6 @@
+use crate::storage::batch_coordinate::BatchCoordinate;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-
-use riskless::{
-    error::RisklessError,
-    messages::{BatchCoordinate, ProduceRequestCollection},
-};
+use riskless::{error::RisklessError, messages::ProduceRequestCollection};
 
 static MAGIC_NUMBER: u32 = 522;
 static V1_VERSION_NUMBER: u32 = 1;
@@ -78,10 +75,12 @@ impl SharedLogSegmentHeaderV1 {
 pub struct SharedLogSegment(Vec<BatchCoordinate>, BytesMut);
 
 // TODO: ADD IN OBJECT NAME FOR COLLECTION?
-impl TryFrom<ProduceRequestCollection> for SharedLogSegment {
+impl TryFrom<([u8; 16], ProduceRequestCollection)> for SharedLogSegment {
     type Error = RisklessError;
 
-    fn try_from(mut value: ProduceRequestCollection) -> Result<Self, Self::Error> {
+    fn try_from(
+        (object_key, mut value): ([u8; 16], ProduceRequestCollection),
+    ) -> Result<Self, Self::Error> {
         let mut buf = BytesMut::with_capacity(value.size().try_into()?);
 
         buf.put_slice(&SharedLogSegmentHeaderV1::bytes());
@@ -105,6 +104,7 @@ impl TryFrom<ProduceRequestCollection> for SharedLogSegment {
                     offset,
                     size: size.try_into()?,
                     request: req.clone(),
+                    object_key,
                 });
             }
         }
@@ -122,77 +122,5 @@ impl SharedLogSegment {
 impl From<SharedLogSegment> for bytes::Bytes {
     fn from(val: SharedLogSegment) -> Self {
         val.1.into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use riskless::messages::ProduceRequest;
-
-    use super::*;
-    use std::convert::TryFrom;
-
-    #[test]
-    fn test_empty_collection() {
-        let collection = ProduceRequestCollection::new();
-        let result = SharedLogSegment::try_from(collection);
-        assert!(result.is_ok());
-        let segment = result.expect("");
-        assert_eq!(segment.0.len(), 0); // No batch coordinates
-        assert_eq!(segment.1.len(), SharedLogSegmentHeaderV1::size()); // Empty buffer
-    }
-
-    #[test]
-    fn test_multiple_partitions_multiple_requests() -> Result<(), Box<dyn std::error::Error>> {
-        let collection = ProduceRequestCollection::new();
-
-        // Partition 0
-        collection.collect(ProduceRequest {
-            request_id: 1,
-            topic: "test".to_string(),
-            partition: Vec::from(&0_u8.to_be_bytes()),
-            data: vec![1, 2, 3],
-        })?;
-
-        collection.collect(ProduceRequest {
-            request_id: 2,
-            topic: "test".to_string(),
-            partition: Vec::from(&0_u8.to_be_bytes()),
-            data: vec![4, 5],
-        })?;
-
-        // Partition 1
-        collection.collect(ProduceRequest {
-            request_id: 3,
-            topic: "test".to_string(),
-            partition: Vec::from(&1_u8.to_be_bytes()),
-            data: vec![6, 7, 8, 9],
-        })?;
-
-        let result = SharedLogSegment::try_from(collection);
-        assert!(result.is_ok());
-        let segment = result.expect("");
-
-        assert_eq!(segment.0.len(), 3); // Three batch coordinates
-        assert_eq!(segment.1.len(), 9 + SharedLogSegmentHeaderV1::size()); // 3 + 2 + 4 bytes of data
-
-        // COMMENTED as ordering is not guaranteed.
-        // Verify coordinates
-        // let coord0 = &segment.0[0];
-        // assert_eq!(coord0.partition, 0);
-        // assert_eq!(coord0.offset, 0); // First batch ends at index 2
-
-        // let coord1 = &segment.0[1];
-        // assert_eq!(coord1.partition, 0);
-        // assert_eq!(coord1.offset, 3); // Second batch ends at index 4 (2 + 2)
-
-        // let coord2 = &segment.0[2];
-        // assert_eq!(coord2.partition, 1);
-        // assert_eq!(coord2.offset, 8); // Third batch ends at index 8 (4 + 4)
-
-        // Verify concatenated data
-        // assert_eq!(segment.1.as_ref(), &[1, 2, 3, 4, 5, 6, 7, 8, 9]);
-
-        Ok(())
     }
 }

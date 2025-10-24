@@ -1,10 +1,12 @@
 use std::{path::PathBuf, time::SystemTime};
 
 use crate::broker::Broker;
+use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
-use crate::storage::index::index_size_from_index_type;
-use crate::storage::index::index_size_from_stream_definition;
+use crate::storage::dereference::S3Reference;
+use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
+use crate::topography::StreamDefinition;
 
 use super::IndexError;
 use super::IndexFile;
@@ -14,8 +16,8 @@ use super::IndexesView;
 use super::default::DefaultIndex;
 use riskless::{
     batch_coordinator::{
-        BatchInfo, BatchMetadata, CommitBatchResponse, CommitFile, FindBatchRequest,
-        FindBatchResponse, FindBatches, TopicIdPartition,
+        BatchInfo, BatchMetadata, CommitBatchResponse, FindBatchRequest, FindBatchResponse,
+        TopicIdPartition,
     },
     messages::CommitBatchRequest,
 };
@@ -176,7 +178,8 @@ impl IndexDirectory {
         &self,
         stream: &[u8],
         partition: &[u8],
-        index_type: IndexType,
+        index_type: &IndexType,
+        stream_definition: &StreamDefinition,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -188,7 +191,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition(
                 stream_str,
                 partition,
-                index_size_from_index_type(index_type.clone()),
+                index_size_from_index_type_and_definition(index_type, stream_definition),
                 index_type.clone(),
             )
             .unwrap();
@@ -196,7 +199,7 @@ impl IndexDirectory {
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
             element_size: size_of::<usize>(),
-            index_type,
+            index_type: index_type.clone(),
         };
 
         let index = indexes.last();
@@ -259,12 +262,13 @@ impl IndexDirectory {
         partition: &[u8],
         offset: u64,
         index_type: IndexType,
+        stream_definition: &StreamDefinition,
     ) -> FindBatchResponse {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_size = index_size_from_index_type(index_type.clone());
+        let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -346,7 +350,8 @@ impl IndexDirectory {
         &self,
         batch_requests: Vec<FindBatchRequest>,
         _size: u32,
-        index_type: IndexType,
+        index_type: &IndexType,
+        stream_definition: &StreamDefinition,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -364,14 +369,17 @@ impl IndexDirectory {
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
-                    index_size_from_index_type(index_type.clone()),
+                    index_size_from_index_type_and_definition(index_type, stream_definition),
                     index_type.clone(),
                 )
                 .unwrap();
 
             let indexes = IndexesView {
                 buffer: index_file.as_slice(),
-                element_size: index_size_from_index_type(index_type.clone()),
+                element_size: index_size_from_index_type_and_definition(
+                    index_type,
+                    stream_definition,
+                ),
                 index_type: index_type.clone(),
             };
 
@@ -431,12 +439,63 @@ impl IndexDirectory {
         responses
     }
 
+    /// Adds a default index to the given type.
+    pub async fn put_default_index(
+        &self,
+        stream: String,
+        partition: &[u8],
+        reference: Reference,
+        batch_coord: BatchCoordinate,
+        index_type: &IndexType,
+        stream_def: &StreamDefinition,
+    ) {
+        let mut index_file = self
+            .index_file_from_stream_and_partition(
+                stream,
+                &partition,
+                index_size_from_index_type_and_definition(&index_type, &stream_def),
+                index_type.clone(),
+            )
+            .unwrap();
+
+        let indexes = IndexesView {
+            buffer: index_file.as_slice(),
+            element_size: size_of::<DefaultIndex>(),
+            index_type: index_type.clone(),
+        };
+
+        let offset = (indexes.count() + 1) as u64;
+        let position = batch_coord.offset;
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, &stream_def)];
+
+        // TODO: change this to reflect the new reference API
+        DefaultIndex::put(
+            offset,
+            reference,
+            position.try_into().unwrap(),
+            timestamp,
+            batch_coord.size.into(),
+            &mut val,
+        );
+
+        let index = DefaultIndex::of(&val).to_bytes();
+
+        tracing::info!("Saving Index: {:#?}", index);
+
+        index_file.append(&index).unwrap();
+
+        tracing::info!("Successfully saved Index: {:#?}", index);
+    }
+
     /// Commit this file to the ObjectStore.
     pub async fn commit_file(
         &self,
         object_key: [u8; 16],
-        _uploader_broker_id: u32,
-        _file_size: u64,
         batches: Vec<CommitBatchRequest>,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) -> Vec<CommitBatchResponse> {
@@ -445,21 +504,24 @@ impl IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let index_type = {
+            let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
                 let (_, stream_def) = broker
                     .get_topography_stream(&Key(topic.as_bytes().to_owned()))
                     .unwrap();
 
-                IndexType::try_from(stream_def).unwrap()
+                (
+                    IndexType::try_from(stream_def).unwrap(),
+                    stream_def.to_owned(),
+                )
             };
 
             let mut index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
-                    index_size_from_index_type(index_type.clone()),
+                    index_size_from_index_type_and_definition(&index_type, &stream_def),
                     index_type.clone(),
                 )
                 .unwrap();
@@ -477,11 +539,17 @@ impl IndexDirectory {
                 .unwrap()
                 .as_secs();
 
+            let reference = Reference::S3(S3Reference {
+                object_key,
+                size: batch.size.into(),
+                position,
+            });
+
             let mut val = [0; DefaultIndex::size_of()];
 
             DefaultIndex::put(
                 offset,
-                object_key,
+                reference,
                 position.try_into().unwrap(),
                 timestamp,
                 batch.size.into(),

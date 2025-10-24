@@ -68,21 +68,22 @@ impl<'a> Index<'a> {
         }
     }
 
-    pub fn put_reference(&mut self, r: Reference) {
+    /// Returns a new byte array representing a reference that is encoded to a
+    /// vector of bytes.
+    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
         match self.index_type {
-            IndexType::Default => DefaultIndex::of(self.data).reference(),
-            IndexType::Join => JoinedIndex::of(self.data).reference(),
-        };
+            IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
+            IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
+        }
     }
 }
 
-pub fn index_size_from_index_type(index_type: IndexType) -> usize {
+pub fn index_size_from_index_type_and_definition(
+    index_type: &IndexType,
+    _stream_definition: &StreamDefinition,
+) -> usize {
     match index_type {
-        IndexType::Join => {
-            // JoinedIndex::size_of(def.)
-            // TODO: we need to determine the amount of joins from the StreamDefinition, which is not implemented yet.
-            todo!()
-        }
+        IndexType::Join => todo!(), //JoinedIndex::size_of(stream_definition.join.unwrap()),
         IndexType::Default => DefaultIndex::size_of(),
     }
 }
@@ -91,7 +92,7 @@ pub fn index_size_from_index_type(index_type: IndexType) -> usize {
 /// decide which index to use, and therefore will decide how large each
 pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
     match IndexType::try_from(def) {
-        Ok(ty) => index_size_from_index_type(ty),
+        Ok(ty) => index_size_from_index_type_and_definition(&ty, def),
         Err(err) => panic!(
             "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
             err
@@ -153,7 +154,7 @@ impl<'a> IndexesView<'a> {
     // Finds an index by timestamp using binary search
     /// If an exact match isn't found, returns the index with the nearest timestamp
     /// that is greater than or equal to the requested timestamp
-    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<Index> {
+    pub fn find_by_timestamp(&'a self, timestamp: u64) -> Option<Index<'a>> {
         if self.count() == 0 {
             return None;
         }

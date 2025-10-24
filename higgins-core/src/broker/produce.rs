@@ -1,8 +1,7 @@
 use super::Broker;
-
+use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
 use arrow::array::RecordBatch;
 use riskless::messages::{ProduceRequest, ProduceResponse};
-use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
@@ -21,7 +20,7 @@ impl Broker {
         stream_name: &[u8],
         partition: &[u8],
         record_batch: RecordBatch,
-    ) -> Result<ProduceResponse, HigginsError> {
+    ) -> Result<(), HigginsError> {
         tracing::trace!(
             "[PRODUCE] Producing to stream: {}",
             String::from_utf8(stream_name.to_vec()).unwrap()
@@ -36,7 +35,7 @@ impl Broker {
             data,
         };
 
-        let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
+        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
         let mut buffer_lock = self.collection.write().await;
 
@@ -53,44 +52,65 @@ impl Broker {
 
         let response = response.recv().await.unwrap();
 
-        // TODO: fix this to actually return the error?
-        if !response.errors.is_empty() {
-            tracing::error!(
-                "Error when attempting to write out to producer. Request: {}",
-                response.request_id
-            );
-        } else {
-            // Watermark the subscription.
-            let subscription = self.subscriptions.get(stream_name);
+        // TODO: commit file for each index here.
+        let reference = Reference::S3(S3Reference {
+            object_key: response.object_key,
+            position: response.offset,
+            size: response.size.into(),
+        });
 
-            if let Some(subscriptions) = subscription {
-                tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
+        let (index_type, stream_def) = {
+            let (_, stream_def) = self
+                .get_topography_stream(&crate::topography::Key(stream_name.to_owned()))
+                .unwrap();
 
-                for (subscription_id, (notify, subscription)) in subscriptions {
-                    let subscription = subscription.write().await;
+            (
+                IndexType::try_from(stream_def).unwrap(),
+                stream_def.to_owned(),
+            )
+        };
 
-                    tracing::trace!("[PRODUCE] Notifying the subscrition.");
+        let offset = response.offset.clone();
 
-                    // Set the max offset of the subscription.
-                    subscription.set_max_offset(partition, response.batch.offset)?;
+        self.indexes.put_default_index(
+            String::from_utf8(stream_name.to_owned()).unwrap(),
+            partition,
+            reference,
+            response,
+            &index_type,
+            &stream_def,
+        );
 
-                    // Notify the tasks awaiting this subscription.
-                    notify.notify_waiters();
-                    tracing::trace!("[PRODUCE] Notified the subscrition.");
+        // Watermark the subscription.
+        let subscription = self.subscriptions.get(stream_name);
 
-                    tracing::info!(
-                        "Updated Max offset for subscription: {}, watermark: {}",
-                        subscription_id
-                            .iter()
-                            .map(u8::to_string)
-                            .collect::<String>(),
-                        response.batch.offset
-                    );
-                }
+        if let Some(subscriptions) = subscription {
+            tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
+
+            for (subscription_id, (notify, subscription)) in subscriptions {
+                let subscription = subscription.write().await;
+
+                tracing::trace!("[PRODUCE] Notifying the subscrition.");
+
+                // Set the max offset of the subscription.
+                subscription.set_max_offset(partition, offset)?;
+
+                // Notify the tasks awaiting this subscription.
+                notify.notify_waiters();
+                tracing::trace!("[PRODUCE] Notified the subscrition.");
+
+                tracing::info!(
+                    "Updated Max offset for subscription: {}, watermark: {}",
+                    subscription_id
+                        .iter()
+                        .map(u8::to_string)
+                        .collect::<String>(),
+                    offset
+                );
             }
         }
 
-        Ok(response)
+        Ok(())
     }
 
     /// Takes a record batch and places it given the current Index.
@@ -104,9 +124,9 @@ impl Broker {
         partition: &[u8],
         index: &mut Index<'a>,
         data: RecordBatch,
-    ) -> Result<&mut Index<'a>, HigginsError> {
+    ) -> Result<Vec<u8>, HigginsError> {
         match index.get_reference() {
-            Reference::S3(s3_reference) => {
+            Reference::S3(_) => {
                 tracing::trace!("[PRODUCE] Producing to stream: {}", stream);
 
                 let data = write_arrow(&data);
@@ -118,7 +138,7 @@ impl Broker {
                     data,
                 };
 
-                let (request, response) = Request::<ProduceRequest, ProduceResponse>::new(request);
+                let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
                 let mut buffer_lock = self.collection.write().await;
 
@@ -135,24 +155,15 @@ impl Broker {
 
                 let response = response.recv().await.unwrap();
 
-                // TODO: fix this to actually return the error?
-                if !response.errors.is_empty() {
-                    tracing::error!(
-                        "An Error occurred trying to put data into object storage: {:#?}",
-                        response.errors
-                    );
-                    Err(HigginsError::S3PutDataFailure)
-                } else {
-                    let new_index = index.put_reference(Reference::S3(S3Reference {
-                        object_key: response.,
-                        position:
-                        size:
-                    }));
+                let index = index.put_reference(Reference::S3(S3Reference {
+                    object_key: response.object_key,
+                    position: response.offset,
+                    size: response.size.into(),
+                }));
 
-                    Ok(())
-                }
+                Ok(index)
             }
-            Null => Err(HigginsError::UnableToPlaceDataAtNullReference),
+            Reference::Null => Err(HigginsError::UnableToPlaceDataAtNullReference),
         }
     }
 }
