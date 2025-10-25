@@ -53,7 +53,7 @@ impl Broker {
         let response = response.recv().await.unwrap();
 
         // TODO: commit file for each index here.
-        let reference = Reference::S3(S3Reference { object_key: response., position: response.offset, size: response.size });
+        let reference = Reference::S3(S3Reference { object_key: response., position: response.offset, size: response.size.into() });
 
         let (index_type, stream_def) = {
 
