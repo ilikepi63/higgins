@@ -5,6 +5,7 @@ use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
+use crate::topography::StreamDefinition;
 
 use super::IndexError;
 use super::IndexFile;
@@ -177,7 +178,8 @@ impl IndexDirectory {
         &self,
         stream: &[u8],
         partition: &[u8],
-        index_type: IndexType,
+        index_type: &IndexType,
+        stream_definition: &StreamDefinition,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -189,7 +191,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition(
                 stream_str,
                 partition,
-                index_size_from_index_type(index_type.clone()),
+                index_size_from_index_type_and_definition(index_type, stream_definition),
                 index_type.clone(),
             )
             .unwrap();
@@ -260,12 +262,14 @@ impl IndexDirectory {
         partition: &[u8],
         offset: u64,
         index_type: IndexType,
+        stream_definition: &StreamDefinition,
     ) -> FindBatchResponse {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
-        let index_size = index_size_from_index_type(index_type.clone());
+        let index_size =
+            index_size_from_index_type_and_definition(index_type.clone(), stream_definition);
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -347,7 +351,8 @@ impl IndexDirectory {
         &self,
         batch_requests: Vec<FindBatchRequest>,
         _size: u32,
-        index_type: IndexType,
+        index_type: &IndexType,
+        stream_definition: &StreamDefinition,
     ) -> Vec<FindBatchResponse> {
         let mut responses = vec![];
 
@@ -365,14 +370,17 @@ impl IndexDirectory {
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
-                    index_size_from_index_type(index_type.clone()),
+                    index_size_from_index_type_and_definition(index_type, stream_definition),
                     index_type.clone(),
                 )
                 .unwrap();
 
             let indexes = IndexesView {
                 buffer: index_file.as_slice(),
-                element_size: index_size_from_index_type(index_type.clone()),
+                element_size: index_size_from_index_type_and_definition(
+                    index_type,
+                    stream_definition,
+                ),
                 index_type: index_type.clone(),
             };
 
@@ -439,6 +447,7 @@ impl IndexDirectory {
         partition: &[u8],
         reference: Reference,
         batch_coord: BatchCoordinate,
+
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) {
         let (index_type, stream_def) = {
@@ -455,7 +464,7 @@ impl IndexDirectory {
             .index_file_from_stream_and_partition(
                 stream,
                 &partition,
-                index_size_from_index_type(index_type.clone()),
+                index_size_from_index_type_and_definition(index_type.clone(), stream_def),
                 index_type.clone(),
             )
             .unwrap();
@@ -506,21 +515,21 @@ impl IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
-            let index_type = {
+            let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
                 let (_, stream_def) = broker
                     .get_topography_stream(&Key(topic.as_bytes().to_owned()))
                     .unwrap();
 
-                IndexType::try_from(stream_def).unwrap()
+                (IndexType::try_from(stream_def).unwrap(), stream_def)
             };
 
             let mut index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
-                    index_size_from_index_type(index_type.clone()),
+                    index_size_from_index_type_and_definition(index_type.clone(), stream_def),
                     index_type.clone(),
                 )
                 .unwrap();
