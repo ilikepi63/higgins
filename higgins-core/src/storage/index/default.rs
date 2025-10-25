@@ -59,14 +59,14 @@ impl<'a> DefaultIndex<'a> {
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
-        object_key: [u8; 16],
+        reference: Reference,
         position: u32,
         timestamp: u64,
         size: u64,
         mut data: &mut [u8],
     ) -> Result<(), std::io::Error> {
         data.write_all(offset.to_be_bytes().as_slice())?;
-        data.write_all(object_key.as_slice())?;
+        reference.to_bytes(data);
         data.write_all(position.to_be_bytes().as_slice())?;
         data.write_all(timestamp.to_be_bytes().as_slice())?;
         data.write_all(size.to_be_bytes().as_slice())?;
