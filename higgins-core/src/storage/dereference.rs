@@ -6,6 +6,7 @@ use std::io::Write;
 ///
 /// 1. Embedded into an Index and
 /// 2. Read to allow for the dereferencing of a byte vector from the underlying storage implementation.
+#[derive(Debug)]
 pub enum Reference {
     Null,
     S3(S3Reference),
@@ -59,6 +60,7 @@ impl Reference {
     }
 }
 
+#[derive(Debug)]
 pub struct S3Reference {
     pub object_key: [u8; 16],
     pub position: u64,

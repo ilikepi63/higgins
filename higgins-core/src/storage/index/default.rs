@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_put_writes_correctly() {
         let offset: u64 = 0x123456789ABCDEF0;
-        let object_key = [0xAA; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0x12345678;
         let timestamp: u64 = 0xFEDCBA9876543210;
         let size: u64 = 0xABCDEF0123456789;
@@ -235,7 +235,7 @@ mod tests {
 
         // Verify written data
         let read_offset = u64::from_be_bytes(data[0..8].try_into().unwrap());
-        let read_key: [u8; 16] = data[8..24].try_into().unwrap();
+        let read_key = Reference::Null;
         let read_position = u32::from_be_bytes(data[24..28].try_into().unwrap());
         let read_timestamp = u64::from_be_bytes(data[28..36].try_into().unwrap());
         let read_size = u64::from_be_bytes(data[36..44].try_into().unwrap());
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_put_returns_ok_on_success() {
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;
