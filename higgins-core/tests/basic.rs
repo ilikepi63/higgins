@@ -1,20 +1,16 @@
+mod common;
+
 use std::{env::temp_dir, time::Duration};
 
-use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use tracing_test::traced_test;
 
-// #[traced_test]
+use common::get_random_port;
+
+#[traced_test]
 #[test]
 fn can_achieve_basic_broker_functionality() {
-    let port = TcpPort::in_range(
-        "127.0.0.1",
-        Range {
-            min: 2000,
-            max: 25000,
-        },
-    )
-    .unwrap();
+    let port = get_random_port();
 
     let dir = {
         let mut dir = temp_dir();
