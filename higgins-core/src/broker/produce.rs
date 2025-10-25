@@ -1,8 +1,7 @@
 use super::Broker;
-
+use crate::storage::index::IndexType;
 use arrow::array::RecordBatch;
 use riskless::messages::{BatchCoordinate, ProduceRequest, ProduceResponse};
-use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
@@ -54,7 +53,21 @@ impl Broker {
         let response = response.recv().await.unwrap();
 
         // TODO: commit file for each index here.
-            self.indexes.commit_file(object_key, uploader_broker_id, file_size, batches, broker);
+        let reference = Reference::S3(S3Reference { object_key: response., position: response.offset, size: response.size });
+
+        let (index_type, stream_def) = {
+
+            let (_, stream_def) = self
+                .get_topography_stream(&crate::topography::Key(stream_name.to_owned()))
+                .unwrap();
+
+            (
+                IndexType::try_from(stream_def).unwrap(),
+                stream_def.to_owned(),
+            )
+        };
+
+        self.indexes.put_default_index(String::from_utf8(stream_name.to_owned()).unwrap(), partition, reference, response, index_type, stream_def);
 
             // Watermark the subscription.
             let subscription = self.subscriptions.get(stream_name);
