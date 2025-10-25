@@ -1,23 +1,27 @@
 mod common;
 
-use std::{env::temp_dir, time::Duration};
+use std::{env::temp_dir, path::PathBuf, time::Duration};
 
 use higgins::run_server;
 use tracing_test::traced_test;
 
 use common::get_random_port;
 
+fn get_dir() -> PathBuf {
+    let mut dir = temp_dir();
+    dir.push("basic");
+    dir
+}
+
+static STREAM: &str = "update_customer";
+static PARTITION: &[u8] = "test_partition".as_bytes();
+
 #[traced_test]
 #[test]
 fn can_achieve_basic_broker_functionality() {
     let port = get_random_port();
 
-    let dir = {
-        let mut dir = temp_dir();
-        dir.push("basic");
-
-        dir
-    };
+    let dir = get_dir();
 
     let dir_remove = dir.clone();
 
@@ -39,26 +43,17 @@ fn can_achieve_basic_broker_functionality() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    // Start a subscription on that stream.
-    let sub_id = client
-        .create_subscription("update_customer".as_bytes())
-        .unwrap();
-
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
     client
-        .produce(
-            "update_customer",
-            "test_partition".as_bytes(),
-            payload.as_bytes(),
-        )
+        .produce(STREAM, PARTITION, payload.as_bytes())
         .unwrap();
 
     // Consume from the stream.
-    client
-        .take(sub_id, "update_customer".as_bytes(), 1)
-        .unwrap();
+    let result = client.query_latest(STREAM.as_bytes(), PARTITION);
+
+    println!("{:#?}", result);
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
