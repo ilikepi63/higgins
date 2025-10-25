@@ -3,9 +3,9 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::arrow_ipc;
-use crate::storage::index::IndexError;
+use crate::storage::arrow_ipc::{self, write_arrow};
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::{Index, IndexError, IndexType};
 use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -250,7 +250,7 @@ pub async fn create_join_operator(
                 tokio::spawn(async move {
                     let stream = amalgamate_definition.clone();
                     let partition = amalgamate_partition;
-                    let broker = amalgamate_broker;
+                    let broker = amalgamate_broker.clone();
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
                         let join_mapping = amalgamate_definition.clone().mapping;
@@ -313,6 +313,27 @@ pub async fn create_join_operator(
                             join_mapping.map_arrow(derivative_data).unwrap();
 
                         // How do we write this back to the index now??
+
+                        {
+                            let broker = amalgamate_broker.write().await;
+
+                            let mut top_level_index = Index::of(index.inner(), IndexType::Join);
+
+                            // Places the data atht the reference.
+                            let mut new_index = broker
+                                .put_data(
+                                    String::from_utf8(stream.base.0.0.clone()).unwrap(),
+                                    &partition,
+                                    &mut top_level_index,
+                                    resultant_record_batch,
+                                )
+                                .await
+                                .unwrap();
+
+                            index_file.put_at(completed_index, &mut new_index).unwrap();
+
+                            // Now do the subscription updating..
+                        }
                     }
                 });
             }
