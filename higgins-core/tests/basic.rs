@@ -53,7 +53,9 @@ fn can_achieve_basic_broker_functionality() {
     // Consume from the stream.
     let result = client.query_latest(STREAM.as_bytes(), PARTITION);
 
-    println!("{:#?}", result);
+    tracing::info!("{:#?}", result);
+
+    panic!();
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
