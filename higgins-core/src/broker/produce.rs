@@ -1,7 +1,7 @@
 use super::Broker;
 use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
 use arrow::array::RecordBatch;
-use riskless::messages::{ProduceRequest, ProduceResponse};
+use riskless::messages::ProduceRequest;
 
 use crate::{
     error::HigginsError,
@@ -72,14 +72,16 @@ impl Broker {
 
         let offset = response.offset.clone();
 
-        self.indexes.put_default_index(
-            String::from_utf8(stream_name.to_owned()).unwrap(),
-            partition,
-            reference,
-            response,
-            &index_type,
-            &stream_def,
-        );
+        self.indexes
+            .put_default_index(
+                String::from_utf8(stream_name.to_owned()).unwrap(),
+                partition,
+                reference,
+                response,
+                &index_type,
+                &stream_def,
+            )
+            .await;
 
         // Watermark the subscription.
         let subscription = self.subscriptions.get(stream_name);
