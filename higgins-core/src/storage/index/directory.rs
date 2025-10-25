@@ -2,9 +2,8 @@ use std::{path::PathBuf, time::SystemTime};
 
 use crate::broker::Broker;
 use crate::storage::dereference::Reference;
-use crate::storage::index::index_size_from_index_type;
+use crate::storage::dereference::S3Reference;
 use crate::storage::index::index_size_from_index_type_and_definition;
-use crate::storage::index::index_size_from_stream_definition;
 use crate::topography::Key;
 
 use super::IndexError;
@@ -479,7 +478,7 @@ impl IndexDirectory {
         // TODO: change this to reflect the new reference API
         DefaultIndex::put(
             offset,
-            object_key,
+            reference,
             position.try_into().unwrap(),
             timestamp,
             batch_coord.size.into(),
@@ -539,11 +538,17 @@ impl IndexDirectory {
                 .unwrap()
                 .as_secs();
 
+            let reference = Reference::S3(S3Reference {
+                object_key,
+                size: batch.size.into(),
+                position,
+            });
+
             let mut val = [0; DefaultIndex::size_of()];
 
             DefaultIndex::put(
                 offset,
-                object_key,
+                reference,
                 position.try_into().unwrap(),
                 timestamp,
                 batch.size.into(),
