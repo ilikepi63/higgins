@@ -11,7 +11,7 @@ pub use indexes::BrokerIndexFile;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{ProduceRequest, ProduceRequestCollection},
     object_store::{self, ObjectStore},
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};

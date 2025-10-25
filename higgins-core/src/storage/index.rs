@@ -12,7 +12,6 @@ pub use error::IndexError;
 
 pub use file::IndexFile;
 
-use crate::derive::joining::join::JoinDefinition;
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
@@ -81,7 +80,7 @@ impl<'a> Index<'a> {
 
 pub fn index_size_from_index_type_and_definition(
     index_type: &IndexType,
-    stream_definition: &StreamDefinition,
+    _stream_definition: &StreamDefinition,
 ) -> usize {
     match index_type {
         IndexType::Join => todo!(), //JoinedIndex::size_of(stream_definition.join.unwrap()),
@@ -155,7 +154,7 @@ impl<'a> IndexesView<'a> {
     // Finds an index by timestamp using binary search
     /// If an exact match isn't found, returns the index with the nearest timestamp
     /// that is greater than or equal to the requested timestamp
-    pub fn find_by_timestamp(&self, timestamp: u64) -> Option<Index> {
+    pub fn find_by_timestamp(&'a self, timestamp: u64) -> Option<Index<'a>> {
         if self.count() == 0 {
             return None;
         }

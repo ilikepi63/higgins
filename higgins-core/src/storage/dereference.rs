@@ -17,13 +17,13 @@ impl Reference {
     pub fn to_bytes(&self, mut w: &mut [u8]) {
         match self {
             Self::S3(data) => {
-                w.write_all(&1_u16.to_be_bytes());
-                w.write_all(&data.object_key);
-                w.write_all(&data.position.to_be_bytes());
-                w.write_all(&data.size.to_be_bytes());
+                w.write_all(&1_u16.to_be_bytes()).unwrap();
+                w.write_all(&data.object_key).unwrap();
+                w.write_all(&data.position.to_be_bytes()).unwrap();
+                w.write_all(&data.size.to_be_bytes()).unwrap();
             }
             Self::Null => {
-                w.write_all(&1_u16.to_be_bytes());
+                w.write_all(&1_u16.to_be_bytes()).unwrap();
             }
         };
     }
