@@ -3,6 +3,7 @@ use std::{path::PathBuf, time::SystemTime};
 use crate::broker::Broker;
 use crate::storage::dereference::Reference;
 use crate::storage::index::index_size_from_index_type;
+use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::storage::index::index_size_from_stream_definition;
 use crate::topography::Key;
 
@@ -438,14 +439,14 @@ impl IndexDirectory {
         reference: Reference,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
     ) {
-        let index_type = {
+        let (index_type, stream_def) = {
             let broker = broker.write().await;
 
             let (_, stream_def) = broker
                 .get_topography_stream(&Key(stream.as_bytes().to_owned()))
                 .unwrap();
 
-            IndexType::try_from(stream_def).unwrap()
+            (IndexType::try_from(stream_def).unwrap(), stream_def)
         };
 
         let mut index_file = self
@@ -463,8 +464,9 @@ impl IndexDirectory {
             index_type: index_type.clone(),
         };
 
-        let mut val = [0; DefaultIndex::size_of()];
+        let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, stream_def)];
 
+        // TODO: change this to reflect the new reference API
         DefaultIndex::put(
             offset,
             object_key,
