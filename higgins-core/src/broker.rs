@@ -11,7 +11,7 @@ pub use indexes::BrokerIndexFile;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
 use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{ProduceRequest, ProduceRequestCollection},
     object_store::{self, ObjectStore},
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -19,8 +19,9 @@ use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, error::HigginsError, storage::index::directory::IndexDirectory,
-    subscription::Subscription, topography::Topography, utils::request_response::Request,
+    client::ClientCollection, error::HigginsError, storage::batch_coordinate::BatchCoordinate,
+    storage::index::directory::IndexDirectory, subscription::Subscription, topography::Topography,
+    utils::request_response::Request,
 };
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
@@ -29,7 +30,7 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 type MutableCollection = Arc<
     RwLock<(
         ProduceRequestCollection,
-        Vec<Request<ProduceRequest, ProduceResponse>>,
+        Vec<Request<ProduceRequest, BatchCoordinate>>,
     )>,
 >;
 

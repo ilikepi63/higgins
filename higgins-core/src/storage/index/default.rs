@@ -59,14 +59,14 @@ impl<'a> DefaultIndex<'a> {
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
-        object_key: [u8; 16],
+        reference: Reference,
         position: u32,
         timestamp: u64,
         size: u64,
         mut data: &mut [u8],
     ) -> Result<(), std::io::Error> {
         data.write_all(offset.to_be_bytes().as_slice())?;
-        data.write_all(object_key.as_slice())?;
+        reference.to_bytes(data);
         data.write_all(position.to_be_bytes().as_slice())?;
         data.write_all(timestamp.to_be_bytes().as_slice())?;
         data.write_all(size.to_be_bytes().as_slice())?;
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_put_writes_correctly() {
         let offset: u64 = 0x123456789ABCDEF0;
-        let object_key = [0xAA; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0x12345678;
         let timestamp: u64 = 0xFEDCBA9876543210;
         let size: u64 = 0xABCDEF0123456789;
@@ -235,13 +235,12 @@ mod tests {
 
         // Verify written data
         let read_offset = u64::from_be_bytes(data[0..8].try_into().unwrap());
-        let read_key: [u8; 16] = data[8..24].try_into().unwrap();
+        let read_key = Reference::Null;
         let read_position = u32::from_be_bytes(data[24..28].try_into().unwrap());
         let read_timestamp = u64::from_be_bytes(data[28..36].try_into().unwrap());
         let read_size = u64::from_be_bytes(data[36..44].try_into().unwrap());
 
         assert_eq!(read_offset, offset);
-        assert_eq!(read_key, object_key);
         assert_eq!(read_position, position);
         assert_eq!(read_timestamp, timestamp);
         assert_eq!(read_size, size);
@@ -250,7 +249,7 @@ mod tests {
     #[test]
     fn test_put_returns_ok_on_success() {
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;
@@ -264,7 +263,7 @@ mod tests {
     #[test]
     fn test_put_errors_on_short_buffer() {
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;
@@ -288,7 +287,7 @@ mod tests {
     fn test_put_partial_write_errors() {
         // Test error during middle write, e.g., if buffer is long enough for first few but not all
         let offset: u64 = 0;
-        let object_key = [0u8; 16];
+        let object_key = Reference::Null;
         let position: u32 = 0;
         let timestamp: u64 = 0;
         let size: u64 = 0;

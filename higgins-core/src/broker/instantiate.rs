@@ -10,14 +10,15 @@ use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
+    client::ClientCollection, storage::batch_coordinate::BatchCoordinate,
+    storage::index::directory::IndexDirectory, topography::Topography,
     utils::request_response::Request,
 };
 
 type MutableCollection = Arc<
     RwLock<(
         ProduceRequestCollection,
-        Vec<Request<ProduceRequest, ProduceResponse>>,
+        Vec<Request<ProduceRequest, BatchCoordinate>>,
     )>,
 >;
 
@@ -124,7 +125,7 @@ impl Broker {
 
                     drop(buffer_lock); // Explicitly drop the lock.
 
-                    match flush(new_ref, object_store_ref.clone(), indexes_ref, broker).await {
+                    match flush(new_ref, object_store_ref.clone()).await {
                         Ok(responses) => {
                             let mut iter = new_collection_vec.into_iter();
 
@@ -132,7 +133,7 @@ impl Broker {
                             for response in responses {
                                 // TODO: O(n^2) here
                                 let res = iter
-                                    .find(|r| r.inner().request_id == response.request_id)
+                                    .find(|r| r.inner().request_id == response.request.request_id)
                                     .unwrap();
 
                                 res.respond(response).unwrap();
@@ -154,23 +155,20 @@ impl Broker {
 // This is a shim for a workaround while we fix flush.
 use object_store::ObjectStore;
 use object_store::PutPayload;
-use riskless::messages::CommitBatchRequest;
 
 async fn flush(
     reqs: ProduceRequestCollection,
     object_storage: Arc<dyn ObjectStore>,
-    index_dir: Arc<IndexDirectory>,
-    broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
-) -> Result<Vec<ProduceResponse>, Box<dyn std::error::Error>> {
-    let reqs: SharedLogSegment = reqs.try_into()?;
+    // index_dir: Arc<IndexDirectory>,
+    // broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
+) -> Result<Vec<BatchCoordinate>, Box<dyn std::error::Error>> {
+    let path = uuid::Uuid::new_v4();
+
+    let reqs: SharedLogSegment = (path.as_bytes().to_owned(), reqs).try_into()?;
 
     let batch_coords = reqs.get_batch_coords().clone();
 
     let buf: bytes::Bytes = reqs.into();
-
-    let buf_size = buf.len();
-
-    let path = uuid::Uuid::new_v4();
 
     let path_string = object_store::path::Path::from(path.to_string());
 
@@ -181,21 +179,23 @@ async fn flush(
     // TODO: assert put_result has the correct response?
 
     // TODO: The responses here?
-    let put_result = index_dir
-        .commit_file(
-            path.into_bytes(),
-            1,
-            buf_size.try_into()?,
-            batch_coords
-                .iter()
-                .map(CommitBatchRequest::from)
-                .collect::<Vec<_>>(),
-            broker,
-        )
-        .await;
+    // let put_result = index_dir
+    //     .commit_file(
+    //         path.into_bytes(),
+    //         1,
+    //         buf_size.try_into()?,
+    //         batch_coords
+    //             .iter()
+    //             .map(CommitBatchRequest::from)
+    //             .collect::<Vec<_>>(),
+    //         broker,
+    //     )
+    //     .await;
 
-    Ok(put_result
-        .iter()
-        .map(ProduceResponse::from)
-        .collect::<Vec<_>>())
+    // Ok(put_result
+    //     .iter()
+    //     .map(ProduceResponse::from)
+    //     .collect::<Vec<_>>())
+
+    Ok(batch_coords)
 }

@@ -6,6 +6,7 @@ use std::io::Write;
 ///
 /// 1. Embedded into an Index and
 /// 2. Read to allow for the dereferencing of a byte vector from the underlying storage implementation.
+#[derive(Debug)]
 pub enum Reference {
     Null,
     S3(S3Reference),
@@ -16,13 +17,13 @@ impl Reference {
     pub fn to_bytes(&self, mut w: &mut [u8]) {
         match self {
             Self::S3(data) => {
-                w.write_all(&1_u16.to_be_bytes());
-                w.write_all(&data.object_key);
-                w.write_all(&data.position.to_be_bytes());
-                w.write_all(&data.size.to_be_bytes());
+                w.write_all(&1_u16.to_be_bytes()).unwrap();
+                w.write_all(&data.object_key).unwrap();
+                w.write_all(&data.position.to_be_bytes()).unwrap();
+                w.write_all(&data.size.to_be_bytes()).unwrap();
             }
             Self::Null => {
-                w.write_all(&1_u16.to_be_bytes());
+                w.write_all(&1_u16.to_be_bytes()).unwrap();
             }
         };
     }
@@ -59,6 +60,7 @@ impl Reference {
     }
 }
 
+#[derive(Debug)]
 pub struct S3Reference {
     pub object_key: [u8; 16],
     pub position: u64,
