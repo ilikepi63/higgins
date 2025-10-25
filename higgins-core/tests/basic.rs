@@ -5,7 +5,7 @@ use higgins::run_server;
 use tracing_test::traced_test;
 
 // #[traced_test]
-// #[test]
+#[test]
 fn can_achieve_basic_broker_functionality() {
     let port = TcpPort::in_range(
         "127.0.0.1",
