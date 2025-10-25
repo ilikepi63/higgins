@@ -67,7 +67,9 @@ impl Broker {
             )
         };
 
-        self.indexes.put_default_index(String::from_utf8(stream_name.to_owned()).unwrap(), partition, reference, response, index_type, stream_def);
+        let offset = response.offset.clone();
+
+        self.indexes.put_default_index(String::from_utf8(stream_name.to_owned()).unwrap(), partition, reference, response, &index_type, &stream_def);
 
             // Watermark the subscription.
             let subscription = self.subscriptions.get(stream_name);
@@ -81,7 +83,7 @@ impl Broker {
                     tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
                     // Set the max offset of the subscription.
-                    subscription.set_max_offset(partition, response.offset)?;
+                    subscription.set_max_offset(partition, offset)?;
 
                     // Notify the tasks awaiting this subscription.
                     notify.notify_waiters();
@@ -93,7 +95,7 @@ impl Broker {
                             .iter()
                             .map(u8::to_string)
                             .collect::<String>(),
-                        response.offset
+                        offset
                     );
                 }
             }
