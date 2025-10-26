@@ -86,17 +86,12 @@ impl IndexDirectory {
 
         tracing::trace!("Index file: {index_file_name}");
 
-        if std::fs::exists(&index_file_name).unwrap_or(false) {
-            tracing::trace!("Index file: {index_file_name} does not exist, creating it...");
-
-            std::fs::File::create(&index_file_name.clone()).unwrap();
-
-            panic!();
-        }
-
         tracing::info!("Retrieveing Index file with name: {:#?}", index_file_name);
 
-        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)?;
+        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)
+            .inspect_err(|err| {
+                tracing::error!("Error whilst trying to open index file: {:#?}", err);
+            })?;
 
         Ok(index_file)
     }
