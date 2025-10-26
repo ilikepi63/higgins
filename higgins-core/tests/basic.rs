@@ -21,7 +21,20 @@ static PARTITION: &[u8] = "test_partition".as_bytes();
 fn can_achieve_basic_broker_functionality() {
     let port = get_random_port();
 
-    let dir = get_dir();
+    // let dir = get_dir();
+
+    let dir = {
+        let mut dir = PathBuf::new();
+        dir.push("test_base");
+
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).unwrap();
+        };
+
+        std::fs::create_dir(&dir).unwrap();
+
+        dir
+    };
 
     let dir_remove = dir.clone();
 
