@@ -1,24 +1,37 @@
-use std::{env::temp_dir, time::Duration};
+mod common;
 
-use get_port::{Ops, Range, tcp::TcpPort};
+use std::{env::temp_dir, path::PathBuf, time::Duration};
+
 use higgins::run_server;
 use tracing_test::traced_test;
 
-// #[traced_test]
-// #[test]
+use common::get_random_port;
+
+fn get_dir() -> PathBuf {
+    let mut dir = temp_dir();
+    dir.push("basic");
+    dir
+}
+
+static STREAM: &str = "update_customer";
+static PARTITION: &[u8] = "test_partition".as_bytes();
+
+#[traced_test]
+#[test]
 fn can_achieve_basic_broker_functionality() {
-    let port = TcpPort::in_range(
-        "127.0.0.1",
-        Range {
-            min: 2000,
-            max: 25000,
-        },
-    )
-    .unwrap();
+    let port = get_random_port();
+
+    // let dir = get_dir();
 
     let dir = {
-        let mut dir = temp_dir();
-        dir.push("basic");
+        let mut dir = PathBuf::new();
+        dir.push("test_base");
+
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).unwrap();
+        };
+
+        std::fs::create_dir(&dir).unwrap();
 
         dir
     };
@@ -43,26 +56,19 @@ fn can_achieve_basic_broker_functionality() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    // Start a subscription on that stream.
-    let sub_id = client
-        .create_subscription("update_customer".as_bytes())
-        .unwrap();
-
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
     client
-        .produce(
-            "update_customer",
-            "test_partition".as_bytes(),
-            payload.as_bytes(),
-        )
+        .produce(STREAM, PARTITION, payload.as_bytes())
         .unwrap();
 
     // Consume from the stream.
-    client
-        .take(sub_id, "update_customer".as_bytes(), 1)
-        .unwrap();
+    let result = client.query_latest(STREAM.as_bytes(), PARTITION);
+
+    tracing::info!("{:#?}", result);
+
+    panic!();
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
