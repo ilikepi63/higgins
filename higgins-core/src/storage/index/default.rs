@@ -30,11 +30,6 @@ impl<'a> DefaultIndex<'a> {
         u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
     }
 
-    /// Returns the object key as [u8; 16].
-    pub fn object_key(&self) -> [u8; 16] {
-        self.0[OBJECT_KEY_INDEX..POSITION_INDEX].try_into().unwrap()
-    }
-
     /// Returns the position as a u32, converted from big-endian bytes.
     pub fn position(&self) -> u32 {
         u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into().unwrap())
@@ -126,16 +121,6 @@ mod tests {
 
         let index = DefaultIndex::of(&data[..]);
         assert_eq!(index.offset(), expected_offset);
-    }
-
-    #[test]
-    fn test_object_key() {
-        let mut data = vec![0u8; DefaultIndex::size_of()];
-        let expected_key = [0xAA; 16];
-        data[OBJECT_KEY_INDEX..POSITION_INDEX].copy_from_slice(&expected_key);
-
-        let index = DefaultIndex::of(&data[..]);
-        assert_eq!(index.object_key(), expected_key);
     }
 
     #[test]
