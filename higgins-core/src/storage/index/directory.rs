@@ -588,11 +588,3 @@ impl IndexDirectory {
         responses
     }
 }
-
-// // #[async_trait::async_trait]
-// impl CommitFile for IndexDirectory {
-// }
-
-// #[async_trait::async_trait]
-// impl FindBatches for IndexDirectory {
-// }
