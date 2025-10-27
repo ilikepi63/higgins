@@ -2,8 +2,16 @@
 
 use std::io::Write;
 
+use crate::Broker;
+use tokio::sync::RwLock;
+
 /// Dereference a given reference into the underlying data.
-pub async fn dereference(references: Vec<Reference>) -> Vec<u8> {}
+pub async fn dereference(
+    references: Vec<Reference>,
+    broker: std::sync::Arc<RwLock<Broker>>,
+) -> Vec<u8> {
+    for reference in references {}
+}
 
 /// Represents composite data that will be:
 ///
