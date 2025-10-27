@@ -39,8 +39,12 @@ impl IndexDirectory {
         let mut topic_path = self.0.clone();
         topic_path.push(topic);
 
+        tracing::trace!("Stream path: {:#?}", topic_path);
+
         if !topic_path.exists() {
-            std::fs::create_dir(&topic_path).unwrap();
+            tracing::trace!("Stream path does not exist, creating: {:#?}", topic_path);
+
+            std::fs::create_dir_all(&topic_path).unwrap();
         }
 
         topic_path
@@ -79,6 +83,16 @@ impl IndexDirectory {
         index_type: IndexType,
     ) -> Result<IndexFile, IndexError> {
         let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
+
+        tracing::trace!("Index file: {index_file_name}");
+
+        if std::fs::exists(&index_file_name).unwrap_or(false) {
+            tracing::trace!("Index file: {index_file_name} does not exist, creating it...");
+
+            std::fs::File::create(&index_file_name.clone()).unwrap();
+
+            panic!();
+        }
 
         tracing::info!("Retrieveing Index file with name: {:#?}", index_file_name);
 
