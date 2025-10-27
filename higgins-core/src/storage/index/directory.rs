@@ -5,6 +5,7 @@ use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
 use crate::storage::index::index_size_from_index_type_and_definition;
+use crate::subscription::error;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
 
@@ -191,7 +192,7 @@ impl IndexDirectory {
         partition: &[u8],
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<FindBatchResponse> {
+    ) -> Vec<Reference> {
         let mut responses = vec![];
 
         let stream_str = String::from_utf8_lossy(stream).to_string();
@@ -219,47 +220,18 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
-
-                tracing::info!("Reading from object: {:#?}", object_key);
-
-                let batch = BatchInfo {
-                    batch_id: 1,
-                    object_key,
-                    metadata: BatchMetadata {
-                        topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
-                        base_offset: 0,
-                        last_offset: 0,
-                        log_append_timestamp: 0,
-                        batch_max_timestamp: 0,
-                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
-                        producer_id: 0,
-                        producer_epoch: 0,
-                        base_sequence: 0,
-                        last_sequence: 0,
-                    },
-                };
-
-                let response = FindBatchResponse {
-                    errors: vec![],
-                    batches: vec![batch],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
-
-                responses.push(response);
+                responses.push(index.reference());
             }
             None => {
                 tracing::error!("No Index found at offset {}", 0);
-                let response = FindBatchResponse {
-                    errors: vec!["Failed to find index for Topic and offset".to_string()],
-                    batches: vec![],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
-                responses.push(response);
+                todo!()
+                // let response = FindBatchResponse {
+                //     errors: vec!["Failed to find index for Topic and offset".to_string()],
+                //     batches: vec![],
+                //     log_start_offset: 0,
+                //     high_watermark: 0,
+                // };
+                // responses.push(response);
             }
         }
 
@@ -274,7 +246,7 @@ impl IndexDirectory {
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
-    ) -> FindBatchResponse {
+    ) -> Result<Reference, Box<dyn std::error::Error>> {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
@@ -304,55 +276,58 @@ impl IndexDirectory {
             Some(index) => {
                 let reference = index.reference();
 
-                let object_key = match reference {
-                    crate::storage::index::Reference::S3(val) => {
-                        uuid::Uuid::from_bytes(index.object_key()).to_string()
-                    }
-                    _ => {
-                        tracing::error!("Currently S3 References are only implemented.");
-                        panic!("Expected an S3 reference, got something different.");
-                    }
-                };
+                // let object_key = match reference {
+                //     crate::storage::index::Reference::S3(val) => {
+                //         uuid::Uuid::from_bytes(index.object_key()).to_string()
+                //     }
+                //     _ => {
+                //         tracing::error!("Currently S3 References are only implemented.");
+                //         panic!("Expected an S3 reference, got something different.");
+                //     }
+                // };
 
-                tracing::info!("Reading from object: {:#?}", object_key);
+                // tracing::info!("Reading from object: {:#?}", object_key);
 
-                let batch = BatchInfo {
-                    batch_id: 1,
-                    object_key,
-                    metadata: BatchMetadata {
-                        topic_id_partition,
-                        byte_offset: index.position().into(),
-                        byte_size: index.size().try_into().unwrap(),
-                        base_offset: 0,
-                        last_offset: 0,
-                        log_append_timestamp: 0,
-                        batch_max_timestamp: 0,
-                        timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
-                        producer_id: 0,
-                        producer_epoch: 0,
-                        base_sequence: 0,
-                        last_sequence: 0,
-                    },
-                };
+                // let batch = BatchInfo {
+                //     batch_id: 1,
+                //     object_key,
+                //     metadata: BatchMetadata {
+                //         topic_id_partition,
+                //         byte_offset: index.position().into(),
+                //         byte_size: index.size().try_into().unwrap(),
+                //         base_offset: 0,
+                //         last_offset: 0,
+                //         log_append_timestamp: 0,
+                //         batch_max_timestamp: 0,
+                //         timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
+                //         producer_id: 0,
+                //         producer_epoch: 0,
+                //         base_sequence: 0,
+                //         last_sequence: 0,
+                //     },
+                // };
 
-                let response = FindBatchResponse {
-                    errors: vec![],
-                    batches: vec![batch],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
+                // let response = FindBatchResponse {
+                //     errors: vec![],
+                //     batches: vec![batch],
+                //     log_start_offset: 0,
+                //     high_watermark: 0,
+                // };
 
-                response
+                Ok(reference)
             }
             None => {
+                // TODO: handle error here.
                 tracing::error!("No Index found at offset {}", 0);
-                let response = FindBatchResponse {
-                    errors: vec!["Failed to find index for Topic and offset".to_string()],
-                    batches: vec![],
-                    log_start_offset: 0,
-                    high_watermark: 0,
-                };
-                response
+                unimplemented!();
+
+                // let response = FindBatchResponse {
+                //     errors: vec!["Failed to find index for Topic and offset".to_string()],
+                //     batches: vec![],
+                //     log_start_offset: 0,
+                //     high_watermark: 0,
+                // };
+                // response
             }
         }
     }
@@ -402,47 +377,21 @@ impl IndexDirectory {
 
             match index {
                 Some(index) => {
-                    let object_key = uuid::Uuid::from_bytes(index.object_key()).to_string();
+                    let reference = index.reference();
 
-                    tracing::info!("Reading from object: {:#?}", object_key);
-
-                    let batch = BatchInfo {
-                        batch_id: 1,
-                        object_key,
-                        metadata: BatchMetadata {
-                            topic_id_partition,
-                            byte_offset: index.position().into(),
-                            byte_size: index.size().try_into().unwrap(),
-                            base_offset: 0,
-                            last_offset: 0,
-                            log_append_timestamp: 0,
-                            batch_max_timestamp: 0,
-                            timestamp_type: riskless::batch_coordinator::TimestampType::Dummy,
-                            producer_id: 0,
-                            producer_epoch: 0,
-                            base_sequence: 0,
-                            last_sequence: 0,
-                        },
-                    };
-
-                    let response = FindBatchResponse {
-                        errors: vec![],
-                        batches: vec![batch],
-                        log_start_offset: 0,
-                        high_watermark: 0,
-                    };
-
-                    responses.push(response);
+                    responses.push(reference);
                 }
                 None => {
+                    // TODO: Handle errors here?
+
                     tracing::error!("No Index found at offset {}", 0);
-                    let response = FindBatchResponse {
-                        errors: vec!["Failed to find index for Topic and offset".to_string()],
-                        batches: vec![],
-                        log_start_offset: 0,
-                        high_watermark: 0,
-                    };
-                    responses.push(response);
+                    // let response = FindBatchResponse {
+                    //     errors: vec!["Failed to find index for Topic and offset".to_string()],
+                    //     batches: vec![],
+                    //     log_start_offset: 0,
+                    //     high_watermark: 0,
+                    // };
+                    // responses.push(response);
                 }
             }
         }
