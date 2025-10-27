@@ -39,8 +39,12 @@ impl IndexDirectory {
         let mut topic_path = self.0.clone();
         topic_path.push(topic);
 
+        tracing::trace!("Stream path: {:#?}", topic_path);
+
         if !topic_path.exists() {
-            std::fs::create_dir(&topic_path).unwrap();
+            tracing::trace!("Stream path does not exist, creating: {:#?}", topic_path);
+
+            std::fs::create_dir_all(&topic_path).unwrap();
         }
 
         topic_path
@@ -80,7 +84,14 @@ impl IndexDirectory {
     ) -> Result<IndexFile, IndexError> {
         let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
 
-        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)?;
+        tracing::trace!("Index file: {index_file_name}");
+
+        tracing::info!("Retrieveing Index file with name: {:#?}", index_file_name);
+
+        let index_file: IndexFile = IndexFile::new(&index_file_name, element_size, index_type)
+            .inspect_err(|err| {
+                tracing::error!("Error whilst trying to open index file: {:#?}", err);
+            })?;
 
         Ok(index_file)
     }
@@ -577,11 +588,3 @@ impl IndexDirectory {
         responses
     }
 }
-
-// // #[async_trait::async_trait]
-// impl CommitFile for IndexDirectory {
-// }
-
-// #[async_trait::async_trait]
-// impl FindBatches for IndexDirectory {
-// }

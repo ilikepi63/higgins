@@ -1,7 +1,7 @@
 use super::Broker;
 use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
 use arrow::array::RecordBatch;
-use riskless::messages::{ProduceRequest, ProduceResponse};
+use riskless::messages::ProduceRequest;
 
 use crate::{
     error::HigginsError,
@@ -37,27 +37,35 @@ impl Broker {
 
         let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
-        let mut buffer_lock = self.collection.write().await;
+        // Add the request to the buffer for flushing.
+        {
+            let mut buffer_lock = self.collection.write().await;
 
-        let _ = buffer_lock.0.collect(request.inner().clone());
+            let _ = buffer_lock.0.collect(request.inner().clone());
 
-        buffer_lock.1.push(request);
+            buffer_lock.1.push(request);
 
-        // TODO: This is currently hardcoded to 50kb, but we possibly want to make
-        if buffer_lock.0.size() > 50_000 {
-            let _ = self.flush_tx.as_ref().unwrap().send(()).await;
+            // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+            if buffer_lock.0.size() > 50_000 {
+                let _ = self.flush_tx.as_ref().unwrap().send(()).await;
+            }
+
+            drop(buffer_lock);
+
         }
 
-        drop(buffer_lock);
-
+        // Await the response from flushing.
         let response = response.recv().await.unwrap();
 
-        // TODO: commit file for each index here.
+        tracing::trace!("Retrieved the response for flushing: {:#?}", response);
+
+        // Create a new reference given the data.
         let reference = Reference::S3(S3Reference {
             object_key: response.object_key,
             position: response.offset,
             size: response.size.into(),
         });
+
 
         let (index_type, stream_def) = {
             let (_, stream_def) = self
@@ -72,14 +80,16 @@ impl Broker {
 
         let offset = response.offset.clone();
 
-        self.indexes.put_default_index(
-            String::from_utf8(stream_name.to_owned()).unwrap(),
-            partition,
-            reference,
-            response,
-            &index_type,
-            &stream_def,
-        );
+        self.indexes
+            .put_default_index(
+                String::from_utf8(stream_name.to_owned()).unwrap(),
+                partition,
+                reference,
+                response,
+                &index_type,
+                &stream_def,
+            )
+            .await;
 
         // Watermark the subscription.
         let subscription = self.subscriptions.get(stream_name);
