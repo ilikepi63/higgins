@@ -2,6 +2,9 @@
 
 use std::io::Write;
 
+/// Dereference a given reference into the underlying data.
+pub async fn dereference(references: Vec<Reference>) -> Vec<u8> {}
+
 /// Represents composite data that will be:
 ///
 /// 1. Embedded into an Index and

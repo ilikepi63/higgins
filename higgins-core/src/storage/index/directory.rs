@@ -363,7 +363,7 @@ impl IndexDirectory {
         _size: u32,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<FindBatchResponse> {
+    ) -> Vec<Reference> {
         let mut responses = vec![];
 
         for batch_request in batch_requests {
