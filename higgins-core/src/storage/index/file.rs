@@ -17,6 +17,7 @@ impl IndexFile {
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
+            .create(true)
             .open(&path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
