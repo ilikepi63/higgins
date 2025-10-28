@@ -2,15 +2,22 @@
 
 use std::io::Write;
 
-use crate::Broker;
+use crate::{Broker, error::HigginsError};
 use tokio::sync::RwLock;
 
 /// Dereference a given reference into the underlying data.
 pub async fn dereference(
-    references: Vec<Reference>,
+    reference: Reference,
     broker: std::sync::Arc<RwLock<Broker>>,
-) -> Vec<u8> {
-    for reference in references {}
+) -> Result<Vec<u8>, HigginsError> {
+    match reference {
+        Reference::S3(reference_object_store) => {
+            todo!()
+        }
+        Reference::Null => {
+            todo!()
+        }
+    }
 }
 
 /// Represents composite data that will be:
