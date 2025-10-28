@@ -264,7 +264,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Deleteconfigurationresponse => todo!(),
                 Type::Error => {}
                 Type::Getindexrequest => {
-                    let broker = broker.read().await;
+                    let broker_lock = broker.read().await;
 
                     let request = message.get_index_request.unwrap(); // TODO: error response here.
 
@@ -273,7 +273,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         // this match arm reflects that.
                         match index.r#type() {
                             higgins_codec::index::Type::Timestamp => {
-                                let values = broker
+                                let values = broker_lock
                                     .get_by_timestamp(
                                         &index.stream,
                                         &index.partition,
@@ -332,19 +332,27 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 // }
                             }
                             higgins_codec::index::Type::Latest => {
-                                let values = broker
-                                    .get_latest(&index.stream, &index.partition)
-                                    .await
-                                    .unwrap();
-
-                                let responses = collect_consume_responses(values).await;
+                                let responses = broker_lock
+                                    .get_latest(&index.stream, &index.partition, broker.clone())
+                                    .await;
 
                                 for response in responses {
+                                    let response = response.await.unwrap();
+
+                                    let index_response = GetIndexResponse {
+                                        records: vec![Record {
+                                            data: response,
+                                            stream: vec![],
+                                            partition: vec![],
+                                            offset: 0,
+                                        }],
+                                    };
+
                                     let mut result = BytesMut::new();
 
                                     Message {
                                         r#type: Type::Getindexresponse as i32,
-                                        get_index_response: Some(response),
+                                        get_index_response: Some(index_response),
                                         ..Default::default()
                                     }
                                     .encode(&mut result)
