@@ -83,7 +83,7 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
         broker: Arc<tokio::sync::RwLock<Self>>,
-    ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>>> {
+    ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         let stream_def = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
@@ -100,7 +100,7 @@ impl Broker {
             .await;
 
         find_batch_responses
-            .iter()
+            .into_iter()
             .map(|reference| dereference(reference, broker))
             .collect()
     }
