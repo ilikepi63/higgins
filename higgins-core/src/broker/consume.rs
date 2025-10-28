@@ -101,7 +101,7 @@ impl Broker {
 
         find_batch_responses
             .into_iter()
-            .map(|reference| dereference(reference, broker))
+            .map(|reference| dereference(reference, broker.clone()))
             .collect()
     }
 
