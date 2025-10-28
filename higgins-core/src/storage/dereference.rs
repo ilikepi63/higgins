@@ -10,7 +10,7 @@ use riskless::object_store::path::Path;
 
 /// Dereference a given reference into the underlying data.
 pub async fn dereference(
-    reference: Reference,
+    reference: &Reference,
     broker: std::sync::Arc<RwLock<Broker>>,
 ) -> Result<Vec<u8>, HigginsError> {
     match reference {
