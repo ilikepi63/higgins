@@ -1,6 +1,5 @@
 use super::Broker;
 
-use ::futures::future::join_all;
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -20,7 +19,8 @@ impl Broker {
         partition: &[u8],
         offset: u64,
         _max_partition_fetch_bytes: u32,
-    ) -> tokio::sync::mpsc::Receiver<ConsumeResponse> {
+        broker: Arc<tokio::sync::RwLock<Self>>,
+    ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         let indexes = self.indexes.clone();
 
         let stream_definition = self
@@ -46,9 +46,10 @@ impl Broker {
             )
             .await;
 
-        self.dereference_find_batch_responses(batch_responses)
-            .await
-            .unwrap()
+        batch_responses
+            .into_iter()
+            .map(|reference| dereference(reference, broker.clone()))
+            .collect()
     }
     pub async fn get_by_timestamp(
         &self,
