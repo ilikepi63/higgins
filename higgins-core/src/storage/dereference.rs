@@ -2,6 +2,65 @@
 
 use std::io::Write;
 
+use crate::{Broker, error::HigginsError};
+use riskless::messages::ConsumeBatch;
+use tokio::sync::RwLock;
+
+use riskless::object_store::path::Path;
+
+/// Dereference a given reference into the underlying data.
+pub async fn dereference(
+    reference: Reference,
+    broker: std::sync::Arc<RwLock<Broker>>,
+) -> Result<Vec<u8>, HigginsError> {
+    match reference {
+        Reference::S3(reference_object_store) => {
+            // Retrieve the object store reference.
+            let object_store = {
+                let broker = broker.read().await;
+                broker.object_store.clone()
+            };
+
+            let object_name = uuid::Uuid::from_bytes(reference_object_store.object_key).to_string();
+
+            let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
+
+            match get_object_result {
+                Ok(get_result) => {
+                    if let Ok(b) = get_result.bytes().await {
+                        // index into the bytes.
+                        let start: usize = (reference_object_store.position).try_into().unwrap();
+                        let end: usize = (reference_object_store.position
+                            + reference_object_store.size)
+                            .try_into()
+                            .unwrap();
+
+                        let data = b.slice(start..end);
+
+                        Ok(data.to_vec())
+                    } else {
+                        let error_message = format!(
+                            "Could not retrieve bytes for given GetObject query: {}",
+                            object_name
+                        );
+                        tracing::trace!(error_message);
+                        Err(HigginsError::ObjectStoreRetrievalError(error_message))
+                    }
+                }
+                Err(err) => {
+                    let error_message = format!(
+                        "An error occurred trying to retrieve the object with key {}. Error: {:#?}",
+                        object_name, err
+                    );
+                    tracing::trace!(error_message);
+                    Err(HigginsError::ObjectStoreRetrievalError(error_message))
+                }
+            }
+        }
+        Reference::Null => Err(HigginsError::NullDereferenceError),
+    }
+}
+
 /// Represents composite data that will be:
 ///
 /// 1. Embedded into an Index and

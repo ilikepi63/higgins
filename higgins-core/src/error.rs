@@ -22,6 +22,12 @@ pub enum HigginsError {
     #[error("Attemt to write data to s3 failed.")]
     S3PutDataFailure,
 
+    #[error("Attempt to dereference null Reference.")]
+    NullDereferenceError,
+
+    #[error("Attempt to retrieve object from object store resulted in a failure: {0}")]
+    ObjectStoreRetrievalError(String),
+
     #[error("Unknown Error")]
     Unknown,
 }
