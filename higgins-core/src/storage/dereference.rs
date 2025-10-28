@@ -21,9 +21,9 @@ pub async fn dereference(
                 broker.object_store.clone()
             };
 
-            let object_name = reference_object_store.object_key.as_str();
+            let object_name = uuid::Uuid::from_bytes(reference_object_store.object_key).to_string();
 
-            let get_object_result = object_store.get(&Path::from(object_name)).await;
+            let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
 
             match get_object_result {
                 Ok(get_result) => {
