@@ -112,13 +112,14 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
         offset: u64,
-    ) -> Result<ConsumeResponse, HigginsError> {
+        broker: Arc<tokio::sync::RwLock<Broker>>,
+    ) -> Result<Option<Vec<u8>>, HigginsError> {
         let stream_def = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
             .unwrap();
 
-        let find_batch_responses = self
+        let reference = self
             .indexes
             .get_by_offset(
                 stream,
@@ -127,10 +128,14 @@ impl Broker {
                 IndexType::try_from(stream_def).unwrap(),
                 stream_def,
             )
-            .await;
-
-        self.dereference_find_batch_response(find_batch_responses)
             .await
+            .ok();
+
+        if let Some(reference) = reference {
+            dereference(reference, broker).await.map(|val| Some(val))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn dereference_find_batch_responses(
