@@ -8,8 +8,8 @@ use riskless::{
 };
 use std::sync::Arc;
 
-use crate::error::HigginsError;
 use crate::{broker::object_store::path::Path, storage::index::IndexType};
+use crate::{error::HigginsError, storage::dereference::dereference};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
 
@@ -82,7 +82,8 @@ impl Broker {
         &self,
         stream: &[u8],
         partition: &[u8],
-    ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
+        broker: Arc<tokio::sync::RwLock<Self>>,
+    ) -> Result<Vec<impl Future<Output = Vec<u8>>>, HigginsError> {
         let stream_def = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
@@ -98,8 +99,10 @@ impl Broker {
             )
             .await;
 
-        self.dereference_find_batch_responses(find_batch_responses)
-            .await
+        find_batch_responses
+            .iter()
+            .map(|reference| dereference(reference, broker))
+            .collect()
     }
 
     /// Retrieve the data at the specified offset.
