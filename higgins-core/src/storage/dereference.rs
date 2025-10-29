@@ -28,8 +28,6 @@ pub async fn dereference(
             match get_object_result {
                 Ok(get_result) => {
                     if let Ok(b) = get_result.bytes().await {
-                        // Retrieve the current fetch Responses by name.
-
                         // index into the bytes.
                         let start: usize = (reference_object_store.position).try_into().unwrap();
                         let end: usize = (reference_object_store.position
@@ -41,21 +39,21 @@ pub async fn dereference(
 
                         Ok(data.to_vec())
                     } else {
-                        tracing::trace!(
+                        let error_message = format!(
                             "Could not retrieve bytes for given GetObject query: {}",
                             object_name
                         );
-                        todo!()
+                        tracing::trace!(error_message);
+                        Err(HigginsError::ObjectStoreRetrievalError(error_message))
                     }
                 }
                 Err(err) => {
-                    tracing::error!(
+                    let error_message = format!(
                         "An error occurred trying to retrieve the object with key {}. Error: {:#?}",
-                        object_name,
-                        err
+                        object_name, err
                     );
-
-                    todo!()
+                    tracing::trace!(error_message);
+                    Err(HigginsError::ObjectStoreRetrievalError(error_message))
                 }
             }
         }

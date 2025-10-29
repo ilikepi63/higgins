@@ -25,6 +25,9 @@ pub enum HigginsError {
     #[error("Attempt to dereference null Reference.")]
     NullDereferenceError,
 
+    #[error("Attempt to retrieve object from object store resulted in a failure: {0}")]
+    ObjectStoreRetrievalError(String),
+
     #[error("Unknown Error")]
     Unknown,
 }
