@@ -14,9 +14,7 @@ pub async fn dereference(
         Reference::S3(reference_object_store) => {
             todo!()
         }
-        Reference::Null => {
-            todo!()
-        }
+        Reference::Null => Err(HigginsError::NullDereferenceError),
     }
 }
 
