@@ -3,7 +3,10 @@
 use std::io::Write;
 
 use crate::{Broker, error::HigginsError};
+use riskless::messages::ConsumeBatch;
 use tokio::sync::RwLock;
+
+use riskless::object_store::path::Path;
 
 /// Dereference a given reference into the underlying data.
 pub async fn dereference(
@@ -12,7 +15,49 @@ pub async fn dereference(
 ) -> Result<Vec<u8>, HigginsError> {
     match reference {
         Reference::S3(reference_object_store) => {
-            todo!()
+            // Retrieve the object store reference.
+            let object_store = {
+                let broker = broker.read().await;
+                broker.object_store.clone()
+            };
+
+            let object_name = reference_object_store.object_key.as_str();
+
+            let get_object_result = object_store.get(&Path::from(object_name)).await;
+
+            match get_object_result {
+                Ok(get_result) => {
+                    if let Ok(b) = get_result.bytes().await {
+                        // Retrieve the current fetch Responses by name.
+
+                        // index into the bytes.
+                        let start: usize = (reference_object_store.position).try_into().unwrap();
+                        let end: usize = (reference_object_store.position
+                            + reference_object_store.size)
+                            .try_into()
+                            .unwrap();
+
+                        let data = b.slice(start..end);
+
+                        Ok(data.to_vec())
+                    } else {
+                        tracing::trace!(
+                            "Could not retrieve bytes for given GetObject query: {}",
+                            object_name
+                        );
+                        todo!()
+                    }
+                }
+                Err(err) => {
+                    tracing::error!(
+                        "An error occurred trying to retrieve the object with key {}. Error: {:#?}",
+                        object_name,
+                        err
+                    );
+
+                    todo!()
+                }
+            }
         }
         Reference::Null => Err(HigginsError::NullDereferenceError),
     }
