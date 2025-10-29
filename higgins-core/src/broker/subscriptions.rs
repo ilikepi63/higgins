@@ -133,42 +133,47 @@ impl Broker {
                     if let Ok(offsets) = lock.take(task_client_id, n) {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
-                            let mut consumption = broker_lock
-                                .consume(&task_stream_name, &partition, offset, 50_000)
+                            let consumption = broker_lock
+                                .consume(
+                                    &task_stream_name,
+                                    &partition,
+                                    offset,
+                                    50_000,
+                                    broker.clone(),
+                                )
                                 .await;
 
-                            while let Some(val) = consumption.recv().await {
+                            for val in consumption {
+                                let val = val.await.unwrap();
                                 let resp = TakeRecordsResponse {
-                                    records: val
-                                        .batches
-                                        .iter()
-                                        .map(|batch| {
-                                            let stream_reader = read_arrow(&batch.data);
+                                    records: vec![{
+                                        let stream_reader = read_arrow(&val);
 
-                                            let batches = stream_reader
-                                                .filter_map(|val| val.ok())
-                                                .collect::<Vec<_>>();
+                                        let batches = stream_reader
+                                            .filter_map(|val| val.ok())
+                                            .collect::<Vec<_>>();
 
-                                            let batch_refs = batches.iter().collect::<Vec<_>>();
+                                        let batch_refs = batches.iter().collect::<Vec<_>>();
 
-                                            // Infer the batches
-                                            let buf = Vec::new();
-                                            let mut writer =
-                                                arrow_json::LineDelimitedWriter::new(buf);
-                                            writer.write_batches(&batch_refs).unwrap();
-                                            writer.finish().unwrap();
+                                        // Infer the batches
+                                        let buf = Vec::new();
+                                        let mut writer = arrow_json::LineDelimitedWriter::new(buf);
+                                        writer.write_batches(&batch_refs).unwrap();
+                                        writer.finish().unwrap();
 
-                                            // Get the underlying buffer back,
-                                            let buf = writer.into_inner();
+                                        // Get the underlying buffer back,
+                                        let buf = writer.into_inner();
 
-                                            Record {
-                                                data: buf,
-                                                stream: batch.topic.as_bytes().to_vec(),
-                                                offset: batch.offset,
-                                                partition: batch.partition.clone(),
-                                            }
-                                        })
-                                        .collect::<Vec<_>>(),
+                                        Record {
+                                            data: buf,
+                                            // TODO: Is this data still supported?
+                                            stream: vec![],
+                                            // batch.topic.as_bytes().to_vec(),
+                                            offset: 0,
+                                            // batch.offset,
+                                            partition: vec![], //  batch.partition.clone(),
+                                        }
+                                    }],
                                 };
 
                                 let mut result = BytesMut::new();
