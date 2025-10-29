@@ -7,9 +7,9 @@ use prost::Message as _;
 pub mod configuration;
 pub mod functions;
 pub mod ping;
+mod port;
 pub mod query;
 pub mod subscription;
-mod port;
 
 pub use port::get_random_port;
 
