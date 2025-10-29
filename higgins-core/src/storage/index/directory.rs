@@ -210,11 +210,13 @@ impl IndexDirectory {
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
-            element_size: size_of::<usize>(),
+            element_size: index_size_from_index_type_and_definition(index_type, stream_definition),
             index_type: index_type.clone(),
         };
 
         let index = indexes.last();
+
+        tracing::trace!("Indexes Length: {} ", indexes.count());
 
         let index = index.map(DefaultIndex::of);
 
