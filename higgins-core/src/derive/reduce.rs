@@ -67,101 +67,103 @@ pub async fn create_reduced_stream_from_definition(
                 for (partition, offset) in offsets {
                     let broker_lock = left_broker.read().await;
 
-                    let mut consumption = broker_lock
-                        .consume(&left_stream_name, &partition, offset, 50_000)
+                    let consumption = broker_lock
+                        .consume(
+                            &left_stream_name,
+                            &partition,
+                            offset,
+                            50_000,
+                            left_broker.clone(),
+                        )
                         .await;
 
-                    drop(broker_lock);
-
-                    while let Some(val) = consumption.recv().await {
+                    for val in consumption {
+                        let val = val.await.unwrap();
                         tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
 
-                        for consume_batch in val.batches.iter() {
-                            let stream_reader = read_arrow(&consume_batch.data);
+                        let stream_reader = read_arrow(&val);
 
-                            let batches =
-                                stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+                        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            for record_batch in batches {
-                                let mut broker_lock = left_broker.write().await;
+                        for record_batch in batches {
+                            let mut broker_lock = left_broker.write().await;
 
-                                let epoch_val = epoch();
+                            let epoch_val = epoch();
 
-                                for index in 0..record_batch.num_rows() {
-                                    let partition_val = get_partition_key_from_record_batch(
-                                        &record_batch,
-                                        index,
-                                        String::from_utf8_lossy(left_stream_partition_key.inner())
-                                            .to_string()
-                                            .as_str(),
-                                    );
+                            for index in 0..record_batch.num_rows() {
+                                let partition_val = get_partition_key_from_record_batch(
+                                    &record_batch,
+                                    index,
+                                    String::from_utf8_lossy(left_stream_partition_key.inner())
+                                        .to_string()
+                                        .as_str(),
+                                );
 
-                                    let prev_record = broker_lock
-                                        .get_by_timestamp(
-                                            stream_name.inner(),
-                                            &partition_val,
-                                            epoch_val,
-                                        )
-                                        .await
-                                        .and_then(|consume| {
-                                            consume.batches.first().map(|batch| {
-                                                let stream_reader = read_arrow(&batch.data);
+                                let prev_record = broker_lock
+                                    .get_by_timestamp(
+                                        stream_name.inner(),
+                                        &partition_val,
+                                        epoch_val,
+                                    )
+                                    .await
+                                    .and_then(|consume| {
+                                        consume.batches.first().map(|batch| {
+                                            let stream_reader = read_arrow(&batch.data);
 
-                                                let batches = stream_reader
-                                                    .filter_map(|val| val.ok())
-                                                    .collect::<Vec<_>>();
-                                                batches.into_iter().next()
-                                            })
+                                            let batches = stream_reader
+                                                .filter_map(|val| val.ok())
+                                                .collect::<Vec<_>>();
+                                            batches.into_iter().next()
                                         })
-                                        .flatten();
+                                    })
+                                    .flatten();
 
-                                    match prev_record {
-                                        Some(prev_record) => {
-                                            let module = broker_lock
-                                                .functions
-                                                .get_function(
-                                                    stream_def.function_name.as_ref().unwrap(),
-                                                )
-                                                .await;
+                                match prev_record {
+                                    Some(prev_record) => {
+                                        let module = broker_lock
+                                            .functions
+                                            .get_function(
+                                                stream_def.function_name.as_ref().unwrap(),
+                                            )
+                                            .await;
 
-                                            let reduced_record_batch = run_reduce_function(
-                                                &record_batch,
-                                                &prev_record,
-                                                module,
-                                            );
+                                        let reduced_record_batch = run_reduce_function(
+                                            &record_batch,
+                                            &prev_record,
+                                            module,
+                                        );
 
-                                            let result = broker_lock
-                                                .produce(
-                                                    stream_name.inner(),
-                                                    &partition_val,
-                                                    reduced_record_batch,
-                                                )
-                                                .await;
+                                        let result = broker_lock
+                                            .produce(
+                                                stream_name.inner(),
+                                                &partition_val,
+                                                reduced_record_batch,
+                                            )
+                                            .await;
 
-                                            tracing::trace!(
-                                                "Result from producing with a join: {:#?}",
-                                                result
-                                            );
-                                        }
-                                        None => {
-                                            let result = broker_lock
-                                                .produce(
-                                                    stream_name.inner(),
-                                                    &partition_val,
-                                                    record_batch.clone(),
-                                                )
-                                                .await;
+                                        tracing::trace!(
+                                            "Result from producing with a join: {:#?}",
+                                            result
+                                        );
+                                    }
+                                    None => {
+                                        let result = broker_lock
+                                            .produce(
+                                                stream_name.inner(),
+                                                &partition_val,
+                                                record_batch.clone(),
+                                            )
+                                            .await;
 
-                                            tracing::trace!(
-                                                "Result from producing with a join: {:#?}",
-                                                result
-                                            );
-                                        }
+                                        tracing::trace!(
+                                            "Result from producing with a join: {:#?}",
+                                            result
+                                        );
                                     }
                                 }
-
-                                drop(broker_lock);
                             }
+
+                            drop(broker_lock);
                         }
                     }
 

@@ -2,8 +2,7 @@
 
 use std::io::Write;
 
-use crate::{Broker, error::HigginsError};
-use riskless::messages::ConsumeBatch;
+use crate::{broker::Broker, error::HigginsError};
 use tokio::sync::RwLock;
 
 use riskless::object_store::path::Path;

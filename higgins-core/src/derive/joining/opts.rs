@@ -268,20 +268,22 @@ pub async fn create_join_operator(
 
                             match offset {
                                 Ok(offset) => {
-                                    let mut broker_lock = broker.write().await;
+                                    let broker_lock = broker.write().await;
 
                                     let data = broker_lock
                                         .get_at(
                                             stream.joins.get(i).unwrap().stream.0.inner(),
                                             &partition,
                                             offset,
+                                            broker.clone()
                                         )
                                         .await
+                                        .unwrap()
                                         .unwrap();
 
                                     // Retrieve the first record, as there should be only one record.
                                     let arrow_data =
-                                        arrow_ipc::read_arrow(&data.batches.get(0).unwrap().data)
+                                        arrow_ipc::read_arrow(&data)
                                             .nth(0)
                                             .map(|r| r.ok())
                                             .flatten()
