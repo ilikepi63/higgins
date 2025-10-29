@@ -26,15 +26,20 @@ impl<'a> DefaultIndex<'a> {
     }
 
     /// Returns the offset as a u64, converted from big-endian bytes.
+    #[allow(unused)]
     pub fn offset(&self) -> u64 {
         u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
     }
 
+    //TODO: This is deprecated, but I don't have the energy to make the change rn.
+    #[allow(unused)]
     /// Returns the position as a u32, converted from big-endian bytes.
     pub fn position(&self) -> u32 {
         u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into().unwrap())
     }
 
+    //TODO: This is deprecated, but I don't have the energy to make the change rn.
+    #[allow(unused)]
     /// Returns the size as a u64, converted from big-endian bytes.
     pub fn size(&self) -> u64 {
         let end = SIZE_INDEX + size_of::<u64>();
@@ -58,7 +63,7 @@ impl<'a> DefaultIndex<'a> {
         position: u32,
         timestamp: u64,
         size: u64,
-        mut data: &mut [u8],
+        data: &mut [u8],
     ) -> Result<(), std::io::Error> {
         (&mut data[0..]).write_all(offset.to_be_bytes().as_slice())?;
 
@@ -137,8 +142,8 @@ mod tests {
     fn references_equal(r1: &Reference, r2: &Reference) -> bool {
         let mut buf1 = vec![0u8; Reference::size_of()];
         let mut buf2 = vec![0u8; Reference::size_of()];
-        r1.to_bytes(&mut buf1);
-        r2.to_bytes(&mut buf2);
+        r1.to_bytes(&mut buf1).unwrap();
+        r2.to_bytes(&mut buf2).unwrap();
         buf1 == buf2
     }
 

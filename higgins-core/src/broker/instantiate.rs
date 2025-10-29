@@ -2,7 +2,7 @@ use super::Broker;
 use crate::storage::shared_log_segment::SharedLogSegment;
 
 use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection, ProduceResponse},
+    messages::{ProduceRequest, ProduceRequestCollection},
     object_store::{self},
 };
 use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc, time::Duration};
@@ -91,22 +91,17 @@ impl Broker {
         }
     }
 
-    pub fn start(&mut self, broker: Arc<RwLock<Self>>) {
+    pub fn start(&mut self, _broker: Arc<RwLock<Self>>) {
         let flush_interval_in_ms = self.flush_interval_in_ms;
 
         let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
         self.flush_tx = Some(flush_tx);
         let object_store_ref = self.object_store.clone();
         let buffer = self.collection.clone();
-        let indexes_ref = self.indexes.clone();
 
         // Flusher task.
         tokio::task::spawn(async move {
             loop {
-                let broker = broker.clone();
-
-                let indexes_ref = indexes_ref.clone();
-
                 let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
 
                 // Await either a flush command or a timer expiry.

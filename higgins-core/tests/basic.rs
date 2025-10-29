@@ -2,7 +2,6 @@ mod common;
 
 use std::{env::temp_dir, path::PathBuf, time::Duration};
 
-use arrow::array::AsArray;
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
 use tracing_test::traced_test;
 
