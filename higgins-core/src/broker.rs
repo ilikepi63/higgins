@@ -39,7 +39,7 @@ type MutableCollection = Arc<
 pub struct Broker {
     dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
-    object_store: Arc<dyn ObjectStore>,
+    pub object_store: Arc<dyn ObjectStore>,
 
     // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
