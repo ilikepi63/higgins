@@ -69,57 +69,55 @@ pub async fn create_mapped_stream_from_definition(
                 for (partition, offset) in offsets {
                     let broker_lock = left_broker.read().await;
 
-                    let mut consumption = broker_lock
-                        .consume(&left_stream_name, &partition, offset, 50_000)
+                    let consumption = broker_lock
+                        .consume(
+                            &left_stream_name,
+                            &partition,
+                            offset,
+                            50_000,
+                            left_broker.clone(),
+                        )
                         .await;
 
-                    drop(broker_lock);
-
-                    while let Some(val) = consumption.recv().await {
+                    for val in consumption {
+                        let val = val.await.unwrap();
                         tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
 
-                        for consume_batch in val.batches.iter() {
-                            let stream_reader = read_arrow(&consume_batch.data);
+                        let stream_reader = read_arrow(&val);
 
-                            let batches =
-                                stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+                        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            for record_batch in batches {
-                                let mut broker_lock = left_broker.write().await;
+                        for record_batch in batches {
+                            let mut broker_lock = left_broker.write().await;
 
-                                for index in 0..record_batch.num_rows() {
-                                    let partition_val = get_partition_key_from_record_batch(
-                                        &record_batch,
-                                        index,
-                                        String::from_utf8_lossy(left_stream_partition_key.inner())
-                                            .to_string()
-                                            .as_str(),
-                                    );
+                            for index in 0..record_batch.num_rows() {
+                                let partition_val = get_partition_key_from_record_batch(
+                                    &record_batch,
+                                    index,
+                                    String::from_utf8_lossy(left_stream_partition_key.inner())
+                                        .to_string()
+                                        .as_str(),
+                                );
 
-                                    let module = broker_lock
-                                        .functions
-                                        .get_function(stream_def.function_name.as_ref().unwrap())
-                                        .await;
+                                let module = broker_lock
+                                    .functions
+                                    .get_function(stream_def.function_name.as_ref().unwrap())
+                                    .await;
 
-                                    let mapped_record_batch =
-                                        run_map_function(&record_batch, module);
+                                let mapped_record_batch = run_map_function(&record_batch, module);
 
-                                    let result = broker_lock
-                                        .produce(
-                                            stream_name.inner(),
-                                            &partition_val,
-                                            mapped_record_batch,
-                                        )
-                                        .await;
+                                let result = broker_lock
+                                    .produce(
+                                        stream_name.inner(),
+                                        &partition_val,
+                                        mapped_record_batch,
+                                    )
+                                    .await;
 
-                                    tracing::trace!(
-                                        "Result from producing with a join: {:#?}",
-                                        result
-                                    );
-                                }
-
-                                drop(broker_lock);
+                                tracing::trace!("Result from producing with a join: {:#?}", result);
                             }
+
+                            drop(broker_lock);
                         }
                     }
 
