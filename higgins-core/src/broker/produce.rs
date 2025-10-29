@@ -51,7 +51,6 @@ impl Broker {
             }
 
             drop(buffer_lock);
-
         }
 
         // Await the response from flushing.
@@ -65,7 +64,6 @@ impl Broker {
             position: response.offset,
             size: response.size.into(),
         });
-
 
         let (index_type, stream_def) = {
             let (_, stream_def) = self

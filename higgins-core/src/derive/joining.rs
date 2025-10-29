@@ -28,13 +28,14 @@ use crate::{
     topography::Join,
 };
 
+#[allow(unused)]
 pub async fn create_joined_stream_from_definition(
     definition: JoinDefinition,
     _broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
     // Instantiate Operator on this definition.
-    let operator = create_join_operator(definition, broker_ref);
+    let _operator = create_join_operator(definition, broker_ref);
 
     // Add the operator to a referencable struct.
     // broker.add_operator();
@@ -45,6 +46,8 @@ pub async fn create_joined_stream_from_definition(
 /// Function to effectively take the Join, the right and left values
 /// and return the resultant record batch that needs to be written to the new
 /// stream.
+#[allow(unused)]
+// TODO: This is actually unused rn, but might be needed in the future?
 fn values_to_batches(
     join: &Join,
     left: Option<RecordBatch>,
