@@ -61,7 +61,7 @@ impl<'a> DefaultIndex<'a> {
         mut data: &mut [u8],
     ) -> Result<(), std::io::Error> {
         data.write_all(offset.to_be_bytes().as_slice())?;
-        reference.to_bytes(data);
+        reference.to_bytes(data)?;
         data.write_all(position.to_be_bytes().as_slice())?;
         data.write_all(timestamp.to_be_bytes().as_slice())?;
         data.write_all(size.to_be_bytes().as_slice())?;
