@@ -7,6 +7,9 @@ use tokio::sync::RwLock;
 
 use riskless::object_store::path::Path;
 
+static NULL_DISCRIMINATOR: u16 = 0;
+static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
+
 /// Dereference a given reference into the underlying data.
 pub async fn dereference(
     reference: Reference,
@@ -75,13 +78,13 @@ impl Reference {
     pub fn to_bytes(&self, mut w: &mut [u8]) -> Result<(), std::io::Error> {
         match self {
             Self::S3(data) => {
-                w.write_all(&1_u16.to_be_bytes())?;
+                w.write_all(&OBJECT_STORE_DISCRIMINATOR.to_be_bytes())?;
                 w.write_all(&data.object_key)?;
                 w.write_all(&data.position.to_be_bytes())?;
                 w.write_all(&data.size.to_be_bytes())?;
             }
             Self::Null => {
-                w.write_all(&1_u16.to_be_bytes())?;
+                w.write_all(&NULL_DISCRIMINATOR.to_be_bytes())?;
             }
         };
 
@@ -95,16 +98,12 @@ impl Reference {
         match t {
             0 => Self::Null,
             1 => {
-
-                println!("Data: {:#?}",data);
-                println!("Data: {:#?}",data.len());
-
+                println!("Data: {:#?}", data);
+                println!("Data: {:#?}", data.len());
 
                 let object_key: [u8; 16] = data[2..(2 + 16)].try_into().unwrap();
                 let position: u64 = u64::from_be_bytes(data[18..26].try_into().unwrap());
                 let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into().unwrap());
-
-
 
                 Self::S3(S3Reference {
                     object_key,
