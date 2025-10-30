@@ -95,9 +95,16 @@ impl Reference {
         match t {
             0 => Self::Null,
             1 => {
-                let object_key: [u8; 16] = data[2..19].try_into().unwrap();
-                let position: u64 = u64::from_be_bytes(data[19..27].try_into().unwrap());
-                let size: u64 = u64::from_be_bytes(data[27..35].try_into().unwrap());
+
+                println!("Data: {:#?}",data);
+                println!("Data: {:#?}",data.len());
+
+
+                let object_key: [u8; 16] = data[2..(2 + 16)].try_into().unwrap();
+                let position: u64 = u64::from_be_bytes(data[18..26].try_into().unwrap());
+                let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into().unwrap());
+
+
 
                 Self::S3(S3Reference {
                     object_key,
@@ -116,7 +123,7 @@ impl Reference {
     ///
     /// This is a static value that represents the largest amount of metadata that can be written to this
     pub const fn size_of() -> usize {
-        S3Reference::size_of()
+        size_of::<u16>() + S3Reference::size_of()
     }
 }
 
