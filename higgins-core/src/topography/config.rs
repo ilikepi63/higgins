@@ -24,14 +24,9 @@ pub struct ConfigurationStreamDefinition {
     pub partition_key: String,
     /// The schema for this, references a key in schema.
     pub schema: String,
-    /// Inner join definition if this is a joined stream.
-    pub inner_join: Option<String>,
-    /// Left Outer join definition if this is a joined stream.
-    pub left_join: Option<String>,
-    /// Right Outer join definition if this is a joined stream.
-    pub right_join: Option<String>,
-    /// Full Outer Join definition if this is a joined stream.
-    pub full_join: Option<String>,
+
+    /// Joins for this stream.
+    pub join: Option<Vec<String>>,
 
     /// The mapping of values given this is a join operation.
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
@@ -121,10 +116,7 @@ mod test {
                             stream_type: Some("reduce".to_string()),
                             partition_key: "id".to_string(),
                             schema: "customer".to_string(),
-                            inner_join: None,
-                            left_join: None,
-                            right_join: None,
-                            full_join: None,
+                            join: None,
                             map: None,
                             function_name: None,
                         },
@@ -136,10 +128,7 @@ mod test {
                             stream_type: None,
                             partition_key: "id".to_string(),
                             schema: "update_customer_event".to_string(),
-                            inner_join: None,
-                            left_join: None,
-                            right_join: None,
-                            full_join: None,
+                            join: None,
                             map: None,
                             function_name: None,
                         },
@@ -294,10 +283,7 @@ mod test {
                         stream_type: None,
                         partition_key: "id".to_string(),
                         schema: "customer".to_string(),
-                        inner_join: None,
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: None,
                         map: None,
                         function_name: None,
                     },
@@ -309,10 +295,7 @@ mod test {
                         stream_type: None,
                         partition_key: "id".to_string(),
                         schema: "address".to_string(),
-                        inner_join: None,
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: None,
                         map: None,
                         function_name: None,
                     },
@@ -324,10 +307,7 @@ mod test {
                         stream_type: Some("join".to_string()),
                         partition_key: "customer_id".to_string(),
                         schema: "customer_address".to_string(),
-                        inner_join: Some("address".to_string()),
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: None,
                         map: Some(BTreeMap::from([
                             ("customer_id".to_string(), "customer.id".to_string()),
                             (
