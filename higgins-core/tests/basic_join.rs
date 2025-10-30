@@ -49,16 +49,16 @@ base = "customer"
 join = [
     "customer", "address"
 ]
-map = {
-    customer_id = "customer.id"
-    customer_first_name = "customer.first_name"
-    customer_last_name = "customer.last_name"
-    age = "customer.age"
-    address_line_1 = "address.address_line_1"
-    address_line_2 = "address.address_line_2"
-    city = "address.city"
-    province = "address.province"
-}
+
+[streams.customer_address.map]
+customer_id = "customer.id"
+customer_first_name = "customer.first_name"
+customer_last_name = "customer.last_name"
+age = "customer.age"
+address_line_1 = "address.address_line_1"
+address_line_2 = "address.address_line_2"
+city = "address.city"
+province = "address.province"
 "#;
 
 #[test]
