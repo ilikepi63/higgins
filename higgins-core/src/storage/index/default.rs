@@ -60,11 +60,15 @@ impl<'a> DefaultIndex<'a> {
         size: u64,
         mut data: &mut [u8],
     ) -> Result<(), std::io::Error> {
-        data.write_all(offset.to_be_bytes().as_slice())?;
-        reference.to_bytes(data)?;
-        data.write_all(position.to_be_bytes().as_slice())?;
-        data.write_all(timestamp.to_be_bytes().as_slice())?;
-        data.write_all(size.to_be_bytes().as_slice())?;
+        (&mut data[0..]).write_all(offset.to_be_bytes().as_slice())?;
+
+        reference.to_bytes(&mut data[OBJECT_KEY_INDEX..])?;
+
+        (&mut data[POSITION_INDEX..]).write_all(position.to_be_bytes().as_slice())?;
+
+        (&mut data[TIMESTAMP_INDEX..]).write_all(timestamp.to_be_bytes().as_slice())?;
+
+        (&mut data[SIZE_INDEX..]).write_all(size.to_be_bytes().as_slice())?;
 
         Ok(())
     }
