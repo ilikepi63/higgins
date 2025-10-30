@@ -1,8 +1,7 @@
-use std::{env::temp_dir, net::TcpStream, time::Duration};
-
-use get_port::{Ops, Range, tcp::TcpPort};
+use common::get_random_port;
 use higgins::run_server;
 use serde_json::json;
+use std::{env::temp_dir, net::TcpStream, time::Duration};
 use tracing_test::traced_test;
 
 use crate::common::{
@@ -14,14 +13,7 @@ mod common;
 #[test]
 #[traced_test]
 fn can_implement_a_basic_stream_join() {
-    let port = TcpPort::in_range(
-        "127.0.0.1",
-        Range {
-            min: 2000,
-            max: 25000,
-        },
-    )
-    .unwrap();
+    let port = get_random_port();
 
     tracing::info!("Running on port: {port}");
 
