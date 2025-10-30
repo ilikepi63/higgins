@@ -32,9 +32,9 @@ impl<'a> JoinedIndex<'a> {
     /// Retrieve whether or not this join is completed.
     pub fn completed(&self) -> bool {
         u8::from_be_bytes(
-            (self.0[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<u8>()]
+            self.0[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<u8>()]
                 .try_into()
-                .unwrap()),
+                .unwrap(),
         ) == 1
     }
 
@@ -102,7 +102,7 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at(1);
 
-                if (u8::from_be_bytes(optional.try_into().unwrap()) == 1) {
+                if u8::from_be_bytes(optional.try_into().unwrap()) == 1 {
                     Ok(u64::from_be_bytes(offset.try_into().unwrap()))
                 } else {
                     Err(IndexError::IndexInJoinedIndexNotFound)
@@ -198,7 +198,9 @@ impl<'a> JoinedIndex<'a> {
     /// Update the reference for this.
     pub fn put_reference(&mut self, reference: Reference) -> Vec<u8> {
         let mut cloned = self.0.to_vec();
-        reference.to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]);
+        reference
+            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
+            .unwrap();
 
         cloned
     }

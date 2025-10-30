@@ -15,8 +15,6 @@ use tokio::{
     sync::RwLock,
 };
 
-use utils::consumption::collect_consume_responses;
-
 use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
 pub mod broker;
 pub mod client;
