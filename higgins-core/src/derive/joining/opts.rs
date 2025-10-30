@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
-use crate::storage::arrow_ipc::{self, write_arrow};
+use crate::storage::arrow_ipc::{self};
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexError, IndexType};
 use crate::topography::config::schema_to_arrow_schema;
@@ -24,6 +24,7 @@ macro_rules! get_sub {
 /// join operation is applied to an underlying stream.
 pub struct JoinOperatorHandle {
     /// Describes whether or not this Join is still operating.
+    #[allow(unused)]
     is_working: AtomicBool,
     /// The handles that are currently spawned for this join.
     handles: Vec<tokio::task::JoinHandle<()>>,
@@ -727,15 +728,11 @@ pub async fn iterate_from_index_and_complete(
             })
             .unwrap();
 
-        tx.send(index + 1);
+        tx.send(index + 1).await.unwrap();
 
         index += 1;
     }
 }
-
-/// Takes an index for a specified stream definition, queries the created (and completed) offset
-/// and joined all of the underlying data together, making the conformed join spec.
-pub async fn make_joined_data() {}
 
 static N: u64 = 10;
 

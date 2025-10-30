@@ -5,7 +5,6 @@ use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
 use crate::storage::index::index_size_from_index_type_and_definition;
-use crate::subscription::error;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
 
@@ -98,6 +97,7 @@ impl IndexDirectory {
     }
 
     /// Retrieves the timestamp before the given one.
+    #[allow(unused)]
     pub async fn get_by_timestamp(
         &self,
         stream: &[u8],
@@ -197,8 +197,6 @@ impl IndexDirectory {
 
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
-        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
-
         let index_file = self
             .index_file_from_stream_and_partition(
                 stream_str,
@@ -250,8 +248,6 @@ impl IndexDirectory {
         stream_definition: &StreamDefinition,
     ) -> Result<Reference, Box<dyn std::error::Error>> {
         let stream_str = String::from_utf8_lossy(stream).to_string();
-
-        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
 
         let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
 
@@ -353,7 +349,7 @@ impl IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
-            let mut index_file = self
+            let index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
                     &partition,
@@ -443,7 +439,8 @@ impl IndexDirectory {
             timestamp,
             batch_coord.size.into(),
             &mut val,
-        );
+        )
+        .unwrap();
 
         let index = DefaultIndex::of(&val).to_bytes();
 
@@ -516,7 +513,8 @@ impl IndexDirectory {
                 timestamp,
                 batch.size.into(),
                 &mut val,
-            );
+            )
+            .unwrap();
 
             let index = DefaultIndex::of(&val).to_bytes();
 

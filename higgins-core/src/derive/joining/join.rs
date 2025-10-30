@@ -14,6 +14,7 @@ pub struct JoinDefinition {
 }
 
 impl JoinDefinition {
+    #[allow(unused)]
     pub fn joined_stream_from_index(&self, i: usize) -> Option<&(Key, StreamDefinition)> {
         self.joins.get(i).as_ref().map(|v| &v.stream)
     }
@@ -75,15 +76,6 @@ impl JoinDefinition {
 /// Structure primarily used as a ADT over different join types.
 #[derive(Clone)]
 pub struct JoinWithStream {
-    /// The type of this join.
-    pub join_type: JoinType,
     /// Name and definition of the stream that this is joined to.
     pub stream: (Key, StreamDefinition),
-}
-
-#[derive(Clone)]
-pub enum JoinType {
-    Full,
-    Outer,
-    Inner,
 }
