@@ -131,6 +131,6 @@ impl S3Reference {
     /// This is always the amount of a bytes that this data will use once it
     /// has been written to a byte array.
     pub const fn size_of() -> usize {
-        16 // The size of the embedded buffer.
+        size_of::<[u8; 16]>() + size_of::<u64>() + size_of::<u64>() // The size of the embedded buffer.
     }
 }
