@@ -98,9 +98,6 @@ impl Reference {
         match t {
             0 => Self::Null,
             1 => {
-                println!("Data: {:#?}", data);
-                println!("Data: {:#?}", data.len());
-
                 let object_key: [u8; 16] = data[2..(2 + 16)].try_into().unwrap();
                 let position: u64 = u64::from_be_bytes(data[18..26].try_into().unwrap());
                 let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into().unwrap());
