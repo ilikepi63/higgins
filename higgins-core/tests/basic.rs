@@ -2,7 +2,8 @@ mod common;
 
 use std::{env::temp_dir, path::PathBuf, time::Duration};
 
-use higgins::run_server;
+use arrow::array::AsArray;
+use higgins::{run_server, storage::arrow_ipc::read_arrow};
 use tracing_test::traced_test;
 
 use common::get_random_port;
@@ -21,20 +22,7 @@ static PARTITION: &[u8] = "test_partition".as_bytes();
 fn can_achieve_basic_broker_functionality() {
     let port = get_random_port();
 
-    // let dir = get_dir();
-
-    let dir = {
-        let mut dir = PathBuf::new();
-        dir.push("test_base");
-
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir).unwrap();
-        };
-
-        std::fs::create_dir(&dir).unwrap();
-
-        dir
-    };
+    let dir = get_dir();
 
     let dir_remove = dir.clone();
 
@@ -66,9 +54,63 @@ fn can_achieve_basic_broker_functionality() {
     // Consume from the stream.
     let result = client.query_latest(STREAM.as_bytes(), PARTITION);
 
-    tracing::info!("{:#?}", result);
+    let arrow_data = result.unwrap().into_iter().nth(0).unwrap();
 
-    panic!();
+    let arrow = read_arrow(&arrow_data.data).nth(0).unwrap().unwrap();
+
+    tracing::trace!("Data: {:#?}", arrow);
+
+    assert_eq!(
+        arrow
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::Int32Array>()
+            .unwrap()
+            .iter()
+            .nth(0)
+            .unwrap()
+            .unwrap(),
+        21
+    );
+
+    assert_eq!(
+        arrow
+            .column(1)
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap()
+            .iter()
+            .nth(0)
+            .unwrap()
+            .unwrap(),
+        "John"
+    );
+
+    assert_eq!(
+        arrow
+            .column(2)
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap()
+            .iter()
+            .nth(0)
+            .unwrap()
+            .unwrap(),
+        "1"
+    );
+
+    assert_eq!(
+        arrow
+            .column(3)
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap()
+            .iter()
+            .nth(0)
+            .unwrap()
+            .unwrap(),
+        "Doe"
+    );
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }

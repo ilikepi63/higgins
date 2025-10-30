@@ -85,6 +85,8 @@ impl Broker {
         partition: &[u8],
         broker: Arc<tokio::sync::RwLock<Self>>,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
+
+        tracing::trace!("Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}", stream, partition);
         let stream_def = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
