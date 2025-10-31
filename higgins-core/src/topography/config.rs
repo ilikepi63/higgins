@@ -223,8 +223,10 @@ mod test {
             type = "join"
             schema = "customer_address"
             partition_key = "customer_id"
-            base = "customer"
-            inner_join = "address"
+            join = [
+                "customer",
+                "address"
+            ]
 
             [streams.customer_address.map]
             customer_id = "customer.id"
@@ -238,6 +240,8 @@ mod test {
             "#;
 
         let config = from_toml(example_config.as_bytes());
+
+        println!("Config: {:#?}", config);
 
         // Define the expected Configuration struct
         let expected = Configuration {
@@ -303,11 +307,11 @@ mod test {
                 (
                     "customer_address".to_string(),
                     ConfigurationStreamDefinition {
-                        base: Some("customer".to_string()),
+                        base: None,
                         stream_type: Some("join".to_string()),
                         partition_key: "customer_id".to_string(),
                         schema: "customer_address".to_string(),
-                        join: None,
+                        join: Some(vec!["customer".to_string(), "address".to_string()]),
                         map: Some(BTreeMap::from([
                             ("customer_id".to_string(), "customer.id".to_string()),
                             (
@@ -335,6 +339,21 @@ mod test {
                 ),
             ]),
         };
+        assert_eq!(config.schema, expected.schema);
+        assert_eq!(
+            config.streams.get("address"),
+            expected.streams.get("address")
+        );
+        assert_eq!(
+            config.streams.get("customer"),
+            expected.streams.get("customer")
+        );
+
+
+        assert_eq!(
+            config.streams.get("customer_address"),
+            expected.streams.get("customer_address")
+        );
 
         // Assert that the deserialized configuration matches the expected one
         assert_eq!(
