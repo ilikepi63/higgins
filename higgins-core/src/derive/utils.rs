@@ -4,6 +4,8 @@ use arrow::{
     util::display::array_value_to_string,
 };
 
+/// Helper function to retrieve the field and array given a column name.
+#[allow(unused)]
 pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
     tracing::info!("Attempting to retrieve data from RecordBatch: {:#?}", batch);
 

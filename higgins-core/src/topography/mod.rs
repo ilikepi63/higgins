@@ -141,7 +141,7 @@ pub struct StreamDefinition {
     /// The schema for this, references a key in schema.
     pub schema: Key,
     /// The Join for this stream definition.
-    pub join: Option<Join>,
+    pub join: Option<Vec<String>>,
     /// The mapping of values given this is a join operation.
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
     /// The name of the function that needs to be applied to this configuration.
@@ -171,51 +171,19 @@ impl Debug for StreamDefinition {
 
 impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     fn from(value: &ConfigurationStreamDefinition) -> Self {
-        let join = match (
-            value.full_join.as_ref(),
-            value.inner_join.as_ref(),
-            value.left_join.as_ref(),
-            value.right_join.as_ref(),
-        ) {
-            (Some(stream), _, _, _) => Some(Join::Full(Key(stream.as_bytes().to_vec()))),
-            (_, Some(stream), _, _) => Some(Join::Inner(Key(stream.as_bytes().to_vec()))),
-
-            (_, _, Some(stream), _) => Some(Join::LeftOuter(Key(stream.as_bytes().to_vec()))),
-
-            (_, _, _, Some(stream)) => Some(Join::RightOuter(Key(stream.as_bytes().to_vec()))),
-            (None, None, None, None) => None,
-        };
-
         StreamDefinition {
             base: value.base.as_ref().map(|s| s.as_str().into()),
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
             partition_key: Key::from(value.partition_key.as_str()),
             schema: value.schema.as_str().into(),
-            join,
+            join: value.join.clone(),
             map: value.map.clone(),
             function_name: value.function_name.clone(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Join {
-    Inner(Key),
-    LeftOuter(Key),
-    RightOuter(Key),
-    Full(Key),
-}
 
-impl Join {
-    pub fn key(&self) -> &[u8] {
-        match self {
-            Join::Inner(key) => key.inner(),
-            Join::LeftOuter(key) => key.inner(),
-            Join::RightOuter(key) => key.inner(),
-            Join::Full(key) => key.inner(),
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FunctionType {
