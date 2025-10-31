@@ -10,6 +10,57 @@ use crate::common::{
 
 mod common;
 
+static CONFIG: &str = r#"[schema.customer]
+id = "string"
+first_name = "string"
+last_name = "string"
+age = "int32"
+
+[schema.address]
+customer_id = "string"
+address_line_1 = "string"
+address_line_2 = "string"
+city = "string"
+province = "string"
+
+[schema.customer_address]
+customer_id = "string"
+customer_first_name = "string"
+customer_last_name = "string"
+age = "int32"
+address_line_1 = "string"
+address_line_2 = "string"
+city = "string"
+province = "string"
+
+[streams.customer]
+schema = "customer"
+partition_key = "id"
+
+[streams.address]
+schema = "address"
+partition_key = "customer_id"
+
+[streams.customer_address]
+type = "join"
+schema = "customer_address"
+partition_key = "customer_id"
+base = "customer"
+join = [
+    "customer", "address"
+]
+map = {
+    customer_id = "customer.id"
+    customer_first_name = "customer.first_name"
+    customer_last_name = "customer.last_name"
+    age = "customer.age"
+    address_line_1 = "address.address_line_1"
+    address_line_2 = "address.address_line_2"
+    city = "address.city"
+    province = "address.province"
+}
+"#;
+
 #[test]
 #[traced_test]
 fn can_implement_a_basic_stream_join() {
@@ -44,9 +95,7 @@ fn can_implement_a_basic_stream_join() {
 
     // Upload a basic configuration with one stream.
 
-    let config = std::fs::read_to_string("tests/configs/join_config.toml").unwrap();
-
-    upload_configuration(config.as_bytes(), &mut socket);
+    upload_configuration(CONFIG.as_bytes(), &mut socket);
 
     produce_sync(
         b"customer",
