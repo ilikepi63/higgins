@@ -1,6 +1,6 @@
 use super::Broker;
 
-use crate::derive::joining::join::JoinDefinition;
+use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -71,9 +71,9 @@ impl Broker {
                         ))?
                     };
 
-                    // create_joined_stream_from_definition(definition, self, broker.clone())
-                    //     .await
-                    //     .unwrap();
+                    create_joined_stream_from_definition(definition, self, broker.clone())
+                        .await
+                        .unwrap();
                 }
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");
