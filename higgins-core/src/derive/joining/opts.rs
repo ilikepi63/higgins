@@ -32,28 +32,36 @@ pub struct JoinOperatorHandle {
 
 pub async fn create_join_operator(
     definition: JoinDefinition,
-    broker: Arc<RwLock<Broker>>,
-) -> JoinOperatorHandle {
+    broker: &mut Broker,
+    broker_ref: Arc<RwLock<Broker>>,
+) {
+    tracing::trace!("Setting up Join Operator for definition: {:#?}", definition);
     // We leak this handle. This is primarily so that we can access this handle from multiple
     // tasks without having to use a form a reference checking.
-    let operator: &'static mut JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
-        is_working: AtomicBool::new(true),
-        handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
-    }));
+    // let operator: &'static mut JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
+    //     is_working: AtomicBool::new(true),
+    //     handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
+    // }));
+
+    tracing::trace!("Created the join operator struct.");
 
     // Redefined for movements.
     let amalgamate_definition = definition.clone();
-    let amalgamate_broker = broker.clone();
+    let amalgamate_broker = broker_ref.clone();
 
     // We create the resultant stream that data is zipped into.
     {
-        let mut broker = broker.write().await;
-
         let schema = schema_to_arrow_schema(&definition.base.1.map.unwrap());
+
+        tracing::trace!("Successfully retrieved the schema for this join stream. ");
 
         // Create the actual derived stream.
         broker.create_stream(&definition.base.0.0, Arc::new(schema));
+
+        tracing::trace!("Successfully created the stream definition inside of the broker.");
     };
+
+    tracing::trace!("Successfully created the join stream.");
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
@@ -62,7 +70,7 @@ pub async fn create_join_operator(
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
         let join_stream = join_stream.clone();
-        let broker = broker.clone();
+        let broker = broker_ref.clone();
         let derivative_channel_tx = derivative_channel_tx.clone();
 
         let handle = tokio::spawn(async move {
@@ -101,7 +109,7 @@ pub async fn create_join_operator(
         });
 
         // Add the handle to the operator here.
-        operator.handles.push(handle);
+        // operator.handles.push(handle);
     }
 
     // This task awaits all of the given derivative partitions and accumulates them into the
@@ -118,7 +126,7 @@ pub async fn create_join_operator(
 
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
-                    let mut broker = broker.write().await;
+                    let mut broker = broker_ref.write().await;
                     let index_file: BrokerIndexFile = broker
                         .get_index_file(
                             String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
@@ -235,7 +243,7 @@ pub async fn create_join_operator(
                 // Ideally we don't want multiple mutable references to the same broker index file,
                 // and therefore we may need to create more restrictions on this.
                 let mut index_file = {
-                    let mut broker = broker.write().await;
+                    let mut broker = broker_ref.write().await;
                     let index_file: BrokerIndexFile = broker
                         .get_index_file(
                             String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
@@ -343,7 +351,7 @@ pub async fn create_join_operator(
         }
     });
 
-    operator.handles.push(collection_handle);
+    // operator.handles.push(collection_handle);
 
     // // Create the subscriptions inside of the broker for each join.
     // match definition {
@@ -675,7 +683,9 @@ pub async fn create_join_operator(
     //     tracing::info!("Nothing to take, will just continue..");
     // };
 
-    todo!()
+    // todo!()
+    //
+    // operator
 }
 
 use crate::{error::HigginsError, subscription::Subscription};
