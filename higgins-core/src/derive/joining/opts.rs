@@ -51,9 +51,7 @@ pub async fn create_join_operator(
 
     // We create the resultant stream that data is zipped into.
     {
-        let schema = schema_to_arrow_schema(&definition.base.1.map.unwrap());
-
-        tracing::trace!("Successfully retrieved the schema for this join stream. ");
+        let join_definition_schema = definition.base.1.schema;
 
         // Create the actual derived stream.
         broker.create_stream(&definition.base.0.0, Arc::new(schema));
