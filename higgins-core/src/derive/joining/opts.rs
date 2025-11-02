@@ -746,6 +746,8 @@ pub async fn iterate_from_index_and_complete(
 
 static N: u64 = 10;
 
+/// Function that takes an amount from a subscription, otherwise awaits a notifier
+/// for the subscription for some of the given amount.
 async fn eager_take_from_subscription_or_wait(
     subscription: Arc<RwLock<Subscription>>,
     notify: Arc<tokio::sync::Notify>,
