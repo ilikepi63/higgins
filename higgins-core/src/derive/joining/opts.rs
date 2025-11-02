@@ -771,7 +771,9 @@ async fn eager_take_from_subscription_or_wait(
                 tracing::trace!(
                     "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
                 );
-                lock.take(client_id, N)?
+                let taken = lock.take(client_id, N)?;
+                tracing::trace!("[EAGER TAKE] Exiting the eager take.");
+                taken
             };
 
             Ok(offsets)

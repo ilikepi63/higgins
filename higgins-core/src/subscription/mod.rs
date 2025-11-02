@@ -174,7 +174,7 @@ impl Subscription {
                 .1
         };
 
-        println!("Count: {count:#?}");
+        tracing::trace!("Current count for subscription: {:#?}", count);
 
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
