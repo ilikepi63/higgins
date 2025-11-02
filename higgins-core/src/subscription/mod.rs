@@ -192,7 +192,7 @@ impl Subscription {
                 std::sync::atomic::Ordering::AcqRel,
             );
 
-            println!("Count: {result}");
+            tracing::trace!("Count after retrieval: {result}");
 
             result_vec.append(&mut extracted_offsets);
 
