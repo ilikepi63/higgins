@@ -196,7 +196,7 @@ impl Subscription {
 
             result_vec.append(&mut extracted_offsets);
 
-            if *count.get_mut() < 1 {
+            if count.load(std::sync::atomic::Ordering::Relaxed) < 1 {
                 break;
             }
         }
