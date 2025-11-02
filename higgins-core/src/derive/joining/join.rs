@@ -5,7 +5,7 @@ use crate::topography::{Key, StreamDefinition};
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JoinDefinition {
     /// The base stream that this join definition comes from.
     pub base: (Key, StreamDefinition),
@@ -62,7 +62,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
 /// # JoinWithStream
 ///
 /// Structure primarily used as a ADT over different join types.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JoinWithStream {
     /// Name and definition of the stream that this is joined to.
     pub stream: (Key, StreamDefinition),

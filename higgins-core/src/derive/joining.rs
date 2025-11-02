@@ -26,11 +26,11 @@ use crate::{
 #[allow(unused)]
 pub async fn create_joined_stream_from_definition(
     definition: JoinDefinition,
-    _broker: &mut Broker,
+    broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
     // Instantiate Operator on this definition.
-    let _operator = create_join_operator(definition, broker_ref);
+    let operator = create_join_operator(definition, broker, broker_ref).await;
 
     // Add the operator to a referencable struct.
     // broker.add_operator();
