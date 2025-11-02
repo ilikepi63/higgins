@@ -766,7 +766,11 @@ async fn eager_take_from_subscription_or_wait(
             tracing::trace!("[EAGER TAKE] We've been notified!");
 
             offsets = {
+                tracing::trace!("[EAGER TAKE] Acquiring the lock.!");
                 let mut lock = subscription.write().await;
+                tracing::trace!(
+                    "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
+                );
                 lock.take(client_id, N)?
             };
 
