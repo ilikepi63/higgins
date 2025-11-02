@@ -25,4 +25,8 @@ impl Broker {
     pub fn get_topography_stream(&self, key: &Key) -> Option<(&Key, &StreamDefinition)> {
         self.topography.streams.iter().find(|(k, _)| *k == key)
     }
+
+    pub fn get_schema(&self, key: &Key) -> Option<&Arc<arrow::datatypes::Schema>> {
+        self.topography.schema.get(key)
+    }
 }
