@@ -418,6 +418,7 @@ async fn eager_take_from_subscription_or_wait(
     client_id: u64,
 ) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
     let mut offsets = {
+        tracing::trace!("[EAGER TAKE] Querying this again, taking {N} items.");
         let mut lock = subscription.write().await;
         lock.take(client_id, N)?
     };
