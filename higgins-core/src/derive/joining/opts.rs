@@ -761,9 +761,9 @@ async fn eager_take_from_subscription_or_wait(
     // If there are no given offsts, await the wakener then.
     match offsets.len() {
         0 => {
-            tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
+            tracing::trace!("[EAGER TAKE] Awaiting to be notified for produce..");
             notify.notified().await;
-            tracing::trace!("[DERIVED TAKE] We've been notified!");
+            tracing::trace!("[EAGER TAKE] We've been notified!");
 
             offsets = {
                 let mut lock = subscription.write().await;
