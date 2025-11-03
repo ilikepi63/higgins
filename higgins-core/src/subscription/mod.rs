@@ -152,7 +152,6 @@ impl Subscription {
         client_id: u64,
         count: u64,
     ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
-        let _last_iterated_index = self.last_index;
         let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
