@@ -56,8 +56,6 @@ impl Broker {
         // Await the response from flushing.
         let response = response.recv().await.unwrap();
 
-        tracing::trace!("Retrieved the response for flushing: {:#?}", response);
-
         // Create a new reference given the data.
         let reference = Reference::S3(S3Reference {
             object_key: response.object_key,

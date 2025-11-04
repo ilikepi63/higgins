@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 ///    customer_last_name: customer.last_name,
 ///    customer_address: address.address
 /// }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JoinMapping(
     std::sync::Arc<arrow::datatypes::Schema>,
     Vec<JoinMappingDerivativeToProperty>,

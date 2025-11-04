@@ -1,9 +1,11 @@
 use super::mapping::JoinMapping;
+use crate::broker::Broker;
+use crate::topography::errors::TopographyError;
 use crate::topography::{Key, StreamDefinition};
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JoinDefinition {
     /// The base stream that this join definition comes from.
     pub base: (Key, StreamDefinition),
@@ -20,62 +22,56 @@ impl JoinDefinition {
     }
 }
 
-// impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
-//     type Error = HigginsError;
+impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
+    type Error = TopographyError;
 
-//     fn try_from(
-//         (key, stream_definition, broker): (Key, StreamDefinition, &Broker),
-//     ) -> Result<Self, Self::Error> {
-//         let left = broker
-//             .get_topography_stream(&stream_definition.clone().base.unwrap())
-//             .map(|(key, def)| (key.clone(), def.clone()))
-//             .unwrap();
+    fn try_from(
+        (key, stream_definition, broker): (Key, StreamDefinition, &Broker),
+    ) -> Result<Self, Self::Error> {
+        let schema = broker
+            .get_stream(key.inner())
+            .map(|(schema, _, _)| schema.clone())
+            .ok_or(TopographyError::SchemaNotFound(format!("{:#?}", key)))?;
 
-//         let right = broker
-//             .get_topography_stream(
-//                 &stream_definition
-//                     .clone()
-//                     .join
-//                     .map(|v| Key(v.key().to_owned()))
-//                     .unwrap(),
-//             )
-//             .map(|(key, def)| (key.clone(), def.clone()))
-//             .unwrap();
+        let join_streams = stream_definition
+            .join
+            .clone()
+            .map(|joins| {
+                joins.into_iter().map(|stream_name| {
+                    broker
+                        .get_topography_stream(&Key(stream_name.into_bytes()))
+                        .map(JoinWithStream::from)
+                        .ok_or(TopographyError::JoinStreamDoesNotExist)
+                })
+            })
+            .ok_or(TopographyError::NoJoinsInJoinDefinition)?
+            .collect::<Result<Vec<_>, TopographyError>>()?;
 
-//         Ok(match stream_definition.clone().join.unwrap() {
-//             Join::Inner(_) => JoinDefinition::Inner(InnerJoin {
-//                 stream: (key, stream_definition),
-//                 left_stream: left,
-//                 right_stream: right,
-//             }),
-//             Join::LeftOuter(_) => JoinDefinition::Outer(OuterJoin {
-//                 side: super::outer_join::OuterSide::Left,
-//                 stream: (key, stream_definition),
-//                 left_stream: left,
-//                 right_stream: right,
-//             }),
-
-//             Join::RightOuter(_) => JoinDefinition::Outer(OuterJoin {
-//                 side: super::outer_join::OuterSide::Right,
-//                 stream: (key, stream_definition),
-//                 left_stream: left,
-//                 right_stream: right,
-//             }),
-
-//             Join::Full(_) => JoinDefinition::Full(FullJoin {
-//                 stream: (key, stream_definition),
-//                 first_stream: left,
-//                 second_stream: right,
-//             }),
-//         })
-//     }
-// }
+        Ok(JoinDefinition {
+            base: (key, stream_definition.clone()),
+            joins: join_streams,
+            mapping: stream_definition
+                .map
+                .clone()
+                .map(|map| JoinMapping::from((schema, map)))
+                .ok_or(TopographyError::JoinStreamWithoutMappingAttributes)?,
+        })
+    }
+}
 
 /// # JoinWithStream
 ///
 /// Structure primarily used as a ADT over different join types.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct JoinWithStream {
     /// Name and definition of the stream that this is joined to.
     pub stream: (Key, StreamDefinition),
+}
+
+impl From<(&Key, &StreamDefinition)> for JoinWithStream {
+    fn from((key, def): (&Key, &StreamDefinition)) -> Self {
+        Self {
+            stream: (key.clone(), def.clone()),
+        }
+    }
 }
