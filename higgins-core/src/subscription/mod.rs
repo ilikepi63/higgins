@@ -190,18 +190,36 @@ impl Subscription {
 
             tracing::trace!("Extracted offsets: {:#?}", extracted_offsets);
 
-            let result = count.fetch_sub(
-                TryInto::<u64>::try_into(extracted_offsets.len())?,
-                std::sync::atomic::Ordering::AcqRel,
-            );
+            tracing::trace!("Extracted offsets lenght: {}", extracted_offsets.len());
+            tracing::trace!("Removed count: {:#?}", count);
 
-            tracing::trace!("Count after retrieval: {result}");
+            let offsets_length: u64 = extracted_offsets.len().try_into()?;
+
+            let result = count
+                .fetch_update(
+                    // TryInto::<u64>::try_into(extracted_offsets.len())?,
+                    std::sync::atomic::Ordering::AcqRel,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |val| {
+                        if val < offsets_length {
+                            Some(0)
+                        } else {
+                            Some(val - offsets_length)
+                        }
+                    },
+                )
+                .unwrap();
+
+            tracing::trace!("Removed count 2: {:#?}", count);
 
             result_vec.append(&mut extracted_offsets);
 
             if count.load(std::sync::atomic::Ordering::Relaxed) < 1 {
+                tracing::trace!("Removed count 2: {:#?}", count);
+
                 break;
             }
+            tracing::trace!("Removed count 2: {:#?}", count);
         }
 
         // // We remove the taken count from the amount to take.
