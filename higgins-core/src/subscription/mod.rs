@@ -159,6 +159,8 @@ impl Subscription {
             .iter_mut()
             .find(|(id, _)| *id == client_id)
         {
+            tracing::trace!("Found a client count for given count number: {:#?}", count);
+
             count
         } else {
             let client_count = (client_id, AtomicU64::new(count));
@@ -185,6 +187,8 @@ impl Subscription {
                     .iter()
                     .map(|offset| (key.to_vec(), *offset))
                     .collect::<Vec<(Key, Offset)>>();
+
+            tracing::trace!("Extracted offsets: {:#?}", extracted_offsets);
 
             let result = count.fetch_sub(
                 TryInto::<u64>::try_into(extracted_offsets.len())?,
