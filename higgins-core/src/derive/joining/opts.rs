@@ -148,11 +148,7 @@ pub async fn create_join_operator(
                     let timestamp = epoch();
 
                     // Initialize zero byte array.
-                    let mut joined_index_bytes =
-                        Vec::<u8>::with_capacity(JoinedIndex::size_of(n_offsets))
-                            .iter_mut()
-                            .map(|_| 0)
-                            .collect::<Vec<_>>();
+                    let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
 
                     let offsets = (0..(n_offsets - 1))
                         .map(|offset_val| {
@@ -201,9 +197,14 @@ pub async fn create_join_operator(
                 tokio::spawn(async move {
                     let index_file_view = index_file.view();
                     // Get the index preceding this one.
-                    let previous_joined_index = index_file_view
-                        .get((index - 1).try_into().unwrap())
-                        .map(JoinedIndex::of);
+                    let previous_joined_index = match index {
+                        0 => None,
+                        _ =>                    index_file_view
+                            .get((index - 1).try_into().unwrap())
+                            .map(JoinedIndex::of)
+
+                    };
+
 
                     let current_joined_index = index_file_view
                         .get(index.try_into().unwrap())
@@ -438,6 +439,13 @@ async fn eager_take_from_subscription_or_wait(
                 );
                 let taken = lock.take(client_id, N)?;
                 tracing::trace!("[EAGER TAKE] Exiting the eager take.");
+
+                // TODO: this likely should be removed and added once the join stream has been implemented.
+                // Because we don't have shadow acknowledgements, we can't really support this right now.
+                for (key, offset) in taken.iter() {
+                    lock.acknowledge(&key, offset.clone()).unwrap();
+                }
+
                 taken
             };
 
