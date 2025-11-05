@@ -349,7 +349,6 @@ mod test {
             expected.streams.get("customer")
         );
 
-
         assert_eq!(
             config.streams.get("customer_address"),
             expected.streams.get("customer_address")

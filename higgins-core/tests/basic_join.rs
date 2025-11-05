@@ -120,13 +120,13 @@ fn can_implement_a_basic_stream_join() {
     )
     .unwrap();
 
-    let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
+    // let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
 
-    println!("Customer Result: {:#?}", result);
+    // println!("Customer Result: {:#?}", result);
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+    // let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
     panic!();
 
