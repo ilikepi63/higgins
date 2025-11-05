@@ -245,12 +245,17 @@ pub async fn create_join_operator(
                                     tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
                                 }).unwrap();
 
+                            completed_index_collector_tx
+                                .send(index.try_into().unwrap())
+                                .await
+                                .unwrap();
+
                             // So now that the current is completed, we can iterate over the rest
                             // and check if they need completing.
                             iterate_from_index_and_complete(
                                 &mut index_file,
                                 index.try_into().unwrap(),
-                                completed_index_collector_tx,
+                                completed_index_collector_tx.clone(),
                             )
                             .await;
                         }
@@ -270,6 +275,13 @@ pub async fn create_join_operator(
                                 .inspect_err(|err| {
                                     tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
                                 }).unwrap();
+
+                        tracing::trace!("[JOIN COLLECTION] Successfully saved the offset!",);
+
+                        completed_index_collector_tx
+                            .send(index.try_into().unwrap())
+                            .await
+                            .unwrap();
 
                         // So now that the current is completed, we can iterate over the rest
                         // and check if they need completing.
