@@ -188,8 +188,6 @@ impl Subscription {
                     .map(|offset| (key.to_vec(), *offset))
                     .collect::<Vec<(Key, Offset)>>();
 
-            tracing::trace!("Extracted offsets: {:#?}", extracted_offsets);
-
             tracing::trace!("Extracted offsets length: {}", extracted_offsets.len());
             tracing::trace!("Removed count: {:#?}", count);
 
