@@ -397,7 +397,7 @@ impl IndexDirectory {
         responses
     }
 
-    /// Adds a default index to the given type.
+    /// Adds a default index to the given type, returning the offset at which it was put.
     pub async fn put_default_index(
         &self,
         stream: String,
@@ -406,7 +406,7 @@ impl IndexDirectory {
         batch_coord: BatchCoordinate,
         index_type: &IndexType,
         stream_def: &StreamDefinition,
-    ) {
+    ) -> u64 {
         let mut index_file = self
             .index_file_from_stream_and_partition(
                 stream,
@@ -449,6 +449,7 @@ impl IndexDirectory {
         index_file.append(&index).unwrap();
 
         tracing::info!("Successfully saved Index: {:#?}", index);
+        offset
     }
 
     /// Commit this file to the ObjectStore.
