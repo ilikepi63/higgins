@@ -24,14 +24,9 @@ pub struct ConfigurationStreamDefinition {
     pub partition_key: String,
     /// The schema for this, references a key in schema.
     pub schema: String,
-    /// Inner join definition if this is a joined stream.
-    pub inner_join: Option<String>,
-    /// Left Outer join definition if this is a joined stream.
-    pub left_join: Option<String>,
-    /// Right Outer join definition if this is a joined stream.
-    pub right_join: Option<String>,
-    /// Full Outer Join definition if this is a joined stream.
-    pub full_join: Option<String>,
+
+    /// Joins for this stream.
+    pub join: Option<Vec<String>>,
 
     /// The mapping of values given this is a join operation.
     pub map: Option<BTreeMap<String, String>>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
@@ -121,10 +116,7 @@ mod test {
                             stream_type: Some("reduce".to_string()),
                             partition_key: "id".to_string(),
                             schema: "customer".to_string(),
-                            inner_join: None,
-                            left_join: None,
-                            right_join: None,
-                            full_join: None,
+                            join: None,
                             map: None,
                             function_name: None,
                         },
@@ -136,10 +128,7 @@ mod test {
                             stream_type: None,
                             partition_key: "id".to_string(),
                             schema: "update_customer_event".to_string(),
-                            inner_join: None,
-                            left_join: None,
-                            right_join: None,
-                            full_join: None,
+                            join: None,
                             map: None,
                             function_name: None,
                         },
@@ -234,8 +223,10 @@ mod test {
             type = "join"
             schema = "customer_address"
             partition_key = "customer_id"
-            base = "customer"
-            inner_join = "address"
+            join = [
+                "customer",
+                "address"
+            ]
 
             [streams.customer_address.map]
             customer_id = "customer.id"
@@ -249,6 +240,8 @@ mod test {
             "#;
 
         let config = from_toml(example_config.as_bytes());
+
+        println!("Config: {:#?}", config);
 
         // Define the expected Configuration struct
         let expected = Configuration {
@@ -294,10 +287,7 @@ mod test {
                         stream_type: None,
                         partition_key: "id".to_string(),
                         schema: "customer".to_string(),
-                        inner_join: None,
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: None,
                         map: None,
                         function_name: None,
                     },
@@ -309,10 +299,7 @@ mod test {
                         stream_type: None,
                         partition_key: "id".to_string(),
                         schema: "address".to_string(),
-                        inner_join: None,
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: None,
                         map: None,
                         function_name: None,
                     },
@@ -320,14 +307,11 @@ mod test {
                 (
                     "customer_address".to_string(),
                     ConfigurationStreamDefinition {
-                        base: Some("customer".to_string()),
+                        base: None,
                         stream_type: Some("join".to_string()),
                         partition_key: "customer_id".to_string(),
                         schema: "customer_address".to_string(),
-                        inner_join: Some("address".to_string()),
-                        left_join: None,
-                        right_join: None,
-                        full_join: None,
+                        join: Some(vec!["customer".to_string(), "address".to_string()]),
                         map: Some(BTreeMap::from([
                             ("customer_id".to_string(), "customer.id".to_string()),
                             (
@@ -355,6 +339,21 @@ mod test {
                 ),
             ]),
         };
+        assert_eq!(config.schema, expected.schema);
+        assert_eq!(
+            config.streams.get("address"),
+            expected.streams.get("address")
+        );
+        assert_eq!(
+            config.streams.get("customer"),
+            expected.streams.get("customer")
+        );
+
+
+        assert_eq!(
+            config.streams.get("customer_address"),
+            expected.streams.get("customer_address")
+        );
 
         // Assert that the deserialized configuration matches the expected one
         assert_eq!(

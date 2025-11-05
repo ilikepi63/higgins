@@ -80,10 +80,10 @@ impl<'a> Index<'a> {
 
 pub fn index_size_from_index_type_and_definition(
     index_type: &IndexType,
-    _stream_definition: &StreamDefinition,
+    stream_definition: &StreamDefinition,
 ) -> usize {
     match index_type {
-        IndexType::Join => todo!(), //JoinedIndex::size_of(stream_definition.join.unwrap()),
+        IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref().unwrap().len()),
         IndexType::Default => DefaultIndex::size_of(),
     }
 }

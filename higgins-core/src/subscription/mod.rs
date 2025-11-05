@@ -152,7 +152,6 @@ impl Subscription {
         client_id: u64,
         count: u64,
     ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
-        let _last_iterated_index = self.last_index;
         let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
@@ -160,6 +159,8 @@ impl Subscription {
             .iter_mut()
             .find(|(id, _)| *id == client_id)
         {
+            tracing::trace!("Found a client count for given count number: {:#?}", count);
+
             count
         } else {
             let client_count = (client_id, AtomicU64::new(count));
@@ -174,7 +175,7 @@ impl Subscription {
                 .1
         };
 
-        println!("Count: {count:#?}");
+        tracing::trace!("Current count for subscription: {:#?}", count);
 
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
@@ -187,16 +188,32 @@ impl Subscription {
                     .map(|offset| (key.to_vec(), *offset))
                     .collect::<Vec<(Key, Offset)>>();
 
-            let result = count.fetch_sub(
-                TryInto::<u64>::try_into(extracted_offsets.len())?,
-                std::sync::atomic::Ordering::AcqRel,
-            );
+            tracing::trace!("Extracted offsets length: {}", extracted_offsets.len());
+            tracing::trace!("Removed count: {:#?}", count);
 
-            println!("Count: {result}");
+            let offsets_length: u64 = extracted_offsets.len().try_into()?;
+
+            let _result = count
+                .fetch_update(
+                    // TryInto::<u64>::try_into(extracted_offsets.len())?,
+                    std::sync::atomic::Ordering::AcqRel,
+                    std::sync::atomic::Ordering::Relaxed,
+                    |val| {
+                        if val < offsets_length {
+                            Some(0)
+                        } else {
+                            Some(val - offsets_length)
+                        }
+                    },
+                )
+                .unwrap();
+
+            tracing::trace!("Removed count after subtraction: {:#?}", count);
 
             result_vec.append(&mut extracted_offsets);
 
-            if *count.get_mut() < 1 {
+            if count.load(std::sync::atomic::Ordering::Relaxed) < 1 {
+
                 break;
             }
         }
