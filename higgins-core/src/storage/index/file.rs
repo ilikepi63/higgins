@@ -44,7 +44,7 @@ impl IndexFile {
     // Put the index at a specific offset.
     pub fn put_at(&mut self, offset: u64, bytes: &mut [u8]) -> Result<(), IndexError> {
         // length check to avoid panic.
-        if bytes.len() == self.element_size {
+        if bytes.len() != self.element_size {
             return Err(IndexError::IndexSwapSizeError);
         }
 
