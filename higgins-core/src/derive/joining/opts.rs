@@ -117,6 +117,10 @@ pub async fn create_join_operator(
     let n_offsets = definition.joins.len();
     let collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
+            tracing::trace!(
+                "[JOIN COLLECTION] Received a notification for new offsets: {}",
+                index
+            );
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
                 // Redefinition for tokio copies.
@@ -135,6 +139,8 @@ pub async fn create_join_operator(
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
                     index_file
                 };
+
+                tracing::trace!("[JOIN COLLECTION] Opened the index file for appending..",);
 
                 // Read before write operation to append a joined index to the index file.
                 {
@@ -158,6 +164,8 @@ pub async fn create_join_operator(
                             }
                         })
                         .collect::<Vec<_>>();
+
+                    tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
 
                     JoinedIndex::put(
                         joined_offset,
@@ -184,6 +192,8 @@ pub async fn create_join_operator(
                         })
                         .unwrap();
 
+                    tracing::trace!("[JOIN COLLECTION] Able to append the offset!",);
+
                     drop(lock);
                 };
 
@@ -202,6 +212,11 @@ pub async fn create_join_operator(
                             .get((index - 1).try_into().unwrap())
                             .map(JoinedIndex::of),
                     };
+
+                    tracing::trace!(
+                        "[JOIN COLLECTION] Retrieved a previous joined index: {:#?}",
+                        previous_joined_index.is_some(),
+                    );
 
                     let current_joined_index = index_file_view
                         .get(index.try_into().unwrap())
@@ -234,6 +249,26 @@ pub async fn create_join_operator(
                             )
                             .await;
                         }
+                    } else {
+                        // If this is None, then this is the first index for this partition.
+                        let mut owned_slice = current_joined_index.inner().to_owned();
+
+                        JoinedIndex::set_completed(&mut owned_slice);
+
+                        index_file
+                                .put_at(index.try_into().unwrap(), &mut owned_slice)
+                                .inspect_err(|err| {
+                                    tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
+                                }).unwrap();
+
+                        // So now that the current is completed, we can iterate over the rest
+                        // and check if they need completing.
+                        iterate_from_index_and_complete(
+                            &mut index_file,
+                            index.try_into().unwrap(),
+                            completed_index_collector_tx,
+                        )
+                        .await;
                     }
                 });
 
