@@ -99,6 +99,10 @@ impl<'a> JoinedIndex<'a> {
     pub fn get_offset(&self, index: usize) -> Result<u64, IndexError> {
         match Self::within_bounds(self.0, index) {
             true => {
+                let indexes = &self.0[INDEXES_INDEX..];
+
+                tracing::trace!("Indexes: {:#?}", indexes);
+
                 let relative_index = (index * (size_of::<u8>() + size_of::<u64>())) + INDEXES_INDEX;
 
                 let offset =
