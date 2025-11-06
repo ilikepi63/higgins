@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
+use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexError, IndexType};
 use crate::utils::epoch;
@@ -178,7 +179,7 @@ pub async fn create_join_operator(
 
                     JoinedIndex::put(
                         joined_offset,
-                        None,
+                        Reference::Null,
                         timestamp,
                         &offsets,
                         &mut joined_index_bytes,

@@ -52,7 +52,7 @@ impl<'a> JoinedIndex<'a> {
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
-        object_key: Option<[u8; 16]>,
+        reference: Reference,
         timestamp: u64,
         offsets: &[Option<u64>],
         mut data: &mut [u8],
@@ -62,16 +62,7 @@ impl<'a> JoinedIndex<'a> {
         // Completed is false by default.
         data.write_all(0_u8.to_be_bytes().as_slice())?;
 
-        match object_key {
-            Some(object_key) => {
-                data.write_all(&u8::to_be_bytes(1))?;
-                data.write_all(object_key.as_slice())?;
-            }
-            None => {
-                data.write_all(&u8::to_be_bytes(0))?;
-                data.write_all([0_u8; 16].as_slice())?;
-            }
-        }
+        reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
         for offset in offsets {
             match offset {
@@ -279,7 +270,7 @@ mod test {
 
         JoinedIndex::put(
             0,
-            None,
+            Reference::Null,
             2,
             &vec![Some(1), None, Some(2)],
             &mut joined_index_bytes,
