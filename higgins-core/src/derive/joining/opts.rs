@@ -127,6 +127,11 @@ pub async fn create_join_operator(
                 let amalgamate_partition = partition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
 
+                tracing::trace!(
+                    "[JOIN COLLECTION] Opening index file with size: {}",
+                    JoinedIndex::size_of(n_offsets)
+                );
+
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
                     let mut broker = broker_ref.write().await;
@@ -252,6 +257,11 @@ pub async fn create_join_operator(
                     } else {
                         // If this is None, then this is the first index for this partition.
                         let mut owned_slice = current_joined_index.inner().to_owned();
+
+                        tracing::trace!(
+                            "[JOIN COLLECTION] Given size for owned_slice: {}",
+                            owned_slice.len()
+                        );
 
                         JoinedIndex::set_completed(&mut owned_slice);
 
