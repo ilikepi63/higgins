@@ -189,6 +189,11 @@ pub async fn create_join_operator(
                     })
                     .unwrap();
 
+                    tracing::trace!(
+                        "Appending JoinedIndex: {:#?}",
+                        JoinedIndex::of(&joined_index_bytes)
+                    );
+
                     lock.append(&joined_index_bytes)
                         .await
                         .inspect_err(|err| {

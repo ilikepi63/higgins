@@ -26,7 +26,11 @@ impl<'a> JoinedIndex<'a> {
     // Properties.
     /// Offset
     pub fn offset(&self) -> u64 {
-        u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
+        u64::from_be_bytes(
+            self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]
+                .try_into()
+                .unwrap(),
+        )
     }
 
     /// Retrieve whether or not this join is completed.
