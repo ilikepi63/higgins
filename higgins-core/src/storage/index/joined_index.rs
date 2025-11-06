@@ -1,5 +1,5 @@
 use crate::storage::{dereference::Reference, index::IndexError};
-use std::io::Write;
+use std::{fmt::Debug, io::Write};
 
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
@@ -203,6 +203,20 @@ impl<'a> JoinedIndex<'a> {
             .unwrap();
 
         cloned
+    }
+}
+
+impl<'a> Debug for JoinedIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let offsets = (0..self.offset_len())
+            .map(|offset_index| self.get_offset(offset_index))
+            .collect::<Vec<_>>();
+        f.debug_struct("JoinedStruct")
+            .field("offset", &self.offset())
+            .field("timestamp", &self.timestamp())
+            .field("reference", &self.reference())
+            .field("offsets", &offsets)
+            .finish()
     }
 }
 
