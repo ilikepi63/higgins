@@ -183,8 +183,6 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     }
 }
 
-
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum FunctionType {
     Reduce,
