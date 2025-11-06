@@ -199,12 +199,10 @@ pub async fn create_join_operator(
                     // Get the index preceding this one.
                     let previous_joined_index = match index {
                         0 => None,
-                        _ =>                    index_file_view
+                        _ => index_file_view
                             .get((index - 1).try_into().unwrap())
-                            .map(JoinedIndex::of)
-
+                            .map(JoinedIndex::of),
                     };
-
 
                     let current_joined_index = index_file_view
                         .get(index.try_into().unwrap())
@@ -263,6 +261,10 @@ pub async fn create_join_operator(
                     let broker = amalgamate_broker.clone();
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        tracing::trace!(
+                            "[JOIN COMPLETION] Retrieved a completed index, starting the join mapping. "
+                        );
+
                         let join_mapping = amalgamate_definition.clone().mapping;
 
                         let index_view = index_file.view();
@@ -272,12 +274,29 @@ pub async fn create_join_operator(
                             .map(JoinedIndex::of)
                             .unwrap();
 
+                        tracing::trace!(
+                            "[JOIN COMPLETION] Retrieved the index for the offset {}.",
+                            completed_index
+                        );
+
                         // Query the other offset data from this index_file.
                         let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
                             let offset = index.get_offset(i);
 
+                            tracing::trace!(
+                                "[JOIN COMPLETION] Working on the offset for derivate data: {}", i,
+                            );
+
+                            tracing::trace!(
+                                "[JOIN COMPLETION] Offset data: {:#?}", offset
+                            );
+
                             match offset {
                                 Ok(offset) => {
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Successfully retrieved the offset."
+                                    );
+
                                     let broker_lock = broker.write().await;
 
                                     let data = broker_lock
@@ -291,6 +310,10 @@ pub async fn create_join_operator(
                                         .unwrap()
                                         .unwrap();
 
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Retrieved the data at for index {:#?}.", offset
+                                    );
+
                                     // Retrieve the first record, as there should be only one record.
                                     let arrow_data =
                                         arrow_ipc::read_arrow(&data)
@@ -299,9 +322,16 @@ pub async fn create_join_operator(
                                             .flatten()
                                             .unwrap();
 
+                                    tracing::trace!(                                        "[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data,
+);
+
                                     Some((i, arrow_data))
                                 }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Couldn't find data for indexed value"
+                                    );
+
                                     // This means that a derivative offset in the joined stream doesn't exist yet.
                                     None
                                 }
