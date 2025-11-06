@@ -266,3 +266,39 @@ impl<'a> JoinedIndexOffset<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{error::HigginsError, storage::index::Index};
+
+    use super::*;
+
+    #[test]
+    pub fn can_put_joined_index() {
+        let mut joined_index_bytes = vec![0_u8; JoinedIndex::size_of(3)];
+
+        JoinedIndex::put(
+            0,
+            None,
+            2,
+            &vec![Some(1), None, Some(2)],
+            &mut joined_index_bytes,
+        )
+        .inspect_err(|err| {
+            tracing::error!(
+                "Failed to put Joined Index bytes into buffer with error: {:#?}",
+                err,
+            );
+        })
+        .unwrap();
+
+        let joined_index = JoinedIndex::of(&joined_index_bytes);
+
+        assert_eq!(joined_index.offset(), 0);
+        assert_eq!(joined_index.timestamp(), 2);
+
+        assert!(joined_index.get_offset(0).is_ok_and(|val| val == 1));
+        assert!(joined_index.get_offset(1).is_err());
+        assert!(joined_index.get_offset(2).is_ok_and(|val| val == 2));
+    }
+}
