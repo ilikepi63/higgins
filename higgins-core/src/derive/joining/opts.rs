@@ -6,7 +6,6 @@ use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexError, IndexType};
-use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
