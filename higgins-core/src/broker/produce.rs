@@ -74,9 +74,8 @@ impl Broker {
             )
         };
 
-        let offset = response.offset.clone();
-
-        self.indexes
+        let offset = self
+            .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
                 partition,
