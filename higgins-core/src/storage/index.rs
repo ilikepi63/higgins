@@ -121,8 +121,6 @@ impl<'a> IndexesView<'a> {
 
     /// Gets the number of indexes in the container
     pub fn count(&self) -> usize {
-        println!("Len: {}", self.buffer.len());
-        println!("Size: {}", self.element_size);
         self.buffer.len() / self.element_size
     }
 
