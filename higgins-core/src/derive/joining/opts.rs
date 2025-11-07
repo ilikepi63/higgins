@@ -157,10 +157,12 @@ pub async fn create_join_operator(
 
                     let timestamp = epoch();
 
+                    tracing::trace!("[JOIN COLLECTION] Timestamp for JoinedIndex: {timestamp}");
+
                     // Initialize zero byte array.
                     let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
 
-                    tracing::trace!("Offsets with size: {n_offsets}");
+                    tracing::trace!("[JOIN COLLECTION] Offsets with size: {n_offsets}");
 
                     let offsets = (0..(n_offsets))
                         .map(|offset_val| {
