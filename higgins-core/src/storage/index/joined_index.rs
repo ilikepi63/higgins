@@ -1,5 +1,5 @@
 use crate::storage::{dereference::Reference, index::IndexError};
-use std::io::Write;
+use std::{fmt::Debug, io::Write};
 
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
@@ -26,7 +26,11 @@ impl<'a> JoinedIndex<'a> {
     // Properties.
     /// Offset
     pub fn offset(&self) -> u64 {
-        u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
+        u64::from_be_bytes(
+            self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]
+                .try_into()
+                .unwrap(),
+        )
     }
 
     /// Retrieve whether or not this join is completed.
@@ -48,7 +52,7 @@ impl<'a> JoinedIndex<'a> {
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
-        object_key: Option<[u8; 16]>,
+        reference: Reference,
         timestamp: u64,
         offsets: &[Option<u64>],
         mut data: &mut [u8],
@@ -58,16 +62,7 @@ impl<'a> JoinedIndex<'a> {
         // Completed is false by default.
         data.write_all(0_u8.to_be_bytes().as_slice())?;
 
-        match object_key {
-            Some(object_key) => {
-                data.write_all(&u8::to_be_bytes(1))?;
-                data.write_all(object_key.as_slice())?;
-            }
-            None => {
-                data.write_all(&u8::to_be_bytes(0))?;
-                data.write_all([0_u8; 16].as_slice())?;
-            }
-        }
+        reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
         for offset in offsets {
             match offset {
@@ -95,6 +90,10 @@ impl<'a> JoinedIndex<'a> {
     pub fn get_offset(&self, index: usize) -> Result<u64, IndexError> {
         match Self::within_bounds(self.0, index) {
             true => {
+                let indexes = &self.0[INDEXES_INDEX..];
+
+                tracing::trace!("Indexes: {:#?}", indexes);
+
                 let relative_index = (index * (size_of::<u8>() + size_of::<u64>())) + INDEXES_INDEX;
 
                 let offset =
@@ -187,7 +186,11 @@ impl<'a> JoinedIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
+        u64::from_be_bytes(
+            self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
+                .try_into()
+                .unwrap(),
+        )
     }
 
     /// Retrieve the reference of this Index.
@@ -203,6 +206,20 @@ impl<'a> JoinedIndex<'a> {
             .unwrap();
 
         cloned
+    }
+}
+
+impl<'a> Debug for JoinedIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let offsets = (0..self.offset_len())
+            .map(|offset_index| self.get_offset(offset_index))
+            .collect::<Vec<_>>();
+        f.debug_struct("JoinedStruct")
+            .field("offset", &self.offset())
+            .field("timestamp", &self.timestamp())
+            .field("reference", &self.reference())
+            .field("offsets", &offsets)
+            .finish()
     }
 }
 
@@ -238,5 +255,41 @@ impl<'a> JoinedIndexOffset<'a> {
             true => Some(self.get_unchecked()),
             false => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{error::HigginsError, storage::index::Index};
+
+    use super::*;
+
+    #[test]
+    pub fn can_put_joined_index() {
+        let mut joined_index_bytes = vec![0_u8; JoinedIndex::size_of(3)];
+
+        JoinedIndex::put(
+            0,
+            Reference::Null,
+            2,
+            &vec![Some(1), None, Some(2)],
+            &mut joined_index_bytes,
+        )
+        .inspect_err(|err| {
+            tracing::error!(
+                "Failed to put Joined Index bytes into buffer with error: {:#?}",
+                err,
+            );
+        })
+        .unwrap();
+
+        let joined_index = JoinedIndex::of(&joined_index_bytes);
+
+        assert_eq!(joined_index.offset(), 0);
+        assert_eq!(joined_index.timestamp(), 2);
+
+        assert!(joined_index.get_offset(0).is_ok_and(|val| val == 1));
+        assert!(joined_index.get_offset(1).is_err());
+        assert!(joined_index.get_offset(2).is_ok_and(|val| val == 2));
     }
 }

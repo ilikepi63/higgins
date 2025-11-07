@@ -4,9 +4,9 @@ use tokio::sync::RwLock;
 
 use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
+use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexError, IndexType};
-use crate::topography::config::schema_to_arrow_schema;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
@@ -118,11 +118,20 @@ pub async fn create_join_operator(
     let n_offsets = definition.joins.len();
     let collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
+            tracing::trace!(
+                "[JOIN COLLECTION] Received a notification for new offsets: {}",
+                index
+            );
             // push this onto the resultant stream.
             for (partition, offset) in partition_offset_vec {
                 // Redefinition for tokio copies.
                 let amalgamate_partition = partition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
+
+                tracing::trace!(
+                    "[JOIN COLLECTION] Opening index file with size: {}",
+                    JoinedIndex::size_of(n_offsets)
+                );
 
                 // Retrieve the Index file, given the stream name and partition key.
                 let mut index_file = {
@@ -137,6 +146,8 @@ pub async fn create_join_operator(
                     index_file
                 };
 
+                tracing::trace!("[JOIN COLLECTION] Opened the index file for appending..",);
+
                 // Read before write operation to append a joined index to the index file.
                 {
                     let mut lock = index_file.lock().await;
@@ -147,10 +158,14 @@ pub async fn create_join_operator(
 
                     let timestamp = epoch();
 
+                    tracing::trace!("[JOIN COLLECTION] Timestamp for JoinedIndex: {timestamp}");
+
                     // Initialize zero byte array.
                     let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
 
-                    let offsets = (0..(n_offsets - 1))
+                    tracing::trace!("[JOIN COLLECTION] Offsets with size: {n_offsets}");
+
+                    let offsets = (0..(n_offsets))
                         .map(|offset_val| {
                             if offset_val == index {
                                 Some(offset)
@@ -160,9 +175,11 @@ pub async fn create_join_operator(
                         })
                         .collect::<Vec<_>>();
 
+                    tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
+
                     JoinedIndex::put(
                         joined_offset,
-                        None,
+                        Reference::Null,
                         timestamp,
                         &offsets,
                         &mut joined_index_bytes,
@@ -175,6 +192,11 @@ pub async fn create_join_operator(
                     })
                     .unwrap();
 
+                    tracing::trace!(
+                        "Appending JoinedIndex: {:#?}",
+                        JoinedIndex::of(&joined_index_bytes)
+                    );
+
                     lock.append(&joined_index_bytes)
                         .await
                         .inspect_err(|err| {
@@ -184,6 +206,8 @@ pub async fn create_join_operator(
                             );
                         })
                         .unwrap();
+
+                    tracing::trace!("[JOIN COLLECTION] Able to append the offset!",);
 
                     drop(lock);
                 };
@@ -199,12 +223,15 @@ pub async fn create_join_operator(
                     // Get the index preceding this one.
                     let previous_joined_index = match index {
                         0 => None,
-                        _ =>                    index_file_view
+                        _ => index_file_view
                             .get((index - 1).try_into().unwrap())
-                            .map(JoinedIndex::of)
-
+                            .map(JoinedIndex::of),
                     };
 
+                    tracing::trace!(
+                        "[JOIN COLLECTION] Retrieved a previous joined index: {:#?}",
+                        previous_joined_index,
+                    );
 
                     let current_joined_index = index_file_view
                         .get(index.try_into().unwrap())
@@ -228,15 +255,52 @@ pub async fn create_join_operator(
                                     tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
                                 }).unwrap();
 
+                            completed_index_collector_tx
+                                .send(index.try_into().unwrap())
+                                .await
+                                .unwrap();
+
                             // So now that the current is completed, we can iterate over the rest
                             // and check if they need completing.
                             iterate_from_index_and_complete(
                                 &mut index_file,
                                 index.try_into().unwrap(),
-                                completed_index_collector_tx,
+                                completed_index_collector_tx.clone(),
                             )
                             .await;
                         }
+                    } else {
+                        // If this is None, then this is the first index for this partition.
+                        let mut owned_slice = current_joined_index.inner().to_owned();
+
+                        tracing::trace!(
+                            "[JOIN COLLECTION] Given size for owned_slice: {}",
+                            owned_slice.len()
+                        );
+
+                        JoinedIndex::set_completed(&mut owned_slice);
+
+                        index_file
+                                .put_at(index.try_into().unwrap(), &mut owned_slice)
+                                .inspect_err(|err| {
+                                    tracing::error!("Error trying to put index at in an IndexFile for a JoinedIndex: {:#?}", err);
+                                }).unwrap();
+
+                        tracing::trace!("[JOIN COLLECTION] Successfully saved the offset!",);
+
+                        completed_index_collector_tx
+                            .send(index.try_into().unwrap())
+                            .await
+                            .unwrap();
+
+                        // So now that the current is completed, we can iterate over the rest
+                        // and check if they need completing.
+                        iterate_from_index_and_complete(
+                            &mut index_file,
+                            index.try_into().unwrap(),
+                            completed_index_collector_tx,
+                        )
+                        .await;
                     }
                 });
 
@@ -263,6 +327,10 @@ pub async fn create_join_operator(
                     let broker = amalgamate_broker.clone();
 
                     while let Some(completed_index) = completed_index_collector_rx.recv().await {
+                        tracing::trace!(
+                            "[JOIN COMPLETION] Retrieved a completed index, starting the join mapping. "
+                        );
+
                         let join_mapping = amalgamate_definition.clone().mapping;
 
                         let index_view = index_file.view();
@@ -272,12 +340,29 @@ pub async fn create_join_operator(
                             .map(JoinedIndex::of)
                             .unwrap();
 
+                        tracing::trace!(
+                            "[JOIN COMPLETION] Retrieved the index for the offset {}.",
+                            completed_index
+                        );
+
                         // Query the other offset data from this index_file.
                         let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
                             let offset = index.get_offset(i);
 
+                            tracing::trace!(
+                                "[JOIN COMPLETION] Working on the offset for derivate data: {}", i,
+                            );
+
+                            tracing::trace!(
+                                "[JOIN COMPLETION] Offset data: {:#?}", offset
+                            );
+
                             match offset {
                                 Ok(offset) => {
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Successfully retrieved the offset."
+                                    );
+
                                     let broker_lock = broker.write().await;
 
                                     let data = broker_lock
@@ -291,6 +376,10 @@ pub async fn create_join_operator(
                                         .unwrap()
                                         .unwrap();
 
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Retrieved the data at for index {:#?}.", offset
+                                    );
+
                                     // Retrieve the first record, as there should be only one record.
                                     let arrow_data =
                                         arrow_ipc::read_arrow(&data)
@@ -299,9 +388,15 @@ pub async fn create_join_operator(
                                             .flatten()
                                             .unwrap();
 
+                                    tracing::trace!("[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data);
+
                                     Some((i, arrow_data))
                                 }
                                 Err(IndexError::IndexInJoinedIndexNotFound) => {
+                                    tracing::trace!(
+                                        "[JOIN COMPLETION] Couldn't find data for indexed value"
+                                    );
+
                                     // This means that a derivative offset in the joined stream doesn't exist yet.
                                     None
                                 }
