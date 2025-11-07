@@ -160,7 +160,9 @@ pub async fn create_join_operator(
                     // Initialize zero byte array.
                     let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
 
-                    let offsets = (0..(n_offsets - 1))
+                    tracing::trace!("Offsets with size: {n_offsets}");
+
+                    let offsets = (0..(n_offsets))
                         .map(|offset_val| {
                             if offset_val == index {
                                 Some(offset)
@@ -220,7 +222,7 @@ pub async fn create_join_operator(
 
                     tracing::trace!(
                         "[JOIN COLLECTION] Retrieved a previous joined index: {:#?}",
-                        previous_joined_index.is_some(),
+                        previous_joined_index,
                     );
 
                     let current_joined_index = index_file_view
