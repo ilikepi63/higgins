@@ -191,7 +191,11 @@ impl<'a> JoinedIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..INDEXES_INDEX].try_into().unwrap())
+        u64::from_be_bytes(
+            self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
+                .try_into()
+                .unwrap(),
+        )
     }
 
     /// Retrieve the reference of this Index.
