@@ -378,8 +378,7 @@ pub async fn create_join_operator(
                                             .flatten()
                                             .unwrap();
 
-                                    tracing::trace!(                                        "[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data,
-);
+                                    tracing::trace!("[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data);
 
                                     Some((i, arrow_data))
                                 }
