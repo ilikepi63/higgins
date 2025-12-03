@@ -64,7 +64,7 @@ impl<'a> JoinedIndex<'a> {
 
         reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
-        for offset in offsets {
+        for (index, offset) in offsets.iter().enumerate() {
             match offset {
                 Some(offset) => {
                     data.write_all(&u8::to_be_bytes(1))?;

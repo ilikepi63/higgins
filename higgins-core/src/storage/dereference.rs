@@ -93,7 +93,11 @@ impl Reference {
 
     /// Read this struct from bytes.
     pub fn from_bytes(data: &[u8]) -> Self {
+        tracing::info!("Data: {:#?}", data);
+
         let t = u16::from_be_bytes(data[0..2].try_into().unwrap());
+
+        tracing::info!("Reference Type: {:#?}", t);
 
         match t {
             0 => Self::Null,
