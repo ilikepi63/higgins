@@ -55,25 +55,50 @@ impl<'a> JoinedIndex<'a> {
         reference: Reference,
         timestamp: u64,
         offsets: &[Option<u64>],
-        mut data: &mut [u8],
+        data: &mut [u8],
     ) -> Result<(), std::io::Error> {
-        data.write_all(offset.to_be_bytes().as_slice())?;
-        data.write_all(timestamp.to_be_bytes().as_slice())?;
-        // Completed is false by default.
-        data.write_all(0_u8.to_be_bytes().as_slice())?;
+        data[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]
+            .copy_from_slice(offset.to_be_bytes().as_slice());
+        data[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
+            .copy_from_slice(timestamp.to_be_bytes().as_slice());
+        data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
+            .copy_from_slice(0_u8.to_be_bytes().as_slice());
+        data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
+            .copy_from_slice(0_u8.to_be_bytes().as_slice());
 
         reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
         for (index, offset) in offsets.iter().enumerate() {
             match offset {
                 Some(offset) => {
-                    data.write_all(&u8::to_be_bytes(1))?;
-                    data.write_all(offset.to_be_bytes().as_slice())?;
+                    data[INDEXES_INDEX + (size_of::<u8>() + size_of::<u64>() * index)
+                        ..INDEXES_INDEX
+                            + (size_of::<u8>() + size_of::<u64>() * index)
+                            + size_of::<u8>()]
+                        .copy_from_slice(1_u8.to_be_bytes().as_slice());
+                    data[INDEXES_INDEX
+                        + (size_of::<u8>() + size_of::<u64>() * index)
+                        + size_of::<u8>()
+                        ..INDEXES_INDEX
+                            + (size_of::<u8>() + size_of::<u64>() * index)
+                            + size_of::<u8>()
+                            + size_of::<u64>()]
+                        .copy_from_slice(offset.to_be_bytes().as_slice());
                 }
                 None => {
-                    data.write_all(&u8::to_be_bytes(0))?;
-                    // Write an empty byte array.
-                    data.write_all([0_u8; 8].as_slice())?;
+                    data[INDEXES_INDEX + (size_of::<u8>() + size_of::<u64>() * index)
+                        ..INDEXES_INDEX
+                            + (size_of::<u8>() + size_of::<u64>() * index)
+                            + size_of::<u8>()]
+                        .copy_from_slice(0_u8.to_be_bytes().as_slice());
+                    data[INDEXES_INDEX
+                        + (size_of::<u8>() + size_of::<u64>() * index)
+                        + size_of::<u8>()
+                        ..INDEXES_INDEX
+                            + (size_of::<u8>() + size_of::<u64>() * index)
+                            + size_of::<u8>()
+                            + size_of::<u64>()]
+                        .copy_from_slice([0; 8].as_slice());
                 }
             }
         }
@@ -260,13 +285,45 @@ impl<'a> JoinedIndexOffset<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{error::HigginsError, storage::index::Index};
+    use crate::{
+        error::HigginsError,
+        storage::index::{Index, joined_index},
+    };
 
     use super::*;
+
+    // const OFFSET_INDEX: usize = 0;
+    // const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
+    // const COMPLETED_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
+    // const OBJECT_KEY_INDEX: usize = COMPLETED_INDEX + size_of::<bool>();
+    // const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
+
+    fn debug_join_index_bytes(join_index_bytes: &[u8]) {
+        let offset = &join_index_bytes[OFFSET_INDEX..TIMESTAMP_INDEX];
+        let timestamp = &join_index_bytes[TIMESTAMP_INDEX..COMPLETED_INDEX];
+        let completed = &join_index_bytes[COMPLETED_INDEX..OBJECT_KEY_INDEX];
+        let reference = &join_index_bytes[OBJECT_KEY_INDEX..INDEXES_INDEX];
+
+        println!("REFERENCE BYTES: {:#?}", reference);
+        println!(
+            "REFERENCE: {:#?}",
+            &join_index_bytes[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]
+        );
+
+        // println!("OFFSET BYTES: {:#?}", offset);
+        // println!("OFFSET LEN: {:#?}", offset.len());
+        // println!(
+        //     "OFFSET NUMBER: {:#?}",
+        //     u64::from_be_bytes(offset.try_into().unwrap())
+        // );
+    }
 
     #[test]
     pub fn can_put_joined_index() {
         let mut joined_index_bytes = vec![0_u8; JoinedIndex::size_of(3)];
+
+        dbg!(&joined_index_bytes);
+        println!("{}", joined_index_bytes.len());
 
         JoinedIndex::put(
             0,
@@ -283,13 +340,21 @@ mod test {
         })
         .unwrap();
 
+        dbg!(&joined_index_bytes);
+
+        debug_join_index_bytes(&joined_index_bytes);
+
         let joined_index = JoinedIndex::of(&joined_index_bytes);
 
         assert_eq!(joined_index.offset(), 0);
         assert_eq!(joined_index.timestamp(), 2);
 
+        dbg!(&joined_index);
+
         assert!(joined_index.get_offset(0).is_ok_and(|val| val == 1));
         assert!(joined_index.get_offset(1).is_err());
         assert!(joined_index.get_offset(2).is_ok_and(|val| val == 2));
+
+        dbg!(&joined_index);
     }
 }
