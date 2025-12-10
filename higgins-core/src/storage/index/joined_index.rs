@@ -49,6 +49,24 @@ impl<'a> JoinedIndex<'a> {
         Self(val)
     }
 
+    fn put_offsets(offsets: &[Option<u64>], data: &mut [u8]) {
+        for (index, offset) in offsets.iter().enumerate() {
+            let current_offset = (size_of::<u8>() + size_of::<u64>());
+
+            let (discriminator, bytes) = match offset {
+                Some(offset) => (1_u8.to_be_bytes(), offset.to_be_bytes()),
+                None => (0_u8.to_be_bytes(), [0; 8]),
+            };
+
+            let start = (index * current_offset);
+            let end = ((index * current_offset) + current_offset);
+
+            println!("Writing at {} {}", start, end);
+            data[start..start + 1].copy_from_slice(discriminator.as_slice());
+            data[start + 1..start + 9].copy_from_slice(bytes.as_slice());
+        }
+    }
+
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         offset: u64,
@@ -68,40 +86,7 @@ impl<'a> JoinedIndex<'a> {
 
         reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
-        for (index, offset) in offsets.iter().enumerate() {
-            match offset {
-                Some(offset) => {
-                    data[INDEXES_INDEX + (size_of::<u8>() + size_of::<u64>() * index)
-                        ..INDEXES_INDEX
-                            + (size_of::<u8>() + size_of::<u64>() * index)
-                            + size_of::<u8>()]
-                        .copy_from_slice(1_u8.to_be_bytes().as_slice());
-                    data[INDEXES_INDEX
-                        + (size_of::<u8>() + size_of::<u64>() * index)
-                        + size_of::<u8>()
-                        ..INDEXES_INDEX
-                            + (size_of::<u8>() + size_of::<u64>() * index)
-                            + size_of::<u8>()
-                            + size_of::<u64>()]
-                        .copy_from_slice(offset.to_be_bytes().as_slice());
-                }
-                None => {
-                    data[INDEXES_INDEX + (size_of::<u8>() + size_of::<u64>() * index)
-                        ..INDEXES_INDEX
-                            + (size_of::<u8>() + size_of::<u64>() * index)
-                            + size_of::<u8>()]
-                        .copy_from_slice(0_u8.to_be_bytes().as_slice());
-                    data[INDEXES_INDEX
-                        + (size_of::<u8>() + size_of::<u64>() * index)
-                        + size_of::<u8>()
-                        ..INDEXES_INDEX
-                            + (size_of::<u8>() + size_of::<u64>() * index)
-                            + size_of::<u8>()
-                            + size_of::<u64>()]
-                        .copy_from_slice([0; 8].as_slice());
-                }
-            }
-        }
+        Self::put_offsets(offsets, &mut data[INDEXES_INDEX..]);
 
         Ok(())
     }
