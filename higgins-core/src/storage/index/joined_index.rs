@@ -310,6 +310,8 @@ mod test {
             &join_index_bytes[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]
         );
 
+        println!("Parsed Reference: {:#?}", Reference::from_bytes(reference));
+
         // println!("OFFSET BYTES: {:#?}", offset);
         // println!("OFFSET LEN: {:#?}", offset.len());
         // println!(
@@ -321,9 +323,6 @@ mod test {
     #[test]
     pub fn can_put_joined_index() {
         let mut joined_index_bytes = vec![0_u8; JoinedIndex::size_of(3)];
-
-        dbg!(&joined_index_bytes);
-        println!("{}", joined_index_bytes.len());
 
         JoinedIndex::put(
             0,
@@ -348,6 +347,7 @@ mod test {
 
         assert_eq!(joined_index.offset(), 0);
         assert_eq!(joined_index.timestamp(), 2);
+        assert!(matches!(joined_index.reference(), Reference::Null));
 
         dbg!(&joined_index);
 
