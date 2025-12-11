@@ -167,7 +167,7 @@ impl<'a> JoinedIndex<'a> {
     // Helpers
     pub fn size_of(n_offsets: usize) -> usize {
         // last index (add one to make length), plus the amount of indexes times the size of the optional and the size of the offset.
-        INDEXES_INDEX + 1 + (n_offsets * (size_of::<u8>() + size_of::<u64>()))
+        INDEXES_INDEX + (n_offsets * (size_of::<u8>() + size_of::<u64>()))
     }
 
     /// Checks whether an index given is within the specific bounds of this JoinedIndex.
@@ -285,12 +285,31 @@ impl<'a> JoinedIndexOffset<'a> {
 
 #[cfg(test)]
 mod test {
+    use colored::Color;
+
     use crate::{
         error::HigginsError,
         storage::index::{Index, joined_index},
     };
 
     use super::*;
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+    struct ByteInterval(pub usize, pub usize);
+
+    #[derive(PartialEq, Eq, Debug)]
+    struct Interval(ByteInterval, Color, String);
+
+    impl Ord for Interval {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            self.0.cmp(&other.0)
+        }
+    }
+
+    impl PartialOrd for Interval {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.0.cmp(&other.0))
+        }
+    }
 
     // const OFFSET_INDEX: usize = 0;
     // const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
@@ -298,19 +317,136 @@ mod test {
     // const OBJECT_KEY_INDEX: usize = COMPLETED_INDEX + size_of::<bool>();
     // const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
 
+    fn print_bytes_coloured(bytes: &[u8], colours: &mut [Interval]) {
+        use colored::Colorize;
+
+        colours.sort();
+
+        // ensure that the intervals don't overlap.
+        for window in colours.windows(3) {
+            let first = window.first().unwrap();
+            let second = window.iter().nth(1).unwrap();
+            let third = window.iter().nth(2).unwrap();
+
+            println!("Checking interval: {:#?}", second);
+            println!("Previous interval: {:#?}", first);
+            println!("Following interval: {:#?}", third);
+
+            assert!(first.0.1 <= second.0.0);
+            assert!(second.0.1 <= third.0.0);
+        }
+
+        let mut i = 0;
+
+        println!("[");
+
+        for colour in colours {
+            // For each colour, we want to iterate over the bytes basically
+            while i < colour.0.0 {
+                println!(" {}", bytes.get(i).unwrap());
+                i += 1;
+            }
+
+            while i < colour.0.1 {
+                if i == colour.0.0 {
+                    println!(
+                        " {} {}",
+                        format!("{}", bytes.get(i).unwrap())
+                            .to_string()
+                            .color(colour.1),
+                        colour.2
+                    );
+                } else {
+                    println!(
+                        " {}",
+                        format!("{}", bytes.get(i).unwrap())
+                            .to_string()
+                            .color(colour.1)
+                    );
+                }
+
+                i += 1;
+            }
+        }
+
+        while i < bytes.len() {
+            println!(" {}", bytes.get(i).unwrap());
+            i += 1;
+        }
+
+        print!("]");
+    }
+
+    #[test]
+    fn print_bytes_coloured_test() {
+        let bytes = [1_u8; 10];
+        let intervals = &mut [
+            Interval(ByteInterval(1, 3), Color::Blue, "First".to_string()),
+            Interval(ByteInterval(3, 6), Color::Green, "Second".to_string()),
+        ];
+
+        print_bytes_coloured(&bytes, intervals);
+
+        panic!();
+    }
+
     fn debug_join_index_bytes(join_index_bytes: &[u8]) {
+        let intervals = &mut [
+            Interval(
+                ByteInterval(OFFSET_INDEX, TIMESTAMP_INDEX),
+                Color::Blue,
+                "Offset".to_string(),
+            ),
+            Interval(
+                ByteInterval(TIMESTAMP_INDEX, COMPLETED_INDEX),
+                Color::Green,
+                "Timestamp".to_string(),
+            ),
+            Interval(
+                ByteInterval(COMPLETED_INDEX, OBJECT_KEY_INDEX),
+                Color::Red,
+                "Completed".to_string(),
+            ),
+            Interval(
+                ByteInterval(OBJECT_KEY_INDEX, INDEXES_INDEX),
+                Color::Yellow,
+                "Reference".to_string(),
+            ),
+            // TODO: Probably make this dynamic?
+            Interval(
+                ByteInterval(INDEXES_INDEX, INDEXES_INDEX + 9),
+                Color::Blue,
+                "First Index".to_string(),
+            ),
+            Interval(
+                ByteInterval(INDEXES_INDEX + 9, INDEXES_INDEX + 18),
+                Color::Red,
+                "Second Index".to_string(),
+            ),
+            Interval(
+                ByteInterval(INDEXES_INDEX + 18, INDEXES_INDEX + 27),
+                Color::Yellow,
+                "Last Index".to_string(),
+            ),
+        ];
+
         let offset = &join_index_bytes[OFFSET_INDEX..TIMESTAMP_INDEX];
+        // print_bytes_coloured(offset, Color::Blue);
         let timestamp = &join_index_bytes[TIMESTAMP_INDEX..COMPLETED_INDEX];
         let completed = &join_index_bytes[COMPLETED_INDEX..OBJECT_KEY_INDEX];
         let reference = &join_index_bytes[OBJECT_KEY_INDEX..INDEXES_INDEX];
 
-        println!("REFERENCE BYTES: {:#?}", reference);
-        println!(
-            "REFERENCE: {:#?}",
-            &join_index_bytes[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]
-        );
+        println!("DOING IT: ");
 
-        println!("Parsed Reference: {:#?}", Reference::from_bytes(reference));
+        print_bytes_coloured(join_index_bytes, intervals);
+
+        // // println!("REFERENCE BYTES: {:#?}", reference);
+        // println!(
+        //     "REFERENCE: {:#?}",
+        //     &join_index_bytes[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]
+        // );
+
+        // println!("Parsed Reference: {:#?}", Reference::from_bytes(reference));
 
         // println!("OFFSET BYTES: {:#?}", offset);
         // println!("OFFSET LEN: {:#?}", offset.len());
