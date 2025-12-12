@@ -97,7 +97,7 @@ impl<'a> JoinedIndex<'a> {
     }
 
     /// Gets the offset at the specified index.
-    pub fn get_offset(&self, index: usize) -> Result<u64, IndexError> {
+    pub fn get_offset(&self, index: usize) -> Option<u64> {
         match Self::within_bounds(self.0, index) {
             true => {
                 let indexes = &self.0[INDEXES_INDEX..];
@@ -111,13 +111,24 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at(1);
 
-                if u8::from_be_bytes(optional.try_into().unwrap()) == 1 {
-                    Ok(u64::from_be_bytes(offset.try_into().unwrap()))
-                } else {
-                    Err(IndexError::IndexInJoinedIndexNotFound)
+                let result_value = u8::from_be_bytes(optional.try_into().unwrap());
+
+                match result_value {
+                    1 => Some(u64::from_be_bytes(offset.try_into().unwrap())),
+                    0 => None,
+                    _ => {
+                        tracing::error!(
+                            "Unexpected value in optional for index presence: {}",
+                            result_value
+                        );
+                        unimplemented!()
+                    }
                 }
             }
-            false => Err(IndexError::IndexGivenOutOfBoundsForJoinedIndex),
+            false => {
+                tracing::error!("Attempt to query index that is out of bounds: {}", index);
+                None
+            }
         }
     }
 
@@ -472,9 +483,9 @@ mod test {
 
         dbg!(&joined_index);
 
-        assert!(joined_index.get_offset(0).is_ok_and(|val| val == 1));
-        assert!(joined_index.get_offset(1).is_err());
-        assert!(joined_index.get_offset(2).is_ok_and(|val| val == 2));
+        assert!(joined_index.get_offset(0).is_some_and(|val| val == 1));
+        assert!(joined_index.get_offset(1).is_none());
+        assert!(joined_index.get_offset(2).is_some_and(|val| val == 2));
 
         dbg!(&joined_index);
     }

@@ -362,7 +362,7 @@ pub async fn create_join_operator(
                             );
 
                             match offset {
-                                Ok(offset) => {
+                                Some(offset) => {
                                     tracing::trace!(
                                         "[JOIN COMPLETION] Successfully retrieved the offset."
                                     );
@@ -396,20 +396,12 @@ pub async fn create_join_operator(
 
                                     Some((i, arrow_data))
                                 }
-                                Err(IndexError::IndexInJoinedIndexNotFound) => {
+                                None => {
                                     tracing::trace!(
                                         "[JOIN COMPLETION] Couldn't find data for indexed value"
                                     );
 
                                     // This means that a derivative offset in the joined stream doesn't exist yet.
-                                    None
-                                }
-                                Err(err) => {
-                                    tracing::error!(
-                                        "Unexpected Error wheen reading offsets of Joined Index: {:#?}, offset: {}",
-                                        err,
-                                        i
-                                    );
                                     None
                                 }
                             }
