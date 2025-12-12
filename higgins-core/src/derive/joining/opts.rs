@@ -412,8 +412,12 @@ pub async fn create_join_operator(
                             (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
                         })).collect::<Vec<_>>();
 
+                        tracing::info!("We are amalgamating the derivative data now.");
+
                         let resultant_record_batch =
                             join_mapping.map_arrow(derivative_data).unwrap();
+
+                        tracing::info!("Resultant Record batch: {:#?}", resultant_record_batch);
 
                         // How do we write this back to the index now??
 
@@ -422,7 +426,7 @@ pub async fn create_join_operator(
 
                             let mut top_level_index = Index::of(index.inner(), IndexType::Join);
 
-                            // Places the data atht the reference.
+                            // Places the data at the reference.
                             let mut new_index = broker
                                 .put_data(
                                     String::from_utf8(stream.base.0.0.clone()).unwrap(),
