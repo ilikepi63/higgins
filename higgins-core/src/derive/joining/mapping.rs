@@ -1,13 +1,8 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
-use arrow::{
-    array::{ArrayBuilder, NullArray, new_null_array},
-    record_batch::RecordBatch,
-};
+use arrow::{array::new_null_array, record_batch::RecordBatch};
 use std::collections::BTreeMap;
-
-use crate::error::HigginsError;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
 /// and its derivative properties.
