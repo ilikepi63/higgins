@@ -51,7 +51,7 @@ impl<'a> JoinedIndex<'a> {
 
     fn put_offsets(offsets: &[Option<u64>], data: &mut [u8]) {
         for (index, offset) in offsets.iter().enumerate() {
-            let current_offset = (size_of::<u8>() + size_of::<u64>());
+            let current_offset = size_of::<u8>() + size_of::<u64>();
 
             let (discriminator, bytes) = match offset {
                 Some(offset) => (1_u8.to_be_bytes(), offset.to_be_bytes()),
