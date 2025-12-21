@@ -44,7 +44,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
             let frame = Frame::try_read_async(&mut read_socket).await.unwrap();
             let message = Message::decode(&mut frame.inner()).unwrap();
 
-            tracing::info!("Received a message, responding.");
+            tracing::info!("Received a message {:#?}, responding.", message);
+
+            let t = Type::try_from(message.r#type);
+
+            tracing::info!("Request Type: {:#?}", t);
 
             match Type::try_from(message.r#type).unwrap() {
                 Type::Ping => {
@@ -262,9 +266,14 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Deleteconfigurationresponse => todo!(),
                 Type::Error => {}
                 Type::Getindexrequest => {
+                    tracing::trace!("Trying to retrieve the broker lock..");
+
                     let broker_lock = broker.read().await;
 
+                    tracing::trace!("Retrieved the GetIndexRequest");
+
                     let request = message.get_index_request.unwrap(); // TODO: error response here.
+                    tracing::trace!("Retrieved the GetIndexRequest: {:#?}", request);
 
                     for index in request.indexes {
                         // We can potentially query in three different ways using this request, so
@@ -330,12 +339,19 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 // }
                             }
                             higgins_codec::index::Type::Latest => {
+                                tracing::trace!("Retrieved a Latest GetIndexRequest",);
+
                                 let responses = broker_lock
                                     .get_latest(&index.stream, &index.partition, broker.clone())
                                     .await;
 
                                 for response in responses {
                                     let response = response.await.unwrap();
+
+                                    tracing::trace!(
+                                        "Response for GetIndexRequest: {:#?}",
+                                        response
+                                    );
 
                                     let index_response = GetIndexResponse {
                                         records: vec![Record {

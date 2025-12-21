@@ -97,7 +97,7 @@ fn can_implement_a_basic_stream_join() {
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
     socket
-        .set_read_timeout(Some(Duration::from_secs(3)))
+        .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
 
     ping_sync(&mut socket);
@@ -120,13 +120,15 @@ fn can_implement_a_basic_stream_join() {
     )
     .unwrap();
 
-    // let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
-
-    // println!("Customer Result: {:#?}", result);
-
     std::thread::sleep(Duration::from_secs(1));
 
-    // let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+    println!("We are trying to query the customer result..");
+
+    let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
+
+    println!("Customer Result: {:#?}", result);
+
+    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
     panic!();
 
