@@ -1,8 +1,13 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
-use arrow::{array::NullArray, record_batch::RecordBatch};
+use arrow::{
+    array::{ArrayBuilder, NullArray, new_null_array},
+    record_batch::RecordBatch,
+};
 use std::collections::BTreeMap;
+
+use crate::error::HigginsError;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
 /// and its derivative properties.
@@ -52,36 +57,61 @@ impl JoinMapping {
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let mut columns = vec![];
 
-        // We need to order the resultant columns by the given schema.
-        for field in self.0.fields.iter() {
-            let field_name = field.name();
-
-            let (_, (stream_name, stream_propery_key)) = self
-                .1
-                .iter()
-                .find(|(prop_name, _)| prop_name == field_name)
-                .unwrap();
-
-            let batch_opt = batches
-                .iter()
-                .find(|val| match val {
-                    Some((name, _)) => name == stream_name,
-                    None => false,
-                })
-                .cloned()
-                .flatten();
-
-            columns.push(match batch_opt {
-                Some((_, batch)) => {
-                    let column = batch.column_by_name(stream_propery_key).unwrap();
-
-                    column.clone()
-                }
-                None => std::sync::Arc::new(NullArray::new(0)),
+        let batches_row_count = batches
+            .iter()
+            .filter_map(|batch| match batch {
+                Some(batch) => Some(batch.1.num_rows()),
+                None => None,
             })
-        }
+            .fold(Some(0), |acc, curr| match acc {
+                Some(0) => Some(curr),
+                Some(v) if v == curr => Some(curr),
+                _ => None,
+            });
 
-        Ok(RecordBatch::try_new(self.0.clone(), columns)?)
+        match batches_row_count {
+            Some(batch_row_count) => {
+                // We need to order the resultant columns by the given schema.
+                for field in self.0.fields.iter() {
+                    let field_name = field.name();
+
+                    // We retrieve the pulled value for this given property name.
+                    let (_, (stream_name, stream_propery_key)) = self
+                        .1
+                        .iter()
+                        .find(|(prop_name, _)| prop_name == field_name)
+                        .unwrap();
+
+                    // We then retrieve the batch for this.
+                    let batch_opt = batches
+                        .iter()
+                        .find(|val| match val {
+                            Some((name, _)) => name == stream_name,
+                            None => false,
+                        })
+                        .cloned()
+                        .flatten();
+
+                    columns.push(match batch_opt {
+                        Some((_, batch)) => {
+                            let column = batch.column_by_name(stream_propery_key).unwrap();
+
+                            column.clone()
+                        }
+                        None => {
+                            std::sync::Arc::new(new_null_array(field.data_type(), batch_row_count))
+                        }
+                    })
+                }
+
+                Ok(RecordBatch::try_new(self.0.clone(), columns)?)
+            }
+            None => {
+                tracing::error!("Tried to amalgamate RecordBatches without the same row length.");
+                todo!();
+                // Err(HigginsError::Unknown)
+            }
+        }
     }
 }
 
@@ -141,9 +171,9 @@ mod tests {
     // Helper function to create a simple schema
     fn create_test_schema() -> Arc<Schema> {
         Arc::new(Schema::new(vec![
-            Field::new("customer_first_name", DataType::Utf8, false),
-            Field::new("customer_last_name", DataType::Utf8, false),
-            Field::new("customer_address", DataType::Utf8, false),
+            Field::new("customer_first_name", DataType::Utf8, true),
+            Field::new("customer_last_name", DataType::Utf8, true),
+            Field::new("customer_address", DataType::Utf8, true),
         ]))
     }
 
@@ -281,6 +311,42 @@ mod tests {
             Some(("customer".to_string(), customer_batch)),
             Some(("address".to_string(), address_batch)),
         ];
+
+        let result = join_mapping.map_arrow(batches).unwrap();
+
+        // Verify the result has the correct schema
+        assert_eq!(result.schema().fields().len(), 3);
+        assert_eq!(result.num_rows(), 3);
+        assert_eq!(result.num_columns(), 3);
+
+        // Verify column names
+        assert!(result.column_by_name("customer_first_name").is_some());
+        assert!(result.column_by_name("customer_last_name").is_some());
+        assert!(result.column_by_name("customer_address").is_some());
+    }
+
+    #[test]
+    fn test_map_arrow_basic_missing_batch() {
+        let schema = create_test_schema();
+        let mut mapping = BTreeMap::new();
+        mapping.insert(
+            "customer_first_name".to_string(),
+            "customer.first_name".to_string(),
+        );
+        mapping.insert(
+            "customer_last_name".to_string(),
+            "customer.last_name".to_string(),
+        );
+        mapping.insert(
+            "customer_address".to_string(),
+            "address.address".to_string(),
+        );
+
+        let join_mapping = JoinMapping::from((schema.clone(), mapping));
+
+        let customer_batch = create_customer_batch();
+
+        let batches = vec![Some(("customer".to_string(), customer_batch)), None];
 
         let result = join_mapping.map_arrow(batches).unwrap();
 
