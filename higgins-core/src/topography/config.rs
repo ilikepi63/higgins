@@ -55,7 +55,7 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
                 _ => unimplemented!(),
             };
 
-            Field::new(key, data_type, false) // TODO: how do we handle nullable here? OR how do we actually determine them?
+            Field::new(key, data_type, true) // TODO: how do we handle nullable here? OR how do we actually determine them?
         })
         .collect::<Vec<_>>();
 
