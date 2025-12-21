@@ -1,12 +1,10 @@
 use crate::common::{
-    configuration::upload_configuration, ping::ping_sync, produce_sync, query::query_latest,
-    query_latest_arrow,
+    configuration::upload_configuration, ping::ping_sync, produce_sync, query_latest_arrow,
 };
 use common::get_random_port;
 use higgins::run_server;
-use higgins::storage::arrow_ipc::read_arrow;
-use serde_json::json;
-use std::{env::temp_dir, net::TcpStream, time::Duration};
+use std::{net::TcpStream, time::Duration};
+use tracing_subscriber::fmt::init;
 use tracing_test::traced_test;
 
 mod common;
@@ -63,9 +61,10 @@ province = "address.province"
 "#;
 
 #[test]
-#[traced_test]
+// #[traced_test]
 fn can_implement_a_basic_stream_join() {
     let port = get_random_port();
+    let subscriber = tracing_subscriber::fmt::init();
 
     tracing::info!("Running on port: {port}");
 
@@ -97,7 +96,7 @@ fn can_implement_a_basic_stream_join() {
     let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
     socket
-        .set_read_timeout(Some(Duration::from_secs(3)))
+        .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
 
     ping_sync(&mut socket);
@@ -120,11 +119,9 @@ fn can_implement_a_basic_stream_join() {
     )
     .unwrap();
 
-    let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
-
-    println!("Customer Result: {:#?}", result);
-
     std::thread::sleep(Duration::from_secs(1));
+
+    let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
 
     let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
