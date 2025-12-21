@@ -1,5 +1,5 @@
 use crate::storage::{dereference::Reference, index::IndexError};
-use std::{fmt::Debug, io::Write};
+use std::fmt::Debug;
 
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
@@ -58,8 +58,7 @@ impl<'a> JoinedIndex<'a> {
                 None => (0_u8.to_be_bytes(), [0; 8]),
             };
 
-            let start = (index * current_offset);
-            let end = ((index * current_offset) + current_offset);
+            let start = index * current_offset;
 
             data[start..start + 1].copy_from_slice(discriminator.as_slice());
             data[start + 1..start + 9].copy_from_slice(bytes.as_slice());
@@ -282,11 +281,6 @@ impl<'a> JoinedIndexOffset<'a> {
 mod test {
     use colored::Color;
 
-    use crate::{
-        error::HigginsError,
-        storage::index::{Index, joined_index},
-    };
-
     use super::*;
     #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
     struct ByteInterval(pub usize, pub usize);
@@ -421,15 +415,7 @@ mod test {
             ),
         ];
 
-        let offset = &join_index_bytes[OFFSET_INDEX..TIMESTAMP_INDEX];
-        // print_bytes_coloured(offset, Color::Blue);
-        let timestamp = &join_index_bytes[TIMESTAMP_INDEX..COMPLETED_INDEX];
-        let completed = &join_index_bytes[COMPLETED_INDEX..OBJECT_KEY_INDEX];
-        let reference = &join_index_bytes[OBJECT_KEY_INDEX..INDEXES_INDEX];
-
         print_bytes_coloured(join_index_bytes, intervals);
-
-        // );
     }
 
     #[test]
