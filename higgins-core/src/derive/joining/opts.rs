@@ -331,6 +331,8 @@ pub async fn create_join_operator(
 
                 let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
+                // Queries the derivative data of all relying join streams and amalgamates it into
+                // one coherent data stream.
                 tokio::spawn(async move {
                     let stream = amalgamate_definition.clone();
                     let partition = amalgamate_partition;
@@ -341,15 +343,16 @@ pub async fn create_join_operator(
                             "[JOIN COMPLETION] Retrieved a completed index, starting the join mapping. "
                         );
 
+                        // Get the actual mapping.
                         let join_mapping = amalgamate_definition.clone().mapping;
 
+                        // Retrieve a view into the joined index.
                         let index_view = index_file.view();
                         // Query the offset from this index_file,
                         let index = index_view
                             .get(completed_index.try_into().unwrap())
                             .map(JoinedIndex::of)
                             .unwrap();
-
                         tracing::trace!(
                             "[JOIN COMPLETION] Retrieved the index for the offset {}.",
                             completed_index
@@ -424,7 +427,7 @@ pub async fn create_join_operator(
                         })).collect::<Vec<_>>();
 
                         tracing::info!("We are amalgamating the derivative data now.");
-
+                        tracing::trace!("Derived Data: {:#?}", derivative_data);
                         let resultant_record_batch =
                             join_mapping.map_arrow(derivative_data).unwrap();
 

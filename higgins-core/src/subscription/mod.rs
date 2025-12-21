@@ -548,7 +548,6 @@ mod tests {
 
         // Take 4 offsets (should distribute across partitions)
         let offsets = sub.take(1, 4).expect("Failed to take offsets");
-        println!("{offsets:?}");
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary
         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));

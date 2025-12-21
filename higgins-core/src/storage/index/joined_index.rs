@@ -61,7 +61,6 @@ impl<'a> JoinedIndex<'a> {
             let start = (index * current_offset);
             let end = ((index * current_offset) + current_offset);
 
-            println!("Writing at {} {}", start, end);
             data[start..start + 1].copy_from_slice(discriminator.as_slice());
             data[start + 1..start + 9].copy_from_slice(bytes.as_slice());
         }
@@ -324,10 +323,6 @@ mod test {
             let second = window.iter().nth(1).unwrap();
             let third = window.iter().nth(2).unwrap();
 
-            println!("Checking interval: {:#?}", second);
-            println!("Previous interval: {:#?}", first);
-            println!("Following interval: {:#?}", third);
-
             assert!(first.0.1 <= second.0.0);
             assert!(second.0.1 <= third.0.0);
         }
@@ -432,23 +427,8 @@ mod test {
         let completed = &join_index_bytes[COMPLETED_INDEX..OBJECT_KEY_INDEX];
         let reference = &join_index_bytes[OBJECT_KEY_INDEX..INDEXES_INDEX];
 
-        println!("DOING IT: ");
-
         print_bytes_coloured(join_index_bytes, intervals);
 
-        // // println!("REFERENCE BYTES: {:#?}", reference);
-        // println!(
-        //     "REFERENCE: {:#?}",
-        //     &join_index_bytes[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()]
-        // );
-
-        // println!("Parsed Reference: {:#?}", Reference::from_bytes(reference));
-
-        // println!("OFFSET BYTES: {:#?}", offset);
-        // println!("OFFSET LEN: {:#?}", offset.len());
-        // println!(
-        //     "OFFSET NUMBER: {:#?}",
-        //     u64::from_be_bytes(offset.try_into().unwrap())
         // );
     }
 

@@ -73,7 +73,6 @@ pub enum Reference {
 impl Reference {
     /// Write this struct to bytes.
     pub fn to_bytes(&self, mut w: &mut [u8]) -> Result<(), std::io::Error> {
-        println!("HERE: {:#?}", w);
         match self {
             Self::S3(data) => {
                 w.write_all(&OBJECT_STORE_DISCRIMINATOR.to_be_bytes())?;
@@ -83,7 +82,6 @@ impl Reference {
             }
             Self::Null => {
                 w[0..0 + size_of::<u16>()].copy_from_slice(&NULL_DISCRIMINATOR.to_be_bytes());
-                println!("AFTER: {:#?}", w);
             }
         };
 
