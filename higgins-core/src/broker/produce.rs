@@ -164,11 +164,8 @@ impl Broker {
             size: response.size.into(),
         }));
 
-        Ok(index)
+        tracing::trace!("Successfully written to the index: {:#?}", index);
 
-        // match index.get_reference() {
-        //     Reference::S3(_) => {}
-        //     Reference::Null => Err(HigginsError::UnableToPlaceDataAtNullReference),
-        // }
+        Ok(index)
     }
 }
