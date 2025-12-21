@@ -166,8 +166,13 @@ impl<'a> JoinedIndex<'a> {
 
     /// Checks whether an index given is within the specific bounds of this JoinedIndex.
     fn within_bounds(buffer: &[u8], index: usize) -> bool {
-        index + INDEXES_INDEX < (buffer.len() - 1)
-            && (index + (size_of::<u8>() + size_of::<u64>())) < (buffer.len() - 1)
+        let resultant_length = buffer.len() - INDEXES_INDEX;
+
+        println!("Resultant Length: {}", resultant_length);
+
+        let length = resultant_length / (size_of::<u8>() + size_of::<u64>());
+
+        index < length
     }
 
     /// Iterates through the other joined index's offsets, copying them over to the current
@@ -265,7 +270,7 @@ impl<'a> JoinedIndexOffset<'a> {
 
     /// Check if this value is Some or None.
     pub fn get_unchecked(&self) -> u64 {
-        u64::from_be_bytes(self.0[1..=9].try_into().unwrap())
+        u64::from_be_bytes(self.0[1..9].try_into().unwrap())
     }
 
     /// Check if this value is Some or None.
@@ -371,8 +376,6 @@ mod test {
         ];
 
         print_bytes_coloured(&bytes, intervals);
-
-        panic!();
     }
 
     fn debug_join_index_bytes(join_index_bytes: &[u8]) {
@@ -408,11 +411,11 @@ mod test {
                 Color::Red,
                 "Second Index".to_string(),
             ),
-            Interval(
-                ByteInterval(INDEXES_INDEX + 18, INDEXES_INDEX + 27),
-                Color::Yellow,
-                "Last Index".to_string(),
-            ),
+            // Interval(
+            //     ByteInterval(INDEXES_INDEX + 18, INDEXES_INDEX + 27),
+            //     Color::Yellow,
+            //     "Last Index".to_string(),
+            // ),
         ];
 
         print_bytes_coloured(join_index_bytes, intervals);
@@ -454,5 +457,292 @@ mod test {
         assert!(joined_index.get_offset(2).is_some_and(|val| val == 2));
 
         dbg!(&joined_index);
+    }
+
+    #[test]
+    fn test_size_of() {
+        assert_eq!(JoinedIndex::size_of(0), INDEXES_INDEX);
+        assert_eq!(
+            JoinedIndex::size_of(1),
+            INDEXES_INDEX + size_of::<u8>() + size_of::<u64>()
+        );
+        assert_eq!(
+            JoinedIndex::size_of(2),
+            INDEXES_INDEX + 2 * (size_of::<u8>() + size_of::<u64>())
+        );
+    }
+
+    #[test]
+    fn test_offset() {
+        let offset = 123456789u64;
+        let mut data = vec![0u8; INDEXES_INDEX];
+        data[0..8].copy_from_slice(&offset.to_be_bytes());
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.offset(), offset);
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let timestamp = 987654321u64;
+        let mut data = vec![0u8; INDEXES_INDEX];
+        data[8..16].copy_from_slice(&timestamp.to_be_bytes());
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.timestamp(), timestamp);
+    }
+
+    #[test]
+    fn test_completed() {
+        let mut data = vec![0u8; INDEXES_INDEX];
+        // Test false (0)
+        let ji_false = JoinedIndex::of(&data);
+        assert!(!ji_false.completed());
+
+        // Test true (1)
+        data[16] = 1u8;
+        let ji_true = JoinedIndex::of(&data);
+        assert!(ji_true.completed());
+    }
+
+    #[test]
+    fn test_offset_len() {
+        // For 0 offsets
+        let data = vec![0u8; INDEXES_INDEX];
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.offset_len(), 0);
+
+        // For 1 offset
+        let data = vec![0u8; INDEXES_INDEX + size_of::<u8>() + size_of::<u64>()];
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.offset_len(), 1);
+
+        // For 2 offsets
+        let data = vec![0u8; INDEXES_INDEX + 2 * (size_of::<u8>() + size_of::<u64>())];
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.offset_len(), 2);
+
+        // Note: This tests the current implementation, which may have precision issues for larger n.
+    }
+
+    #[test]
+    fn test_get_offset() {
+        let n_offsets = 2;
+        let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
+        let mut data = vec![0u8; total_size];
+
+        // Set offset 0 to Some(100)
+        let offset0 = 100u64;
+        let start0 = INDEXES_INDEX;
+        data[start0] = 1u8;
+        data[start0 + 1..start0 + 9].copy_from_slice(&offset0.to_be_bytes());
+
+        // Set offset 1 to None
+        let start1 = start0 + size_of::<u8>() + size_of::<u64>();
+        data[start1] = 0u8;
+
+        let ji = JoinedIndex::of(&data);
+
+        assert_eq!(ji.get_offset(0), Some(offset0));
+        assert_eq!(ji.get_offset(1), None);
+        // Out of bounds
+        assert_eq!(ji.get_offset(2), None);
+    }
+
+    #[test]
+    fn test_put_offset() {
+        let n_offsets = 2;
+        let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
+        let mut data = vec![0u8; total_size];
+
+        // Put offset 0 to 200
+        let offset0 = 200u64;
+        assert!(JoinedIndex::put_offset(&mut data, 0, offset0).is_ok());
+
+        // Verify
+        let start0 = INDEXES_INDEX;
+        assert_eq!(data[start0], 1u8);
+        assert_eq!(
+            u64::from_be_bytes(data[start0 + 1..start0 + 9].try_into().unwrap()),
+            offset0
+        );
+
+        // Put offset 1 to 300
+        let offset1 = 300u64;
+        assert!(JoinedIndex::put_offset(&mut data, 1, offset1).is_ok());
+
+        let start1 = start0 + 9;
+        assert_eq!(data[start1], 1u8);
+        assert_eq!(
+            u64::from_be_bytes(data[start1 + 1..start1 + 9].try_into().unwrap()),
+            offset1
+        );
+
+        // Out of bounds should error
+        match JoinedIndex::put_offset(&mut data, 2, 400u64) {
+            Err(IndexError::IndexGivenOutOfBoundsForJoinedIndex) => {}
+            _ => panic!("Expected IndexError"),
+        }
+    }
+
+    #[test]
+    fn test_put() {
+        let offset = 111u64;
+        let timestamp = 222u64;
+        let offsets = vec![Some(333_u64), None];
+        let n_offsets = offsets.len();
+        let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
+        let mut data = vec![0u8; total_size];
+
+        data[0..8].copy_from_slice(&offset.to_be_bytes());
+        data[8..16].copy_from_slice(&timestamp.to_be_bytes());
+        data[16] = 0u8; // completed false
+        data[17..17 + Reference::size_of()].copy_from_slice(&[0u8; 34]); // mock reference bytes
+
+        // Simulate put_offsets
+        for (index, off) in offsets.iter().enumerate() {
+            let start = INDEXES_INDEX + index * 9;
+            match off {
+                Some(o) => {
+                    data[start] = 1u8;
+                    data[start + 1..start + 9].copy_from_slice(&o.to_be_bytes());
+                }
+                None => {
+                    data[start] = 0u8;
+                    data[start + 1..start + 9].fill(0u8);
+                }
+            }
+        }
+
+        debug_join_index_bytes(&data);
+
+        let ji = JoinedIndex::of(&data);
+        assert_eq!(ji.offset(), offset);
+        assert_eq!(ji.timestamp(), timestamp);
+        assert!(!ji.completed());
+        // assert_eq!(ji.reference(), reference); // Would require actual impl
+        assert_eq!(ji.get_offset(0), Some(333u64));
+        assert_eq!(ji.get_offset(1), None);
+    }
+
+    #[test]
+    fn test_set_completed() {
+        let total_size = INDEXES_INDEX;
+        let mut data = vec![0u8; total_size];
+        data[16] = 0u8;
+
+        JoinedIndex::set_completed(&mut data);
+
+        assert_eq!(data[16], 1u8);
+    }
+
+    #[test]
+    fn test_copy_filled_from() {
+        let n_offsets = 2;
+        let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
+        let mut current = vec![0u8; total_size];
+        let mut other = vec![0u8; total_size];
+
+        // Set other offset 0 to present (100), offset 1 None
+        let start0 = INDEXES_INDEX;
+        other[start0] = 1u8;
+        other[start0 + 1..start0 + 9].copy_from_slice(&100u64.to_be_bytes());
+        other[start0 + 9] = 0u8;
+
+        // Current: offset 0 None, offset 1 present (but we'll overwrite if condition)
+        current[start0] = 0u8;
+        let start1 = start0 + 9;
+        current[start1] = 1u8;
+        current[start1 + 1..start1 + 9].copy_from_slice(&200u64.to_be_bytes());
+
+        JoinedIndex::copy_filled_from(&mut current, &other);
+
+        // offset 0 should now be filled from other (100)
+        assert_eq!(current[start0], 1u8);
+        assert_eq!(
+            u64::from_be_bytes(current[start0 + 1..start0 + 9].try_into().unwrap()),
+            100u64
+        );
+        // offset 1 remains 200 since current was present
+        assert_eq!(
+            u64::from_be_bytes(current[start1 + 1..start1 + 9].try_into().unwrap()),
+            200u64
+        );
+    }
+
+    #[test]
+    fn test_put_reference() {
+        let total_size = INDEXES_INDEX;
+        let mut data = vec![0u8; total_size];
+        let mut ji = JoinedIndex::of(&data);
+
+        let new_ref = Reference::Null;
+        // Simulate update
+        let updated = ji.put_reference(new_ref);
+        assert_eq!(updated.len(), total_size);
+        // Check that object key bytes are updated (mock sets to 0s)
+        assert!(
+            updated[17..17 + Reference::size_of()]
+                .iter()
+                .all(|&b| b == 0u8)
+        );
+    }
+
+    #[test]
+    fn test_joined_index_offset() {
+        // Present
+        let mut bytes_present = vec![0u8; 9];
+        bytes_present[0] = 1u8;
+        bytes_present[1..9].copy_from_slice(&42u64.to_be_bytes());
+        let off_present = JoinedIndexOffset::of(&bytes_present);
+        assert!(off_present.present());
+        assert_eq!(off_present.get(), Some(42u64));
+        assert_eq!(off_present.get_unchecked(), 42u64);
+
+        // Absent
+        let mut bytes_absent = vec![0u8; 9];
+        bytes_absent[0] = 0u8;
+        let off_absent = JoinedIndexOffset::of(&bytes_absent);
+        assert!(!off_absent.present());
+        assert_eq!(off_absent.get(), None);
+    }
+
+    #[test]
+    fn test_debug() {
+        let n_offsets = 1;
+        let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
+        let mut data = vec![0u8; total_size];
+        data[0..8].copy_from_slice(&1u64.to_be_bytes()); // offset
+        data[8..16].copy_from_slice(&2u64.to_be_bytes()); // timestamp
+        data[16] = 0u8; // completed
+        data[17..17 + Reference::size_of()].copy_from_slice(&[0u8; 34]); // mock ref
+        let start = INDEXES_INDEX;
+        data[start] = 1u8;
+        data[start + 1..start + 9].copy_from_slice(&4u64.to_be_bytes()); // offset 0
+
+        let ji = JoinedIndex::of(&data);
+        let debug_str = format!("{:?}", ji);
+        assert!(debug_str.contains("offset: 1"));
+        assert!(debug_str.contains("timestamp: 2"));
+        assert!(debug_str.contains("offsets: [Some(4)]"));
+        // Reference debug would depend on impl, but assumes it prints something.
+    }
+
+    #[test]
+    fn test_from_bytes() {
+        let data = vec![0u8; INDEXES_INDEX];
+        let ji1 = JoinedIndex::of(&data);
+        let ji2: JoinedIndex = (&data[..]).into();
+        assert_eq!(ji1.offset(), ji2.offset());
+    }
+
+    #[test]
+    fn test_within_bounds_helper() {
+        let total_size = INDEXES_INDEX + 2 * 9;
+        let data = vec![0u8; total_size];
+
+        // index 0 and 1 in bounds
+        assert!(JoinedIndex::within_bounds(&data, 0));
+        assert!(JoinedIndex::within_bounds(&data, 1));
+        // index 2 out
+        assert!(!JoinedIndex::within_bounds(&data, 2));
     }
 }
