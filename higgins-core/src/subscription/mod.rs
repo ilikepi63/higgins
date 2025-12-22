@@ -34,8 +34,18 @@ struct SubscriptionMetadata {
     ranges: Vec<Range>,
 }
 
+/// Represents a file that holds ranges of used subscription partitions.
+pub struct SubscriptionPartitionFile {
+    file: std::fs::File,
+}
+
+impl SubscriptionPartitionFile {
+    pub fn create_with() {}
+}
+
 // TODO: should we make a lock per row?
 pub struct Subscription {
+    /// Path of the enclosing directory for this subscription.
     path: PathBuf,
     last_index: u64,
     #[allow(unused)]
