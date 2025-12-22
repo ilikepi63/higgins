@@ -48,7 +48,7 @@ impl Broker {
 
         batch_responses
             .into_iter()
-            .map(|reference| dereference(reference, broker.clone()))
+            .map(|reference| dereference(reference, &self))
             .collect()
     }
     pub async fn get_by_timestamp(
@@ -107,7 +107,7 @@ impl Broker {
 
         find_batch_responses
             .into_iter()
-            .map(|reference| dereference(reference, broker.clone()))
+            .map(|reference| dereference(reference, &self))
             .collect()
     }
 
@@ -117,7 +117,7 @@ impl Broker {
         stream: &[u8],
         partition: &[u8],
         offset: u64,
-        broker: Arc<tokio::sync::RwLock<Broker>>,
+        //broker: Arc<tokio::sync::RwLock<Broker>>,
     ) -> Result<Option<Vec<u8>>, HigginsError> {
         let stream_def = self
             .topography
@@ -137,7 +137,7 @@ impl Broker {
             .ok();
 
         if let Some(reference) = reference {
-            dereference(reference, broker).await.map(|val| Some(val))
+            dereference(reference, &self).await.map(|val| Some(val))
         } else {
             Ok(None)
         }

@@ -241,8 +241,6 @@ mod test {
 
         let config = from_toml(example_config.as_bytes());
 
-        println!("Config: {:#?}", config);
-
         // Define the expected Configuration struct
         let expected = Configuration {
             schema: BTreeMap::from([
@@ -348,7 +346,6 @@ mod test {
             config.streams.get("customer"),
             expected.streams.get("customer")
         );
-
 
         assert_eq!(
             config.streams.get("customer_address"),

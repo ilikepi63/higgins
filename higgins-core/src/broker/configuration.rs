@@ -61,7 +61,6 @@ impl Broker {
         for (derived_stream_key, derived_stream_definition) in derived_streams {
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
-
                     tracing::trace!("Creating the Joined Stream definition.");
 
                     let definition = {
