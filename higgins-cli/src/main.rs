@@ -1,7 +1,7 @@
 #![allow(clippy::unused_io_amount)]
 
 use bytes::BytesMut;
-use clap::{Parser, Subcommand, arg, command};
+use clap::{Parser, Subcommand};
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
 use tokio::{
