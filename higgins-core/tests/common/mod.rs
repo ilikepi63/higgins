@@ -5,14 +5,13 @@ use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 
 pub mod configuration;
-mod data;
+pub mod data;
 pub mod functions;
 pub mod ping;
 mod port;
 pub mod query;
 pub mod subscription;
 
-pub use data::*;
 pub use port::get_random_port;
 /// produce to a stream without waiting for the response.
 ///

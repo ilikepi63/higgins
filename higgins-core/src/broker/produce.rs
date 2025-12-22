@@ -130,45 +130,42 @@ impl Broker {
         index: &mut Index<'a>,
         data: RecordBatch,
     ) -> Result<Vec<u8>, HigginsError> {
-        match index.get_reference() {
-            Reference::S3(_) => {
-                tracing::trace!("[PRODUCE] Producing to stream: {}", stream);
+        tracing::trace!("[PRODUCE] Producing to stream: {}", stream);
 
-                let data = write_arrow(&data);
+        let data = write_arrow(&data);
 
-                let request = ProduceRequest {
-                    request_id: 1,
-                    topic: stream,
-                    partition: partition.to_vec(),
-                    data,
-                };
+        let request = ProduceRequest {
+            request_id: 1,
+            topic: stream,
+            partition: partition.to_vec(),
+            data,
+        };
 
-                let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
+        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
-                let mut buffer_lock = self.collection.write().await;
+        let mut buffer_lock = self.collection.write().await;
 
-                let _ = buffer_lock.0.collect(request.inner().clone());
+        let _ = buffer_lock.0.collect(request.inner().clone());
 
-                buffer_lock.1.push(request);
+        buffer_lock.1.push(request);
 
-                // TODO: This is currently hardcoded to 50kb, but we possibly want to make
-                if buffer_lock.0.size() > 50_000 {
-                    let _ = self.flush_tx.as_ref().unwrap().send(()).await;
-                }
-
-                drop(buffer_lock);
-
-                let response = response.recv().await.unwrap();
-
-                let index = index.put_reference(Reference::S3(S3Reference {
-                    object_key: response.object_key,
-                    position: response.offset,
-                    size: response.size.into(),
-                }));
-
-                Ok(index)
-            }
-            Reference::Null => Err(HigginsError::UnableToPlaceDataAtNullReference),
+        // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+        if buffer_lock.0.size() > 50_000 {
+            let _ = self.flush_tx.as_ref().unwrap().send(()).await;
         }
+
+        drop(buffer_lock);
+
+        let response = response.recv().await.unwrap();
+
+        let index = index.put_reference(Reference::S3(S3Reference {
+            object_key: response.object_key,
+            position: response.offset,
+            size: response.size.into(),
+        }));
+
+        tracing::trace!("Successfully written to the index: {:#?}", index);
+
+        Ok(index)
     }
 }

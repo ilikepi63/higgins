@@ -68,13 +68,7 @@ pub async fn create_reduced_stream_from_definition(
                     let broker_lock = left_broker.read().await;
 
                     let consumption = broker_lock
-                        .consume(
-                            &left_stream_name,
-                            &partition,
-                            offset,
-                            50_000,
-                            left_broker.clone(),
-                        )
+                        .consume(&left_stream_name, &partition, offset, 50_000)
                         .await;
 
                     for val in consumption {

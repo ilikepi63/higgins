@@ -3,7 +3,6 @@
 use std::io::Write;
 
 use crate::{broker::Broker, error::HigginsError};
-use tokio::sync::RwLock;
 
 use riskless::object_store::path::Path;
 
@@ -81,7 +80,7 @@ impl Reference {
                 w.write_all(&data.size.to_be_bytes())?;
             }
             Self::Null => {
-                w[0..0 + size_of::<u16>()].copy_from_slice(&NULL_DISCRIMINATOR.to_be_bytes());
+                w[0..size_of::<u16>()].copy_from_slice(&NULL_DISCRIMINATOR.to_be_bytes());
             }
         };
 
@@ -138,9 +137,6 @@ impl S3Reference {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
 
     // Placeholder for Broker and HigginsError; assuming they are defined in the crate
     // and can be instantiated for testing purposes (e.g., Broker::default() or similar).

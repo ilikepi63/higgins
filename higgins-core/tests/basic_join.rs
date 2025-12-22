@@ -1,11 +1,9 @@
 use crate::common::{
-    configuration::upload_configuration, ping::ping_sync, produce_sync, query_latest_arrow,
+    configuration::upload_configuration, data::query_latest_arrow, ping::ping_sync, produce_sync,
 };
 use common::get_random_port;
 use higgins::run_server;
 use std::{net::TcpStream, time::Duration};
-use tracing_subscriber::fmt::init;
-use tracing_test::traced_test;
 
 mod common;
 
@@ -61,20 +59,16 @@ province = "address.province"
 "#;
 
 #[test]
-// #[traced_test]
 fn can_implement_a_basic_stream_join() {
     let port = get_random_port();
-    let subscriber = tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt::init();
 
     tracing::info!("Running on port: {port}");
 
     let dir = {
-        // let mut dir = temp_dir();
-        // dir.push(uuid::Uuid::new_v4().to_string());
-
         let mut dir = std::path::PathBuf::new();
 
-        dir.push("test_base");
+        dir.push(uuid::Uuid::new_v4().to_string());
 
         dir
     };
@@ -121,37 +115,119 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
+    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+
+    assert_eq!(result, create_batch_with_nulled_values_in_address());
+
+    produce_sync(
+        b"address",
+        b"1",
+        r#"
+        {
+            "customer_id": "1",
+            "address_line_1": "12 Tennatn Avenut",
+            "address_line_2": "Bonteheuwel",
+            "city": "Cape Town",
+            "province": "Western Cape"
+        }
+    "#
+        .as_bytes(),
+        &mut socket,
+    )
+    .unwrap();
+
+    std::thread::sleep(Duration::from_secs(1));
 
     let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
-    panic!();
+    assert_eq!(result, create_test_customer_address_data());
 
-    // produce_sync(
-    //     b"address",
-    //     b"1",
-    //     r#"
-    //     {
-    //         "customer_id": "1",
-    //         "address_line_1": "12 Tennatn Avenut",
-    //         "address_line_2": "Bonteheuwel",
-    //         "city": "Cape Town",
-    //         "province": "Western Cape"
-    //     }
-    // "#
-    //     .as_bytes(),
-    //     &mut socket,
-    // )
-    // .unwrap();
+    std::fs::remove_dir_all(dir_remove).unwrap();
+}
 
-    // let result = query_latest(b"customer_address", b"1", &mut socket).unwrap();
+use arrow::array::RecordBatch;
+use arrow::array::{Int32Array, StringArray};
+use arrow::datatypes::{DataType, Field, Schema};
+use std::sync::Arc;
 
-    // let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
-    // let expected_result = json!(
-    //     {"address_line_1":"12 Tennatn Avenut","address_line_2":"Bonteheuwel","age":30,"city":"Cape Town","customer_first_name":"TestFirstName","customer_id":"1","customer_last_name":"TestSurname","province":"Western Cape"}
-    // );
+pub fn create_test_customer_address_data() -> RecordBatch {
+    // Define the schema
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("address_line_1", DataType::Utf8, true),
+        Field::new("address_line_2", DataType::Utf8, true),
+        Field::new("age", DataType::Int32, true),
+        Field::new("city", DataType::Utf8, true),
+        Field::new("customer_first_name", DataType::Utf8, true),
+        Field::new("customer_id", DataType::Utf8, true),
+        Field::new("customer_last_name", DataType::Utf8, true),
+        Field::new("province", DataType::Utf8, true),
+    ]));
 
-    // assert_eq!(result, expected_result);
+    // Create the arrays with the provided data (one row, non-null values)
+    let address_line_1 = Arc::new(StringArray::from(vec!["12 Tennatn Avenut"]));
+    let address_line_2 = Arc::new(StringArray::from(vec!["Bonteheuwel"]));
+    let age = Arc::new(Int32Array::from(vec![30]));
+    let city = Arc::new(StringArray::from(vec!["Cape Town"]));
+    let customer_first_name = Arc::new(StringArray::from(vec!["TestFirstName"]));
+    let customer_id = Arc::new(StringArray::from(vec!["1"]));
+    let customer_last_name = Arc::new(StringArray::from(vec!["TestSurname"]));
+    let province = Arc::new(StringArray::from(vec!["Western Cape"]));
 
-    // std::fs::remove_dir_all(dir_remove).unwrap();
+    // Create the RecordBatch
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            address_line_1,
+            address_line_2,
+            age,
+            city,
+            customer_first_name,
+            customer_id,
+            customer_last_name,
+            province,
+        ],
+    )
+    .unwrap()
+}
+
+pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
+    // Define the schema (same as before)
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("address_line_1", DataType::Utf8, true),
+        Field::new("address_line_2", DataType::Utf8, true),
+        Field::new("age", DataType::Int32, true),
+        Field::new("city", DataType::Utf8, true),
+        Field::new("customer_first_name", DataType::Utf8, true),
+        Field::new("customer_id", DataType::Utf8, true),
+        Field::new("customer_last_name", DataType::Utf8, true),
+        Field::new("province", DataType::Utf8, true),
+    ]));
+
+    // Create the arrays with the provided data (one row, with nulls where specified)
+    let address_line_1 = Arc::new(StringArray::from(vec![None::<&str>]));
+    let address_line_2 = Arc::new(StringArray::from(vec![None::<&str>]));
+    let age = Arc::new(Int32Array::from(vec![Some(30i32)]));
+    let city = Arc::new(StringArray::from(vec![None::<&str>]));
+    let customer_first_name = Arc::new(StringArray::from(vec!["TestFirstName"]));
+    let customer_id = Arc::new(StringArray::from(vec!["1"]));
+    let customer_last_name = Arc::new(StringArray::from(vec!["TestSurname"]));
+    let province = Arc::new(StringArray::from(vec![None::<&str>]));
+
+    // Create the RecordBatch
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            address_line_1,
+            address_line_2,
+            age,
+            city,
+            customer_first_name,
+            customer_id,
+            customer_last_name,
+            province,
+        ],
+    )
+    .unwrap()
 }

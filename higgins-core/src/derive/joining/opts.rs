@@ -6,11 +6,9 @@ use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{Index, IndexError, IndexType};
+use crate::storage::index::{Index, IndexType};
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
-
-static INITIAL_SIZE_OF_HANDLE_VEC: usize = 100;
 
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
@@ -22,6 +20,7 @@ macro_rules! get_sub {
 
 /// This structure represents the core asynchronous functionality that is done when a
 /// join operation is applied to an underlying stream.
+#[allow(unused)]
 pub struct JoinOperatorHandle {
     /// Describes whether or not this Join is still operating.
     #[allow(unused)]
@@ -73,7 +72,7 @@ pub async fn create_join_operator(
         let broker = broker_ref.clone();
         let derivative_channel_tx = derivative_channel_tx.clone();
 
-        let handle = tokio::spawn(async move {
+        let _handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
                 let mut broker = broker.write().await;
@@ -119,7 +118,7 @@ pub async fn create_join_operator(
     // new joined stream.
     let stream = definition.base.0.0;
     let n_offsets = definition.joins.len();
-    let collection_handle = tokio::spawn(async move {
+    let _collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             tracing::trace!(
                 "[JOIN COLLECTION] Received a notification for new offsets: {}",
@@ -182,8 +181,6 @@ pub async fn create_join_operator(
 
                     tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
 
-                    dbg!(&joined_index_bytes);
-
                     JoinedIndex::put(
                         joined_offset,
                         Reference::Null,
@@ -198,8 +195,6 @@ pub async fn create_join_operator(
                         );
                     })
                     .unwrap();
-
-                    dbg!(&joined_index_bytes);
 
                     tracing::trace!(
                         "Appending JoinedIndex: {:#?}",
@@ -251,11 +246,16 @@ pub async fn create_join_operator(
                     if let Some(joined_index) = previous_joined_index {
                         let inner_current_joined_index = current_joined_index.inner();
 
-                        let mut owned_slice: Vec<u8> =
-                            Vec::with_capacity(inner_current_joined_index.len());
+                        tracing::trace!("Current Joined slice: {:#?}", inner_current_joined_index);
+
+                        // TODO: WE need to remember what the hell this owned_slice is here?
+                        let mut owned_slice: Vec<u8> = inner_current_joined_index.to_owned();
+
                         // If the previous index has been `completed`. Then we run the copy
                         // over operation for this index and save it at the index offset.
                         if joined_index.completed() {
+                            tracing::trace!("Previous index completed, copying over..");
+
                             JoinedIndex::copy_filled_from(&mut owned_slice, joined_index.inner());
                             JoinedIndex::set_completed(&mut owned_slice);
 
@@ -400,10 +400,8 @@ pub async fn create_join_operator(
 
                                     // Retrieve the first record, as there should be only one record.
                                     let arrow_data =
-                                        arrow_ipc::read_arrow(&data)
-                                            .nth(0)
-                                            .map(|r| r.ok())
-                                            .flatten()
+                                        arrow_ipc::read_arrow(&data).next()
+                                            .and_then(|r| r.ok())
                                             .unwrap();
 
                                     tracing::trace!("[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data);
@@ -422,7 +420,7 @@ pub async fn create_join_operator(
                         })).await.iter()
                         // Retrieve the stream names for the given indexes.
                         .map(|data| data.as_ref().map(|(index, data)| {
-                            let stream = stream.joins.get(index.clone()).unwrap();
+                            let stream = stream.joins.get(*index).unwrap();
                             (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
                         })).collect::<Vec<_>>();
 
@@ -492,14 +490,10 @@ pub async fn iterate_from_index_and_complete(
             .map(JoinedIndex::of)
             .unwrap(); // Asumption is that this is always Some(_).
 
-        let mut copied_next: Vec<u8> = next_joined_index
-            .unwrap()
-            .inner()
-            .iter()
-            .map(|b| b.clone())
-            .collect();
+        let mut copied_next: Vec<u8> = next_joined_index.unwrap().inner().to_vec();
 
-        JoinedIndex::copy_filled_from(&mut copied_next, &current_joined_index.inner());
+        tracing::trace!("Copying over previously implemented indexes..");
+        JoinedIndex::copy_filled_from(&mut copied_next, current_joined_index.inner());
 
         index_file
             .put_at((index + 1).try_into().unwrap(), &mut copied_next)
@@ -552,7 +546,7 @@ async fn eager_take_from_subscription_or_wait(
                 // TODO: this likely should be removed and added once the join stream has been implemented.
                 // Because we don't have shadow acknowledgements, we can't really support this right now.
                 for (key, offset) in taken.iter() {
-                    lock.acknowledge(&key, offset.clone()).unwrap();
+                    lock.acknowledge(key, *offset).unwrap();
                 }
 
                 taken

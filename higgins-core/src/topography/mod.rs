@@ -99,17 +99,17 @@ impl Topography {
         }
 
         // Check if the derivations exist inside of this topography.
-        if let Some(key) = stream.base.as_ref() {
-            if !self.streams.contains_key(key) {
-                return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
-            }
+        if let Some(key) = stream.base.as_ref()
+            && !self.streams.contains_key(key)
+        {
+            return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
         }
 
         // Check if the function exists.
-        if let Some(key) = stream.base.as_ref() {
-            if !self.streams.contains_key(key) {
-                return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
-            }
+        if let Some(key) = stream.base.as_ref()
+            && !self.streams.contains_key(key)
+        {
+            return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
         }
 
         let entry = self.streams.entry(key);
