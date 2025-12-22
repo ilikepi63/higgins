@@ -83,6 +83,8 @@ pub async fn create_join_operator(
                 let (left_notify, left_subscription) =
                     get_sub!(broker, stream, left_subscription).unwrap();
 
+                drop(broker); // Explicitly drop the lock.
+
                 (client_id, left_notify, left_subscription)
             };
 
@@ -143,6 +145,7 @@ pub async fn create_join_operator(
                             JoinedIndex::size_of(n_offsets),
                         )
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+                    drop(broker);
                     index_file
                 };
 
