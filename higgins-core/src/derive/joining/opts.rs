@@ -83,6 +83,7 @@ pub async fn create_join_operator(
                 let (left_notify, left_subscription) =
                     get_sub!(broker, stream, left_subscription).unwrap();
 
+                tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
                 drop(broker); // Explicitly drop the lock.
 
                 (client_id, left_notify, left_subscription)
@@ -145,6 +146,7 @@ pub async fn create_join_operator(
                             JoinedIndex::size_of(n_offsets),
                         )
                         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+                    tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
                     drop(broker);
                     index_file
                 };
@@ -216,6 +218,7 @@ pub async fn create_join_operator(
 
                     tracing::trace!("[JOIN COLLECTION] Able to append the offset!",);
 
+                    tracing::trace!("[THIRD HANDLE] We are dropping the broker. ");
                     drop(lock);
                 };
 
@@ -370,18 +373,23 @@ pub async fn create_join_operator(
                                         "[JOIN COMPLETION] Successfully retrieved the offset."
                                     );
 
+                                    tracing::trace!("[FOURTH HANDLE] We are attempting to retrieve the lock on the broker. ");
+
                                     let broker_lock = broker.write().await;
+                                    tracing::trace!("[FOURTH HANDLE] We have successfully locked the broker. ");
 
                                     let data = broker_lock
                                         .get_at(
                                             stream.joins.get(i).unwrap().stream.0.inner(),
                                             &partition,
                                             offset,
-                                            broker.clone()
                                         )
-                                        .await
+                                        .await.inspect_err(|err| tracing::error!("Retrieved an error when trying to unwrap this value: {:#?}", err))
                                         .unwrap()
                                         .unwrap();
+
+                                    tracing::trace!("[FOURTH HANDLE] We are dropping the broker. ");
+                                    drop(broker_lock); // Explicitly drop the lock here.
 
                                     tracing::trace!(
                                         "[JOIN COMPLETION] Retrieved the data at for index {:#?}.", offset

@@ -11,15 +11,12 @@ static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
 
 /// Dereference a given reference into the underlying data.
-pub async fn dereference(
-    reference: Reference,
-    broker: std::sync::Arc<RwLock<Broker>>,
-) -> Result<Vec<u8>, HigginsError> {
+pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8>, HigginsError> {
     match reference {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
             let object_store = {
-                let broker = broker.read().await;
+                // let broker = broker.read().await;
                 broker.object_store.clone()
             };
 
