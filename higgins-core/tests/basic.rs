@@ -65,7 +65,8 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::Int32Array>()
             .unwrap()
-            .iter().next()
+            .iter()
+            .next()
             .unwrap()
             .unwrap(),
         21
@@ -77,7 +78,8 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter().next()
+            .iter()
+            .next()
             .unwrap()
             .unwrap(),
         "John"
@@ -89,7 +91,8 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter().next()
+            .iter()
+            .next()
             .unwrap()
             .unwrap(),
         "1"
@@ -101,7 +104,8 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter().next()
+            .iter()
+            .next()
             .unwrap()
             .unwrap(),
         "Doe"
