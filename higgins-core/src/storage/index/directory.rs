@@ -4,6 +4,7 @@ use crate::broker::Broker;
 use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
+use crate::storage::index::Index;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
@@ -131,7 +132,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let index_reference = index.get_reference();
+                let index_reference = index.reference();
 
                 let index_reference = match index_reference {
                     Reference::S3(r) => r,
@@ -214,9 +215,11 @@ impl IndexDirectory {
 
         let index = indexes.last();
 
+        tracing::trace!("Index: {:#?}", index);
+
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
-        let index = index.map(DefaultIndex::of);
+        let index = index.map(|index_bytes| Index::of(index_bytes, index_type.clone()));
 
         match index {
             Some(index) => {

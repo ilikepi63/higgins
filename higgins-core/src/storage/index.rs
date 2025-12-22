@@ -61,7 +61,7 @@ impl<'a> Index<'a> {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn get_reference(&self) -> Reference {
+    pub fn reference(&self) -> Reference {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).reference(),
             IndexType::Join => JoinedIndex::of(self.data).reference(),
