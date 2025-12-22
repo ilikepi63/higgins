@@ -247,11 +247,16 @@ pub async fn create_join_operator(
                     if let Some(joined_index) = previous_joined_index {
                         let inner_current_joined_index = current_joined_index.inner();
 
-                        let mut owned_slice: Vec<u8> =
-                            Vec::with_capacity(inner_current_joined_index.len());
+                        tracing::trace!("Current Joined slice: {:#?}", inner_current_joined_index);
+
+                        // TODO: WE need to remember what the hell this owned_slice is here?
+                        let mut owned_slice: Vec<u8> = inner_current_joined_index.to_owned();
+
                         // If the previous index has been `completed`. Then we run the copy
                         // over operation for this index and save it at the index offset.
                         if joined_index.completed() {
+                            tracing::trace!("Previous index completed, copying over..");
+
                             JoinedIndex::copy_filled_from(&mut owned_slice, joined_index.inner());
                             JoinedIndex::set_completed(&mut owned_slice);
 
@@ -495,6 +500,7 @@ pub async fn iterate_from_index_and_complete(
             .map(|b| b.clone())
             .collect();
 
+        tracing::trace!("Copying over previously implemented indexes..");
         JoinedIndex::copy_filled_from(&mut copied_next, &current_joined_index.inner());
 
         index_file
