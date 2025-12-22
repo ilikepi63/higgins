@@ -2,6 +2,7 @@ use crate::common::query::query_latest;
 use arrow::array::RecordBatch;
 use higgins::storage::arrow_ipc::read_arrow;
 
+#[allow(unused)]
 pub fn query_latest_arrow(
     stream: &[u8],
     partition: &[u8],

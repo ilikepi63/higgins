@@ -10,8 +10,6 @@ use crate::storage::index::{Index, IndexType};
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
-static INITIAL_SIZE_OF_HANDLE_VEC: usize = 100;
-
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
@@ -22,6 +20,7 @@ macro_rules! get_sub {
 
 /// This structure represents the core asynchronous functionality that is done when a
 /// join operation is applied to an underlying stream.
+#[allow(unused)]
 pub struct JoinOperatorHandle {
     /// Describes whether or not this Join is still operating.
     #[allow(unused)]
@@ -73,7 +72,7 @@ pub async fn create_join_operator(
         let broker = broker_ref.clone();
         let derivative_channel_tx = derivative_channel_tx.clone();
 
-        let handle = tokio::spawn(async move {
+        let _handle = tokio::spawn(async move {
             // Create a subscription on each derivative
             let (client_id, condvar, subscription) = {
                 let mut broker = broker.write().await;
@@ -119,7 +118,7 @@ pub async fn create_join_operator(
     // new joined stream.
     let stream = definition.base.0.0;
     let n_offsets = definition.joins.len();
-    let collection_handle = tokio::spawn(async move {
+    let _collection_handle = tokio::spawn(async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             tracing::trace!(
                 "[JOIN COLLECTION] Received a notification for new offsets: {}",
@@ -491,9 +490,7 @@ pub async fn iterate_from_index_and_complete(
             .map(JoinedIndex::of)
             .unwrap(); // Asumption is that this is always Some(_).
 
-        let mut copied_next: Vec<u8> = next_joined_index
-            .unwrap()
-            .inner().to_vec();
+        let mut copied_next: Vec<u8> = next_joined_index.unwrap().inner().to_vec();
 
         tracing::trace!("Copying over previously implemented indexes..");
         JoinedIndex::copy_filled_from(&mut copied_next, current_joined_index.inner());

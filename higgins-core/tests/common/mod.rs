@@ -5,7 +5,7 @@ use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 
 pub mod configuration;
-mod data;
+pub mod data;
 pub mod functions;
 pub mod ping;
 mod port;
