@@ -182,8 +182,6 @@ pub async fn create_join_operator(
 
                     tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
 
-                    dbg!(&joined_index_bytes);
-
                     JoinedIndex::put(
                         joined_offset,
                         Reference::Null,
@@ -198,8 +196,6 @@ pub async fn create_join_operator(
                         );
                     })
                     .unwrap();
-
-                    dbg!(&joined_index_bytes);
 
                     tracing::trace!(
                         "Appending JoinedIndex: {:#?}",
