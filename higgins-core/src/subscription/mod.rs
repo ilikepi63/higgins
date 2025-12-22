@@ -6,7 +6,6 @@
 pub mod error;
 
 use rkyv::{Archive, Deserialize, Serialize};
-use rocksdb::TransactionDB;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -37,7 +36,7 @@ struct SubscriptionMetadata {
 
 // TODO: should we make a lock per row?
 pub struct Subscription {
-    db: TransactionDB,
+    path: PathBuf,
     last_index: u64,
     #[allow(unused)]
     // Allowing for now as we will need this for grabbing this condvar to make more jobs.
@@ -58,11 +57,8 @@ type Key = Vec<u8>; // Probably not correct to do this..
 
 impl Subscription {
     pub fn new(path: &PathBuf) -> Self {
-        // Init the RocksDB implementation.
-        let db: TransactionDB = TransactionDB::open_default(path).unwrap();
-
         Self {
-            db,
+            path: path.clone(),
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
@@ -76,8 +72,6 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
-        let txn = self.db.transaction();
-
         let value = txn.get(key);
 
         if value.is_ok_and(|val| val.is_some()) {
