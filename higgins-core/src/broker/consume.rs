@@ -37,7 +37,7 @@ impl Broker {
                         String::from_utf8(topic.to_owned()).unwrap(),
                         partition.to_owned(),
                     ),
-                    offset: offset,
+                    offset,
                     max_partition_fetch_bytes: 0,
                 }],
                 0,
@@ -48,7 +48,7 @@ impl Broker {
 
         batch_responses
             .into_iter()
-            .map(|reference| dereference(reference, &self))
+            .map(|reference| dereference(reference, self))
             .collect()
     }
     pub async fn get_by_timestamp(
@@ -107,7 +107,7 @@ impl Broker {
 
         find_batch_responses
             .into_iter()
-            .map(|reference| dereference(reference, &self))
+            .map(|reference| dereference(reference, self))
             .collect()
     }
 
@@ -137,7 +137,7 @@ impl Broker {
             .ok();
 
         if let Some(reference) = reference {
-            dereference(reference, &self).await.map(|val| Some(val))
+            dereference(reference, self).await.map(Some)
         } else {
             Ok(None)
         }

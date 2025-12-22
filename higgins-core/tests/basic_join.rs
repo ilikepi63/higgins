@@ -61,7 +61,7 @@ province = "address.province"
 #[test]
 fn can_implement_a_basic_stream_join() {
     let port = get_random_port();
-    let _subscriber = tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt::init();
 
     tracing::info!("Running on port: {port}");
 
@@ -174,7 +174,8 @@ pub fn create_test_customer_address_data() -> RecordBatch {
     let province = Arc::new(StringArray::from(vec!["Western Cape"]));
 
     // Create the RecordBatch
-    let batch = RecordBatch::try_new(
+    
+    RecordBatch::try_new(
         schema,
         vec![
             address_line_1,
@@ -187,8 +188,7 @@ pub fn create_test_customer_address_data() -> RecordBatch {
             province,
         ],
     )
-    .unwrap();
-    batch
+    .unwrap()
 }
 
 pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
@@ -215,7 +215,9 @@ pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
     let province = Arc::new(StringArray::from(vec![None::<&str>]));
 
     // Create the RecordBatch
-    let batch = RecordBatch::try_new(
+    
+
+    RecordBatch::try_new(
         schema,
         vec![
             address_line_1,
@@ -228,7 +230,5 @@ pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
             province,
         ],
     )
-    .unwrap();
-
-    batch
+    .unwrap()
 }

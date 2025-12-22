@@ -53,9 +53,9 @@ fn can_achieve_basic_broker_functionality() {
     // Consume from the stream.
     let result = client.query_latest(STREAM.as_bytes(), PARTITION);
 
-    let arrow_data = result.unwrap().into_iter().nth(0).unwrap();
+    let arrow_data = result.unwrap().into_iter().next().unwrap();
 
-    let arrow = read_arrow(&arrow_data.data).nth(0).unwrap().unwrap();
+    let arrow = read_arrow(&arrow_data.data).next().unwrap().unwrap();
 
     tracing::trace!("Data: {:#?}", arrow);
 
@@ -65,8 +65,7 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::Int32Array>()
             .unwrap()
-            .iter()
-            .nth(0)
+            .iter().next()
             .unwrap()
             .unwrap(),
         21
@@ -78,8 +77,7 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter()
-            .nth(0)
+            .iter().next()
             .unwrap()
             .unwrap(),
         "John"
@@ -91,8 +89,7 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter()
-            .nth(0)
+            .iter().next()
             .unwrap()
             .unwrap(),
         "1"
@@ -104,8 +101,7 @@ fn can_achieve_basic_broker_functionality() {
             .as_any()
             .downcast_ref::<arrow::array::StringArray>()
             .unwrap()
-            .iter()
-            .nth(0)
+            .iter().next()
             .unwrap()
             .unwrap(),
         "Doe"
