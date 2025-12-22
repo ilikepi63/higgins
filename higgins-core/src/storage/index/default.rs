@@ -577,8 +577,6 @@ mod tests {
     fn test_index_wrapper_preserves_original_buffer() {
         let mut buffer = create_buffer();
 
-        println!("Buffer: {:#?}", buffer);
-        println!("Buffer size: {:#?}", buffer.len());
         let offset = 100u64;
         let reference = create_test_s3_reference();
         let position = 200u32;

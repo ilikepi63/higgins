@@ -4,6 +4,7 @@ use crate::common::{
 use common::get_random_port;
 use higgins::run_server;
 use std::{net::TcpStream, time::Duration};
+use tracing_subscriber::fmt::init;
 use tracing_test::traced_test;
 
 mod common;
@@ -60,9 +61,10 @@ province = "address.province"
 "#;
 
 #[test]
-#[traced_test]
+// #[traced_test]
 fn can_implement_a_basic_stream_join() {
     let port = get_random_port();
+    let subscriber = tracing_subscriber::fmt::init();
 
     tracing::info!("Running on port: {port}");
 
@@ -119,11 +121,7 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_secs(1));
 
-    println!("We are trying to query the customer result..");
-
     let result = query_latest_arrow(b"customer", b"1", &mut socket).unwrap();
-
-    println!("Customer Result: {:#?}", result);
 
     let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
