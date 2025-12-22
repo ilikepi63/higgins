@@ -4,8 +4,6 @@ use crate::common::{
 use common::get_random_port;
 use higgins::run_server;
 use std::{net::TcpStream, time::Duration};
-use tracing_subscriber::fmt::init;
-use tracing_test::traced_test;
 
 mod common;
 
@@ -125,26 +123,29 @@ fn can_implement_a_basic_stream_join() {
 
     let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
 
-    panic!();
+    println!("Result: {:#?}", result);
 
-    // produce_sync(
-    //     b"address",
-    //     b"1",
-    //     r#"
-    //     {
-    //         "customer_id": "1",
-    //         "address_line_1": "12 Tennatn Avenut",
-    //         "address_line_2": "Bonteheuwel",
-    //         "city": "Cape Town",
-    //         "province": "Western Cape"
-    //     }
-    // "#
-    //     .as_bytes(),
-    //     &mut socket,
-    // )
-    // .unwrap();
+    produce_sync(
+        b"address",
+        b"1",
+        r#"
+        {
+            "customer_id": "1",
+            "address_line_1": "12 Tennatn Avenut",
+            "address_line_2": "Bonteheuwel",
+            "city": "Cape Town",
+            "province": "Western Cape"
+        }
+    "#
+        .as_bytes(),
+        &mut socket,
+    )
+    .unwrap();
 
-    // let result = query_latest(b"customer_address", b"1", &mut socket).unwrap();
+    std::thread::sleep(Duration::from_secs(1));
+
+    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+    println!("Result: {:#?}", result);
 
     // let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
     // let expected_result = json!(
@@ -154,4 +155,6 @@ fn can_implement_a_basic_stream_join() {
     // assert_eq!(result, expected_result);
 
     // std::fs::remove_dir_all(dir_remove).unwrap();
+
+    panic!();
 }
