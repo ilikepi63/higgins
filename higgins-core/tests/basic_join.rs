@@ -1,12 +1,9 @@
 use crate::common::{
-    configuration::upload_configuration, ping::ping_sync, produce_sync, query::query_latest,
-    query_latest_arrow,
+    configuration::upload_configuration, ping::ping_sync, produce_sync, query_latest_arrow,
 };
 use common::get_random_port;
 use higgins::run_server;
-use higgins::storage::arrow_ipc::read_arrow;
-use serde_json::json;
-use std::{env::temp_dir, net::TcpStream, time::Duration};
+use std::{net::TcpStream, time::Duration};
 use tracing_test::traced_test;
 
 mod common;
