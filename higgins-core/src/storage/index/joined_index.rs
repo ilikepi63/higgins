@@ -180,6 +180,8 @@ impl<'a> JoinedIndex<'a> {
     pub fn copy_filled_from(current: &mut [u8], other: &[u8]) {
         const OFFSET_SIZE: usize = size_of::<u8>() + size_of::<u64>();
 
+        tracing::trace!("Current Len: {}", current.len());
+
         let length = (current.len() - INDEXES_INDEX - 1) / OFFSET_SIZE;
 
         for i in 0..length {
