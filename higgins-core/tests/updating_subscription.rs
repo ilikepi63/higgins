@@ -10,7 +10,6 @@ use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins_codec::{Message, TakeRecordsRequest, message::Type};
 use prost::Message as _;
-use tracing_test::traced_test;
 
 use crate::common::{
     configuration::upload_configuration, produce, subscription::create_subscription,
@@ -18,19 +17,13 @@ use crate::common::{
 
 mod common;
 
-// #[test]
-// #[traced_test]
+#[test]
 fn can_update_subscription_after_created() {
+    tracing_subscriber::fmt::init();
+
     const NUMBER_OF_MESSAGES: u16 = 1;
 
-    let port = TcpPort::in_range(
-        "127.0.0.1",
-        Range {
-            min: 2000,
-            max: 25000,
-        },
-    )
-    .unwrap();
+    let port = get_random_port();
 
     tracing::trace!("Running on port: {port}");
 
