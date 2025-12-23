@@ -4,6 +4,7 @@ use crate::broker::Broker;
 use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
+use crate::storage::index::Index;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
@@ -131,7 +132,7 @@ impl IndexDirectory {
 
         match index {
             Some(index) => {
-                let index_reference = index.get_reference();
+                let index_reference = index.reference();
 
                 let index_reference = match index_reference {
                     Reference::S3(r) => r,
@@ -214,9 +215,11 @@ impl IndexDirectory {
 
         let index = indexes.last();
 
+        tracing::trace!("Index: {:#?}", index);
+
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
-        let index = index.map(DefaultIndex::of);
+        let index = index.map(|index_bytes| Index::of(index_bytes, index_type.clone()));
 
         match index {
             Some(index) => {
@@ -262,7 +265,7 @@ impl IndexDirectory {
 
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
-            element_size: index_size.clone(),
+            element_size: index_size,
             index_type,
         };
 
@@ -410,8 +413,8 @@ impl IndexDirectory {
         let mut index_file = self
             .index_file_from_stream_and_partition(
                 stream,
-                &partition,
-                index_size_from_index_type_and_definition(&index_type, &stream_def),
+                partition,
+                index_size_from_index_type_and_definition(index_type, stream_def),
                 index_type.clone(),
             )
             .unwrap();
@@ -429,7 +432,7 @@ impl IndexDirectory {
             .unwrap()
             .as_secs();
 
-        let mut val = vec![0; index_size_from_index_type_and_definition(&index_type, &stream_def)];
+        let mut val = vec![0; index_size_from_index_type_and_definition(index_type, stream_def)];
 
         // TODO: change this to reflect the new reference API
         DefaultIndex::put(
@@ -529,7 +532,7 @@ impl IndexDirectory {
                 errors: vec![],
                 assigned_base_offset: 0,
                 log_append_time: timestamp,
-                log_start_offset: offset.into(),
+                log_start_offset: offset,
                 is_duplicate: false,
                 request: batch.clone(),
             });

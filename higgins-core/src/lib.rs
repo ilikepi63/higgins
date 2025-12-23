@@ -342,7 +342,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 tracing::trace!("Retrieved a Latest GetIndexRequest",);
 
                                 let responses = broker_lock
-                                    .get_latest(&index.stream, &index.partition, broker.clone())
+                                    .get_latest(&index.stream, &index.partition)
                                     .await;
 
                                 for response in responses {

@@ -1,13 +1,8 @@
 //! The utilities surrounding mapping of joined properties to their ultime representation inside of the
 //! joined dataset.
 
-use arrow::{
-    array::{ArrayBuilder, NullArray, new_null_array},
-    record_batch::RecordBatch,
-};
+use arrow::{array::new_null_array, record_batch::RecordBatch};
 use std::collections::BTreeMap;
-
-use crate::error::HigginsError;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
 /// and its derivative properties.
@@ -59,10 +54,7 @@ impl JoinMapping {
 
         let batches_row_count = batches
             .iter()
-            .filter_map(|batch| match batch {
-                Some(batch) => Some(batch.1.num_rows()),
-                None => None,
-            })
+            .filter_map(|batch| batch.as_ref().map(|batch| batch.1.num_rows()))
             .fold(Some(0), |acc, curr| match acc {
                 Some(0) => Some(curr),
                 Some(v) if v == curr => Some(curr),

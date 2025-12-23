@@ -18,7 +18,7 @@ impl IndexFile {
             .read(true)
             .append(true)
             .create(true)
-            .open(&path)?;
+            .open(path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
         let mmap = unsafe { memmap2::MmapMut::map_mut(&file_handle)? };
@@ -51,7 +51,8 @@ impl IndexFile {
         // Get the byte offset.
         let offset = offset as usize * self.element_size;
 
-        Ok(self.mmap[offset..offset + self.element_size].swap_with_slice(bytes))
+        self.mmap[offset..offset + self.element_size].swap_with_slice(bytes);
+        Ok(())
     }
 
     pub fn as_view(&self) -> IndexesView<'_> {

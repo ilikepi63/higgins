@@ -61,7 +61,7 @@ impl<'a> Index<'a> {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn get_reference(&self) -> Reference {
+    pub fn reference(&self) -> Reference {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).reference(),
             IndexType::Join => JoinedIndex::of(self.data).reference(),
@@ -130,7 +130,7 @@ impl<'a> IndexesView<'a> {
             return None;
         }
 
-        let start = index as usize * self.element_size;
+        let start = index * self.element_size;
         let end = start + self.element_size;
 
         if end <= self.buffer.len() {
@@ -146,7 +146,7 @@ impl<'a> IndexesView<'a> {
             return None;
         }
 
-        Some(&self.buffer[(self.count() - 1) as usize * self.element_size..])
+        Some(&self.buffer[(self.count() - 1) * self.element_size..])
     }
 
     // Finds an index by timestamp using binary search
@@ -172,7 +172,7 @@ impl<'a> IndexesView<'a> {
         }
 
         let mut left = 0;
-        let mut right = self.count() as usize - 1;
+        let mut right = self.count() - 1;
         let mut result: Option<Index> = None;
 
         while left <= right {
@@ -215,6 +215,6 @@ impl<'a> Deref for IndexesView<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        &self.buffer
+        self.buffer
     }
 }

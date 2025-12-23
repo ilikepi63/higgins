@@ -47,9 +47,7 @@ impl<'a> DefaultIndex<'a> {
     }
 
     pub fn to_bytes(&self) -> BytesMut {
-        let buf = BytesMut::from(self.0);
-
-        buf
+        BytesMut::from(self.0)
     }
 
     pub const fn size_of() -> usize {
