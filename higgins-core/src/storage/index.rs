@@ -146,7 +146,7 @@ impl<'a> IndexesView<'a> {
             return None;
         }
 
-        Some(&self.buffer[((self.count() - 1)) * self.element_size..])
+        Some(&self.buffer[(self.count() - 1) * self.element_size..])
     }
 
     // Finds an index by timestamp using binary search

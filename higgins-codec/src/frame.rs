@@ -17,11 +17,10 @@ impl Frame {
     pub fn try_read<R: std::io::Read>(r: &mut R) -> Result<Self, HigginsCodecError> {
         let mut buf = [0_u8; 4];
 
-        r.read_exact(&mut buf)
-            .inspect_err(|e| {
-                tracing::error!("Error Kind: {:#?}", e.kind());
-                tracing::error!("Received error when reading from buffer: {}", e);
-            })?;
+        r.read_exact(&mut buf).inspect_err(|e| {
+            tracing::error!("Error Kind: {:#?}", e.kind());
+            tracing::error!("Received error when reading from buffer: {}", e);
+        })?;
 
         let size: usize = u32::from_be_bytes(buf).try_into()?;
 

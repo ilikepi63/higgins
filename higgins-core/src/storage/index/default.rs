@@ -47,8 +47,6 @@ impl<'a> DefaultIndex<'a> {
     }
 
     pub fn to_bytes(&self) -> BytesMut {
-        
-
         BytesMut::from(self.0)
     }
 
