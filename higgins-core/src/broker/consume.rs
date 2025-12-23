@@ -19,7 +19,6 @@ impl Broker {
         partition: &[u8],
         offset: u64,
         _max_partition_fetch_bytes: u32,
-        broker: Arc<tokio::sync::RwLock<Self>>,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         let indexes = self.indexes.clone();
 
@@ -83,7 +82,6 @@ impl Broker {
         &self,
         stream: &[u8],
         partition: &[u8],
-        broker: Arc<tokio::sync::RwLock<Self>>,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",

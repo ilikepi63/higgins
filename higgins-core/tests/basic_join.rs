@@ -1,5 +1,5 @@
 use crate::common::{
-    configuration::upload_configuration, ping::ping_sync, produce_sync, query_latest_arrow,
+    configuration::upload_configuration, data::query_latest_arrow, ping::ping_sync, produce_sync,
 };
 use common::get_random_port;
 use higgins::run_server;
@@ -174,7 +174,7 @@ pub fn create_test_customer_address_data() -> RecordBatch {
     let province = Arc::new(StringArray::from(vec!["Western Cape"]));
 
     // Create the RecordBatch
-    
+
     RecordBatch::try_new(
         schema,
         vec![
@@ -215,7 +215,6 @@ pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
     let province = Arc::new(StringArray::from(vec![None::<&str>]));
 
     // Create the RecordBatch
-    
 
     RecordBatch::try_new(
         schema,
