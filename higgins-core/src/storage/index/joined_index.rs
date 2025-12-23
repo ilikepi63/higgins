@@ -321,8 +321,8 @@ mod test {
         // ensure that the intervals don't overlap.
         for window in colours.windows(3) {
             let first = window.first().unwrap();
-            let second = window.iter().nth(1).unwrap();
-            let third = window.iter().nth(2).unwrap();
+            let second = window.get(1).unwrap();
+            let third = window.get(2).unwrap();
 
             assert!(first.0.1 <= second.0.0);
             assert!(second.0.1 <= third.0.0);
@@ -431,7 +431,7 @@ mod test {
             0,
             Reference::Null,
             2,
-            &vec![Some(1), None, Some(2)],
+            &[Some(1), None, Some(2)],
             &mut joined_index_bytes,
         )
         .inspect_err(|err| {
@@ -589,7 +589,7 @@ mod test {
     fn test_put() {
         let offset = 111u64;
         let timestamp = 222u64;
-        let offsets = vec![Some(333_u64), None];
+        let offsets = [Some(333_u64), None];
         let n_offsets = offsets.len();
         let total_size = INDEXES_INDEX + n_offsets * (size_of::<u8>() + size_of::<u64>());
         let mut data = vec![0u8; total_size];
@@ -673,7 +673,7 @@ mod test {
     #[test]
     fn test_put_reference() {
         let total_size = INDEXES_INDEX;
-        let mut data = vec![0u8; total_size];
+        let data = vec![0u8; total_size];
         let mut ji = JoinedIndex::of(&data);
 
         let new_ref = Reference::Null;

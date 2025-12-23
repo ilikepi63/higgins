@@ -6,7 +6,7 @@ use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{Index, IndexError, IndexType};
+use crate::storage::index::{Index, IndexType};
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
@@ -401,10 +401,8 @@ pub async fn create_join_operator(
 
                                     // Retrieve the first record, as there should be only one record.
                                     let arrow_data =
-                                        arrow_ipc::read_arrow(&data)
-                                            .nth(0)
-                                            .map(|r| r.ok())
-                                            .flatten()
+                                        arrow_ipc::read_arrow(&data).next()
+                                            .and_then(|r| r.ok())
                                             .unwrap();
 
                                     tracing::trace!("[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data);
@@ -423,7 +421,7 @@ pub async fn create_join_operator(
                         })).await.iter()
                         // Retrieve the stream names for the given indexes.
                         .map(|data| data.as_ref().map(|(index, data)| {
-                            let stream = stream.joins.get(index.clone()).unwrap();
+                            let stream = stream.joins.get(*index).unwrap();
                             (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
                         })).collect::<Vec<_>>();
 
@@ -495,13 +493,10 @@ pub async fn iterate_from_index_and_complete(
 
         let mut copied_next: Vec<u8> = next_joined_index
             .unwrap()
-            .inner()
-            .iter()
-            .map(|b| b.clone())
-            .collect();
+            .inner().to_vec();
 
         tracing::trace!("Copying over previously implemented indexes..");
-        JoinedIndex::copy_filled_from(&mut copied_next, &current_joined_index.inner());
+        JoinedIndex::copy_filled_from(&mut copied_next, current_joined_index.inner());
 
         index_file
             .put_at((index + 1).try_into().unwrap(), &mut copied_next)
@@ -554,7 +549,7 @@ async fn eager_take_from_subscription_or_wait(
                 // TODO: this likely should be removed and added once the join stream has been implemented.
                 // Because we don't have shadow acknowledgements, we can't really support this right now.
                 for (key, offset) in taken.iter() {
-                    lock.acknowledge(&key, offset.clone()).unwrap();
+                    lock.acknowledge(key, *offset).unwrap();
                 }
 
                 taken
