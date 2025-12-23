@@ -5,8 +5,8 @@ use std::{
     time::Duration,
 };
 
+use crate::common::get_random_port;
 use bytes::BytesMut;
-use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins_codec::{Message, TakeRecordsRequest, message::Type};
 use prost::Message as _;
@@ -57,7 +57,6 @@ fn can_update_subscription_after_created() {
     upload_configuration(config.as_bytes(), &mut socket);
 
     // Start a subscription on that stream.
-
     let sub_id = create_subscription("update_customer".as_bytes(), &mut socket).unwrap();
 
     // Split the socket.
