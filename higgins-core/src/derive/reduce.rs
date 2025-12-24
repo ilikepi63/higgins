@@ -161,7 +161,7 @@ pub async fn create_reduced_stream_from_definition(
                         }
                     }
 
-                    let lock = left_subscription_ref.write().await;
+                    let mut lock = left_subscription_ref.write().await;
 
                     lock.acknowledge(&partition, offset).unwrap();
 
