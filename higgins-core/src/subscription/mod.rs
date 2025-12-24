@@ -47,7 +47,7 @@ impl Ord for PartitionOffsets {
 
 impl PartitionOffsets {
     // Create this given a partition_id and optional defaults.
-    fn of(&mut self, key: &[u8], offset: Option<u64>, max_offset: Option<u64>) -> Self {
+    fn of(key: &[u8], offset: Option<u64>, max_offset: Option<u64>) -> Self {
         let last_completed_offset = offset.unwrap_or(0);
         let max_offset = max_offset.unwrap_or(0);
         let mut new_partition = PartitionOffsets {
@@ -126,14 +126,7 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
-        let last_completed_offset = offset.unwrap_or(0);
-        let max_offset = max_offset.unwrap_or(0);
-        let new_partition = PartitionOffsets {
-            partition_id: key.to_owned(),
-            last_completed_offset,
-            max_offset,
-            amount_to_take: max_offset - last_completed_offset,
-        };
+        let new_partition = PartitionOffsets::of(key, offset, max_offset);
 
         self.partitions.push(new_partition);
 
