@@ -5,7 +5,6 @@
 //! stream.
 pub mod error;
 
-use rkyv::{Archive, Deserialize, Serialize};
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -21,6 +20,29 @@ struct PartitionOffsets {
     max_offset: u64,
     /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
     amount_to_take: u64,
+}
+
+impl PartialEq for PartitionOffsets {
+    fn eq(&self, other: &Self) -> bool {
+        self.partition_id == other.partition_id
+            && self.amount_to_take == other.amount_to_take
+            && self.last_completed_offset == other.last_completed_offset
+            && self.max_offset == other.max_offset
+    }
+}
+
+impl Eq for PartitionOffsets {}
+
+impl PartialOrd for PartitionOffsets {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.amount_to_take.cmp(&other.amount_to_take))
+    }
+}
+
+impl Ord for PartitionOffsets {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.amount_to_take.cmp(&other.amount_to_take)
+    }
 }
 
 impl PartitionOffsets {
@@ -138,6 +160,9 @@ impl Subscription {
                 // then bump the partition
                 partition.set_last_completed_offset(offset);
 
+                // sort the partitions
+                self.partitions.sort();
+
                 Ok(())
             }
             None => Err(
@@ -147,7 +172,6 @@ impl Subscription {
                 ),
             ),
         }
-        //
     }
     /// Takes the next few offsets of a set of partitions
     /// TODO: implement round-robining for this.
