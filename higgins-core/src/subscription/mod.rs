@@ -11,27 +11,16 @@ use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
 
-#[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
-#[rkyv(
-    // This will generate a PartialEq impl between our unarchived
-    // and archived types
-    compare(PartialEq),
-    // Derives can be passed through to the generated type:
-    derive(Debug),
-)]
-struct Range(u64, u64);
-
-#[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
-#[rkyv(
-    // This will generate a PartialEq impl between our unarchived
-    // and archived types
-    compare(PartialEq),
-    // Derives can be passed through to the generated type:
-    derive(Debug),
-)]
-struct SubscriptionMetadata {
+/// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
+struct PartitionOffsets {
+    /// The ID for this specific partition.
+    partition_id: Vec<u8>,
+    /// The current watermark or offset that has been acknowledged for this offset.
+    last_completed_offset: u64,
+    /// The max offset, or the largest offset that exists within this partition.
     max_offset: u64,
-    ranges: Vec<Range>,
+    /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
+    amount_to_take: u64,
 }
 
 /// Represents a file that holds ranges of used subscription partitions.
@@ -52,6 +41,9 @@ pub struct Subscription {
     // Allowing for now as we will need this for grabbing this condvar to make more jobs.
     condvar: Notify,
     pub client_counts: Vec<(u64, AtomicU64)>,
+
+    // TODO: This will need to be moved to the file, when we decide on a data structure.
+    partitions: Vec<PartitionOffsets>,
 }
 
 impl std::fmt::Debug for Subscription {
@@ -72,32 +64,27 @@ impl Subscription {
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
+            partitions: vec![],
         }
     }
 
     /// Add a partition to  this  Subscription, beginning at the given offset.
     pub fn add_partition(
-        &self,
+        &mut self,
         key: &[u8],
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
-        let value = txn.get(key);
-
-        if value.is_ok_and(|val| val.is_some()) {
-            return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
+        let last_completed_offset = offset.unwrap_or(0);
+        let max_offset = max_offset.unwrap_or(0);
+        let new_partition = PartitionOffsets {
+            partition_id: key.to_owned(),
+            last_completed_offset,
+            max_offset,
+            amount_to_take: max_offset - last_completed_offset,
         };
 
-        let ranges = vec![Range(0, offset.unwrap_or(0))];
-
-        let metadata = SubscriptionMetadata {
-            max_offset: max_offset.unwrap_or(0),
-            ranges,
-        };
-
-        txn.put(key, rkyv::to_bytes::<rkyv::rancor::Error>(&metadata)?)?;
-
-        txn.commit()?;
+        self.partitions.push(new_partition);
 
         Ok(())
     }
@@ -156,6 +143,7 @@ impl Subscription {
         client_id: u64,
         count: u64,
     ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
+        // Client specific logic.
         let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
@@ -181,6 +169,7 @@ impl Subscription {
 
         tracing::trace!("Current count for subscription: {:#?}", count);
 
+        // subscription specific logic
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         for index in self.db.iterator(rocksdb::IteratorMode::Start) {
             let (key, item) = index?;

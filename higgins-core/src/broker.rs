@@ -105,7 +105,7 @@ impl Broker {
     ) -> Result<(), HigginsError> {
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
             for (_, sub) in subs.values_mut() {
-                let sub = sub.write().await;
+                let mut sub = sub.write().await;
 
                 sub.add_partition(partition_key, None, None)?;
             }
