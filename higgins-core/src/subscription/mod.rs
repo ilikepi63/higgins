@@ -91,47 +91,58 @@ impl Subscription {
 
     /// Acknowledges the offset, adjusting the ranges that appear inside of this given
     /// BTree.
-    pub fn acknowledge(&self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
-        let txn = self.db.transaction();
+    pub fn acknowledge(&mut self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
+        // Retrieve the partition via the key.
+        // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
+        let partition = self
+            .partitions
+            .iter_mut()
+            .find(|partition| partition.partition_id == key);
 
-        let serde_subscription_metadata = txn.get(key);
+        // Check that the offset matches, or is offset + 1.
+        // then bump the partition
+        //
 
-        let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
-            Ok(None) | Err(_) => {
-                return Err(
-                    SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                        key.iter().map(|val| val.to_string()).collect::<String>(),
-                        offset,
-                    ),
-                );
-            }
-        };
+        // let txn = self.db.transaction();
 
-        let existing_ranges = subscription_metadata.ranges.iter_mut().find(|range| {
-            range.0 <= offset.saturating_add(1) && range.1 >= offset.saturating_sub(1)
-        });
+        // let serde_subscription_metadata = txn.get(key);
 
-        if let Some(range) = existing_ranges {
-            apply_offset_to_range(range, offset);
-        }
+        // let mut subscription_metadata = match serde_subscription_metadata {
+        //     Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
+        //     Ok(None) | Err(_) => {
+        //         return Err(
+        //             SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
+        //                 key.iter().map(|val| val.to_string()).collect::<String>(),
+        //                 offset,
+        //             ),
+        //         );
+        //     }
+        // };
 
-        // Otherwise we create a range inside of the Vec.
-        let range = Range(offset, offset + 1);
+        // let existing_ranges = subscription_metadata.ranges.iter_mut().find(|range| {
+        //     range.0 <= offset.saturating_add(1) && range.1 >= offset.saturating_sub(1)
+        // });
 
-        subscription_metadata.ranges.push(range);
+        // if let Some(range) = existing_ranges {
+        //     apply_offset_to_range(range, offset);
+        // }
 
-        // Sort the subcriptions.
-        subscription_metadata.ranges.sort();
+        // // Otherwise we create a range inside of the Vec.
+        // let range = Range(offset, offset + 1);
 
-        // let ranges = collapse_ranges(&mut subscription_metadata.ranges);
+        // subscription_metadata.ranges.push(range);
 
-        // subscription_metadata.ranges = ranges;
+        // // Sort the subcriptions.
+        // subscription_metadata.ranges.sort();
 
-        let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
+        // // let ranges = collapse_ranges(&mut subscription_metadata.ranges);
 
-        txn.put(key, serialized)?;
-        txn.commit()?;
+        // // subscription_metadata.ranges = ranges;
+
+        // let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
+
+        // txn.put(key, serialized)?;
+        // txn.commit()?;
 
         Ok(())
     }
