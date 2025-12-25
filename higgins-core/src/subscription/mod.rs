@@ -23,6 +23,35 @@ struct PartitionOffsets {
     amount_to_take: u64,
 }
 
+impl PartitionOffsets {
+    // Create this given a partition_id and optional defaults.
+    fn of(&mut self, key: &[u8], offset: Option<u64>, max_offset: Option<u64>) -> Self {
+        let last_completed_offset = offset.unwrap_or(0);
+        let max_offset = max_offset.unwrap_or(0);
+        let mut new_partition = PartitionOffsets {
+            partition_id: key.to_owned(),
+            last_completed_offset,
+            max_offset,
+            amount_to_take: 0,
+        };
+
+        new_partition.recalculate_amount_to_take();
+
+        new_partition
+    }
+
+    // helper method for calculating the amount_to_take.
+    fn recalculate_amount_to_take(&mut self) {
+        self.amount_to_take = self.max_offset - self.last_completed_offset;
+    }
+
+    // Set the last_completed_offset.
+    fn set_last_completed_offset(&mut self, offset: u64) {
+        self.last_completed_offset = offset;
+        self.recalculate_amount_to_take();
+    }
+}
+
 /// Represents a file that holds ranges of used subscription partitions.
 pub struct SubscriptionPartitionFile {
     file: std::fs::File,
@@ -99,54 +128,27 @@ impl Subscription {
             .iter_mut()
             .find(|partition| partition.partition_id == key);
 
-        // Check that the offset matches, or is offset + 1.
-        // then bump the partition
+        match partition {
+            Some(partition) => {
+                // Check that the offset matches, or is offset + 1.
+                if offset != partition.last_completed_offset {
+                    return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offset, partition.last_completed_offset));
+                }
+
+                // then bump the partition
+                partition.set_last_completed_offset(offset);
+
+                Ok(())
+            }
+            None => Err(
+                SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
+                    String::from_utf8(key.to_owned()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    offset,
+                ),
+            ),
+        }
         //
-
-        // let txn = self.db.transaction();
-
-        // let serde_subscription_metadata = txn.get(key);
-
-        // let mut subscription_metadata = match serde_subscription_metadata {
-        //     Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
-        //     Ok(None) | Err(_) => {
-        //         return Err(
-        //             SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-        //                 key.iter().map(|val| val.to_string()).collect::<String>(),
-        //                 offset,
-        //             ),
-        //         );
-        //     }
-        // };
-
-        // let existing_ranges = subscription_metadata.ranges.iter_mut().find(|range| {
-        //     range.0 <= offset.saturating_add(1) && range.1 >= offset.saturating_sub(1)
-        // });
-
-        // if let Some(range) = existing_ranges {
-        //     apply_offset_to_range(range, offset);
-        // }
-
-        // // Otherwise we create a range inside of the Vec.
-        // let range = Range(offset, offset + 1);
-
-        // subscription_metadata.ranges.push(range);
-
-        // // Sort the subcriptions.
-        // subscription_metadata.ranges.sort();
-
-        // // let ranges = collapse_ranges(&mut subscription_metadata.ranges);
-
-        // // subscription_metadata.ranges = ranges;
-
-        // let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
-
-        // txn.put(key, serialized)?;
-        // txn.commit()?;
-
-        Ok(())
     }
-
     /// Takes the next few offsets of a set of partitions
     /// TODO: implement round-robining for this.
     pub fn take(
