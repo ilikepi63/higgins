@@ -202,7 +202,7 @@ impl Subscription {
         // subscription specific logic
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         let mut partition_offset_index = 0;
-        let mut offset_count = count.load(std::sync::atomic::Ordering::AcqRel);
+        let mut offset_count = count.load(std::sync::atomic::Ordering::Relaxed);
 
         let mut results = vec![];
 
