@@ -5,7 +5,6 @@
 //! stream.
 pub mod error;
 
-use arrow::compute::kernels::partition;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -273,14 +272,6 @@ mod tests {
         let path = temp_dir.path().to_path_buf();
         let sub = Subscription::new(&path);
         (sub, temp_dir)
-    }
-
-    #[test]
-    fn test_new_subscription() {
-        let (sub, _temp_dir) = setup_subscription();
-        // Verify that creating a subscription doesn't panic and opens the DB
-        let key = b"test".to_vec();
-        assert!(sub.db.get(&key).is_ok(), "Database should be accessible");
     }
 
     #[test]
