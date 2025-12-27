@@ -6,6 +6,12 @@ use thiserror::Error;
 pub enum SubscriptionError {
     #[error("Attempt to create a subscription tracker which already exists.")]
     SubscriptionPartitionAlreadyExists,
+    #[error(
+        "Attempting to acknowledge offset without acknowleding previous index. Offset: {0}, Previous Offset: {1}"
+    )]
+    AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(u64, u64),
+    #[error("Attempt to retrieve partition that does not exist.")]
+    PartitionDoesNotExists,
     #[error("Attempt to acknowledge a partition/offset that doesn't exist: {0} {1}.")]
     AttemptToAcknowledgePartitionThatDoesntExist(String, u64),
     #[error("Failed to deserialize SubscriptionMetadata.")]

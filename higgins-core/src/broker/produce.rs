@@ -93,7 +93,7 @@ impl Broker {
             tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
 
             for (subscription_id, (notify, subscription)) in subscriptions {
-                let subscription = subscription.write().await;
+                let mut subscription = subscription.write().await;
 
                 tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
