@@ -273,59 +273,6 @@ fn apply_offset_to_range(range: &mut Range, offset: u64) {
     }
 }
 
-fn deserialize_subscription_metadata_or_else(
-    val: &[u8],
-) -> Result<SubscriptionMetadata, SubscriptionError> {
-    let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(val)?;
-
-    Ok(val)
-}
-
-fn extract_unacknowledged_keys_from_subscription_metadata(
-    offsets_to_take: u64,
-    metadata: &SubscriptionMetadata,
-) -> Vec<Offset> {
-    let mut index = 0;
-    let mut accumulated_offsets = 0;
-    let mut result_vec = Vec::with_capacity(offsets_to_take.try_into().unwrap_or(10));
-
-    'outer: loop {
-        let curr = metadata.ranges.get(index);
-        let next = metadata.ranges.get(index + 1);
-
-        match (curr, next) {
-            (Some(curr), Some(next)) => {
-                for r in curr.1..next.0 {
-                    result_vec.push(r);
-                    accumulated_offsets += 1;
-
-                    if accumulated_offsets == offsets_to_take {
-                        break;
-                    }
-                }
-
-                if accumulated_offsets == offsets_to_take {
-                    break 'outer;
-                }
-            }
-            (Some(curr), None) => {
-                for r in curr.1..metadata.max_offset {
-                    result_vec.push(r);
-                    accumulated_offsets += 1;
-                    if accumulated_offsets == offsets_to_take {
-                        break 'outer;
-                    }
-                }
-            }
-            (None, _) => break, // !unreachable()
-        }
-
-        index += 1;
-    }
-
-    result_vec
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
