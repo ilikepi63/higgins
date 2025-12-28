@@ -76,6 +76,7 @@ impl PartitionOffsets {
 }
 
 /// Represents a file that holds ranges of used subscription partitions.
+#[allow(unused)]
 pub struct SubscriptionPartitionFile {
     file: std::fs::File,
 }
@@ -87,6 +88,7 @@ impl SubscriptionPartitionFile {
 // TODO: should we make a lock per row?
 pub struct Subscription {
     /// Path of the enclosing directory for this subscription.
+    #[allow(unused)]
     path: PathBuf,
     last_index: u64,
     #[allow(unused)]
@@ -147,9 +149,6 @@ impl Subscription {
     pub fn acknowledge(&mut self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
         // Retrieve the partition via the key.
         // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
-
-        println!("Querying from partitions: {:#?}", self.partitions);
-        println!("key: {:#?}", key);
 
         let partition = self
             .partitions
