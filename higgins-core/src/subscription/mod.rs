@@ -273,39 +273,6 @@ fn apply_offset_to_range(range: &mut Range, offset: u64) {
     }
 }
 
-/// A function that collapses missing ranges.
-#[allow(unused)]
-fn collapse_ranges(ranges: &[Range]) -> Vec<Range> {
-    let last_index = ranges.len() - 1;
-
-    let mut result = Vec::with_capacity(ranges.len());
-
-    for index in 0..last_index {
-        let next_index = index + 1;
-
-        if next_index == ranges.len() {
-            break;
-        }
-
-        let (curr_range, next_range) = ranges.split_at(next_index);
-
-        if let (Some(curr_range), Some(next_range)) = (curr_range.last(), next_range.first()) {
-            if curr_range.1 + 1 == next_range.0 {
-                let range = Range(curr_range.0, next_range.1);
-                result.push(range);
-            } else {
-                result.push(curr_range.clone());
-                result.push(next_range.clone());
-            }
-        } else if let (None, Some(curr_range)) = (curr_range.last(), next_range.first()) {
-            // Generally means that we've come to the last element.
-            result.push(curr_range.clone());
-        }
-    }
-
-    result
-}
-
 fn deserialize_subscription_metadata_or_else(
     val: &[u8],
 ) -> Result<SubscriptionMetadata, SubscriptionError> {
