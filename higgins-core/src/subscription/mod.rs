@@ -5,44 +5,99 @@
 //! stream.
 pub mod error;
 
-use rkyv::{Archive, Deserialize, Serialize};
-use rocksdb::TransactionDB;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
 
-#[derive(Archive, Deserialize, Serialize, Debug, PartialEq, Clone, Eq, PartialOrd, Ord)]
-#[rkyv(
-    // This will generate a PartialEq impl between our unarchived
-    // and archived types
-    compare(PartialEq),
-    // Derives can be passed through to the generated type:
-    derive(Debug),
-)]
-struct Range(u64, u64);
-
-#[derive(Archive, Deserialize, Serialize, Debug, PartialEq)]
-#[rkyv(
-    // This will generate a PartialEq impl between our unarchived
-    // and archived types
-    compare(PartialEq),
-    // Derives can be passed through to the generated type:
-    derive(Debug),
-)]
-struct SubscriptionMetadata {
+/// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
+#[derive(Clone, Debug)]
+pub struct PartitionOffsets {
+    /// The ID for this specific partition.
+    partition_id: Vec<u8>,
+    /// The current watermark or offset that has been acknowledged for this offset.
+    last_completed_offset: u64,
+    /// The max offset, or the largest offset that exists within this partition.
     max_offset: u64,
-    ranges: Vec<Range>,
+    /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
+    amount_to_take: u64,
+}
+
+impl PartialEq for PartitionOffsets {
+    fn eq(&self, other: &Self) -> bool {
+        self.partition_id == other.partition_id
+            && self.amount_to_take == other.amount_to_take
+            && self.last_completed_offset == other.last_completed_offset
+            && self.max_offset == other.max_offset
+    }
+}
+
+impl Eq for PartitionOffsets {}
+
+impl PartialOrd for PartitionOffsets {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.amount_to_take.cmp(&other.amount_to_take))
+    }
+}
+
+impl Ord for PartitionOffsets {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.amount_to_take.cmp(&other.amount_to_take)
+    }
+}
+
+impl PartitionOffsets {
+    // Create this given a partition_id and optional defaults.
+    fn of(key: &[u8], offset: Option<u64>, max_offset: Option<u64>) -> Self {
+        let last_completed_offset = offset.unwrap_or(0);
+        let max_offset = max_offset.unwrap_or(0);
+        let mut new_partition = PartitionOffsets {
+            partition_id: key.to_owned(),
+            last_completed_offset,
+            max_offset,
+            amount_to_take: 0,
+        };
+
+        new_partition.recalculate_amount_to_take();
+
+        new_partition
+    }
+
+    // helper method for calculating the amount_to_take.
+    fn recalculate_amount_to_take(&mut self) {
+        self.amount_to_take = self.max_offset - self.last_completed_offset;
+    }
+
+    // Set the last_completed_offset.
+    fn set_last_completed_offset(&mut self, offset: u64) {
+        self.last_completed_offset = offset;
+        self.recalculate_amount_to_take();
+    }
+}
+
+/// Represents a file that holds ranges of used subscription partitions.
+#[allow(unused)]
+pub struct SubscriptionPartitionFile {
+    file: std::fs::File,
+}
+
+impl SubscriptionPartitionFile {
+    pub fn create_with() {}
 }
 
 // TODO: should we make a lock per row?
 pub struct Subscription {
-    db: TransactionDB,
+    /// Path of the enclosing directory for this subscription.
+    #[allow(unused)]
+    path: PathBuf,
     last_index: u64,
     #[allow(unused)]
     // Allowing for now as we will need this for grabbing this condvar to make more jobs.
     condvar: Notify,
     pub client_counts: Vec<(u64, AtomicU64)>,
+
+    // TODO: This will need to be moved to the file, when we decide on a data structure.
+    partitions: Vec<PartitionOffsets>,
 }
 
 impl std::fmt::Debug for Subscription {
@@ -58,93 +113,71 @@ type Key = Vec<u8>; // Probably not correct to do this..
 
 impl Subscription {
     pub fn new(path: &PathBuf) -> Self {
-        // Init the RocksDB implementation.
-        let db: TransactionDB = TransactionDB::open_default(path).unwrap();
-
         Self {
-            db,
+            path: path.clone(),
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
+            partitions: vec![],
         }
     }
 
     /// Add a partition to  this  Subscription, beginning at the given offset.
     pub fn add_partition(
-        &self,
+        &mut self,
         key: &[u8],
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
-        let txn = self.db.transaction();
+        let new_partition = PartitionOffsets::of(key, offset, max_offset);
 
-        let value = txn.get(key);
-
-        if value.is_ok_and(|val| val.is_some()) {
-            return Err(SubscriptionError::SubscriptionPartitionAlreadyExists);
-        };
-
-        let ranges = vec![Range(0, offset.unwrap_or(0))];
-
-        let metadata = SubscriptionMetadata {
-            max_offset: max_offset.unwrap_or(0),
-            ranges,
-        };
-
-        txn.put(key, rkyv::to_bytes::<rkyv::rancor::Error>(&metadata)?)?;
-
-        txn.commit()?;
+        self.partitions.push(new_partition);
 
         Ok(())
+    }
+
+    /// Retrieval of the partition for a specific key.
+    pub fn get_partition(&self, key: &[u8]) -> Option<PartitionOffsets> {
+        self.partitions
+            .iter()
+            .find(|PartitionOffsets { partition_id, .. }| partition_id == key)
+            .map(|p| p.clone())
     }
 
     /// Acknowledges the offset, adjusting the ranges that appear inside of this given
     /// BTree.
-    pub fn acknowledge(&self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
-        let txn = self.db.transaction();
+    pub fn acknowledge(&mut self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
+        // Retrieve the partition via the key.
+        // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
 
-        let serde_subscription_metadata = txn.get(key);
+        let partition = self
+            .partitions
+            .iter_mut()
+            .find(|partition| partition.partition_id.iter().eq(key.iter()));
 
-        let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
-            Ok(None) | Err(_) => {
-                return Err(
-                    SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                        key.iter().map(|val| val.to_string()).collect::<String>(),
-                        offset,
-                    ),
-                );
+        match partition {
+            Some(partition) => {
+                // Check that the offset matches, or is offset + 1.
+                if offset != partition.last_completed_offset {
+                    return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offset, partition.last_completed_offset));
+                }
+
+                // then bump the partition
+                partition.set_last_completed_offset(offset + 1);
+
+                // sort the partitions
+                self.partitions.sort();
+
+                Ok(())
             }
-        };
-
-        let existing_ranges = subscription_metadata.ranges.iter_mut().find(|range| {
-            range.0 <= offset.saturating_add(1) && range.1 >= offset.saturating_sub(1)
-        });
-
-        if let Some(range) = existing_ranges {
-            apply_offset_to_range(range, offset);
+            None => Err(
+                SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
+                    String::from_utf8(key.to_owned()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    offset,
+                ),
+            ),
         }
-
-        // Otherwise we create a range inside of the Vec.
-        let range = Range(offset, offset + 1);
-
-        subscription_metadata.ranges.push(range);
-
-        // Sort the subcriptions.
-        subscription_metadata.ranges.sort();
-
-        // let ranges = collapse_ranges(&mut subscription_metadata.ranges);
-
-        // subscription_metadata.ranges = ranges;
-
-        let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
-
-        txn.put(key, serialized)?;
-        txn.commit()?;
-
-        Ok(())
     }
-
     /// Takes the next few offsets of a set of partitions
     /// TODO: implement round-robining for this.
     pub fn take(
@@ -152,7 +185,7 @@ impl Subscription {
         client_id: u64,
         count: u64,
     ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
-        let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
+        // Client specific logic.
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
             .client_counts
@@ -177,80 +210,59 @@ impl Subscription {
 
         tracing::trace!("Current count for subscription: {:#?}", count);
 
+        // subscription specific logic
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
-        for index in self.db.iterator(rocksdb::IteratorMode::Start) {
-            let (key, item) = index?;
-            let metadata = deserialize_subscription_metadata_or_else(&item)?;
+        let mut partition_offset_index = 0;
+        let mut offset_count = count.load(std::sync::atomic::Ordering::Relaxed);
 
-            let mut extracted_offsets =
-                extract_unacknowledged_keys_from_subscription_metadata(*count.get_mut(), &metadata)
-                    .iter()
-                    .map(|offset| (key.to_vec(), *offset))
-                    .collect::<Vec<(Key, Offset)>>();
+        let mut results = vec![];
 
-            tracing::trace!("Extracted offsets length: {}", extracted_offsets.len());
-            tracing::trace!("Removed count: {:#?}", count);
+        while offset_count > 0 && partition_offset_index < self.partitions.len() {
+            let current_partition = self.partitions.get_mut(partition_offset_index);
 
-            let offsets_length: u64 = extracted_offsets.len().try_into()?;
+            match current_partition {
+                Some(partition_offset) => {
+                    for i in partition_offset.last_completed_offset.clone()
+                        ..partition_offset.max_offset.clone()
+                    {
+                        // Push the offset on the resultant vec.
+                        results.push((partition_offset.partition_id.clone(), i));
+                        // Update the current last_completed_offset.
+                        partition_offset.set_last_completed_offset(i);
 
-            let _result = count
-                .fetch_update(
-                    // TryInto::<u64>::try_into(extracted_offsets.len())?,
-                    std::sync::atomic::Ordering::AcqRel,
-                    std::sync::atomic::Ordering::Relaxed,
-                    |val| {
-                        if val < offsets_length {
-                            Some(0)
-                        } else {
-                            Some(val - offsets_length)
+                        // If the offset count has gotten to zero, we break here and continue with the while loop.
+                        offset_count -= 1;
+                        if offset_count == 0 {
+                            break;
                         }
-                    },
-                )
-                .unwrap();
-
-            tracing::trace!("Removed count after subtraction: {:#?}", count);
-
-            result_vec.append(&mut extracted_offsets);
-
-            if count.load(std::sync::atomic::Ordering::Relaxed) < 1 {
-                break;
+                    }
+                }
+                None => {}
             }
+
+            partition_offset_index += 1;
         }
 
-        // // We remove the taken count from the amount to take.
-        // self.amount_to_take += TryInto::<u64>::try_into(result_vec.len()).unwrap();
-
-        Ok(result_vec)
+        Ok(results)
     }
 
     /// Sets the maximum offset for a partition.
     /// Incrementing this effectively adds indexes to the subscription -> How do we then notify the underlying awaiter?
-    pub fn set_max_offset(&self, key: &[u8], offset: u64) -> Result<(), SubscriptionError> {
-        // How do we make this idempotent?.
+    pub fn set_max_offset(&mut self, key: &[u8], offset: u64) -> Result<(), SubscriptionError> {
+        // How do we make this idempotent?
 
-        let serde_subscription_metadata = self.db.get(key);
+        let partition = self
+            .partitions
+            .iter_mut()
+            .find(|PartitionOffsets { partition_id, .. }| partition_id == key);
 
-        let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
-            Ok(None) | Err(_) => {
-                return Err(
-                    SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                        key.iter().map(|val| val.to_string()).collect::<String>(),
-                        offset,
-                    ),
-                );
+        match partition {
+            Some(partition) => {
+                partition.max_offset = offset;
+                Ok(())
             }
-        };
-
-        if subscription_metadata.max_offset < offset {
-            subscription_metadata.max_offset = offset;
-
-            let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
-
-            self.db.put(key, serialized)?;
+            None => Err(SubscriptionError::PartitionDoesNotExists),
         }
-
-        Ok(())
     }
 
     pub fn increment_amount_to_take(&mut self, client_id: u64, n: u64) {
@@ -260,102 +272,6 @@ impl Subscription {
             self.client_counts.push((client_id, AtomicU64::new(n)));
         }
     }
-}
-
-fn apply_offset_to_range(range: &mut Range, offset: u64) {
-    if offset + 1 == range.0 {
-        range.0 -= 1;
-    }
-
-    if offset == range.1 {
-        range.1 += 1;
-    }
-}
-
-/// A function that collapses missing ranges.
-#[allow(unused)]
-fn collapse_ranges(ranges: &[Range]) -> Vec<Range> {
-    let last_index = ranges.len() - 1;
-
-    let mut result = Vec::with_capacity(ranges.len());
-
-    for index in 0..last_index {
-        let next_index = index + 1;
-
-        if next_index == ranges.len() {
-            break;
-        }
-
-        let (curr_range, next_range) = ranges.split_at(next_index);
-
-        if let (Some(curr_range), Some(next_range)) = (curr_range.last(), next_range.first()) {
-            if curr_range.1 + 1 == next_range.0 {
-                let range = Range(curr_range.0, next_range.1);
-                result.push(range);
-            } else {
-                result.push(curr_range.clone());
-                result.push(next_range.clone());
-            }
-        } else if let (None, Some(curr_range)) = (curr_range.last(), next_range.first()) {
-            // Generally means that we've come to the last element.
-            result.push(curr_range.clone());
-        }
-    }
-
-    result
-}
-
-fn deserialize_subscription_metadata_or_else(
-    val: &[u8],
-) -> Result<SubscriptionMetadata, SubscriptionError> {
-    let val = rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(val)?;
-
-    Ok(val)
-}
-
-fn extract_unacknowledged_keys_from_subscription_metadata(
-    offsets_to_take: u64,
-    metadata: &SubscriptionMetadata,
-) -> Vec<Offset> {
-    let mut index = 0;
-    let mut accumulated_offsets = 0;
-    let mut result_vec = Vec::with_capacity(offsets_to_take.try_into().unwrap_or(10));
-
-    'outer: loop {
-        let curr = metadata.ranges.get(index);
-        let next = metadata.ranges.get(index + 1);
-
-        match (curr, next) {
-            (Some(curr), Some(next)) => {
-                for r in curr.1..next.0 {
-                    result_vec.push(r);
-                    accumulated_offsets += 1;
-
-                    if accumulated_offsets == offsets_to_take {
-                        break;
-                    }
-                }
-
-                if accumulated_offsets == offsets_to_take {
-                    break 'outer;
-                }
-            }
-            (Some(curr), None) => {
-                for r in curr.1..metadata.max_offset {
-                    result_vec.push(r);
-                    accumulated_offsets += 1;
-                    if accumulated_offsets == offsets_to_take {
-                        break 'outer;
-                    }
-                }
-            }
-            (None, _) => break, // !unreachable()
-        }
-
-        index += 1;
-    }
-
-    result_vec
 }
 
 #[cfg(test)]
@@ -371,36 +287,29 @@ mod tests {
     }
 
     #[test]
-    fn test_new_subscription() {
-        let (sub, _temp_dir) = setup_subscription();
-        // Verify that creating a subscription doesn't panic and opens the DB
-        let key = b"test".to_vec();
-        assert!(sub.db.get(&key).is_ok(), "Database should be accessible");
-    }
-
-    #[test]
     fn test_add_partition_success() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"partition1".to_vec();
 
         // Add a partition with offset and max_offset
         assert!(sub.add_partition(&key, Some(10), Some(100)).is_ok());
 
         // Verify the partition was added by checking stored metadata
-        let metadata = sub
-            .db
-            .get(&key)
-            .expect("Failed to read DB")
-            .expect("Metadata not found");
-        let metadata: SubscriptionMetadata =
-            rkyv::from_bytes::<_, rkyv::rancor::Error>(&metadata).expect("Failed to deserialize");
-        assert_eq!(metadata.max_offset, 100);
-        assert_eq!(metadata.ranges, vec![Range(0, 10)]);
+        let PartitionOffsets {
+            partition_id,
+            last_completed_offset,
+            max_offset,
+            ..
+        } = sub.get_partition(&key).unwrap();
+
+        assert_eq!(partition_id, key);
+        assert_eq!(max_offset, 100);
+        assert_eq!(last_completed_offset, 10);
     }
 
     #[test]
     fn test_add_partition_already_exists() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"partition1".to_vec();
 
         // Add partition once
@@ -415,29 +324,28 @@ mod tests {
 
     #[test]
     fn test_acknowledge_existing_partition() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"partition1".to_vec();
 
         // Add partition
         assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
 
         // Acknowledge offset 6 (adjacent to range 0..5)
-        assert!(sub.acknowledge(&key, 6).is_ok());
+        let acknowledge_result = sub.acknowledge(&key, 5);
+        assert!(acknowledge_result.is_ok());
 
         // Verify the range is updated
-        let metadata = sub
-            .db
-            .get(&key)
-            .expect("Failed to read DB")
-            .expect("Metadata not found");
-        let metadata: SubscriptionMetadata =
-            rkyv::from_bytes::<_, rkyv::rancor::Error>(&metadata).expect("Failed to deserialize");
-        assert_eq!(metadata.ranges, vec![Range(0, 5), Range(6, 7)]);
+        let PartitionOffsets {
+            last_completed_offset,
+            ..
+        } = sub.get_partition(&key).unwrap();
+
+        assert_eq!(last_completed_offset, 6);
     }
 
     #[test]
     fn test_acknowledge_nonexistent_partition() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"nonexistent".to_vec();
 
         // Try acknowledging a partition that doesn't exist
@@ -485,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_set_max_offset_existing_partition() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"partition1".to_vec();
 
         // Add partition
@@ -495,25 +403,22 @@ mod tests {
         assert!(sub.set_max_offset(&key, 100).is_ok());
 
         // Verify the max_offset was updated
-        let metadata = sub
-            .db
-            .get(&key)
-            .expect("Failed to read DB")
-            .expect("Metadata not found");
-        let metadata: SubscriptionMetadata =
-            rkyv::from_bytes::<_, rkyv::rancor::Error>(&metadata).expect("Failed to deserialize");
-        assert_eq!(metadata.max_offset, 100);
+        let PartitionOffsets { max_offset, .. } = sub.get_partition(&key).unwrap();
+
+        assert_eq!(max_offset, 100);
     }
 
     #[test]
     fn test_set_max_offset_nonexistent_partition() {
-        let (sub, _temp_dir) = setup_subscription();
+        let (mut sub, _temp_dir) = setup_subscription();
         let key = b"nonexistent".to_vec();
 
         // Try setting max_offset for a non-existent partition
+        let max_offset_result = sub.set_max_offset(&key, 100);
+        dbg!(&max_offset_result);
         assert!(matches!(
-            sub.set_max_offset(&key, 100),
-            Err(SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(_, 100))
+            max_offset_result,
+            Err(SubscriptionError::PartitionDoesNotExists)
         ));
     }
 
@@ -526,14 +431,14 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
         // Acknowledge some offsets
-        assert!(sub.acknowledge(&key, 2).is_ok());
-        assert!(sub.acknowledge(&key, 4).is_ok());
+        assert!(sub.acknowledge(&key, 0).is_ok());
+        assert!(sub.acknowledge(&key, 1).is_ok());
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
-        let offsets = sub.take(1, 3).expect("Failed to take offsets");
+        let offsets = sub.take(1, 2).expect("Failed to take offsets");
 
-        assert_eq!(offsets.len(), 3);
-        assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1), (key, 3)]);
+        assert_eq!(offsets.len(), 2);
+        assert_eq!(offsets, vec![(key.clone(), 2), (key.clone(), 3)]);
     }
 
     #[test]
