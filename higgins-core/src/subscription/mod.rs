@@ -158,12 +158,12 @@ impl Subscription {
         match partition {
             Some(partition) => {
                 // Check that the offset matches, or is offset + 1.
-                if offset != partition.last_completed_offset + 1 {
+                if offset != partition.last_completed_offset {
                     return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offset, partition.last_completed_offset));
                 }
 
                 // then bump the partition
-                partition.set_last_completed_offset(offset);
+                partition.set_last_completed_offset(offset + 1);
 
                 // sort the partitions
                 self.partitions.sort();
@@ -222,6 +222,7 @@ impl Subscription {
 
             match current_partition {
                 Some(partition_offset) => {
+                    println!("{:#?}", partition_offset);
                     for i in partition_offset.last_completed_offset.clone()
                         ..partition_offset.max_offset.clone()
                     {
@@ -331,8 +332,7 @@ mod tests {
         assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
 
         // Acknowledge offset 6 (adjacent to range 0..5)
-        let acknowledge_result = sub.acknowledge(&key, 6);
-        println!("Acknowledge Result: {:#?} ", acknowledge_result);
+        let acknowledge_result = sub.acknowledge(&key, 5);
         assert!(acknowledge_result.is_ok());
 
         // Verify the range is updated
@@ -432,14 +432,14 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
         // Acknowledge some offsets
+        assert!(sub.acknowledge(&key, 0).is_ok());
         assert!(sub.acknowledge(&key, 1).is_ok());
-        assert!(sub.acknowledge(&key, 2).is_ok());
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
         let offsets = sub.take(1, 2).expect("Failed to take offsets");
 
         assert_eq!(offsets.len(), 2);
-        assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1)]);
+        assert_eq!(offsets, vec![(key.clone(), 2), (key.clone(), 3)]);
     }
 
     #[test]
