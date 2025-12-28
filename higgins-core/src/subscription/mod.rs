@@ -5,6 +5,7 @@
 //! stream.
 pub mod error;
 
+use arrow::compute::kernels::partition;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -236,32 +237,21 @@ impl Subscription {
 
     /// Sets the maximum offset for a partition.
     /// Incrementing this effectively adds indexes to the subscription -> How do we then notify the underlying awaiter?
-    pub fn set_max_offset(&self, key: &[u8], offset: u64) -> Result<(), SubscriptionError> {
-        // How do we make this idempotent?.
+    pub fn set_max_offset(&mut self, key: &[u8], offset: u64) -> Result<(), SubscriptionError> {
+        // How do we make this idempotent?
 
-        let serde_subscription_metadata = self.db.get(key);
+        let partition = self
+            .partitions
+            .iter_mut()
+            .find(|PartitionOffsets { partition_id, .. }| partition_id == key);
 
-        let mut subscription_metadata = match serde_subscription_metadata {
-            Ok(Some(val)) => rkyv::from_bytes::<SubscriptionMetadata, rkyv::rancor::Error>(&val)?,
-            Ok(None) | Err(_) => {
-                return Err(
-                    SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                        key.iter().map(|val| val.to_string()).collect::<String>(),
-                        offset,
-                    ),
-                );
+        match partition {
+            Some(partition) => {
+                partition.max_offset = offset;
+                Ok(())
             }
-        };
-
-        if subscription_metadata.max_offset < offset {
-            subscription_metadata.max_offset = offset;
-
-            let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&subscription_metadata)?;
-
-            self.db.put(key, serialized)?;
+            None => Err(SubscriptionError::PartitionDoesNotExists),
         }
-
-        Ok(())
     }
 
     pub fn increment_amount_to_take(&mut self, client_id: u64, n: u64) {
