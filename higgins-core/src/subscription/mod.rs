@@ -222,7 +222,6 @@ impl Subscription {
 
             match current_partition {
                 Some(partition_offset) => {
-                    println!("{:#?}", partition_offset);
                     for i in partition_offset.last_completed_offset.clone()
                         ..partition_offset.max_offset.clone()
                     {
