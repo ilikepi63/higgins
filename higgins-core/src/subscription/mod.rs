@@ -174,7 +174,6 @@ impl Subscription {
         count: u64,
     ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
         // Client specific logic.
-        let mut result_vec = Vec::with_capacity(count.try_into().unwrap_or(10));
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
             .client_counts
@@ -201,49 +200,38 @@ impl Subscription {
 
         // subscription specific logic
         // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
-        for index in self.db.iterator(rocksdb::IteratorMode::Start) {
-            let (key, item) = index?;
-            let metadata = deserialize_subscription_metadata_or_else(&item)?;
+        let mut partition_offset_index = 0;
+        let mut offset_count = count.load(std::sync::atomic::Ordering::AcqRel);
 
-            let mut extracted_offsets =
-                extract_unacknowledged_keys_from_subscription_metadata(*count.get_mut(), &metadata)
-                    .iter()
-                    .map(|offset| (key.to_vec(), *offset))
-                    .collect::<Vec<(Key, Offset)>>();
+        let mut results = vec![];
 
-            tracing::trace!("Extracted offsets length: {}", extracted_offsets.len());
-            tracing::trace!("Removed count: {:#?}", count);
+        while offset_count > 0 && partition_offset_index < self.partitions.len() {
+            let current_partition = self.partitions.get_mut(partition_offset_index);
 
-            let offsets_length: u64 = extracted_offsets.len().try_into()?;
+            match current_partition {
+                Some(partition_offset) => {
+                    for i in partition_offset.last_completed_offset.clone()
+                        ..partition_offset.max_offset.clone()
+                    {
+                        // Push the offset on the resultant vec.
+                        results.push((partition_offset.partition_id.clone(), i));
+                        // Update the current last_completed_offset.
+                        partition_offset.set_last_completed_offset(i);
 
-            let _result = count
-                .fetch_update(
-                    // TryInto::<u64>::try_into(extracted_offsets.len())?,
-                    std::sync::atomic::Ordering::AcqRel,
-                    std::sync::atomic::Ordering::Relaxed,
-                    |val| {
-                        if val < offsets_length {
-                            Some(0)
-                        } else {
-                            Some(val - offsets_length)
+                        // If the offset count has gotten to zero, we break here and continue with the while loop.
+                        offset_count -= 1;
+                        if offset_count == 0 {
+                            break;
                         }
-                    },
-                )
-                .unwrap();
-
-            tracing::trace!("Removed count after subtraction: {:#?}", count);
-
-            result_vec.append(&mut extracted_offsets);
-
-            if count.load(std::sync::atomic::Ordering::Relaxed) < 1 {
-                break;
+                    }
+                }
+                None => {}
             }
+
+            partition_offset_index += 1;
         }
 
-        // // We remove the taken count from the amount to take.
-        // self.amount_to_take += TryInto::<u64>::try_into(result_vec.len()).unwrap();
-
-        Ok(result_vec)
+        Ok(results)
     }
 
     /// Sets the maximum offset for a partition.
