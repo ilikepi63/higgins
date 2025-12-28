@@ -11,7 +11,7 @@ use tokio::sync::Notify;
 use crate::subscription::error::SubscriptionError;
 
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PartitionOffsets {
     /// The ID for this specific partition.
     partition_id: Vec<u8>,
@@ -147,15 +147,19 @@ impl Subscription {
     pub fn acknowledge(&mut self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
         // Retrieve the partition via the key.
         // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
+
+        println!("Querying from partitions: {:#?}", self.partitions);
+        println!("key: {:#?}", key);
+
         let partition = self
             .partitions
             .iter_mut()
-            .find(|partition| partition.partition_id == key);
+            .find(|partition| partition.partition_id.iter().eq(key.iter()));
 
         match partition {
             Some(partition) => {
                 // Check that the offset matches, or is offset + 1.
-                if offset != partition.last_completed_offset {
+                if offset != partition.last_completed_offset + 1 {
                     return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offset, partition.last_completed_offset));
                 }
 
@@ -319,144 +323,141 @@ mod tests {
         );
     }
 
-    //     #[test]
-    //     fn test_acknowledge_existing_partition() {
-    //         let (sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+    #[test]
+    fn test_acknowledge_existing_partition() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Add partition
-    //         assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
+        // Add partition
+        assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
 
-    //         // Acknowledge offset 6 (adjacent to range 0..5)
-    //         assert!(sub.acknowledge(&key, 6).is_ok());
+        // Acknowledge offset 6 (adjacent to range 0..5)
+        let acknowledge_result = sub.acknowledge(&key, 6);
+        println!("Acknowledge Result: {:#?} ", acknowledge_result);
+        assert!(acknowledge_result.is_ok());
 
-    //         // Verify the range is updated
-    //         let metadata = sub
-    //             .db
-    //             .get(&key)
-    //             .expect("Failed to read DB")
-    //             .expect("Metadata not found");
-    //         let metadata: SubscriptionMetadata =
-    //             rkyv::from_bytes::<_, rkyv::rancor::Error>(&metadata).expect("Failed to deserialize");
-    //         assert_eq!(metadata.ranges, vec![Range(0, 5), Range(6, 7)]);
-    //     }
+        // Verify the range is updated
+        let PartitionOffsets {
+            last_completed_offset,
+            ..
+        } = sub.get_partition(&key).unwrap();
 
-    //     #[test]
-    //     fn test_acknowledge_nonexistent_partition() {
-    //         let (sub, _temp_dir) = setup_subscription();
-    //         let key = b"nonexistent".to_vec();
+        assert_eq!(last_completed_offset, 6);
+    }
 
-    //         // Try acknowledging a partition that doesn't exist
-    //         assert!(matches!(
-    //             sub.acknowledge(&key, 10),
-    //             Err(SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(_, 10))
-    //         ));
-    //     }
+    #[test]
+    fn test_acknowledge_nonexistent_partition() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"nonexistent".to_vec();
 
-    //     #[test]
-    //     fn test_take_offsets() {
-    //         let (mut sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+        // Try acknowledging a partition that doesn't exist
+        assert!(matches!(
+            sub.acknowledge(&key, 10),
+            Err(SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(_, 10))
+        ));
+    }
 
-    //         // Add partition with max_offset 10
-    //         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
+    #[test]
+    fn test_take_offsets() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Take 5 offsets
-    //         let offsets = sub.take(1, 5).expect("Failed to take offsets");
-    //         assert_eq!(offsets.len(), 5);
-    //         assert_eq!(
-    //             offsets,
-    //             vec![
-    //                 (key.clone(), 0_u64),
-    //                 (key.clone(), 1),
-    //                 (key.clone(), 2),
-    //                 (key.clone(), 3),
-    //                 (key, 4)
-    //             ]
-    //         );
-    //     }
+        // Add partition with max_offset 10
+        assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
-    //     #[test]
-    //     fn test_take_no_offsets_available() {
-    //         let (mut sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+        // Take 5 offsets
+        let offsets = sub.take(1, 5).expect("Failed to take offsets");
+        assert_eq!(offsets.len(), 5);
+        assert_eq!(
+            offsets,
+            vec![
+                (key.clone(), 0_u64),
+                (key.clone(), 1),
+                (key.clone(), 2),
+                (key.clone(), 3),
+                (key, 4)
+            ]
+        );
+    }
 
-    //         // Add partition with no unacknowledged offsets (max_offset 0)
-    //         assert!(sub.add_partition(&key, None, Some(0)).is_ok());
+    #[test]
+    fn test_take_no_offsets_available() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Try to take offsets
-    //         let offsets = sub.take(1, 5).expect("Failed to take offsets");
-    //         assert!(offsets.is_empty(), "No offsets should be available");
-    //     }
+        // Add partition with no unacknowledged offsets (max_offset 0)
+        assert!(sub.add_partition(&key, None, Some(0)).is_ok());
 
-    //     #[test]
-    //     fn test_set_max_offset_existing_partition() {
-    //         let (sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+        // Try to take offsets
+        let offsets = sub.take(1, 5).expect("Failed to take offsets");
+        assert!(offsets.is_empty(), "No offsets should be available");
+    }
 
-    //         // Add partition
-    //         assert!(sub.add_partition(&key, None, Some(50)).is_ok());
+    #[test]
+    fn test_set_max_offset_existing_partition() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Set new max_offset
-    //         assert!(sub.set_max_offset(&key, 100).is_ok());
+        // Add partition
+        assert!(sub.add_partition(&key, None, Some(50)).is_ok());
 
-    //         // Verify the max_offset was updated
-    //         let metadata = sub
-    //             .db
-    //             .get(&key)
-    //             .expect("Failed to read DB")
-    //             .expect("Metadata not found");
-    //         let metadata: SubscriptionMetadata =
-    //             rkyv::from_bytes::<_, rkyv::rancor::Error>(&metadata).expect("Failed to deserialize");
-    //         assert_eq!(metadata.max_offset, 100);
-    //     }
+        // Set new max_offset
+        assert!(sub.set_max_offset(&key, 100).is_ok());
 
-    //     #[test]
-    //     fn test_set_max_offset_nonexistent_partition() {
-    //         let (sub, _temp_dir) = setup_subscription();
-    //         let key = b"nonexistent".to_vec();
+        // Verify the max_offset was updated
+        let PartitionOffsets { max_offset, .. } = sub.get_partition(&key).unwrap();
 
-    //         // Try setting max_offset for a non-existent partition
-    //         assert!(matches!(
-    //             sub.set_max_offset(&key, 100),
-    //             Err(SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(_, 100))
-    //         ));
-    //     }
+        assert_eq!(max_offset, 100);
+    }
 
-    //     #[test]
-    //     fn test_acknowledge_and_take_combination() {
-    //         let (mut sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+    #[test]
+    fn test_set_max_offset_nonexistent_partition() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"nonexistent".to_vec();
 
-    //         // Add partition with max_offset 10
-    //         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
+        // Try setting max_offset for a non-existent partition
+        let max_offset_result = sub.set_max_offset(&key, 100);
+        dbg!(&max_offset_result);
+        assert!(matches!(
+            max_offset_result,
+            Err(SubscriptionError::PartitionDoesNotExists)
+        ));
+    }
 
-    //         // Acknowledge some offsets
-    //         assert!(sub.acknowledge(&key, 2).is_ok());
-    //         assert!(sub.acknowledge(&key, 4).is_ok());
+    #[test]
+    fn test_acknowledge_and_take_combination() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
-    //         let offsets = sub.take(1, 3).expect("Failed to take offsets");
+        // Add partition with max_offset 10
+        assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
-    //         assert_eq!(offsets.len(), 3);
-    //         assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1), (key, 3)]);
-    //     }
+        // Acknowledge some offsets
+        assert!(sub.acknowledge(&key, 1).is_ok());
+        assert!(sub.acknowledge(&key, 2).is_ok());
 
-    //     #[test]
-    //     fn test_multiple_partitions() {
-    //         let (mut sub, _temp_dir) = setup_subscription();
-    //         let key1 = b"partition1".to_vec();
-    //         let key2 = b"partition2".to_vec();
+        // Take 3 offsets (should skip acknowledged offsets 2 and 4)
+        let offsets = sub.take(1, 2).expect("Failed to take offsets");
 
-    //         // Add two partitions
-    //         assert!(sub.add_partition(&key1, None, Some(2)).is_ok());
-    //         assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
+        assert_eq!(offsets.len(), 2);
+        assert_eq!(offsets, vec![(key.clone(), 0), (key.clone(), 1)]);
+    }
 
-    //         // Take 4 offsets (should distribute across partitions)
-    //         let offsets = sub.take(1, 4).expect("Failed to take offsets");
-    //         assert_eq!(offsets.len(), 4);
-    //         // Note: Without round-robin logic, exact distribution may vary
-    //         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));
-    //         assert!(offsets.iter().any(|(k, o)| k == &key2 && *o == 0));
-    //     }
+    #[test]
+    fn test_multiple_partitions() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key1 = b"partition1".to_vec();
+        let key2 = b"partition2".to_vec();
+
+        // Add two partitions
+        assert!(sub.add_partition(&key1, None, Some(2)).is_ok());
+        assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
+
+        // Take 4 offsets (should distribute across partitions)
+        let offsets = sub.take(1, 4).expect("Failed to take offsets");
+        assert_eq!(offsets.len(), 4);
+        // Note: Without round-robin logic, exact distribution may vary
+        assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));
+        assert!(offsets.iter().any(|(k, o)| k == &key2 && *o == 0));
+    }
 }
