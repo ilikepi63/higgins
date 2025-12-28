@@ -16,8 +16,6 @@ pub enum SubscriptionError {
     AttemptToAcknowledgePartitionThatDoesntExist(String, u64),
     #[error("Failed to deserialize SubscriptionMetadata.")]
     FailureToDeserializeSubscriptionMetadata,
-    #[error("Error occurred in RocksDB: {0}")]
-    RocksDbError(#[from] rocksdb::Error),
     #[error("Error occurred with Rkyv serde: {0}")]
     RkyvError(#[from] rkyv::rancor::Error),
     #[error("Failue to convert from Integer.")]
