@@ -263,16 +263,6 @@ impl Subscription {
     }
 }
 
-fn apply_offset_to_range(range: &mut Range, offset: u64) {
-    if offset + 1 == range.0 {
-        range.0 -= 1;
-    }
-
-    if offset == range.1 {
-        range.1 += 1;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
