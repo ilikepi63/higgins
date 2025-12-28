@@ -296,7 +296,7 @@ mod tests {
             partition_id,
             last_completed_offset,
             max_offset,
-            amount_to_take,
+            ..
         } = sub.get_partition(&key).unwrap();
 
         assert_eq!(partition_id, key);
@@ -304,20 +304,20 @@ mod tests {
         assert_eq!(last_completed_offset, 10);
     }
 
-    //     #[test]
-    //     fn test_add_partition_already_exists() {
-    //         let (sub, _temp_dir) = setup_subscription();
-    //         let key = b"partition1".to_vec();
+    #[test]
+    fn test_add_partition_already_exists() {
+        let (mut sub, _temp_dir) = setup_subscription();
+        let key = b"partition1".to_vec();
 
-    //         // Add partition once
-    //         assert!(sub.add_partition(&key, None, None).is_ok());
+        // Add partition once
+        assert!(sub.add_partition(&key, None, None).is_ok());
 
-    //         // Try adding the same partition again
-    //         matches!(
-    //             sub.add_partition(&key, None, None),
-    //             Err(SubscriptionError::SubscriptionPartitionAlreadyExists)
-    //         );
-    //     }
+        // Try adding the same partition again
+        matches!(
+            sub.add_partition(&key, None, None),
+            Err(SubscriptionError::SubscriptionPartitionAlreadyExists)
+        );
+    }
 
     //     #[test]
     //     fn test_acknowledge_existing_partition() {
