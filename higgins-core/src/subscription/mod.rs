@@ -15,7 +15,7 @@ use higgins_shared::PartitionName;
 #[derive(Clone, Debug)]
 pub struct PartitionOffsets {
     /// The ID for this specific partition.
-    partition_id: Vec<u8>,
+    partition_id: PartitionName,
     /// The current watermark or offset that has been acknowledged for this offset.
     last_completed_offset: u64,
     /// The max offset, or the largest offset that exists within this partition.
@@ -49,7 +49,7 @@ impl Ord for PartitionOffsets {
 
 impl PartitionOffsets {
     // Create this given a partition_id and optional defaults.
-    fn of(key: &[u8], offset: Option<u64>, max_offset: Option<u64>) -> Self {
+    fn of(key: &PartitionName, offset: Option<u64>, max_offset: Option<u64>) -> Self {
         let last_completed_offset = offset.unwrap_or(0);
         let max_offset = max_offset.unwrap_or(0);
         let mut new_partition = PartitionOffsets {
@@ -126,7 +126,7 @@ impl Subscription {
     /// Add a partition to  this  Subscription, beginning at the given offset.
     pub fn add_partition(
         &mut self,
-        key: &[u8],
+        key: &PartitionName,
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
@@ -138,7 +138,7 @@ impl Subscription {
     }
 
     /// Retrieval of the partition for a specific key.
-    pub fn get_partition(&self, key: &[u8]) -> Option<PartitionOffsets> {
+    pub fn get_partition(&self, key: &PartitionName) -> Option<PartitionOffsets> {
         self.partitions
             .iter()
             .find(|PartitionOffsets { partition_id, .. }| partition_id == key)
@@ -147,14 +147,18 @@ impl Subscription {
 
     /// Acknowledges the offset, adjusting the ranges that appear inside of this given
     /// BTree.
-    pub fn acknowledge(&mut self, key: &[u8], offset: Offset) -> Result<(), SubscriptionError> {
+    pub fn acknowledge(
+        &mut self,
+        key: &PartitionName,
+        offset: Offset,
+    ) -> Result<(), SubscriptionError> {
         // Retrieve the partition via the key.
         // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
 
         let partition = self
             .partitions
             .iter_mut()
-            .find(|partition| partition.partition_id.iter().eq(key.iter()));
+            .find(|partition| partition.partition_id == *key);
 
         match partition {
             Some(partition) => {
@@ -173,7 +177,7 @@ impl Subscription {
             }
             None => Err(
                 SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                    String::from_utf8(key.to_owned()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    String::from_utf8(key.0.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
                     offset,
                 ),
             ),
@@ -185,7 +189,7 @@ impl Subscription {
         &mut self,
         client_id: u64,
         count: u64,
-    ) -> Result<Vec<(Key, Offset)>, SubscriptionError> {
+    ) -> Result<Vec<(PartitionName, Offset)>, SubscriptionError> {
         // Client specific logic.
 
         let count: &mut AtomicU64 = if let Some((_, count)) = self
@@ -294,7 +298,7 @@ mod tests {
     #[test]
     fn test_add_partition_success() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add a partition with offset and max_offset
         assert!(sub.add_partition(&key, Some(10), Some(100)).is_ok());
@@ -315,7 +319,7 @@ mod tests {
     #[test]
     fn test_add_partition_already_exists() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition once
         assert!(sub.add_partition(&key, None, None).is_ok());
@@ -330,7 +334,7 @@ mod tests {
     #[test]
     fn test_acknowledge_existing_partition() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition
         assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
@@ -351,7 +355,7 @@ mod tests {
     #[test]
     fn test_acknowledge_nonexistent_partition() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"nonexistent".to_vec();
+        let key = PartitionName::try_from("nonexistent").unwrap();
 
         // Try acknowledging a partition that doesn't exist
         assert!(matches!(
@@ -363,7 +367,7 @@ mod tests {
     #[test]
     fn test_take_offsets() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with max_offset 10
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
@@ -386,7 +390,7 @@ mod tests {
     #[test]
     fn test_take_no_offsets_available() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with no unacknowledged offsets (max_offset 0)
         assert!(sub.add_partition(&key, None, Some(0)).is_ok());
@@ -399,7 +403,7 @@ mod tests {
     #[test]
     fn test_set_max_offset_existing_partition() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition
         assert!(sub.add_partition(&key, None, Some(50)).is_ok());
@@ -416,7 +420,7 @@ mod tests {
     #[test]
     fn test_set_max_offset_nonexistent_partition() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"nonexistent".to_vec();
+        let key = PartitionName::try_from("nonexistent").unwrap();
 
         // Try setting max_offset for a non-existent partition
         let max_offset_result = sub.set_max_offset(&key, 100);
@@ -430,7 +434,7 @@ mod tests {
     #[test]
     fn test_acknowledge_and_take_combination() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key = b"partition1".to_vec();
+        let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with max_offset 10
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
@@ -449,8 +453,8 @@ mod tests {
     #[test]
     fn test_multiple_partitions() {
         let (mut sub, _temp_dir) = setup_subscription();
-        let key1 = b"partition1".to_vec();
-        let key2 = b"partition2".to_vec();
+        let key1 = PartitionName::try_from("partition1").unwrap();
+        let key2 = PartitionName::try_from("partition2").unwrap();
 
         // Add two partitions
         assert!(sub.add_partition(&key1, None, Some(2)).is_ok());
