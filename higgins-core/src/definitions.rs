@@ -14,11 +14,10 @@ impl Into<Vec<u8>> for PartitionName {
     }
 }
 
-impl TryFrom<&str> for PartitionName {
+impl TryFrom<&[u8]> for PartitionName {
     type Error = PartitionNameError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let bytes = value.as_bytes();
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         if bytes.len() > size_of::<Self>() {
             return Err(PartitionNameError::TooManyBytesForPartitionName(
                 bytes.len(),
@@ -30,6 +29,14 @@ impl TryFrom<&str> for PartitionName {
         result[0..bytes.len()].copy_from_slice(bytes);
 
         Ok(Self(result))
+    }
+}
+
+impl TryFrom<&str> for PartitionName {
+    type Error = PartitionNameError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_bytes())
     }
 }
 

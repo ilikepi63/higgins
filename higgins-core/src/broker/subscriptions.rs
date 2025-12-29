@@ -10,7 +10,10 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::{error::HigginsError, storage::arrow_ipc::read_arrow, subscription::Subscription};
+use crate::{
+    definitions::PartitionName, error::HigginsError, storage::arrow_ipc::read_arrow,
+    subscription::Subscription,
+};
 impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(
@@ -134,7 +137,12 @@ impl Broker {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
                             let consumption = broker_lock
-                                .consume(&task_stream_name, &partition, offset, 50_000)
+                                .consume(
+                                    &task_stream_name,
+                                    PartitionName::try_from(&partition[..]).unwrap(),
+                                    offset,
+                                    50_000,
+                                )
                                 .await;
 
                             for val in consumption {
