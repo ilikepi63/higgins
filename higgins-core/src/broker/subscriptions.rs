@@ -10,10 +10,9 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::{
-    definitions::PartitionName, error::HigginsError, storage::arrow_ipc::read_arrow,
-    subscription::Subscription,
-};
+use crate::{error::HigginsError, storage::arrow_ipc::read_arrow, subscription::Subscription};
+use higgins_shared::PartitionName;
+
 impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(

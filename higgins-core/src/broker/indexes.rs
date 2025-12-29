@@ -1,6 +1,6 @@
 use super::Broker;
-use crate::definitions::PartitionName;
 use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
+use higgins_shared::PartitionName;
 use std::sync::Arc;
 
 pub struct BrokerIndexFile {
