@@ -12,15 +12,26 @@ struct SubscriptionFileHeader {
 
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
-pub struct PartitionOffsetsSerde {
-    /// The ID for this specific partition.
-    partition_id: PartitionName,
-    /// The current watermark or offset that has been acknowledged for this offset.
-    last_completed_offset: u64,
-    /// The max offset, or the largest offset that exists within this partition.
-    max_offset: u64,
-    /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
-    amount_to_take: u64,
+pub struct PartitionOffsetsSerde;
+static LAST_COMPLETED_OFFSET: usize = size_of::<PartitionName>();
+static MAX_OFFSET: usize = LAST_COMPLETED_OFFSET + size_of::<u64>();
+static AMOUNT_TO_TAKE_OFFSET: usize = MAX_OFFSET + size_of::<u64>();
+
+impl PartitionOffsetsSerde {
+    pub fn write_to(
+        partition_id: PartitionName,
+        last_completed_offset: u64,
+        max_offset: u64,
+        amount_to_take: u64,
+        dest: &mut [u8],
+    ) {
+        dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.0);
+        dest[LAST_COMPLETED_OFFSET..MAX_OFFSET]
+            .clone_from_slice(&last_completed_offset.to_be_bytes());
+        dest[MAX_OFFSET..AMOUNT_TO_TAKE_OFFSET].clone_from_slice(&max_offset.to_be_bytes());
+        dest[AMOUNT_TO_TAKE_OFFSET..AMOUNT_TO_TAKE_OFFSET + size_of::<u64>()]
+            .clone_from_slice(&amount_to_take.to_be_bytes());
+    }
 }
 
 struct SubscriptionFileTail {}
