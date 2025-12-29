@@ -8,6 +8,9 @@ use riskless::{
 use std::sync::Arc;
 
 use crate::{broker::object_store::path::Path, storage::index::IndexType};
+
+use higgins_shared::PartitionName;
+
 use crate::{error::HigginsError, storage::dereference::dereference};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
@@ -16,7 +19,7 @@ impl Broker {
     pub async fn consume(
         &self,
         topic: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
         offset: u64,
         _max_partition_fetch_bytes: u32,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
@@ -34,7 +37,7 @@ impl Broker {
                 vec![FindBatchRequest {
                     topic_id_partition: TopicIdPartition(
                         String::from_utf8(topic.to_owned()).unwrap(),
-                        partition.to_owned(),
+                        partition.0.to_vec(),
                     ),
                     offset,
                     max_partition_fetch_bytes: 0,
@@ -53,7 +56,7 @@ impl Broker {
     pub async fn get_by_timestamp(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
         timestamp: u64,
     ) -> Option<ConsumeResponse> {
         let stream_def = self
@@ -65,7 +68,7 @@ impl Broker {
             .indexes
             .get_by_timestamp(
                 stream,
-                partition,
+                &partition,
                 timestamp,
                 IndexType::try_from(stream_def).unwrap(),
             )
@@ -81,7 +84,7 @@ impl Broker {
     pub async fn get_latest(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
@@ -97,7 +100,7 @@ impl Broker {
             .indexes
             .get_latest_offset(
                 stream,
-                partition,
+                &partition,
                 &IndexType::try_from(stream_def).unwrap(),
                 stream_def,
             )
@@ -113,7 +116,7 @@ impl Broker {
     pub async fn get_at(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
         offset: u64,
         //broker: Arc<tokio::sync::RwLock<Broker>>,
     ) -> Result<Option<Vec<u8>>, HigginsError> {
@@ -126,7 +129,7 @@ impl Broker {
             .indexes
             .get_by_offset(
                 stream,
-                partition,
+                &partition,
                 offset,
                 IndexType::try_from(stream_def).unwrap(),
                 stream_def,

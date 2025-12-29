@@ -3,6 +3,7 @@ use crate::common::{
 };
 use common::get_random_port;
 use higgins::run_server;
+use higgins_shared::PartitionName;
 use std::{net::TcpStream, time::Duration};
 
 mod common;
@@ -99,7 +100,7 @@ fn can_implement_a_basic_stream_join() {
 
     produce_sync(
         b"customer",
-        b"1",
+        &PartitionName::try_from("1").unwrap(),
         r#"
         {
             "id": "1",
@@ -115,13 +116,18 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+    let result = query_latest_arrow(
+        b"customer_address",
+        &PartitionName::try_from("1").unwrap(),
+        &mut socket,
+    )
+    .unwrap();
 
     assert_eq!(result, create_batch_with_nulled_values_in_address());
 
     produce_sync(
         b"address",
-        b"1",
+        &PartitionName::try_from("1").unwrap(),
         r#"
         {
             "customer_id": "1",
@@ -138,7 +144,12 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(b"customer_address", b"1", &mut socket).unwrap();
+    let result = query_latest_arrow(
+        b"customer_address",
+        &PartitionName::try_from("1").unwrap(),
+        &mut socket,
+    )
+    .unwrap();
 
     assert_eq!(result, create_test_customer_address_data());
 

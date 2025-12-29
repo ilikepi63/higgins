@@ -107,7 +107,11 @@ impl Broker {
             for (_, sub) in subs.values_mut() {
                 let mut sub = sub.write().await;
 
-                sub.add_partition(partition_key, None, None)?;
+                sub.add_partition(
+                    &higgins_shared::PartitionName::try_from(partition_key)?,
+                    None,
+                    None,
+                )?;
             }
         }
 

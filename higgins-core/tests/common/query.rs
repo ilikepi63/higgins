@@ -1,11 +1,12 @@
 use bytes::BytesMut;
 use higgins_codec::{GetIndexRequest, Index, Message, Record, frame::Frame, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 
 #[allow(unused)]
 pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: &PartitionName,
     socket: &mut T,
     timestamp: u64,
 ) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
@@ -13,7 +14,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
             stream: stream.to_owned(),
-            partition: partition.to_owned(),
+            partition: partition.0.to_vec(),
             timestamp: Some(timestamp),
             index: None,
         }],
@@ -55,14 +56,14 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
 #[allow(unused)]
 pub fn query_latest<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: &PartitionName,
     socket: &mut T,
 ) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
             stream: stream.to_owned(),
-            partition: partition.to_owned(),
+            partition: partition.0.to_vec(),
             timestamp: None,
             index: None,
         }],

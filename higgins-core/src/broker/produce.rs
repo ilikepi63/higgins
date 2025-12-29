@@ -1,6 +1,7 @@
 use super::Broker;
 use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
 use arrow::array::RecordBatch;
+use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
 
 use crate::{
@@ -18,7 +19,7 @@ impl Broker {
     pub async fn produce(
         &mut self,
         stream_name: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
         record_batch: RecordBatch,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
@@ -31,7 +32,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: String::from_utf8(stream_name.to_vec()).unwrap(),
-            partition: partition.to_vec(),
+            partition: partition.0.to_vec(),
             data,
         };
 
@@ -78,7 +79,7 @@ impl Broker {
             .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
-                partition,
+                &partition,
                 reference,
                 response,
                 &index_type,
@@ -98,7 +99,7 @@ impl Broker {
                 tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
                 // Set the max offset of the subscription.
-                subscription.set_max_offset(partition, offset)?;
+                subscription.set_max_offset(&partition, offset)?;
 
                 // Notify the tasks awaiting this subscription.
                 notify.notify_waiters();
@@ -126,7 +127,7 @@ impl Broker {
     pub async fn put_data<'a>(
         &self,
         stream: String,
-        partition: &[u8],
+        partition: &PartitionName,
         index: &mut Index<'a>,
         data: RecordBatch,
     ) -> Result<Vec<u8>, HigginsError> {
@@ -137,7 +138,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.to_vec(),
+            partition: partition.0.to_vec(),
             data,
         };
 

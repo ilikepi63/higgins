@@ -10,6 +10,7 @@ use crate::{
     storage::arrow_ipc::read_arrow,
     topography::{Key, StreamDefinition},
 };
+use higgins_shared::PartitionName;
 
 pub async fn create_mapped_stream_from_definition(
     stream_name: Key,
@@ -103,7 +104,7 @@ pub async fn create_mapped_stream_from_definition(
                                 let result = broker_lock
                                     .produce(
                                         stream_name.inner(),
-                                        &partition_val,
+                                        &PartitionName::try_from(&partition_val[..]).unwrap(),
                                         mapped_record_batch,
                                     )
                                     .await;

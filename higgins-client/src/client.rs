@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     configuration::upload_configuration,
     error::HigginsClientError,
@@ -10,6 +8,8 @@ use crate::{
     subscription::{create_subscription, take},
 };
 use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
+use higgins_shared::PartitionName;
+use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
 
 pub struct Client(tokio::net::TcpStream, Duration);
@@ -35,7 +35,7 @@ impl Client {
     pub async fn produce(
         &mut self,
         stream: &str,
-        partition: &[u8],
+        partition: &PartitionName,
         payload: &[u8],
     ) -> Result<ProduceResponse, HigginsClientError> {
         timeout!(
@@ -61,7 +61,7 @@ impl Client {
     pub async fn query_by_timestamp(
         &mut self,
         stream: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
         timestamp: u64,
     ) -> Result<Vec<Record>, HigginsClientError> {
         timeout!(
@@ -74,7 +74,7 @@ impl Client {
     pub async fn query_latest(
         &mut self,
         stream: &[u8],
-        partition: &[u8],
+        partition: &PartitionName,
     ) -> Result<Vec<Record>, HigginsClientError> {
         timeout!(query_latest(stream, partition, &mut self.0), self.1).await?
     }
