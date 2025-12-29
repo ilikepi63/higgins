@@ -63,7 +63,7 @@ impl Broker {
     pub fn get_index_file(
         &mut self,
         stream: String,
-        partition: PartitionName,
+        partition: &PartitionName,
         element_size: usize,
     ) -> Option<BrokerIndexFile> {
         let stream_def = self
@@ -73,7 +73,7 @@ impl Broker {
 
         let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
             stream.clone(),
-            &partition,
+            partition,
             element_size,
             IndexType::try_from(stream_def).unwrap(),
         );
@@ -81,14 +81,14 @@ impl Broker {
         match index_file_get_result {
             Ok(index_file) => {
                 let broker_index = match self.broker_indexes.iter().find(|(s, p, _)| {
-                    s == &stream && PartitionName::try_from(&p[..]).unwrap() == partition
+                    s == &stream && PartitionName::try_from(&p[..]).unwrap() == *partition
                 }) {
                     Some(val) => val,
                     None => {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.
                         self.broker_indexes.push((
                             stream.to_owned(),
-                            partition.into(),
+                            partition.0.to_vec(),
                             Arc::new(tokio::sync::Mutex::new(())),
                         ));
 

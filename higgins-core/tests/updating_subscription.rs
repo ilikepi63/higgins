@@ -9,6 +9,7 @@ use crate::common::get_random_port;
 use bytes::BytesMut;
 use higgins::run_server;
 use higgins_codec::{Message, TakeRecordsRequest, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 
 use crate::common::{
@@ -135,7 +136,7 @@ fn can_update_subscription_after_created() {
     for _ in 0..NUMBER_OF_MESSAGES {
         produce(
             "update_customer".as_bytes(),
-            "test_partition".as_bytes(),
+            &PartitionName::try_from("test_partition").unwrap(),
             payload.as_bytes(),
             &mut socket_writer,
         );

@@ -35,7 +35,7 @@ impl Client {
     pub async fn produce(
         &mut self,
         stream: &str,
-        partition: PartitionName,
+        partition: &PartitionName,
         payload: &[u8],
     ) -> Result<ProduceResponse, HigginsClientError> {
         timeout!(
@@ -61,7 +61,7 @@ impl Client {
     pub async fn query_by_timestamp(
         &mut self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         timestamp: u64,
     ) -> Result<Vec<Record>, HigginsClientError> {
         timeout!(
@@ -74,7 +74,7 @@ impl Client {
     pub async fn query_latest(
         &mut self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
     ) -> Result<Vec<Record>, HigginsClientError> {
         timeout!(query_latest(stream, partition, &mut self.0), self.1).await?
     }

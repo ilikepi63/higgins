@@ -136,12 +136,7 @@ impl Broker {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
                             let consumption = broker_lock
-                                .consume(
-                                    &task_stream_name,
-                                    PartitionName::try_from(&partition[..]).unwrap(),
-                                    offset,
-                                    50_000,
-                                )
+                                .consume(&task_stream_name, &partition, offset, 50_000)
                                 .await;
 
                             for val in consumption {

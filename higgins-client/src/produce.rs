@@ -12,7 +12,7 @@ use prost::Message as _;
 #[allow(dead_code)]
 pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
     stream: &[u8],
-    partition: PartitionName,
+    partition: &PartitionName,
     payload: &[u8],
     socket: &mut T,
 ) {
@@ -41,7 +41,7 @@ pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::mark
 #[allow(unused)]
 pub async fn produce_sync<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
     stream: &[u8],
-    partition: PartitionName,
+    partition: &PartitionName,
     payload: &[u8],
     socket: &mut T,
 ) -> Result<ProduceResponse, HigginsClientError> {

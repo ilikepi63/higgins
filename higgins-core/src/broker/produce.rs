@@ -19,7 +19,7 @@ impl Broker {
     pub async fn produce(
         &mut self,
         stream_name: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         record_batch: RecordBatch,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
@@ -79,7 +79,7 @@ impl Broker {
             .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
-                partition.clone(),
+                &partition,
                 reference,
                 response,
                 &index_type,
@@ -127,7 +127,7 @@ impl Broker {
     pub async fn put_data<'a>(
         &self,
         stream: String,
-        partition: PartitionName,
+        partition: &PartitionName,
         index: &mut Index<'a>,
         data: RecordBatch,
     ) -> Result<Vec<u8>, HigginsError> {
