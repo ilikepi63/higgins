@@ -14,7 +14,7 @@ fn get_dir() -> PathBuf {
 }
 
 static STREAM: &str = "update_customer";
-static PARTITION: &[u8] = "test_partition".as_bytes();
+static partition: PartitionName = "test_partition".as_bytes();
 
 #[traced_test]
 #[test]

@@ -64,7 +64,7 @@ impl IndexDirectory {
     pub fn index_file_name_from_stream_and_partition(
         &self,
         stream: String,
-        partition: &[u8],
+        partition: PartitionName,
     ) -> String {
         let mut topic_dir = self.create_topic_dir(&stream);
 
@@ -79,7 +79,7 @@ impl IndexDirectory {
     pub fn index_file_from_stream_and_partition(
         &self,
         stream: String,
-        partition: &[u8],
+        partition: PartitionName,
         element_size: usize,
         index_type: IndexType,
     ) -> Result<IndexFile, IndexError> {
@@ -102,7 +102,7 @@ impl IndexDirectory {
     pub async fn get_by_timestamp(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         timestamp: u64,
         index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
@@ -190,7 +190,7 @@ impl IndexDirectory {
     pub async fn get_latest_offset(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
     ) -> Vec<Reference> {
@@ -245,7 +245,7 @@ impl IndexDirectory {
     pub async fn get_by_offset(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
@@ -404,7 +404,7 @@ impl IndexDirectory {
     pub async fn put_default_index(
         &self,
         stream: String,
-        partition: &[u8],
+        partition: PartitionName,
         reference: Reference,
         batch_coord: BatchCoordinate,
         index_type: &IndexType,

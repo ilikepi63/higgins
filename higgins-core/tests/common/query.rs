@@ -5,7 +5,7 @@ use prost::Message as _;
 #[allow(unused)]
 pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: PartitionName,
     socket: &mut T,
     timestamp: u64,
 ) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
@@ -55,7 +55,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
 #[allow(unused)]
 pub fn query_latest<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: PartitionName,
     socket: &mut T,
 ) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
     let request = GetIndexRequest {

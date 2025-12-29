@@ -1,4 +1,5 @@
 use super::Broker;
+use crate::definitions::PartitionName;
 use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
 use arrow::array::RecordBatch;
 use riskless::messages::ProduceRequest;
@@ -18,7 +19,7 @@ impl Broker {
     pub async fn produce(
         &mut self,
         stream_name: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         record_batch: RecordBatch,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
@@ -126,7 +127,7 @@ impl Broker {
     pub async fn put_data<'a>(
         &self,
         stream: String,
-        partition: &[u8],
+        partition: PartitionName,
         index: &mut Index<'a>,
         data: RecordBatch,
     ) -> Result<Vec<u8>, HigginsError> {
