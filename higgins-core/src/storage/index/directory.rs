@@ -66,7 +66,7 @@ impl IndexDirectory {
     pub fn index_file_name_from_stream_and_partition(
         &self,
         stream: String,
-        partition: PartitionName,
+        partition: &PartitionName,
     ) -> String {
         let mut topic_dir = self.create_topic_dir(&stream);
 
@@ -81,7 +81,7 @@ impl IndexDirectory {
     pub fn index_file_from_stream_and_partition(
         &self,
         stream: String,
-        partition: PartitionName,
+        partition: &PartitionName,
         element_size: usize,
         index_type: IndexType,
     ) -> Result<IndexFile, IndexError> {
@@ -104,7 +104,7 @@ impl IndexDirectory {
     pub async fn get_by_timestamp(
         &self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         timestamp: u64,
         index_type: IndexType,
     ) -> Vec<FindBatchResponse> {
@@ -113,7 +113,7 @@ impl IndexDirectory {
 
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
-        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.to_owned());
+        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.0.to_vec());
 
         let index_file = self
             .index_file_from_stream_and_partition(
@@ -192,7 +192,7 @@ impl IndexDirectory {
     pub async fn get_latest_offset(
         &self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
     ) -> Vec<Reference> {
@@ -247,7 +247,7 @@ impl IndexDirectory {
     pub async fn get_by_offset(
         &self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
@@ -357,7 +357,7 @@ impl IndexDirectory {
             let index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
-                    &partition,
+                    &PartitionName::try_from(&partition[..]).unwrap(),
                     index_size_from_index_type_and_definition(index_type, stream_definition),
                     index_type.clone(),
                 )
@@ -406,7 +406,7 @@ impl IndexDirectory {
     pub async fn put_default_index(
         &self,
         stream: String,
-        partition: PartitionName,
+        partition: &PartitionName,
         reference: Reference,
         batch_coord: BatchCoordinate,
         index_type: &IndexType,
@@ -485,7 +485,7 @@ impl IndexDirectory {
             let mut index_file = self
                 .index_file_from_stream_and_partition(
                     topic,
-                    &partition,
+                    &PartitionName::try_from(&partition[..]).unwrap(),
                     index_size_from_index_type_and_definition(&index_type, &stream_def),
                     index_type.clone(),
                 )
