@@ -6,8 +6,8 @@ members = [
     "higgins-codec",
     "higgins-core",
     "higgins-functions",
-    "higgins-functions/tests/example_wasm",
-]
+    "higgins-functions/tests/example_wasm"
+, "higgins-shared"]
 exclude = ["higgins-functions/tests/example_wasm"]
 
 [workspace.dependencies]
