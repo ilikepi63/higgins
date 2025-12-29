@@ -79,7 +79,7 @@ impl Broker {
             .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
-                partition,
+                partition.clone(),
                 reference,
                 response,
                 &index_type,

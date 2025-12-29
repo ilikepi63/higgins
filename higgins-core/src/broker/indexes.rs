@@ -80,11 +80,9 @@ impl Broker {
 
         match index_file_get_result {
             Ok(index_file) => {
-                let broker_index = match self
-                    .broker_indexes
-                    .iter()
-                    .find(|(s, p, _)| s == &stream && p == partition)
-                {
+                let broker_index = match self.broker_indexes.iter().find(|(s, p, _)| {
+                    s == &stream && PartitionName::try_from(&p[..]).unwrap() == partition
+                }) {
                     Some(val) => val,
                     None => {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.

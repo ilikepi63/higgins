@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::{
     configuration::upload_configuration,
     error::HigginsClientError,
@@ -10,6 +8,8 @@ use crate::{
     subscription::{create_subscription, take},
 };
 use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
+use higgins_shared::PartitionName;
+use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
 
 pub struct Client(tokio::net::TcpStream, Duration);

@@ -1,5 +1,6 @@
 use bytes::BytesMut;
 use higgins_codec::{GetIndexRequest, Index, Message, Record, frame::Frame, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 
 use crate::error::HigginsClientError;
@@ -17,7 +18,7 @@ pub async fn query_by_timestamp<
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
             stream: stream.to_owned(),
-            partition: partition.to_owned(),
+            partition: partition.0.to_vec(),
             timestamp: Some(timestamp),
             index: None,
         }],
@@ -66,7 +67,7 @@ pub async fn query_latest<
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
             stream: stream.to_owned(),
-            partition: partition.to_owned(),
+            partition: partition.0.to_vec(),
             timestamp: None,
             index: None,
         }],

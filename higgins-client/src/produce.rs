@@ -3,6 +3,7 @@ use bytes::BytesMut;
 use higgins_codec::ProduceResponse;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 
 /// produce to a stream without waiting for the response.
@@ -16,7 +17,7 @@ pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::mark
     socket: &mut T,
 ) {
     let produce_request = ProduceRequest {
-        partition_key: partition.to_vec(),
+        partition_key: partition.0.to_vec(),
         payload: payload.to_vec(),
         stream_name: stream.to_vec(),
     };
