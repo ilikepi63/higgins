@@ -4,6 +4,7 @@
 //! subcriptions in higgins. These watermarks are tracked per partition inside of the each
 //! stream.
 pub mod error;
+pub mod file;
 
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
