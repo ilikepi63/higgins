@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 /// Name of the partition.
 ///
 /// The reason for choosing 32 is because:
@@ -9,5 +11,93 @@ pub struct PartitionName(pub [u8; 32]);
 impl Into<Vec<u8>> for PartitionName {
     fn into(self) -> Vec<u8> {
         self.0.to_vec()
+    }
+}
+
+impl TryFrom<&str> for PartitionName {
+    type Error = PartitionNameError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let bytes = value.as_bytes();
+        if bytes.len() > size_of::<Self>() {
+            return Err(PartitionNameError::TooManyBytesForPartitionName(
+                bytes.len(),
+            ));
+        }
+
+        let mut result = [0; 32];
+
+        result[0..bytes.len()].copy_from_slice(bytes);
+
+        Ok(Self(result))
+    }
+}
+
+#[derive(Error, Debug)]
+enum PartitionNameError {
+    #[error("Too many bytes for partition name: {0}")]
+    TooManyBytesForPartitionName(usize),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from_empty_string() {
+        let name = PartitionName::try_from("").unwrap();
+        assert_eq!(name.0, [0u8; 32]);
+    }
+
+    #[test]
+    fn test_try_from_short_string() {
+        let input = "hello";
+        let name = PartitionName::try_from(input).unwrap();
+        assert_eq!(&name.0[..input.len()], input.as_bytes());
+        assert_eq!(&name.0[input.len()..], &[0u8; 27]);
+    }
+
+    #[test]
+    fn test_try_from_exact_length() {
+        let input = "a".repeat(32);
+        let name = PartitionName::try_from(&input).unwrap();
+        assert_eq!(name.0, input.as_bytes());
+    }
+
+    #[test]
+    fn test_try_from_too_long() {
+        let input = "a".repeat(33);
+        let err = PartitionName::try_from(&input).unwrap_err();
+        match err {
+            PartitionNameError::TooManyBytesForPartitionName(len) => {
+                assert_eq!(len, 33);
+            }
+        }
+    }
+
+    #[test]
+    fn test_into_vec() {
+        let input = "test";
+        let name = PartitionName::try_from(input).unwrap();
+        let vec: Vec<u8> = name.into();
+        assert_eq!(vec.len(), 32);
+        assert_eq!(&vec[..input.len()], input.as_bytes());
+        assert_eq!(&vec[input.len()..], &[0u8; 28]);
+    }
+
+    #[test]
+    fn test_clone() {
+        let original = PartitionName::try_from("clone-test").unwrap();
+        let cloned = original.clone();
+        assert_eq!(original.0, cloned.0);
+    }
+
+    #[test]
+    fn test_debug() {
+        let name = PartitionName::try_from("debug-test").unwrap();
+        let debug_str = format!("{:?}", name);
+        // Basic check that Debug outputs something reasonable (exact format may vary)
+        assert!(debug_str.contains("debug-test"));
+        assert!(debug_str.starts_with("PartitionName("));
     }
 }

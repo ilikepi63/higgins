@@ -32,7 +32,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: String::from_utf8(stream_name.to_vec()).unwrap(),
-            partition: partition.to_vec(),
+            partition: partition.0.to_vec(),
             data,
         };
 
@@ -99,7 +99,7 @@ impl Broker {
                 tracing::trace!("[PRODUCE] Notifying the subscrition.");
 
                 // Set the max offset of the subscription.
-                subscription.set_max_offset(partition, offset)?;
+                subscription.set_max_offset(&partition, offset)?;
 
                 // Notify the tasks awaiting this subscription.
                 notify.notify_waiters();
@@ -138,7 +138,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.to_vec(),
+            partition: partition.0.to_vec(),
             data,
         };
 
