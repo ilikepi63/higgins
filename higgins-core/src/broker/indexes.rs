@@ -73,7 +73,7 @@ impl Broker {
 
         let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
             stream.clone(),
-            partition,
+            &partition,
             element_size,
             IndexType::try_from(stream_def).unwrap(),
         );
