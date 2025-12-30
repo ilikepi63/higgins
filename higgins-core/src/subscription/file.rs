@@ -3,7 +3,7 @@
 use higgins_shared::PartitionName;
 use std::{
     fs::{File, OpenOptions},
-    io::Read,
+    io::{Read, Write},
     path::PathBuf,
 };
 
@@ -41,6 +41,7 @@ impl<'a> PartitionOffsetsSerde<'a> {
         amount_to_take: u64,
         dest: &mut [u8],
     ) {
+        // TODO: perhaps we want to check the size of dest first?
         dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.0);
         dest[LAST_COMPLETED_OFFSET..MAX_OFFSET]
             .clone_from_slice(&last_completed_offset.to_be_bytes());
@@ -57,21 +58,28 @@ impl<'a> PartitionOffsetsSerde<'a> {
 struct SubscriptionFileTail {}
 
 pub struct SubscriptionFile {
-    handle: File,
+    path: PathBuf,
 }
 
 impl SubscriptionFile {
     pub fn new(path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Self {
-            handle: OpenOptions::new().create(true).write(true).open(path)?,
-        })
+        Ok(Self { path })
     }
 
     pub fn add_partition(
         &self,
         partition: &PartitionName,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Write to the back of the file.
+        let mut handle = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+
+        let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
+
+        PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
+
+        handle.write(&mut buffer)?;
 
         Ok(())
     }
