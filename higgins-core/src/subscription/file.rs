@@ -173,8 +173,11 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
     /// Acknowledge the given offsets for this specific file/partition.
     pub fn acknowledge(&mut self, partition: &PartitionName, offsets: &[u64]) {
+        let file = OpenOptions::new().write(true).open(&self.path);
 
+        // let header =
         // Read the header for where the indexes are.
+
         // Iterate through the body, finding this partition.
         // acknowledge the given offsets.
         // If the current partition is converted from readable to unreadable, swap to an unreadable destination.
@@ -308,7 +311,7 @@ mod test {
 
     #[test]
     fn can_put_data_at() {
-        let path = PathBuf::from_str("get_at_test").unwrap();
+        let path = PathBuf::from_str("put_at_data_test").unwrap();
 
         let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
