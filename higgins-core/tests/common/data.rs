@@ -5,7 +5,7 @@ use higgins::storage::arrow_ipc::read_arrow;
 #[allow(unused)]
 pub fn query_latest_arrow(
     stream: &[u8],
-    partition: &[u8],
+    partition: PartitionName,
     socket: &mut std::net::TcpStream,
 ) -> Option<RecordBatch> {
     let result = query_latest(stream, partition, socket).ok()?;

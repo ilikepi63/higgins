@@ -19,7 +19,7 @@ pub use port::get_random_port;
 #[allow(dead_code)]
 pub fn produce<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: PartitionName,
     payload: &[u8],
     socket: &mut T,
 ) {
@@ -48,7 +48,7 @@ pub fn produce<T: std::io::Read + std::io::Write>(
 #[allow(unused)]
 pub fn produce_sync<T: std::io::Read + std::io::Write>(
     stream: &[u8],
-    partition: &[u8],
+    partition: PartitionName,
     payload: &[u8],
     socket: &mut T,
 ) -> Result<ProduceResponse, Box<dyn std::error::Error>> {

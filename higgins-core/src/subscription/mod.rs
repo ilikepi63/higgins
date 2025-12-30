@@ -9,7 +9,7 @@ pub mod file;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
-use crate::subscription::error::SubscriptionError;
+use crate::{definitions::PartitionName, subscription::error::SubscriptionError};
 
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
@@ -249,7 +249,11 @@ impl Subscription {
 
     /// Sets the maximum offset for a partition.
     /// Incrementing this effectively adds indexes to the subscription -> How do we then notify the underlying awaiter?
-    pub fn set_max_offset(&mut self, key: &[u8], offset: u64) -> Result<(), SubscriptionError> {
+    pub fn set_max_offset(
+        &mut self,
+        key: &PartitionName,
+        offset: u64,
+    ) -> Result<(), SubscriptionError> {
         // How do we make this idempotent?
 
         let partition = self

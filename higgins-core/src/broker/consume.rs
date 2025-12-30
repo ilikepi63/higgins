@@ -7,7 +7,9 @@ use riskless::{
 };
 use std::sync::Arc;
 
-use crate::{broker::object_store::path::Path, storage::index::IndexType};
+use crate::{
+    broker::object_store::path::Path, definitions::PartitionName, storage::index::IndexType,
+};
 use crate::{error::HigginsError, storage::dereference::dereference};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
@@ -16,7 +18,7 @@ impl Broker {
     pub async fn consume(
         &self,
         topic: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         offset: u64,
         _max_partition_fetch_bytes: u32,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
@@ -34,7 +36,7 @@ impl Broker {
                 vec![FindBatchRequest {
                     topic_id_partition: TopicIdPartition(
                         String::from_utf8(topic.to_owned()).unwrap(),
-                        partition.to_owned(),
+                        partition.into(),
                     ),
                     offset,
                     max_partition_fetch_bytes: 0,
@@ -53,7 +55,7 @@ impl Broker {
     pub async fn get_by_timestamp(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         timestamp: u64,
     ) -> Option<ConsumeResponse> {
         let stream_def = self
@@ -81,7 +83,7 @@ impl Broker {
     pub async fn get_latest(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
     ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
@@ -113,7 +115,7 @@ impl Broker {
     pub async fn get_at(
         &self,
         stream: &[u8],
-        partition: &[u8],
+        partition: PartitionName,
         offset: u64,
         //broker: Arc<tokio::sync::RwLock<Broker>>,
     ) -> Result<Option<Vec<u8>>, HigginsError> {
