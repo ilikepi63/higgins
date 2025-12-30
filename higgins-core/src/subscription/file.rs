@@ -57,12 +57,12 @@ impl<'a> PartitionOffsetsSerde<'a> {
 
 struct SubscriptionFileTail {}
 
-pub struct SubscriptionFile {
-    path: PathBuf,
+pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
+    path: P,
 }
 
-impl SubscriptionFile {
-    pub fn new(path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
+    pub fn new(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self { path })
     }
 
@@ -84,9 +84,9 @@ impl SubscriptionFile {
         Ok(())
     }
 
-    pub fn find<P>(&mut self, mut predicate: P) -> Option<PartitionOffsetsOwned>
+    pub fn find<F>(&mut self, mut predicate: F) -> Option<PartitionOffsetsOwned>
     where
-        P: FnMut(&PartitionOffsetsSerde) -> bool,
+        F: FnMut(&PartitionOffsetsSerde) -> bool,
     {
         let mut current_buffer_index = 0;
         let mut current_buffer_len = 0;
@@ -140,7 +140,7 @@ static ITER_SIZE: usize = PARTITION_OFFSET_SERDE_LEN * PARTITION_COUNT_PER_BUFFE
 
 #[cfg(test)]
 mod test {
-    use std::{path::PathBuf, str::FromStr};
+    use std::{io::Read, path::PathBuf, str::FromStr};
 
     use higgins_shared::PartitionName;
 
@@ -150,7 +150,7 @@ mod test {
     fn iterate_subscription_file() {
         let path = PathBuf::from_str("subscription_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(path).unwrap();
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
@@ -160,7 +160,11 @@ mod test {
                 sub_file.add_partition(&partition_name).unwrap();
             });
 
-        // let mut iterated = vec![];
+        let mut buf = Vec::new();
+
+        let mut file = std::fs::File::open(&path).unwrap();
+
+        file.read_to_end(&mut buf);
 
         let partition = sub_file.find(|_partition| true);
 
