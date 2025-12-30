@@ -11,6 +11,7 @@ use crate::{
     topography::{Key, StreamDefinition},
     utils::epoch,
 };
+use higgins_shared::PartitionName;
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,
@@ -96,7 +97,7 @@ pub async fn create_reduced_stream_from_definition(
                                 let prev_record = broker_lock
                                     .get_by_timestamp(
                                         stream_name.inner(),
-                                        &partition_val,
+                                        &PartitionName::try_from(&partition_val[..]).unwrap(),
                                         epoch_val,
                                     )
                                     .await
@@ -130,7 +131,8 @@ pub async fn create_reduced_stream_from_definition(
                                         let result = broker_lock
                                             .produce(
                                                 stream_name.inner(),
-                                                &partition_val,
+                                                &PartitionName::try_from(&partition_val[..])
+                                                    .unwrap(),
                                                 reduced_record_batch,
                                             )
                                             .await;
@@ -144,7 +146,8 @@ pub async fn create_reduced_stream_from_definition(
                                         let result = broker_lock
                                             .produce(
                                                 stream_name.inner(),
-                                                &partition_val,
+                                                &PartitionName::try_from(&partition_val[..])
+                                                    .unwrap(),
                                                 record_batch.clone(),
                                             )
                                             .await;

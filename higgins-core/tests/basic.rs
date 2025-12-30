@@ -3,6 +3,7 @@ mod common;
 use std::{env::temp_dir, path::PathBuf, time::Duration};
 
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
+use higgins_shared::PartitionName;
 use tracing_test::traced_test;
 
 use common::get_random_port;
@@ -14,7 +15,7 @@ fn get_dir() -> PathBuf {
 }
 
 static STREAM: &str = "update_customer";
-static partition: PartitionName = "test_partition".as_bytes();
+static PARTITION: &[u8] = "test_partition".as_bytes();
 
 #[traced_test]
 #[test]
@@ -47,11 +48,18 @@ fn can_achieve_basic_broker_functionality() {
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
     client
-        .produce(STREAM, PARTITION, payload.as_bytes())
+        .produce(
+            STREAM,
+            &PartitionName::try_from(PARTITION).unwrap(),
+            payload.as_bytes(),
+        )
         .unwrap();
 
     // Consume from the stream.
-    let result = client.query_latest(STREAM.as_bytes(), PARTITION);
+    let result = client.query_latest(
+        STREAM.as_bytes(),
+        &PartitionName::try_from(PARTITION).unwrap(),
+    );
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 

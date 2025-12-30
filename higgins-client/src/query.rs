@@ -10,7 +10,7 @@ pub async fn query_by_timestamp<
     T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
     stream: &[u8],
-    partition: PartitionName,
+    partition: &PartitionName,
     socket: &mut T,
     timestamp: u64,
 ) -> Result<Vec<Record>, HigginsClientError> {
@@ -60,7 +60,7 @@ pub async fn query_latest<
     T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
     stream: &[u8],
-    partition: PartitionName,
+    partition: &PartitionName,
     socket: &mut T,
 ) -> Result<Vec<Record>, HigginsClientError> {
     let request = GetIndexRequest {

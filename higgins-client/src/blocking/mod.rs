@@ -21,7 +21,7 @@ impl Client {
     pub fn produce(
         &mut self,
         stream: &str,
-        partition: PartitionName,
+        partition: &PartitionName,
         payload: &[u8],
     ) -> Result<ProduceResponse, HigginsClientError> {
         self.1.block_on(self.0.produce(stream, partition, payload))
@@ -43,7 +43,7 @@ impl Client {
     pub fn query_by_timestamp(
         &mut self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
         timestamp: u64,
     ) -> Result<Vec<Record>, HigginsClientError> {
         self.1
@@ -53,7 +53,7 @@ impl Client {
     pub fn query_latest(
         &mut self,
         stream: &[u8],
-        partition: PartitionName,
+        partition: &PartitionName,
     ) -> Result<Vec<Record>, HigginsClientError> {
         self.1.block_on(self.0.query_latest(stream, partition))
     }
