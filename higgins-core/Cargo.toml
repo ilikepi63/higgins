@@ -26,6 +26,7 @@ memmap2 = "0.9.8"
 zerocopy = { version = "0.8.27", features = ["derive"] }
 rand = "0.9.2"
 futures = "0.3.31"
+higgins-shared = { path = "../higgins-shared" }
 
 [dev-dependencies]
 higgins-client = { path = "../higgins-client" }

@@ -10,6 +10,8 @@ use crate::storage::index::{Index, IndexType};
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 
+use higgins_shared::PartitionName;
+
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
@@ -520,7 +522,7 @@ async fn eager_take_from_subscription_or_wait(
     subscription: Arc<RwLock<Subscription>>,
     notify: Arc<tokio::sync::Notify>,
     client_id: u64,
-) -> Result<Vec<(Vec<u8>, u64)>, HigginsError> {
+) -> Result<Vec<(PartitionName, u64)>, HigginsError> {
     let mut offsets = {
         tracing::trace!("[EAGER TAKE] Querying this again, taking {N} items.");
         let mut lock = subscription.write().await;

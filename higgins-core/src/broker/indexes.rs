@@ -1,5 +1,6 @@
 use super::Broker;
 use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
+use higgins_shared::PartitionName;
 use std::sync::Arc;
 
 pub struct BrokerIndexFile {
@@ -62,7 +63,7 @@ impl Broker {
     pub fn get_index_file(
         &mut self,
         stream: String,
-        partition: &[u8],
+        partition: &PartitionName,
         element_size: usize,
     ) -> Option<BrokerIndexFile> {
         let stream_def = self
@@ -79,17 +80,15 @@ impl Broker {
 
         match index_file_get_result {
             Ok(index_file) => {
-                let broker_index = match self
-                    .broker_indexes
-                    .iter()
-                    .find(|(s, p, _)| s == &stream && p == partition)
-                {
+                let broker_index = match self.broker_indexes.iter().find(|(s, p, _)| {
+                    s == &stream && PartitionName::try_from(&p[..]).unwrap() == *partition
+                }) {
                     Some(val) => val,
                     None => {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.
                         self.broker_indexes.push((
                             stream.to_owned(),
-                            partition.to_owned(),
+                            partition.0.to_vec(),
                             Arc::new(tokio::sync::Mutex::new(())),
                         ));
 

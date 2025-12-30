@@ -16,6 +16,9 @@ pub enum HigginsError {
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
 
+    #[error("PartitionNameError")]
+    PartitionNameError(#[from] higgins_shared::PartitionNameError),
+
     #[error("Attempted to place data at a null reference. ")]
     UnableToPlaceDataAtNullReference,
 

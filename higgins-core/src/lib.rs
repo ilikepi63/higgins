@@ -8,6 +8,7 @@ use higgins_codec::{
     ProduceResponse, Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse,
     frame::Frame, message::Type,
 };
+use higgins_shared::PartitionName;
 use prost::Message as _;
 use tokio::{
     io::AsyncWriteExt,
@@ -128,7 +129,13 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                     let batch = reader.next().unwrap().unwrap();
 
-                    let result = broker.produce(&stream_name, &partition_key, batch).await;
+                    let result = broker
+                        .produce(
+                            &stream_name,
+                            &PartitionName::try_from(&partition_key[..]).unwrap(),
+                            batch,
+                        )
+                        .await;
 
                     tracing::trace!(
                         "Result from producing to {}: {:#?}",
@@ -283,7 +290,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                                 let values = broker_lock
                                     .get_by_timestamp(
                                         &index.stream,
-                                        &index.partition,
+                                        &PartitionName::try_from(&index.partition[..]).unwrap(),
                                         index.timestamp(),
                                     )
                                     .await
@@ -341,9 +348,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             higgins_codec::index::Type::Latest => {
                                 tracing::trace!("Retrieved a Latest GetIndexRequest",);
 
-                                let responses = broker_lock
-                                    .get_latest(&index.stream, &index.partition)
-                                    .await;
+                                let partition =
+                                    &PartitionName::try_from(&index.partition[..]).unwrap();
+
+                                let responses =
+                                    broker_lock.get_latest(&index.stream, partition).await;
 
                                 for response in responses {
                                     let response = response.await.unwrap();
