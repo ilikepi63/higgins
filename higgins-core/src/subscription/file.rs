@@ -3,7 +3,7 @@
 use higgins_shared::{PartitionName, PartitionNameError};
 use std::{
     fs::{File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
 };
 
@@ -13,6 +13,8 @@ static BODY_INDEX: usize = size_of::<u64>() * 2;
 struct SubscriptionFileHeader;
 static SPLIT_OFFSET: usize = 0;
 static LEN_OFFSET: usize = size_of::<u64>();
+
+static HEADER_SIZE: usize = LEN_OFFSET + size_of::<u64>();
 
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
@@ -72,6 +74,13 @@ pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
 
 impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     pub fn new(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut handle = OpenOptions::new().create(true).append(true).open(&path)?;
+
+        // nulled out as both need to be null.
+        let header_buffer = [0_u8; HEADER_SIZE];
+
+        handle.write(&header_buffer)?;
+
         Ok(Self { path })
     }
 
@@ -79,10 +88,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &self,
         partition: &PartitionName,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut handle = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
+        let mut handle = OpenOptions::new().append(true).open(&self.path)?;
 
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
 
@@ -125,9 +131,27 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         None
     }
 
+    /// Given an index, will calculate the offset used to request that partition's data
+    /// from the subscription file.
+    fn calculate_offset(i: u64) -> u64 {
+        let offset = i * PARTITION_OFFSET_SERDE_LEN as u64;
+
+        offset + HEADER_SIZE as u64
+    }
+
     /// Gets the owned `PartitionOffsetsOwned` at the given index.
     pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, Box<dyn std::error::Error>> {
-        todo!();
+        let offset = Self::calculate_offset(i);
+
+        let mut file = OpenOptions::new().read(true).open(&self.path)?;
+
+        file.seek(SeekFrom::Start(offset))?;
+
+        let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
+
+        file.read(&mut buffer)?;
+
+        Ok(PartitionOffsetsOwned::of(&buffer)?)
     }
 
     /// Write the given buffer at the provided index.
@@ -228,5 +252,47 @@ mod test {
         let partition_name = partition.unwrap().get_partition_name().unwrap();
 
         assert_eq!(partition_name, PartitionName::try_from("test_one").unwrap());
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_get_data_at() {
+        let path = PathBuf::from_str("get_at_test").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        let partition = sub_file.get_at(0).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_one").unwrap()
+        );
+
+        let partition = sub_file.get_at(1).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_two").unwrap()
+        );
+
+        let partition = sub_file.get_at(2).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_three").unwrap()
+        );
+
+        let partition = sub_file.get_at(3).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_four").unwrap()
+        );
+
+        std::fs::remove_file(&path).unwrap();
     }
 }
