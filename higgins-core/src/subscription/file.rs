@@ -125,8 +125,22 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         None
     }
 
+    /// Gets the owned `PartitionOffsetsOwned` at the given index.
+    pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, Box<dyn std::error::Error>> {
+        todo!();
+    }
+
+    /// Write the given buffer at the provided index.
+    pub fn write_at(
+        &self,
+        i: u64,
+        partition: PartitionOffsetsOwned,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        todo!();
+    }
+
     /// Acknowledge the given offsets for this specific file/partition.
-    pub fn acknowledge(&self, partition: &PartitionName, offsets: &[u64]) {
+    pub fn acknowledge(&mut self, partition: &PartitionName, offsets: &[u64]) {
 
         // Read the header for where the indexes are.
         // Iterate through the body, finding this partition.
