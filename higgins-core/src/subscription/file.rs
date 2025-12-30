@@ -155,12 +155,20 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     }
 
     /// Write the given buffer at the provided index.
-    pub fn write_at(
+    pub fn put_at(
         &self,
         i: u64,
         partition: PartitionOffsetsOwned,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        todo!();
+        let offset = Self::calculate_offset(i);
+
+        let mut file = OpenOptions::new().write(true).open(&self.path)?;
+
+        file.seek(SeekFrom::Start(offset))?;
+
+        file.write(&partition.0)?;
+
+        Ok(())
     }
 
     /// Acknowledge the given offsets for this specific file/partition.
@@ -191,7 +199,9 @@ mod test {
 
     use higgins_shared::PartitionName;
 
-    use crate::subscription::file::SubscriptionFile;
+    use crate::subscription::file::{
+        PARTITION_OFFSET_SERDE_LEN, PartitionOffsetsOwned, PartitionOffsetsSerde, SubscriptionFile,
+    };
 
     #[test]
     fn can_add_partition_to_file() {
@@ -279,6 +289,73 @@ mod test {
         assert_eq!(
             partition.get_partition_name().unwrap(),
             PartitionName::try_from("test_two").unwrap()
+        );
+
+        let partition = sub_file.get_at(2).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_three").unwrap()
+        );
+
+        let partition = sub_file.get_at(3).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_four").unwrap()
+        );
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_put_data_at() {
+        let path = PathBuf::from_str("get_at_test").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        let mut buffer = [0; PARTITION_OFFSET_SERDE_LEN];
+
+        PartitionOffsetsSerde::write_to(
+            PartitionName::try_from("replacement").unwrap(),
+            1,
+            2,
+            3,
+            &mut buffer,
+        );
+
+        let partition = PartitionOffsetsOwned::of(&buffer).unwrap();
+
+        sub_file.put_at(0, partition).unwrap();
+
+        let partition = sub_file.get_at(0).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("replacement").unwrap()
+        );
+
+        PartitionOffsetsSerde::write_to(
+            PartitionName::try_from("replacement").unwrap(),
+            1,
+            2,
+            3,
+            &mut buffer,
+        );
+
+        let partition = PartitionOffsetsOwned::of(&buffer).unwrap();
+
+        sub_file.put_at(1, partition).unwrap();
+
+        let partition = sub_file.get_at(1).unwrap();
+        assert_eq!(
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("replacement").unwrap()
         );
 
         let partition = sub_file.get_at(2).unwrap();
