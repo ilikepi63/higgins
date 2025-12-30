@@ -9,8 +9,8 @@ pub mod file;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
-use crate::{definitions::PartitionName, subscription::error::SubscriptionError};
-
+use crate::subscription::error::SubscriptionError;
+use higgins_shared::PartitionName;
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
 pub struct PartitionOffsets {

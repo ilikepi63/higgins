@@ -41,7 +41,7 @@ impl TryFrom<&str> for PartitionName {
 }
 
 #[derive(Error, Debug)]
-enum PartitionNameError {
+pub enum PartitionNameError {
     #[error("Too many bytes for partition name: {0}")]
     TooManyBytesForPartitionName(usize),
 }
@@ -67,14 +67,14 @@ mod tests {
     #[test]
     fn test_try_from_exact_length() {
         let input = "a".repeat(32);
-        let name = PartitionName::try_from(&input).unwrap();
+        let name = PartitionName::try_from(input.as_str()).unwrap();
         assert_eq!(name.0, input.as_bytes());
     }
 
     #[test]
     fn test_try_from_too_long() {
         let input = "a".repeat(33);
-        let err = PartitionName::try_from(&input).unwrap_err();
+        let err = PartitionName::try_from(input.as_str()).unwrap_err();
         match err {
             PartitionNameError::TooManyBytesForPartitionName(len) => {
                 assert_eq!(len, 33);

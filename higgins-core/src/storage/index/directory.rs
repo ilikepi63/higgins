@@ -8,6 +8,7 @@ use crate::storage::index::Index;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
+use higgins_shared::PartitionName;
 
 use super::IndexError;
 use super::IndexFile;
@@ -51,10 +52,11 @@ impl IndexDirectory {
         topic_path
     }
 
-    pub fn index_file_path_from_partition(partition_key: &[u8]) -> String {
+    pub fn index_file_path_from_partition(partition_key: &PartitionName) -> String {
         format!(
             "{:0>20}.index",
             partition_key
+                .0
                 .iter()
                 .map(|b| b.to_string())
                 .collect::<String>()

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 higgins-codec = { path = "../higgins-codec" }
+higgins-shared = {path = "../higgins-shared"}
 prost = { version = "0.13" }
 tracing = {workspace = true}
 bytes = "1"

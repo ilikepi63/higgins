@@ -29,6 +29,7 @@ futures = "0.3.31"
 
 [dev-dependencies]
 higgins-client = { path = "../higgins-client" }
+higgins-shared = { path = "../higgins-shared" }
 get-port = "4.0.0"
 tempfile = "3.10"
 tracing-test = { version = "0.2.5", features = ["no-env-filter"] }

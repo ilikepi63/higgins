@@ -7,9 +7,10 @@ use riskless::{
 };
 use std::sync::Arc;
 
-use crate::{
-    broker::object_store::path::Path, definitions::PartitionName, storage::index::IndexType,
-};
+use crate::{broker::object_store::path::Path, storage::index::IndexType};
+
+use higgins_shared::PartitionName;
+
 use crate::{error::HigginsError, storage::dereference::dereference};
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;

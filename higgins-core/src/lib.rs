@@ -18,7 +18,6 @@ use tokio::{
 use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
 pub mod broker;
 pub mod client;
-pub mod definitions;
 mod derive;
 mod error;
 pub mod functions;
