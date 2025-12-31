@@ -1,6 +1,6 @@
 //! File-related utilites for managing Subscriptions.
 
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, PartitionNameError};
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
@@ -24,15 +24,6 @@ static AMOUNT_TO_TAKE_OFFSET: usize = MAX_OFFSET + size_of::<u64>();
 // len of a serialized partition offset.
 static PARTITION_OFFSET_SERDE_LEN: usize = AMOUNT_TO_TAKE_OFFSET + size_of::<u64>();
 
-#[derive(Clone, Debug)]
-pub struct PartitionOffsetsOwned([u8; PARTITION_OFFSET_SERDE_LEN]);
-
-impl PartitionOffsetsOwned {
-    pub fn of(data: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(Self(data.try_into()?))
-    }
-}
-
 impl<'a> PartitionOffsetsSerde<'a> {
     pub fn write_to(
         partition_id: PartitionName,
@@ -52,6 +43,24 @@ impl<'a> PartitionOffsetsSerde<'a> {
 
     pub fn of(data: &'a [u8]) -> Self {
         Self(data)
+    }
+
+    pub fn get_partition_name(&self) -> Result<PartitionName, PartitionNameError> {
+        let partition_name_bytes = &self.0[0..LAST_COMPLETED_OFFSET];
+        PartitionName::try_from(partition_name_bytes)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PartitionOffsetsOwned([u8; PARTITION_OFFSET_SERDE_LEN]);
+
+impl PartitionOffsetsOwned {
+    pub fn of(data: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self(data.try_into()?))
+    }
+    pub fn get_partition_name(&self) -> Result<PartitionName, PartitionNameError> {
+        let partition_name_bytes = &self.0[0..LAST_COMPLETED_OFFSET];
+        PartitionName::try_from(partition_name_bytes)
     }
 }
 
@@ -89,9 +98,9 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         F: FnMut(&PartitionOffsetsSerde) -> bool,
     {
         let mut current_buffer_index = 0;
-        let mut current_buffer_len = 0;
         let mut buffer = [0_u8; ITER_SIZE];
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
+        let mut current_buffer_len = handle.read(&mut buffer).ok()?;
 
         // Whilst we have a buffer that has partitions inside of it.
         while current_buffer_len >= PARTITION_OFFSET_SERDE_LEN {
@@ -147,6 +156,37 @@ mod test {
     use crate::subscription::file::SubscriptionFile;
 
     #[test]
+    fn can_add_partition_to_file() {
+        let path = PathBuf::from_str("partition_add_test").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        ["test_one", "test_two"].iter().for_each(|name| {
+            let partition_name = PartitionName::try_from(*name).unwrap();
+
+            sub_file.add_partition(&partition_name).unwrap();
+        });
+
+        let mut buf = Vec::new();
+
+        let mut file = std::fs::File::open(&path).unwrap();
+
+        file.read_to_end(&mut buf).unwrap();
+
+        let expected = vec![
+            116, 101, 115, 116, 95, 111, 110, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 116, 101, 115, 116, 95, 116, 119, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,
+        ];
+
+        std::fs::remove_file(&path).unwrap();
+
+        assert_eq!(buf, expected);
+    }
+
+    #[test]
     fn iterate_subscription_file() {
         let path = PathBuf::from_str("subscription_test").unwrap();
 
@@ -164,11 +204,15 @@ mod test {
 
         let mut file = std::fs::File::open(&path).unwrap();
 
-        file.read_to_end(&mut buf);
+        file.read_to_end(&mut buf).unwrap();
 
-        let partition = sub_file.find(|_partition| true);
+        let partition = sub_file.find(|partition| {
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_one").unwrap()
+        });
 
-        dbg!(partition);
-        panic!();
+        assert!(partition.is_some());
+        let partition_name = partition.unwrap().get_partition_name().unwrap();
+
+        assert_eq!(partition_name, PartitionName::try_from("test_one").unwrap());
     }
 }
