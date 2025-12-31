@@ -91,12 +91,13 @@ impl SubscriptionFile {
         let mut current_buffer_index = 0;
         let mut current_buffer_len = 0;
         let mut buffer = [0_u8; ITER_SIZE];
+        let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
 
         // Whilst we have a buffer that has partitions inside of it.
         while current_buffer_len >= PARTITION_OFFSET_SERDE_LEN {
             if current_buffer_index >= current_buffer_len / PARTITION_OFFSET_SERDE_LEN {
                 // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
-                current_buffer_len = self.handle.read(&mut buffer).ok()?;
+                current_buffer_len = handle.read(&mut buffer).ok()?;
                 current_buffer_index = 0;
             }
 
