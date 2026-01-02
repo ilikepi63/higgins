@@ -113,7 +113,6 @@ impl std::fmt::Debug for Subscription {
 }
 
 type Offset = u64;
-type Key = Vec<u8>; // Probably not correct to do this..
 
 impl Subscription {
     pub fn new(path: &PathBuf) -> Self {
