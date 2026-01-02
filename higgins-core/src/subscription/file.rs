@@ -244,14 +244,18 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     }
 
     /// Increment the max offset for a partition.
-    pub fn set_max_offset(&self, partition: &PartitionName, max_offset: &[u64]) {
+    pub fn set_max_offset(
+        &mut self,
+        partition_name: &PartitionName,
+        max_offset: &u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
             .unwrap();
 
         let mut partition = self.get_at(index)?;
 
-        partition.acknowledge(offsets)?;
+        partition.set_max_offset(max_offset)?;
 
         self.put_at(index, partition)?;
 
