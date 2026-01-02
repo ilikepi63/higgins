@@ -1,4 +1,4 @@
-//! File-related utilites for managing Subscriptions.
+//! File-related utilities for managing Subscriptions.
 
 use higgins_shared::{PartitionName, PartitionNameError};
 use std::{
