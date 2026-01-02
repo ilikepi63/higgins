@@ -4,6 +4,7 @@ use higgins_shared::{PartitionName, PartitionNameError};
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    ops::Range,
     path::PathBuf,
 };
 
@@ -63,6 +64,21 @@ impl PartitionOffsetsOwned {
     pub fn get_partition_name(&self) -> Result<PartitionName, PartitionNameError> {
         let partition_name_bytes = &self.0[0..LAST_COMPLETED_OFFSET];
         PartitionName::try_from(partition_name_bytes)
+    }
+    pub fn acknowledge(&mut self, range: &Range<u64>) -> Result<(), Box<dyn std::error::Error>> {
+        let current = u64::from_be_bytes(
+            self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
+        );
+
+        // Handle if the start of this range does not equal the given offset.
+        if current != range.start {
+            todo!()
+        }
+
+        self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()]
+            .copy_from_slice(&range.end.to_be_bytes());
+
+        Ok(())
     }
 }
 
@@ -188,15 +204,23 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     }
 
     /// Acknowledge the given offsets for this specific file/partition.
-    pub fn acknowledge(&mut self, partition: &PartitionName, offsets: &[u64]) {
+    pub fn acknowledge(
+        &mut self,
+        partition_name: &PartitionName,
+        offsets: &Range<u64>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let file = OpenOptions::new().write(true).open(&self.path);
 
-        // let header =
-        // Read the header for where the indexes are.
+        let index = self
+            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)?;
 
-        // Iterate through the body, finding this partition.
-        // acknowledge the given offsets.
-        // If the current partition is converted from readable to unreadable, swap to an unreadable destination.
+        let mut partition = self.get_at(index)?;
+
+        partition.acknowledge(offsets);
+
+        self.put_at(index, partition);
+
+        Ok(())
     }
 
     /// Increment the max offset for a partition.
