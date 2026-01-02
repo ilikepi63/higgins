@@ -94,7 +94,11 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
 
+        println!("Writing buffer: {:#?}", buffer);
+
         handle.write(&mut buffer)?;
+
+        handle.flush()?;
 
         Ok(())
     }
@@ -108,6 +112,10 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
         handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
+        println!("Read {current_buffer_len} bytes from file.");
+
+        // dbg!(&buffer);
+
         let mut index = 0;
 
         // Whilst we have a buffer that has partitions inside of it.
@@ -171,6 +179,8 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         file.seek(SeekFrom::Start(offset))?;
 
         file.write(&partition.0)?;
+
+        file.flush();
 
         Ok(())
     }
@@ -401,8 +411,6 @@ mod test {
 
         print_file_contents(&path);
 
-        panic!();
-
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
@@ -411,11 +419,17 @@ mod test {
                 sub_file.add_partition(&partition_name).unwrap();
             });
 
+        print_file_contents(&path);
+
         let partition = sub_file.find_index(|partition| {
             partition.get_partition_name().unwrap() == PartitionName::try_from("test_one").unwrap()
         });
 
         dbg!(&partition);
+
+        std::fs::remove_file(&path).unwrap();
+
+        panic!();
 
         assert!(matches!(partition, Some(0)));
 
@@ -443,7 +457,5 @@ mod test {
         // dbg!(&partition);
 
         // assert!(matches!(partition, Some(3)));
-
-        std::fs::remove_file(&path).unwrap();
     }
 }
