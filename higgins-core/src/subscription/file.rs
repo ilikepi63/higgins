@@ -2,16 +2,18 @@
 
 use higgins_shared::{PartitionName, PartitionNameError};
 use std::{
-    fs::{File, OpenOptions},
+    fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     ops::Range,
-    path::PathBuf,
 };
 
+#[allow(unused)]
 static BODY_INDEX: usize = size_of::<u64>() * 2;
 
 /// Represents the header for this specific file.
+#[allow(unused)]
 struct SubscriptionFileHeader;
+#[allow(unused)]
 static SPLIT_OFFSET: usize = 0;
 static LEN_OFFSET: usize = size_of::<u64>();
 
@@ -102,8 +104,6 @@ impl PartitionOffsetsOwned {
         Ok(offset)
     }
 }
-
-struct SubscriptionFileTail {}
 
 pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
     path: P,
@@ -281,7 +281,7 @@ mod test {
     fn can_add_partition_to_file() {
         let path = PathBuf::from_str("partition_add_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two"].iter().for_each(|name| {
             let partition_name = PartitionName::try_from(*name).unwrap();
@@ -356,7 +356,7 @@ mod test {
     fn can_get_data_at() {
         let path = PathBuf::from_str("get_at_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
@@ -397,7 +397,7 @@ mod test {
     fn can_put_data_at() {
         let path = PathBuf::from_str("put_at_data_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
