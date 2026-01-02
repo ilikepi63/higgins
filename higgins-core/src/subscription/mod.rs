@@ -6,6 +6,7 @@
 pub mod error;
 pub mod file;
 
+use file::SubscriptionFile;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -99,6 +100,7 @@ pub struct Subscription {
 
     // TODO: This will need to be moved to the file, when we decide on a data structure.
     partitions: Vec<PartitionOffsets>,
+    file: SubscriptionFile<PathBuf>,
 }
 
 impl std::fmt::Debug for Subscription {
@@ -120,6 +122,7 @@ impl Subscription {
             condvar: Notify::new(),
             client_counts: vec![],
             partitions: vec![],
+            file: SubscriptionFile::new(path.clone()).unwrap(),
         }
     }
 
