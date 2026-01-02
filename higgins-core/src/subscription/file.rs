@@ -114,8 +114,6 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
         println!("Read {current_buffer_len} bytes from file.");
 
-        // dbg!(&buffer);
-
         let mut index = 0;
 
         // Whilst we have a buffer that has partitions inside of it.
@@ -129,6 +127,9 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
             let current_partition_index = current_buffer_index * PARTITION_OFFSET_SERDE_LEN;
             let partition_bytes = &buffer
                 [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
+
+            println!("Retrieve bytes: {:#?}", partition_bytes);
+
             let partition = PartitionOffsetsSerde::of(partition_bytes);
 
             let result = predicate(&partition);
@@ -138,6 +139,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
             }
 
             index += 1;
+            current_buffer_index += 1;
         }
 
         None
@@ -180,7 +182,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
         file.write(&partition.0)?;
 
-        file.flush();
+        file.flush()?;
 
         Ok(())
     }
@@ -427,35 +429,31 @@ mod test {
 
         dbg!(&partition);
 
-        std::fs::remove_file(&path).unwrap();
-
-        panic!();
-
         assert!(matches!(partition, Some(0)));
 
         let partition = sub_file.find_index(|partition| {
             partition.get_partition_name().unwrap() == PartitionName::try_from("test_two").unwrap()
         });
 
-        dbg!(&partition);
-
         assert!(matches!(partition, Some(1)));
 
-        // let partition = sub_file.find_index(|partition| {
-        //     partition.get_partition_name().unwrap()
-        //         == PartitionName::try_from("test_three").unwrap()
-        // });
+        let partition = sub_file.find_index(|partition| {
+            partition.get_partition_name().unwrap()
+                == PartitionName::try_from("test_three").unwrap()
+        });
 
-        // dbg!(&partition);
+        dbg!(&partition);
 
-        // assert!(matches!(partition, Some(2)));
+        assert!(matches!(partition, Some(2)));
 
-        // let partition = sub_file.find_index(|partition| {
-        //     partition.get_partition_name().unwrap() == PartitionName::try_from("test_four").unwrap()
-        // });
+        let partition = sub_file.find_index(|partition| {
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_four").unwrap()
+        });
 
-        // dbg!(&partition);
+        dbg!(&partition);
 
-        // assert!(matches!(partition, Some(3)));
+        assert!(matches!(partition, Some(3)));
+
+        std::fs::remove_file(&path).unwrap();
     }
 }
