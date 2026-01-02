@@ -7,6 +7,7 @@ pub mod error;
 pub mod file;
 
 use file::SubscriptionFile;
+use std::ops::Range;
 use std::{path::PathBuf, sync::atomic::AtomicU64};
 use tokio::sync::Notify;
 
@@ -133,6 +134,24 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
+        self.file
+            .add_partition(key)
+            .map_err(|err| SubscriptionError::SubscriptionFileCreationFailure(err.to_string()))?;
+
+        if let Some(max_offset) = offset {
+            self.file.set_max_offset(key, &max_offset)?;
+        }
+
+        if let Some(offset) = offset {
+            self.file.acknowledge(
+                key,
+                &Range {
+                    start: 0,
+                    end: offset,
+                },
+            )?;
+        }
+
         let new_partition = PartitionOffsets::of(key, offset, max_offset);
 
         self.partitions.push(new_partition);
