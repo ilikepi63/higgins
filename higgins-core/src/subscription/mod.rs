@@ -174,9 +174,8 @@ impl Subscription {
     pub fn acknowledge(
         &mut self,
         key: &PartitionName,
-        offset: Offset,
+        offsets: &Range<u64>,
     ) -> Result<(), SubscriptionError> {
-        // Retrieve the partition via the key.
         // TODO: This is obviously O(n), might be better to take a look at a hashmap implementation for indexing.
 
         let partition = self
@@ -187,12 +186,15 @@ impl Subscription {
         match partition {
             Some(partition) => {
                 // Check that the offset matches, or is offset + 1.
-                if offset != partition.last_completed_offset {
-                    return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offset, partition.last_completed_offset));
+                if offsets.start != partition.last_completed_offset {
+                    return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offsets.start, partition.last_completed_offset));
                 }
 
                 // then bump the partition
-                partition.set_last_completed_offset(offset + 1);
+                partition.set_last_completed_offset(offsets.end + 1);
+
+                // Acknowledge the file backed partition here.
+                self.file.acknowledge(key, offsets)?;
 
                 // sort the partitions
                 self.partitions.sort();
@@ -202,7 +204,7 @@ impl Subscription {
             None => Err(
                 SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
                     String::from_utf8(key.0.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
-                    offset,
+                    offsets.start,
                 ),
             ),
         }
@@ -364,7 +366,7 @@ mod tests {
         assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
 
         // Acknowledge offset 6 (adjacent to range 0..5)
-        let acknowledge_result = sub.acknowledge(&key, 5);
+        let acknowledge_result = sub.acknowledge(&key, &Range { start: 5, end: 6 });
         assert!(acknowledge_result.is_ok());
 
         // Verify the range is updated
@@ -383,7 +385,7 @@ mod tests {
 
         // Try acknowledging a partition that doesn't exist
         assert!(matches!(
-            sub.acknowledge(&key, 10),
+            sub.acknowledge(&key, &Range { start: 10, end: 11 }),
             Err(SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(_, 10))
         ));
     }
@@ -464,8 +466,8 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
         // Acknowledge some offsets
-        assert!(sub.acknowledge(&key, 0).is_ok());
-        assert!(sub.acknowledge(&key, 1).is_ok());
+        assert!(sub.acknowledge(&key, &Range { start: 0, end: 1 }).is_ok());
+        assert!(sub.acknowledge(&key, &Range { start: 1, end: 2 }).is_ok());
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
         let offsets = sub.take(1, 2).expect("Failed to take offsets");
