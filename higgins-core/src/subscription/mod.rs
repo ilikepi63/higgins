@@ -286,7 +286,7 @@ impl Subscription {
     ) -> Result<(), SubscriptionError> {
         // How do we make this idempotent?
 
-        self.file.set_max_offset(key, &offset);
+        self.file.set_max_offset(key, &offset)?;
 
         let partition = self
             .partitions
