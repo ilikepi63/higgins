@@ -80,6 +80,14 @@ impl PartitionOffsetsOwned {
 
         Ok(())
     }
+
+    pub fn get_last_completed_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let offset = u64::from_be_bytes(
+            self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
+        );
+
+        Ok(offset)
+    }
 }
 
 struct SubscriptionFileTail {}
@@ -209,16 +217,15 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         partition_name: &PartitionName,
         offsets: &Range<u64>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let file = OpenOptions::new().write(true).open(&self.path);
-
         let index = self
-            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)?;
+            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
+            .unwrap();
 
         let mut partition = self.get_at(index)?;
 
-        partition.acknowledge(offsets);
+        partition.acknowledge(offsets)?;
 
-        self.put_at(index, partition);
+        self.put_at(index, partition)?;
 
         Ok(())
     }
@@ -238,7 +245,7 @@ static ITER_SIZE: usize = PARTITION_OFFSET_SERDE_LEN * PARTITION_COUNT_PER_BUFFE
 
 #[cfg(test)]
 mod test {
-    use std::{io::Read, path::PathBuf, str::FromStr};
+    use std::{io::Read, ops::Range, path::PathBuf, str::FromStr};
 
     use higgins_shared::PartitionName;
 
@@ -477,6 +484,34 @@ mod test {
         dbg!(&partition);
 
         assert!(matches!(partition, Some(3)));
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_successfully_acknowledge_partition() {
+        let path = PathBuf::from_str("acknowledge_test").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        sub_file
+            .acknowledge(
+                &PartitionName::try_from("test_three").unwrap(),
+                &Range { start: 0, end: 3 },
+            )
+            .unwrap();
+
+        let partition = sub_file.get_at(2).unwrap();
+
+        assert_eq!(partition.get_last_completed_offset().unwrap(), 3);
 
         std::fs::remove_file(&path).unwrap();
     }
