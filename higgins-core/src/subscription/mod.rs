@@ -141,6 +141,7 @@ impl Subscription {
         }
 
         if let Some(offset) = offset {
+            tracing::trace!("Acknowledging offset: {}", offset);
             self.file.acknowledge(
                 key,
                 &Range {
@@ -322,6 +323,7 @@ mod tests {
 
     #[test]
     fn test_add_partition_success() {
+        tracing_subscriber::fmt::init();
         let mut sub = Subscription::new("add_partition_success");
         let key = PartitionName::try_from("partition1").unwrap();
 
