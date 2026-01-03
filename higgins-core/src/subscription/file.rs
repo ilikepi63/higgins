@@ -58,7 +58,7 @@ impl<'a> PartitionOffsetsSerde<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartitionOffsetsOwned([u8; PARTITION_OFFSET_SERDE_LEN]);
 
 impl PartitionOffsetsOwned {
@@ -613,6 +613,58 @@ mod test {
         let partition = sub_file.get_at(2).unwrap();
 
         assert_eq!(partition.get_max_offset().unwrap(), 5);
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_read_partitions_to_memory() {
+        let path = PathBuf::from_str("can_read_partitions_to_memory").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        print_file_contents(&path);
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        let partitions = sub_file.get_partition_indexes().unwrap();
+
+        assert_eq!(
+            vec![
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 111, 110, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 116, 119, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 116, 104, 114, 101, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 102, 111, 117, 114, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 111, 110, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+            ],
+            partitions
+        );
 
         std::fs::remove_file(&path).unwrap();
     }
