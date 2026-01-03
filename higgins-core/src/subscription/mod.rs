@@ -116,7 +116,7 @@ impl Subscription {
     pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Self {
         let mut subscription_file = SubscriptionFile::new(path).unwrap();
 
-        let partitions = subscription_file
+        let mut partitions = subscription_file
             .get_partition_indexes()
             .unwrap()
             .iter()
@@ -136,6 +136,8 @@ impl Subscription {
             })
             .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()
             .unwrap();
+
+        partitions.sort();
 
         Self {
             last_index: 0,
