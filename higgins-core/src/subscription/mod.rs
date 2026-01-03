@@ -307,6 +307,20 @@ impl Subscription {
             self.client_counts.push((client_id, AtomicU64::new(n)));
         }
     }
+
+    pub fn clear(&mut self) {
+        self.client_counts.clear();
+        self.partitions.clear();
+    }
+
+    /// Deletes this subscription, including the backing file for it.
+    pub fn delete(&mut self) -> Result<(), SubscriptionError> {
+        self.clear();
+
+        self.file.delete()?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
