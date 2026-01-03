@@ -107,12 +107,12 @@ impl PartitionOffsetsOwned {
     }
 }
 
-pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
-    path: P,
+pub struct SubscriptionFile {
+    path: std::path::PathBuf,
 }
 
-impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
-    pub fn new(path: P) -> Result<Self, SubscriptionError> {
+impl SubscriptionFile {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, SubscriptionError> {
         let mut handle = OpenOptions::new().create(true).append(true).open(&path)?;
 
         // nulled out as both need to be null.
@@ -120,7 +120,10 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
         handle.write(&header_buffer)?;
 
-        Ok(Self { path })
+        let mut path_buf = std::path::PathBuf::new();
+        path_buf.push(path);
+
+        Ok(Self { path: path_buf })
     }
 
     pub fn add_partition(&self, partition: &PartitionName) -> Result<(), SubscriptionError> {
