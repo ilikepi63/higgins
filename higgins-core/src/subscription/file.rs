@@ -170,7 +170,7 @@ impl SubscriptionFile {
         while current_buffer_len >= PARTITION_OFFSET_SERDE_LEN {
             if current_buffer_index >= current_buffer_len / PARTITION_OFFSET_SERDE_LEN {
                 // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
-                current_buffer_len = handle.read(&mut buffer).ok()?;
+                current_buffer_len = handle.read(&mut buffer)?;
                 current_buffer_index = 0;
             }
 
