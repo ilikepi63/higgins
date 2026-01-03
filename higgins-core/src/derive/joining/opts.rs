@@ -548,7 +548,14 @@ async fn eager_take_from_subscription_or_wait(
                 // TODO: this likely should be removed and added once the join stream has been implemented.
                 // Because we don't have shadow acknowledgements, we can't really support this right now.
                 for (key, offset) in taken.iter() {
-                    lock.acknowledge(key, *offset).unwrap();
+                    lock.acknowledge(
+                        key,
+                        &std::ops::Range {
+                            start: *offset,
+                            end: offset + 1,
+                        },
+                    )
+                    .unwrap();
                 }
 
                 taken
