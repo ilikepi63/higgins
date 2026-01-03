@@ -7,6 +7,8 @@ use std::{
     ops::Range,
 };
 
+use crate::subscription::error::SubscriptionError;
+
 #[allow(unused)]
 static BODY_INDEX: usize = size_of::<u64>() * 2;
 
@@ -60,14 +62,14 @@ impl<'a> PartitionOffsetsSerde<'a> {
 pub struct PartitionOffsetsOwned([u8; PARTITION_OFFSET_SERDE_LEN]);
 
 impl PartitionOffsetsOwned {
-    pub fn of(data: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn of(data: &[u8]) -> Result<Self, SubscriptionError> {
         Ok(Self(data.try_into()?))
     }
     pub fn get_partition_name(&self) -> Result<PartitionName, PartitionNameError> {
         let partition_name_bytes = &self.0[0..LAST_COMPLETED_OFFSET];
         PartitionName::try_from(partition_name_bytes)
     }
-    pub fn acknowledge(&mut self, range: &Range<u64>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn acknowledge(&mut self, range: &Range<u64>) -> Result<(), SubscriptionError> {
         let current = u64::from_be_bytes(
             self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
         );
@@ -83,7 +85,7 @@ impl PartitionOffsetsOwned {
         Ok(())
     }
 
-    pub fn get_last_completed_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_last_completed_offset(&self) -> Result<u64, SubscriptionError> {
         let offset = u64::from_be_bytes(
             self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
         );
@@ -91,13 +93,13 @@ impl PartitionOffsetsOwned {
         Ok(offset)
     }
 
-    pub fn set_max_offset(&mut self, val: &u64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_max_offset(&mut self, val: &u64) -> Result<(), SubscriptionError> {
         self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].copy_from_slice(&val.to_be_bytes());
 
         Ok(())
     }
 
-    pub fn get_max_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_max_offset(&self) -> Result<u64, SubscriptionError> {
         let offset =
             u64::from_be_bytes(self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].try_into()?);
 
@@ -110,7 +112,7 @@ pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
 }
 
 impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
-    pub fn new(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(path: P) -> Result<Self, SubscriptionError> {
         let mut handle = OpenOptions::new().create(true).append(true).open(&path)?;
 
         // nulled out as both need to be null.
@@ -121,10 +123,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         Ok(Self { path })
     }
 
-    pub fn add_partition(
-        &self,
-        partition: &PartitionName,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_partition(&self, partition: &PartitionName) -> Result<(), SubscriptionError> {
         let mut handle = OpenOptions::new().append(true).open(&self.path)?;
 
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
@@ -191,7 +190,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     }
 
     /// Gets the owned `PartitionOffsetsOwned` at the given index.
-    pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, Box<dyn std::error::Error>> {
+    pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, SubscriptionError> {
         let offset = Self::calculate_offset(i);
 
         let mut file = OpenOptions::new().read(true).open(&self.path)?;
@@ -210,7 +209,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &self,
         i: u64,
         partition: PartitionOffsetsOwned,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let offset = Self::calculate_offset(i);
 
         let mut file = OpenOptions::new().write(true).open(&self.path)?;
@@ -229,7 +228,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &mut self,
         partition_name: &PartitionName,
         offsets: &Range<u64>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
             .unwrap();
@@ -248,7 +247,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &mut self,
         partition_name: &PartitionName,
         max_offset: &u64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
             .unwrap();

@@ -1,11 +1,17 @@
+use std::array::TryFromSliceError;
 use std::num::TryFromIntError;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SubscriptionError {
     #[error("Attempt to create a subscription tracker which already exists.")]
     SubscriptionPartitionAlreadyExists,
+    #[error("Failed to create subscription file for subscription: {0}")]
+    SubscriptionFileCreationFailure(String),
+    #[error("Failure to convert from Slice.")]
+    TryFromSliceError(#[from] TryFromSliceError),
+    #[error("IOError: {0}")]
+    IOError(#[from] std::io::Error),
     #[error(
         "Attempting to acknowledge offset without acknowleding previous index. Offset: {0}, Previous Offset: {1}"
     )]
