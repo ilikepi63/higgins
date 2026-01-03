@@ -133,10 +133,12 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
+        // Create the partition in the file.
         self.file
             .add_partition(key)
             .map_err(|err| SubscriptionError::SubscriptionFileCreationFailure(err.to_string()))?;
 
+        // Set the max_offset and current offset of the partition.
         if let Some(max_offset) = offset {
             self.file.set_max_offset(key, &max_offset)?;
         }
@@ -151,6 +153,7 @@ impl Subscription {
             )?;
         }
 
+        // Create and add it to this memory model.
         let new_partition = PartitionOffsets::of(key, offset, max_offset);
 
         self.partitions.push(new_partition);
