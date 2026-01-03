@@ -88,6 +88,19 @@ impl PartitionOffsetsOwned {
 
         Ok(offset)
     }
+
+    pub fn set_max_offset(&mut self, val: &u64) -> Result<(), Box<dyn std::error::Error>> {
+        self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].copy_from_slice(&val.to_be_bytes());
+
+        Ok(())
+    }
+
+    pub fn get_max_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+        let offset =
+            u64::from_be_bytes(self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].try_into()?);
+
+        Ok(offset)
+    }
 }
 
 struct SubscriptionFileTail {}
@@ -232,10 +245,17 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
     /// Increment the max offset for a partition.
     pub fn set_max_offset(&self, partition: &PartitionName, max_offset: &[u64]) {
-        // Read the header file for the indexes.
-        // Iterate through the body, finding the partition we need to Adjust.
-        // Set the max_offset of this partition.
-        // It will then have become readable, so if it has changed from readable to unreadable, we swap it with a readable value
+        let index = self
+            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
+            .unwrap();
+
+        let mut partition = self.get_at(index)?;
+
+        partition.acknowledge(offsets)?;
+
+        self.put_at(index, partition)?;
+
+        Ok(())
     }
 }
 
