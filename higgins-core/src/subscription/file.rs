@@ -539,4 +539,29 @@ mod test {
 
         std::fs::remove_file(&path).unwrap();
     }
+
+    #[test]
+    fn can_successfully_set_max_position() {
+        let path = PathBuf::from_str("set_max_position_test").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        sub_file
+            .set_max_offset(&PartitionName::try_from("test_three").unwrap(), &5)
+            .unwrap();
+
+        let partition = sub_file.get_at(2).unwrap();
+
+        assert_eq!(partition.get_max_offset().unwrap(), 5);
+
+        std::fs::remove_file(&path).unwrap();
+    }
 }
