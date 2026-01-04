@@ -7,6 +7,8 @@ use std::{
     ops::Range,
 };
 
+use crate::subscription::error::SubscriptionError;
+
 #[allow(unused)]
 static BODY_INDEX: usize = size_of::<u64>() * 2;
 
@@ -56,25 +58,34 @@ impl<'a> PartitionOffsetsSerde<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PartitionOffsetsOwned([u8; PARTITION_OFFSET_SERDE_LEN]);
 
 impl PartitionOffsetsOwned {
-    pub fn of(data: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn of(data: &[u8]) -> Result<Self, SubscriptionError> {
         Ok(Self(data.try_into()?))
     }
     pub fn get_partition_name(&self) -> Result<PartitionName, PartitionNameError> {
         let partition_name_bytes = &self.0[0..LAST_COMPLETED_OFFSET];
         PartitionName::try_from(partition_name_bytes)
     }
-    pub fn acknowledge(&mut self, range: &Range<u64>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn acknowledge(&mut self, range: &Range<u64>) -> Result<(), SubscriptionError> {
         let current = u64::from_be_bytes(
             self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
         );
 
         // Handle if the start of this range does not equal the given offset.
         if current != range.start {
-            todo!()
+            tracing::error!(
+                "Couldn't update the acknowledged outputs. Current: {current}. Range start: {}",
+                range.start
+            );
+            return Err(
+                SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(
+                    current,
+                    range.start,
+                ),
+            );
         }
 
         self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()]
@@ -83,7 +94,7 @@ impl PartitionOffsetsOwned {
         Ok(())
     }
 
-    pub fn get_last_completed_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_last_completed_offset(&self) -> Result<u64, SubscriptionError> {
         let offset = u64::from_be_bytes(
             self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()].try_into()?,
         );
@@ -91,13 +102,19 @@ impl PartitionOffsetsOwned {
         Ok(offset)
     }
 
-    pub fn set_max_offset(&mut self, val: &u64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_max_offset(&mut self, val: &u64) -> Result<(), SubscriptionError> {
+        println!("Setting max offset {val}");
+
         self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].copy_from_slice(&val.to_be_bytes());
 
         Ok(())
     }
 
-    pub fn get_max_offset(&self) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn get_max_offset(&self) -> Result<u64, SubscriptionError> {
+        #[cfg(test)]
+        {
+            test::debug_subscription_bytes(&self.0);
+        }
         let offset =
             u64::from_be_bytes(self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].try_into()?);
 
@@ -105,12 +122,12 @@ impl PartitionOffsetsOwned {
     }
 }
 
-pub struct SubscriptionFile<P: AsRef<std::path::Path>> {
-    path: P,
+pub struct SubscriptionFile {
+    path: std::path::PathBuf,
 }
 
-impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
-    pub fn new(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+impl SubscriptionFile {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, SubscriptionError> {
         let mut handle = OpenOptions::new().create(true).append(true).open(&path)?;
 
         // nulled out as both need to be null.
@@ -118,26 +135,66 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
         handle.write(&header_buffer)?;
 
-        Ok(Self { path })
+        let mut path_buf = std::path::PathBuf::new();
+        path_buf.push(path);
+
+        Ok(Self { path: path_buf })
     }
 
-    pub fn add_partition(
-        &self,
-        partition: &PartitionName,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn add_partition(&self, partition: &PartitionName) -> Result<(), SubscriptionError> {
         let mut handle = OpenOptions::new().append(true).open(&self.path)?;
 
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
 
-        println!("Writing buffer: {:#?}", buffer);
-
         handle.write(&mut buffer)?;
 
         handle.flush()?;
 
         Ok(())
+    }
+
+    /// Reads all of the partition offsets for a stream
+    /// into memory.
+    pub fn get_partition_indexes(
+        &mut self,
+    ) -> Result<Vec<PartitionOffsetsOwned>, SubscriptionError> {
+        let mut buffer = [0_u8; ITER_SIZE];
+        let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
+        handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
+        let mut current_buffer_len = handle.read(&mut buffer)?;
+
+        let mut result = vec![];
+
+        let mut length = (current_buffer_len) / PARTITION_OFFSET_SERDE_LEN;
+
+        while length > 0 {
+            for i in 0..length {
+                let current_partition_index = i * PARTITION_OFFSET_SERDE_LEN;
+                let partition_bytes = &buffer
+                    [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
+
+                let partition = PartitionOffsetsOwned::of(partition_bytes)?;
+
+                result.push(partition);
+            }
+
+            // if the length is more than the iter size, this means that the
+            // file could be larger than our buffer size.
+            if length >= ITER_SIZE {
+                // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
+                handle
+                    .seek(SeekFrom::Start((HEADER_SIZE + current_buffer_len) as u64))
+                    .unwrap();
+                current_buffer_len = handle.read(&mut buffer)?;
+                length = (current_buffer_len) / PARTITION_OFFSET_SERDE_LEN;
+            } else {
+                length = 0;
+            }
+        }
+
+        Ok(result)
     }
 
     pub fn find_index<F>(&mut self, mut predicate: F) -> Option<u64>
@@ -149,7 +206,6 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
         handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
-        println!("Read {current_buffer_len} bytes from file.");
 
         let mut index = 0;
 
@@ -164,8 +220,6 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
             let current_partition_index = current_buffer_index * PARTITION_OFFSET_SERDE_LEN;
             let partition_bytes = &buffer
                 [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
-
-            println!("Retrieve bytes: {:#?}", partition_bytes);
 
             let partition = PartitionOffsetsSerde::of(partition_bytes);
 
@@ -191,7 +245,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
     }
 
     /// Gets the owned `PartitionOffsetsOwned` at the given index.
-    pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, Box<dyn std::error::Error>> {
+    pub fn get_at(&self, i: u64) -> Result<PartitionOffsetsOwned, SubscriptionError> {
         let offset = Self::calculate_offset(i);
 
         let mut file = OpenOptions::new().read(true).open(&self.path)?;
@@ -210,7 +264,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &self,
         i: u64,
         partition: PartitionOffsetsOwned,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let offset = Self::calculate_offset(i);
 
         let mut file = OpenOptions::new().write(true).open(&self.path)?;
@@ -229,7 +283,7 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &mut self,
         partition_name: &PartitionName,
         offsets: &Range<u64>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
             .unwrap();
@@ -248,10 +302,10 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
         &mut self,
         partition_name: &PartitionName,
         max_offset: &u64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), SubscriptionError> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
-            .unwrap();
+            .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
 
@@ -259,6 +313,12 @@ impl<P: AsRef<std::path::Path>> SubscriptionFile<P> {
 
         self.put_at(index, partition)?;
 
+        Ok(())
+    }
+
+    /// Deletes this file.
+    pub fn delete(&mut self) -> Result<(), SubscriptionError> {
+        std::fs::remove_file(&self.path)?;
         Ok(())
     }
 }
@@ -274,8 +334,47 @@ mod test {
     use higgins_shared::PartitionName;
 
     use crate::subscription::file::{
-        PARTITION_OFFSET_SERDE_LEN, PartitionOffsetsOwned, PartitionOffsetsSerde, SubscriptionFile,
+        AMOUNT_TO_TAKE_OFFSET, LAST_COMPLETED_OFFSET, MAX_OFFSET, PARTITION_OFFSET_SERDE_LEN,
+        PartitionOffsetsOwned, PartitionOffsetsSerde, SubscriptionFile,
     };
+
+    use crate::utils::test::{ByteInterval, Interval, print_bytes_coloured};
+    use colored::Color;
+
+    // static LAST_COMPLETED_OFFSET: usize = size_of::<PartitionName>();
+    // static MAX_OFFSET: usize = LAST_COMPLETED_OFFSET + size_of::<u64>();
+    // static AMOUNT_TO_TAKE_OFFSET: usize = MAX_OFFSET + size_of::<u64>();
+
+    pub fn debug_subscription_bytes(b: &[u8]) {
+        let intervals = &mut [
+            Interval(
+                ByteInterval(0, LAST_COMPLETED_OFFSET),
+                Color::Blue,
+                "PartitionName".to_string(),
+            ),
+            Interval(
+                ByteInterval(LAST_COMPLETED_OFFSET, MAX_OFFSET),
+                Color::Green,
+                "Last completed Offset".to_string(),
+            ),
+            Interval(
+                ByteInterval(MAX_OFFSET, AMOUNT_TO_TAKE_OFFSET),
+                Color::Red,
+                "Max Offset".to_string(),
+            ),
+            Interval(
+                ByteInterval(
+                    AMOUNT_TO_TAKE_OFFSET,
+                    AMOUNT_TO_TAKE_OFFSET + size_of::<u64>(),
+                ),
+                Color::Yellow,
+                "Amount to take".to_string(),
+            ),
+            // TODO: Probably make this dynamic?
+        ];
+
+        print_bytes_coloured(b, intervals);
+    }
 
     #[test]
     fn can_add_partition_to_file() {
@@ -563,5 +662,99 @@ mod test {
         assert_eq!(partition.get_max_offset().unwrap(), 5);
 
         std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_read_partitions_to_memory() {
+        let path = PathBuf::from_str("can_read_partitions_to_memory").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        print_file_contents(&path);
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .for_each(|name| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+            });
+
+        let partitions = sub_file.get_partition_indexes().unwrap();
+
+        assert_eq!(
+            vec![
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 111, 110, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 116, 119, 111, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 116, 104, 114, 101, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 102, 111, 117, 114, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+                PartitionOffsetsOwned([
+                    116, 101, 115, 116, 95, 111, 110, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],),
+            ],
+            partitions
+        );
+
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn can_read_partitions_to_memory_with_correctly_placed_data() {
+        let path =
+            PathBuf::from_str("can_read_partitions_to_memory_with_correctly_placed_data").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        print_file_contents(&path);
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .enumerate()
+            .for_each(|(i, name)| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+                sub_file
+                    .acknowledge(
+                        &partition_name,
+                        &Range {
+                            start: 0,
+                            end: (i as u64 * 2),
+                        },
+                    )
+                    .unwrap();
+                sub_file
+                    .set_max_offset(&partition_name, &(i as u64 * 10))
+                    .unwrap();
+            });
+
+        let partitions = sub_file.get_partition_indexes().unwrap();
+
+        std::fs::remove_file(&path).unwrap();
+
+        for (i, partition) in partitions.iter().enumerate() {
+            debug_subscription_bytes(&partition.0);
+
+            assert_eq!(partition.get_last_completed_offset().unwrap(), i as u64 * 2);
+            assert_eq!(partition.get_max_offset().unwrap(), i as u64 * 10);
+        }
     }
 }
