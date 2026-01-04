@@ -91,8 +91,6 @@ impl SubscriptionPartitionFile {
 // TODO: should we make a lock per row?
 pub struct Subscription {
     /// Path of the enclosing directory for this subscription.
-    #[allow(unused)]
-    path: PathBuf,
     last_index: u64,
     #[allow(unused)]
     // Allowing for now as we will need this for grabbing this condvar to make more jobs.
@@ -101,7 +99,7 @@ pub struct Subscription {
 
     // TODO: This will need to be moved to the file, when we decide on a data structure.
     partitions: Vec<PartitionOffsets>,
-    file: SubscriptionFile<PathBuf>,
+    file: SubscriptionFile,
 }
 
 impl std::fmt::Debug for Subscription {
@@ -115,14 +113,13 @@ impl std::fmt::Debug for Subscription {
 type Offset = u64;
 
 impl Subscription {
-    pub fn new(path: &PathBuf) -> Self {
+    pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Self {
         Self {
-            path: path.clone(),
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
             partitions: vec![],
-            file: SubscriptionFile::new(path.clone()).unwrap(),
+            file: SubscriptionFile::new(path).unwrap(),
         }
     }
 
