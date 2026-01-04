@@ -160,9 +160,7 @@ impl SubscriptionFile {
         let mut buffer = [0_u8; ITER_SIZE];
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
         handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
-        let mut current_buffer_len = handle.read(&mut buffer).ok()?;
-
-        let mut index = 0;
+        let mut current_buffer_len = handle.read(&mut buffer)?;
 
         let mut result = vec![];
 
@@ -182,7 +180,6 @@ impl SubscriptionFile {
 
             result.push(partition);
 
-            index += 1;
             current_buffer_index += 1;
         }
 
