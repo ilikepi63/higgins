@@ -114,13 +114,34 @@ type Offset = u64;
 
 impl Subscription {
     pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Self {
-        let subscription_file = SubscriptionFile::new(path).unwrap();
+        let mut subscription_file = SubscriptionFile::new(path).unwrap();
+
+        let partitions = subscription_file
+            .get_partition_indexes()
+            .unwrap()
+            .iter()
+            .map(|partition_offsets| {
+                let partition_id = partition_offsets.get_partition_name()?;
+                let last_completed_offset = partition_offsets.get_last_completed_offset()?;
+                let max_offset = partition_offsets.get_max_offset()?;
+
+                let amount_to_take = max_offset - last_completed_offset;
+
+                Ok(PartitionOffsets {
+                    partition_id,
+                    last_completed_offset,
+                    max_offset,
+                    amount_to_take,
+                })
+            })
+            .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()
+            .unwrap();
 
         Self {
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
-            partitions: vec![],
+            partitions: partitions,
             file: subscription_file,
         }
     }
