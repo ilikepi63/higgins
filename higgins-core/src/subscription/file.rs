@@ -76,7 +76,16 @@ impl PartitionOffsetsOwned {
 
         // Handle if the start of this range does not equal the given offset.
         if current != range.start {
-            todo!()
+            tracing::error!(
+                "Couldn't update the acknowledged outputs. Current: {current}. Range start: {}",
+                range.start
+            );
+            return Err(
+                SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(
+                    current,
+                    range.start,
+                ),
+            );
         }
 
         self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()]
