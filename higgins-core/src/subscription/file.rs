@@ -151,6 +151,44 @@ impl SubscriptionFile {
         Ok(())
     }
 
+    /// Reads all of the partition offsets for a stream
+    /// into memory.
+    pub fn get_partition_indexes(
+        &mut self,
+    ) -> Result<Vec<PartitionOffsetsOwned>, SubscriptionError> {
+        let mut current_buffer_index = 0;
+        let mut buffer = [0_u8; ITER_SIZE];
+        let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
+        handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
+        let mut current_buffer_len = handle.read(&mut buffer).ok()?;
+
+        let mut index = 0;
+
+        let mut result = vec![];
+
+        // Whilst we have a buffer that has partitions inside of it.
+        while current_buffer_len >= PARTITION_OFFSET_SERDE_LEN {
+            if current_buffer_index >= current_buffer_len / PARTITION_OFFSET_SERDE_LEN {
+                // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
+                current_buffer_len = handle.read(&mut buffer).ok()?;
+                current_buffer_index = 0;
+            }
+
+            let current_partition_index = current_buffer_index * PARTITION_OFFSET_SERDE_LEN;
+            let partition_bytes = &buffer
+                [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
+
+            let partition = PartitionOffsetsOwned::of(partition_bytes)?;
+
+            result.push(partition);
+
+            index += 1;
+            current_buffer_index += 1;
+        }
+
+        Ok(result)
+    }
+
     pub fn find_index<F>(&mut self, mut predicate: F) -> Option<u64>
     where
         F: FnMut(&PartitionOffsetsSerde) -> bool,
