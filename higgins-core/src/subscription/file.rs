@@ -262,7 +262,7 @@ impl SubscriptionFile {
     ) -> Result<(), SubscriptionError> {
         let index = self
             .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
-            .unwrap();
+            .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
 
