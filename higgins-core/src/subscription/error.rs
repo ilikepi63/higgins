@@ -1,9 +1,12 @@
+use higgins_shared::PartitionNameError;
 use std::array::TryFromSliceError;
 use std::num::TryFromIntError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SubscriptionError {
+    #[error("PartitionNameError")]
+    PartitionNameError(#[from] PartitionNameError),
     #[error("Attempt to create a subscription tracker which already exists.")]
     SubscriptionPartitionAlreadyExists,
     #[error("Failed to create subscription file for subscription: {0}")]
