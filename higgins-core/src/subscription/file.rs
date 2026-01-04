@@ -103,12 +103,18 @@ impl PartitionOffsetsOwned {
     }
 
     pub fn set_max_offset(&mut self, val: &u64) -> Result<(), SubscriptionError> {
+        println!("Setting max offset {val}");
+
         self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].copy_from_slice(&val.to_be_bytes());
 
         Ok(())
     }
 
     pub fn get_max_offset(&self) -> Result<u64, SubscriptionError> {
+        #[cfg(test)]
+        {
+            test::debug_subscription_bytes(&self.0);
+        }
         let offset =
             u64::from_be_bytes(self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].try_into()?);
 
@@ -141,8 +147,6 @@ impl SubscriptionFile {
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
-
-        println!("Writing buffer: {:#?}", buffer);
 
         handle.write(&mut buffer)?;
 
@@ -202,7 +206,6 @@ impl SubscriptionFile {
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
         handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
-        println!("Read {current_buffer_len} bytes from file.");
 
         let mut index = 0;
 
@@ -217,8 +220,6 @@ impl SubscriptionFile {
             let current_partition_index = current_buffer_index * PARTITION_OFFSET_SERDE_LEN;
             let partition_bytes = &buffer
                 [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
-
-            println!("Retrieve bytes: {:#?}", partition_bytes);
 
             let partition = PartitionOffsetsSerde::of(partition_bytes);
 
@@ -344,7 +345,7 @@ mod test {
     // static MAX_OFFSET: usize = LAST_COMPLETED_OFFSET + size_of::<u64>();
     // static AMOUNT_TO_TAKE_OFFSET: usize = MAX_OFFSET + size_of::<u64>();
 
-    fn debug_subscription_bytes(b: &[u8]) {
+    pub fn debug_subscription_bytes(b: &[u8]) {
         let intervals = &mut [
             Interval(
                 ByteInterval(0, LAST_COMPLETED_OFFSET),

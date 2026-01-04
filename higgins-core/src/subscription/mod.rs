@@ -125,6 +125,8 @@ impl Subscription {
                 let last_completed_offset = partition_offsets.get_last_completed_offset()?;
                 let max_offset = partition_offsets.get_max_offset()?;
 
+                println!("Read max offset: {max_offset}");
+
                 let amount_to_take = max_offset - last_completed_offset;
 
                 Ok(PartitionOffsets {
@@ -155,13 +157,15 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
+        println!("Adding partition with max_offset: {:#?}", max_offset);
+
         // Create the partition in the file.
         self.file
             .add_partition(key)
             .map_err(|err| SubscriptionError::SubscriptionFileCreationFailure(err.to_string()))?;
 
         // Set the max_offset and current offset of the partition.
-        if let Some(max_offset) = offset {
+        if let Some(max_offset) = max_offset {
             self.file.set_max_offset(key, &max_offset)?;
         }
 
@@ -564,17 +568,12 @@ mod tests {
 
         let sub = Subscription::new(sub_name);
 
-        dbg!(&sub.partitions);
+        std::fs::remove_file(sub_name).unwrap();
 
         assert_eq!(sub.client_counts.len(), 0);
-        // assert_eq!(sub.partitions.len(), 4);
+        assert_eq!(sub.partitions.len(), 4);
 
         for (i, partition) in sub.partitions.iter().enumerate() {
-            println!(
-                "Partition Name{}",
-                String::from_utf8(partition.partition_id.0.to_vec()).unwrap()
-            );
-
             assert_eq!(partition.last_completed_offset, i as u64 * 2);
             assert_eq!(partition.max_offset, i as u64 * 10);
         }
