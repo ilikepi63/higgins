@@ -114,16 +114,14 @@ type Offset = u64;
 
 impl Subscription {
     pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Self {
-
         let subscription_file = SubscriptionFile::new(path).unwrap();
-
 
         Self {
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
             partitions: vec![],
-            file: ,
+            file: subscription_file,
         }
     }
 
