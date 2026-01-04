@@ -272,6 +272,12 @@ impl SubscriptionFile {
 
         Ok(())
     }
+
+    /// Deletes this file.
+    pub fn delete(&mut self) -> Result<(), SubscriptionError> {
+        std::fs::remove_file(&self.path)?;
+        Ok(())
+    }
 }
 
 // Holds up to 1000 partition offsets.
