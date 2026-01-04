@@ -668,4 +668,47 @@ mod test {
 
         std::fs::remove_file(&path).unwrap();
     }
+
+    #[test]
+    fn can_read_partitions_to_memory_with_correctly_placed_data() {
+        let path =
+            PathBuf::from_str("can_read_partitions_to_memory_with_correctly_placed_data").unwrap();
+
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+
+        print_file_contents(&path);
+
+        ["test_one", "test_two", "test_three", "test_four"]
+            .iter()
+            .enumerate()
+            .for_each(|(i, name)| {
+                let partition_name = PartitionName::try_from(*name).unwrap();
+
+                sub_file.add_partition(&partition_name).unwrap();
+                sub_file
+                    .acknowledge(
+                        &partition_name,
+                        &Range {
+                            start: 0,
+                            end: (i as u64 * 2),
+                        },
+                    )
+                    .unwrap();
+                sub_file
+                    .set_max_offset(&partition_name, &(i as u64 * 10))
+                    .unwrap();
+            });
+
+        let partitions = sub_file.get_partition_indexes().unwrap();
+
+        for (i, partition) in partitions.iter().enumerate() {
+            assert_eq!(
+                partition.get_last_completed_offset().unwrap(),
+                i as u64 * 10
+            );
+            assert_eq!(partition.get_max_offset().unwrap(), i as u64 * 10);
+        }
+
+        std::fs::remove_file(&path).unwrap();
+    }
 }
