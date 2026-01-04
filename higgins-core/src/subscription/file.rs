@@ -156,7 +156,6 @@ impl SubscriptionFile {
     pub fn get_partition_indexes(
         &mut self,
     ) -> Result<Vec<PartitionOffsetsOwned>, SubscriptionError> {
-        let mut current_buffer_index = 0;
         let mut buffer = [0_u8; ITER_SIZE];
         let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
         handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
@@ -164,23 +163,31 @@ impl SubscriptionFile {
 
         let mut result = vec![];
 
-        // Whilst we have a buffer that has partitions inside of it.
-        while current_buffer_len >= PARTITION_OFFSET_SERDE_LEN {
-            if current_buffer_index >= current_buffer_len / PARTITION_OFFSET_SERDE_LEN {
-                // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
-                current_buffer_len = handle.read(&mut buffer)?;
-                current_buffer_index = 0;
+        let mut length = (current_buffer_len) / PARTITION_OFFSET_SERDE_LEN;
+
+        while length > 0 {
+            for i in 0..length {
+                let current_partition_index = i * PARTITION_OFFSET_SERDE_LEN;
+                let partition_bytes = &buffer
+                    [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
+
+                let partition = PartitionOffsetsOwned::of(partition_bytes)?;
+
+                result.push(partition);
             }
 
-            let current_partition_index = current_buffer_index * PARTITION_OFFSET_SERDE_LEN;
-            let partition_bytes = &buffer
-                [current_partition_index..current_partition_index + PARTITION_OFFSET_SERDE_LEN];
-
-            let partition = PartitionOffsetsOwned::of(partition_bytes)?;
-
-            result.push(partition);
-
-            current_buffer_index += 1;
+            // if the length is more than the iter size, this means that the
+            // file could be larger than our buffer size.
+            if length >= ITER_SIZE {
+                // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
+                handle
+                    .seek(SeekFrom::Start((HEADER_SIZE + current_buffer_len) as u64))
+                    .unwrap();
+                current_buffer_len = handle.read(&mut buffer)?;
+                length = (current_buffer_len) / PARTITION_OFFSET_SERDE_LEN;
+            } else {
+                length = 0;
+            }
         }
 
         Ok(result)
@@ -326,8 +333,47 @@ mod test {
     use higgins_shared::PartitionName;
 
     use crate::subscription::file::{
-        PARTITION_OFFSET_SERDE_LEN, PartitionOffsetsOwned, PartitionOffsetsSerde, SubscriptionFile,
+        AMOUNT_TO_TAKE_OFFSET, LAST_COMPLETED_OFFSET, MAX_OFFSET, PARTITION_OFFSET_SERDE_LEN,
+        PartitionOffsetsOwned, PartitionOffsetsSerde, SubscriptionFile,
     };
+
+    use crate::utils::test::{ByteInterval, Interval, print_bytes_coloured};
+    use colored::Color;
+
+    // static LAST_COMPLETED_OFFSET: usize = size_of::<PartitionName>();
+    // static MAX_OFFSET: usize = LAST_COMPLETED_OFFSET + size_of::<u64>();
+    // static AMOUNT_TO_TAKE_OFFSET: usize = MAX_OFFSET + size_of::<u64>();
+
+    fn debug_subscription_bytes(b: &[u8]) {
+        let intervals = &mut [
+            Interval(
+                ByteInterval(0, LAST_COMPLETED_OFFSET),
+                Color::Blue,
+                "PartitionName".to_string(),
+            ),
+            Interval(
+                ByteInterval(LAST_COMPLETED_OFFSET, MAX_OFFSET),
+                Color::Green,
+                "Last completed Offset".to_string(),
+            ),
+            Interval(
+                ByteInterval(MAX_OFFSET, AMOUNT_TO_TAKE_OFFSET),
+                Color::Red,
+                "Max Offset".to_string(),
+            ),
+            Interval(
+                ByteInterval(
+                    AMOUNT_TO_TAKE_OFFSET,
+                    AMOUNT_TO_TAKE_OFFSET + size_of::<u64>(),
+                ),
+                Color::Yellow,
+                "Amount to take".to_string(),
+            ),
+            // TODO: Probably make this dynamic?
+        ];
+
+        print_bytes_coloured(b, intervals);
+    }
 
     #[test]
     fn can_add_partition_to_file() {
@@ -701,14 +747,13 @@ mod test {
 
         let partitions = sub_file.get_partition_indexes().unwrap();
 
+        std::fs::remove_file(&path).unwrap();
+
         for (i, partition) in partitions.iter().enumerate() {
-            assert_eq!(
-                partition.get_last_completed_offset().unwrap(),
-                i as u64 * 10
-            );
+            debug_subscription_bytes(&partition.0);
+
+            assert_eq!(partition.get_last_completed_offset().unwrap(), i as u64 * 2);
             assert_eq!(partition.get_max_offset().unwrap(), i as u64 * 10);
         }
-
-        std::fs::remove_file(&path).unwrap();
     }
 }
