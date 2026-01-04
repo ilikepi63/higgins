@@ -8,7 +8,7 @@ pub mod file;
 
 use file::SubscriptionFile;
 use std::ops::Range;
-use std::{path::PathBuf, sync::atomic::AtomicU64};
+use std::sync::atomic::AtomicU64;
 use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
