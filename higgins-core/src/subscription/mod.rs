@@ -513,4 +513,38 @@ mod tests {
         assert!(offsets.iter().any(|(k, o)| k == &key2 && *o == 0));
         sub.delete().unwrap();
     }
+
+    #[test]
+    fn test_can_read_subscription_from_file() {
+        let sub_name = "test_can_read_subscription_from_file";
+
+        let mut sub = Subscription::new(sub_name);
+
+        [
+            "partition_one",
+            "partition_two",
+            "partition_three",
+            "partition_four",
+        ]
+        .iter()
+        .enumerate()
+        .for_each(|(i, partition_name)| {
+            let partition_name = PartitionName::try_from(*partition_name).unwrap();
+            sub.add_partition(&partition_name, Some(i as u64 * 2), Some(i as u64 * 10))
+                .unwrap();
+        });
+
+        // Drop the sub.
+        drop(sub);
+
+        let sub = Subscription::new(sub_name);
+
+        assert_eq!(sub.client_counts.len(), 0);
+        assert_eq!(sub.partitions.len(), 4);
+
+        for (i, partition) in sub.partitions.iter().enumerate() {
+            assert_eq!(partition.last_completed_offset, i as u64 * 2);
+            assert_eq!(partition.max_offset, i as u64 * 10);
+        }
+    }
 }
