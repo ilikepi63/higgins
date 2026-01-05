@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub mod test;
+
 pub mod consumption;
 pub mod request_response;
 

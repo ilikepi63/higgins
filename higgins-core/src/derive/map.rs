@@ -118,7 +118,14 @@ pub async fn create_mapped_stream_from_definition(
 
                     let mut lock = left_subscription_ref.write().await;
 
-                    lock.acknowledge(&partition, offset).unwrap();
+                    lock.acknowledge(
+                        &partition,
+                        &std::ops::Range {
+                            start: offset,
+                            end: offset + 1,
+                        },
+                    )
+                    .unwrap();
 
                     drop(lock);
                 }
