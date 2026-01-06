@@ -74,6 +74,15 @@ impl Broker {
             cwd
         };
 
+        let _subscriptions_dir = {
+            let mut cwd = dir.clone();
+            cwd.push("subscriptions");
+            if let Err(e) = create_dir(&cwd) {
+                tracing::trace!("Error when creating functions dir: {:#?}", e);
+            }
+            cwd
+        };
+
         Self {
             streams: BTreeMap::new(),
             object_store,
