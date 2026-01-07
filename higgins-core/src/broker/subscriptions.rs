@@ -78,6 +78,9 @@ impl Broker {
         broker: Arc<RwLock<Broker>>,
         count: u64,
     ) -> Result<(), HigginsError> {
+
+        tracing::trace!("Taking from subscription with count {count}");
+
         let (notify, subscription) = self
             .subscriptions
             .get_mut(stream)
