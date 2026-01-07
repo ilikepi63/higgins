@@ -128,6 +128,11 @@ pub struct SubscriptionFile {
 
 impl SubscriptionFile {
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, SubscriptionError> {
+        tracing::trace!(
+            "Create subscription for file path: {:#?}",
+            path.as_ref().to_str()
+        );
+
         let mut handle = OpenOptions::new().create(true).append(true).open(&path)?;
 
         // nulled out as both need to be null.
