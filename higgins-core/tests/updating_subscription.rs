@@ -7,9 +7,11 @@ use std::{
 
 use crate::common::get_random_port;
 use higgins::run_server;
+use higgins_client::Response;
 use higgins_codec::{Message, TakeRecordsRequest, message::Type};
 use higgins_shared::PartitionName;
 use prost::Message as _;
+use riskless::messages::ProduceResponse;
 
 mod common;
 
@@ -75,15 +77,11 @@ fn can_update_subscription_after_created() {
 
             let response = consume_client.recv().unwrap();
 
-            match response {}
-
-            match Type::try_from(message.r#type).unwrap() {
-                Type::Takerecordsresponse => {
-                    let take_records_response = message.take_records_response.unwrap();
-
+            match response {
+                Response::TakeRecords(response) => {
                     let mut result_vec = result_vec.lock().unwrap();
 
-                    for record in take_records_response.records.iter() {
+                    for record in response.records.iter() {
                         result_vec.push(String::from_utf8(record.data.clone()).unwrap());
                         count += 1;
 
@@ -92,12 +90,12 @@ fn can_update_subscription_after_created() {
                         }
                     }
                 }
-                Type::Produceresponse => {
-                    let message = message.produce_response;
-
-                    tracing::info!("Received produce response: {:#?}", message);
+                Response::Produce(response) => {
+                    tracing::info!("Received produce response: {:#?}", response);
                 }
-                _ => {}
+                _ => {
+                    tracing::error!("Received unexpected response message.");
+                }
             }
 
             if count >= NUMBER_OF_MESSAGES {
@@ -113,8 +111,8 @@ fn can_update_subscription_after_created() {
     for _ in 0..NUMBER_OF_MESSAGES {
         produce_client
             .produce(
-                STREAM,
-                &PartitionName::try_from(PARTITION).unwrap(),
+                "update_customer",
+                &PartitionName::try_from("1").unwrap(),
                 payload.as_bytes(),
             )
             .unwrap();
