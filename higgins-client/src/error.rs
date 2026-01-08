@@ -6,6 +6,8 @@ use thiserror::Error;
 pub enum HigginsClientError {
     #[error("Incorrect Response received. Expect: {0}, Received: {1}")]
     IncorrectResponseReceived(String, String),
+    #[error("Unexpected Message received. Received: {0}.")]
+    UnexpectedMessageReceived(i32),
     #[error("Higgins Codec Error")]
     CodecError(#[from] HigginsCodecError),
     #[error("Encoding Error")]
