@@ -1,7 +1,6 @@
 use super::Broker;
 
 use bytes::BytesMut;
-use futures::stream::FuturesUnordered;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
 use prost::Message as _;
 use std::{
