@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use higgins_codec::CreateSubscriptionRequest;
 use higgins_codec::frame::Frame;
-use higgins_codec::{Message, TakeRecordsRequest, message::Type};
+use higgins_codec::{Message, message::Type};
 use prost::Message as _;
 
 #[allow(unused)]
