@@ -54,7 +54,9 @@ fn can_update_subscription_after_created() {
 
     client.upload_configuration(config.as_bytes()).unwrap();
     // Start a subscription on that stream.
-    let sub_id = client.create_subscription("update_customer".as_bytes()).unwrap();
+    let sub_id = client
+        .create_subscription("update_customer".as_bytes())
+        .unwrap();
 
     tracing::trace!("Successfully created subscription!");
 
@@ -62,16 +64,15 @@ fn can_update_subscription_after_created() {
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
-
         let mut consume_client =
             higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
-        let result = consume_client.take_from_subscription(100, &sub_id, "update_customer".as_bytes());
+        let result =
+            consume_client.take_from_subscription(100, &sub_id, "update_customer".as_bytes());
 
         let mut count = 0;
 
         loop {
-
             tracing::trace!("Consuming from stream..");
 
             let n = socket_reader.read(&mut read_buf).unwrap();
