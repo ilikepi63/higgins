@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::error::HigginsClientError;
+use crate::{error::HigginsClientError, recv::Response};
 use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record};
 use higgins_shared::PartitionName;
 use tokio::net::ToSocketAddrs;
@@ -71,5 +71,9 @@ impl Client {
         config: &[u8],
     ) -> Result<CreateConfigurationResponse, HigginsClientError> {
         self.1.block_on(self.0.upload_configuration(config))
+    }
+
+    pub fn recv(&mut self) -> Result<Response, HigginsClientError> {
+        self.1.block_on(self.0.recv())
     }
 }
