@@ -60,6 +60,8 @@ fn can_update_subscription_after_created() {
     // Start a subscription on that stream.
     let sub_id = create_subscription("update_customer".as_bytes(), &mut socket).unwrap();
 
+    tracing::trace!("Successfully created subscription!");
+
     // Split the socket.
     let mut socket_writer = socket.try_clone().unwrap();
     let mut socket_reader = socket;
@@ -68,6 +70,8 @@ fn can_update_subscription_after_created() {
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
+
+        tracing::info!("Writing the TakeRecordsRequest..");
         let take_request = TakeRecordsRequest {
             n: 100,
             subscription_id: sub_id,
@@ -87,10 +91,17 @@ fn can_update_subscription_after_created() {
 
         socket_reader.write_all(&write_buf).unwrap();
 
+        tracing::info!("Wrote the take records request.");
+
         let mut count = 0;
 
         loop {
+
+            tracing::trace!("Consuming from stream..");
+
             let n = socket_reader.read(&mut read_buf).unwrap();
+
+            tracing::trace!("Retrieved a consume message..");
 
             assert_ne!(n, 0);
 
@@ -130,17 +141,17 @@ fn can_update_subscription_after_created() {
     });
 
     // Produce to the stream.
+    // tracing::trace!("Producing to stream..");
+    // let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
-
-    for _ in 0..NUMBER_OF_MESSAGES {
-        produce(
-            "update_customer".as_bytes(),
-            &PartitionName::try_from("test_partition").unwrap(),
-            payload.as_bytes(),
-            &mut socket_writer,
-        );
-    }
+    // for _ in 0..NUMBER_OF_MESSAGES {
+    //     produce(
+    //         "update_customer".as_bytes(),
+    //         &PartitionName::try_from("test_partition").unwrap(),
+    //         payload.as_bytes(),
+    //         &mut socket_writer,
+    //     );
+    // }
 
     handle_consume.join().unwrap();
 

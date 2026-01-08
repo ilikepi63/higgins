@@ -164,6 +164,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Metadataresponse => todo!(),
                 Type::Pong => todo!(),
                 Type::Takerecordsrequest => {
+                    tracing::trace!("Received a TakeRecordsRequest!");
                     let broker_ref = broker.clone();
 
                     let TakeRecordsRequest {
