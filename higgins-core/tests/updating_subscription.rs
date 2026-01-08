@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::common::get_random_port;
+use crate::common::{get_random_port, subscription::take_from_subscription};
 use bytes::BytesMut;
 use higgins::run_server;
 use higgins_codec::{Message, TakeRecordsRequest, message::Type};
@@ -46,52 +46,27 @@ fn can_update_subscription_after_created() {
     // This will make the above server more likely to be instantiated.
     std::thread::sleep(Duration::from_millis(100));
 
-    let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-
-    socket
-        .set_read_timeout(Some(Duration::from_secs(10)))
-        .unwrap();
+    let mut product_client =
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
 
-    upload_configuration(config.as_bytes(), &mut socket);
-
+    client.upload_configuration(config.as_bytes()).unwrap();
     // Start a subscription on that stream.
-    let sub_id = create_subscription("update_customer".as_bytes(), &mut socket).unwrap();
+    let sub_id = client.create_subscription("update_customer".as_bytes()).unwrap();
 
     tracing::trace!("Successfully created subscription!");
-
-    // Split the socket.
-    let mut socket_writer = socket.try_clone().unwrap();
-    let mut socket_reader = socket;
 
     let result_vec = Arc::new(Mutex::new(vec![]));
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
 
-        tracing::info!("Writing the TakeRecordsRequest..");
-        let take_request = TakeRecordsRequest {
-            n: 100,
-            subscription_id: sub_id,
-            stream_name: "update_customer".as_bytes().to_vec(),
-        };
+        let mut consume_client =
+            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
-        let mut write_buf = BytesMut::new();
-        let mut read_buf = BytesMut::zeroed(8048);
-
-        Message {
-            r#type: Type::Takerecordsrequest as i32,
-            take_records_request: Some(take_request),
-            ..Default::default()
-        }
-        .encode(&mut write_buf)
-        .unwrap();
-
-        socket_reader.write_all(&write_buf).unwrap();
-
-        tracing::info!("Wrote the take records request.");
+        let result = consume_client.take_from_subscription(100, &sub_id, "update_customer".as_bytes());
 
         let mut count = 0;
 
@@ -142,16 +117,17 @@ fn can_update_subscription_after_created() {
 
     // Produce to the stream.
     // tracing::trace!("Producing to stream..");
-    // let payload = std::fs::read_to_string("tests/customer.json").unwrap();
+    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    // for _ in 0..NUMBER_OF_MESSAGES {
-    //     produce(
-    //         "update_customer".as_bytes(),
-    //         &PartitionName::try_from("test_partition").unwrap(),
-    //         payload.as_bytes(),
-    //         &mut socket_writer,
-    //     );
-    // }
+    for _ in 0..NUMBER_OF_MESSAGES {
+        produce_client
+            .produce(
+                STREAM,
+                &PartitionName::try_from(PARTITION).unwrap(),
+                payload.as_bytes(),
+            )
+            .unwrap();
+    }
 
     handle_consume.join().unwrap();
 
