@@ -65,7 +65,6 @@ pub fn take_from_subscription<T: std::io::Read + std::io::Write>(
     };
 
     let mut write_buf = BytesMut::new();
-    let mut read_buf = BytesMut::zeroed(8048);
 
     Message {
         r#type: Type::Takerecordsrequest as i32,
@@ -76,8 +75,6 @@ pub fn take_from_subscription<T: std::io::Read + std::io::Write>(
     .unwrap();
 
     socket.write_all(&write_buf).unwrap();
-
-    tracing::info!("Wrote the take records request.");
 
     Ok(())
 }
