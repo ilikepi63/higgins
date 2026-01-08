@@ -103,9 +103,14 @@ impl Broker {
         stream_name: &[u8],
         partition_key: &[u8],
     ) -> Result<(), HigginsError> {
+        tracing::trace!("[CREATE PARTITION] Creating the partition");
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
             for (_, sub) in subs.values_mut() {
+                tracing::trace!("[CREATE PARTITION] Taking the lock.");
+
                 let mut sub = sub.write().await;
+
+                tracing::trace!("[CREATE PARTITION] Retrieved the lock..");
 
                 sub.add_partition(
                     &higgins_shared::PartitionName::try_from(partition_key)?,
