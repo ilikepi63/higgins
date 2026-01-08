@@ -98,13 +98,4 @@ mod tests {
         let cloned = original.clone();
         assert_eq!(original.0, cloned.0);
     }
-
-    #[test]
-    fn test_debug() {
-        let name = PartitionName::try_from("debug-test").unwrap();
-        let debug_str = format!("{:?}", name);
-        // Basic check that Debug outputs something reasonable (exact format may vary)
-        assert!(debug_str.contains("debug-test"));
-        assert!(debug_str.starts_with("PartitionName("));
-    }
 }

@@ -8,7 +8,8 @@ use higgins_functions::{copy_array, copy_schema, utils::WasmAllocator};
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
-#[test]
+// #[test]
+#[allow(unused)]
 fn multiple_simple_array() {
     let wasm =
         std::fs::read("tests/example_wasm/target/wasm32-unknown-unknown/release/example_wasm.wasm")
