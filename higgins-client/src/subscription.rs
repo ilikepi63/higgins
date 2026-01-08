@@ -1,7 +1,7 @@
 use crate::error::HigginsClientError;
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
-use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest, TakeRecordsResponse};
+use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest};
 use higgins_codec::{Message, message::Type};
 use prost::Message as _;
 
@@ -58,7 +58,7 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
     stream_name: &[u8],
     n: u64,
     socket: &mut T,
-) -> Result<TakeRecordsResponse, HigginsClientError> {
+) -> Result<(), HigginsClientError> {
     let take_request = TakeRecordsRequest {
         n,
         subscription_id: sub_id,
@@ -79,16 +79,5 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
 
     frame.try_write_async(socket).await.unwrap();
 
-    let frame = Frame::try_read_async(socket).await.unwrap();
-
-    let slice = frame.inner();
-
-    let message = Message::decode(slice).unwrap();
-
-    let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Takerecordsresponse => message.take_records_response.unwrap(),
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    };
-
-    Ok(result)
+    Ok(())
 }
