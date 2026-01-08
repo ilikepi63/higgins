@@ -106,7 +106,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     writer_tx.send(result).await.unwrap();
                 }
                 Type::Producerequest => {
-                    tracing::info!("Received produce request. Handling.");
+                    tracing::info!("[PRODUCE] Received produce request. Handling.");
 
                     let ProduceRequest {
                         stream_name,
@@ -114,23 +114,29 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         payload,
                     } = message.produce_request.unwrap();
 
-                    tracing::info!("Attempting to take the broker lock..");
+                    tracing::info!("[PRODUCE] Attempting to take the broker lock..");
 
                     let mut broker = broker.write().await;
 
-                    tracing::info!("Retrieved the broker lock.");
+                    tracing::info!("[PRODUCE] Retrieved the broker lock.");
 
                     if let Err(err) = broker.create_partition(&stream_name, &partition_key).await {
                         tracing::error!("Failed to create partition inside of broker: {:#?}", err);
                     };
 
+                    tracing::trace!("[PRODUCE] Successfully created the partition.");
+
                     let (schema, _tx, _rx) = broker
                         .get_stream(&stream_name)
                         .expect("Could not find stream for stream_name.");
 
+                    tracing::trace!("[PRODUCE] Retrieved the stream.");
+
                     let cursor = Cursor::new(payload);
                     let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
                     let batch = reader.next().unwrap().unwrap();
+
+                    tracing::trace!("[PRODUCE] Read the batch, producing..");
 
                     let result = broker
                         .produce(
@@ -167,7 +173,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Metadataresponse => todo!(),
                 Type::Pong => todo!(),
                 Type::Takerecordsrequest => {
-                    tracing::trace!("Received a TakeRecordsRequest!");
+                    tracing::trace!("[TAKE] Received a TakeRecordsRequest!");
                     let broker_ref = broker.clone();
 
                     let TakeRecordsRequest {

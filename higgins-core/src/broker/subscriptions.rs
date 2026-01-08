@@ -133,7 +133,11 @@ impl Broker {
 
                     tracing::trace!("[TAKE] Taking the amount: {n}");
 
-                    if let Ok(offsets) = lock.take(task_client_id, n) {
+                    let offsets = lock.take(task_client_id, n);
+
+                    drop(lock);
+
+                    if let Ok(offsets) = offsets {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
                             let consumption = {
