@@ -1,6 +1,5 @@
 use std::{
     env::temp_dir,
-    io::Read,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -8,10 +7,7 @@ use std::{
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
-use higgins_codec::{Message, TakeRecordsRequest, message::Type};
 use higgins_shared::PartitionName;
-use prost::Message as _;
-use riskless::messages::ProduceResponse;
 
 mod common;
 
