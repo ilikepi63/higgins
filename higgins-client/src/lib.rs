@@ -4,6 +4,7 @@ pub(crate) mod functions;
 pub(crate) mod ping;
 pub(crate) mod produce;
 pub(crate) mod query;
+pub(crate) mod recv;
 pub(crate) mod subscription;
 
 pub mod blocking;
