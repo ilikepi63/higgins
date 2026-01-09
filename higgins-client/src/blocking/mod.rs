@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::error::HigginsClientError;
-use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
+use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record};
 use higgins_shared::PartitionName;
 use tokio::net::ToSocketAddrs;
 pub struct Client(crate::Client, tokio::runtime::Runtime);
@@ -32,7 +32,7 @@ impl Client {
         sub_id: Vec<u8>,
         stream_name: &[u8],
         n: u64,
-    ) -> Result<TakeRecordsResponse, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.take(sub_id, stream_name, n))
     }
 
