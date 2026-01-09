@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use higgins_codec::CreateSubscriptionRequest;
 use higgins_codec::frame::Frame;
-use higgins_codec::{Message, message::Type, TakeRecordsRequest};
+use higgins_codec::{Message, TakeRecordsRequest, message::Type};
 use prost::Message as _;
 
 #[allow(unused)]
@@ -51,13 +51,12 @@ pub fn create_subscription<T: std::io::Read + std::io::Write>(
     Ok(sub_id)
 }
 
-
 pub fn take_from_subscription<T: std::io::Read + std::io::Write>(
     n: u64,
     sub_id: &[u8],
     stream_name: &[u8],
     socket: &mut T,
-) -> Result<(), Box<dyn std::error::Error>>{
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Writing the TakeRecordsRequest..");
     let take_request = TakeRecordsRequest {
         n,
