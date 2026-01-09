@@ -50,31 +50,3 @@ pub fn create_subscription<T: std::io::Read + std::io::Write>(
 
     Ok(sub_id)
 }
-
-pub fn take_from_subscription<T: std::io::Read + std::io::Write>(
-    n: u64,
-    sub_id: &[u8],
-    stream_name: &[u8],
-    socket: &mut T,
-) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Writing the TakeRecordsRequest..");
-    let take_request = TakeRecordsRequest {
-        n,
-        subscription_id: sub_id.to_vec(),
-        stream_name: stream_name.to_vec(),
-    };
-
-    let mut write_buf = BytesMut::new();
-
-    Message {
-        r#type: Type::Takerecordsrequest as i32,
-        take_records_request: Some(take_request),
-        ..Default::default()
-    }
-    .encode(&mut write_buf)
-    .unwrap();
-
-    socket.write_all(&write_buf).unwrap();
-
-    Ok(())
-}
