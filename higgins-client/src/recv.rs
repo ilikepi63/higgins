@@ -22,9 +22,10 @@ impl TryFrom<Message> for Response {
     type Error = HigginsClientError;
 
     fn try_from(value: Message) -> Result<Self, Self::Error> {
-        match Type::try_from(value.r#type)
-            .map_err(|err| HigginsClientError::UnexpectedMessageReceived(value.r#type))?
-        {
+        match Type::try_from(value.r#type).map_err(|err| {
+            tracing::error!("Error when trying to convert enum value: {:#?}", err);
+            HigginsClientError::UnexpectedMessageReceived(value.r#type)
+        })? {
             Type::Createconfigurationresponse => Ok(Response::CreateConfiguration(
                 value.create_configuration_response.unwrap(),
             )),
