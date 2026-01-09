@@ -7,7 +7,7 @@ use crate::{
     query::{query_by_timestamp, query_latest},
     subscription::{create_subscription, take},
 };
-use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record, TakeRecordsResponse};
+use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record};
 use higgins_shared::PartitionName;
 use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -50,7 +50,7 @@ impl Client {
         sub_id: Vec<u8>,
         stream_name: &[u8],
         n: u64,
-    ) -> Result<TakeRecordsResponse, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         timeout!(take(sub_id, stream_name, n, &mut self.0), self.1).await?
     }
 
