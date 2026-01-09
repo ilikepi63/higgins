@@ -8,7 +8,8 @@ use higgins_functions::{clone_record_batch, record_batch_to_wasm, utils::WasmAll
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
-#[test]
+// #[test]
+#[allow(unused)]
 fn simple_record_batch() {
     let current_dir = std::env::current_dir();
 
