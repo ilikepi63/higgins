@@ -12,7 +12,7 @@ use higgins_shared::PartitionName;
 use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
 
-pub struct Client(tokio::net::TcpStream, Duration);
+pub struct Client(pub(crate) tokio::net::TcpStream, pub(crate) Duration);
 
 macro_rules! timeout {
     ($future: expr, $dur: expr) => {
