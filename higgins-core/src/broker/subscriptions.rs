@@ -118,7 +118,6 @@ impl Broker {
             tokio::task::spawn(async move {
                 loop {
                     let mut lock = task_subscription.write().await;
-                    let broker_lock = broker.read().await;
 
                     let n = match lock
                         .client_counts
@@ -133,15 +132,32 @@ impl Broker {
 
                     tracing::trace!("[TAKE] Taking the amount: {n}");
 
-                    if let Ok(offsets) = lock.take(task_client_id, n) {
+                    let offsets = lock.take(task_client_id, n);
+
+                    drop(lock);
+
+                    if let Ok(offsets) = offsets {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
-                            let consumption = broker_lock
-                                .consume(&task_stream_name, &partition, offset, 50_000)
-                                .await;
+                            let consumption = {
+                                let broker_lock = broker.read().await;
+
+                                let mut results = vec![];
+
+                                for future in broker_lock
+                                    .consume(&task_stream_name, &partition, offset, 50_000)
+                                    .await
+                                {
+                                    let result = future.await;
+
+                                    results.push(result);
+                                }
+
+                                results
+                            };
 
                             for val in consumption {
-                                let val = val.await.unwrap();
+                                let val = val.unwrap();
                                 let resp = TakeRecordsResponse {
                                     records: vec![{
                                         let stream_reader = read_arrow(&val);

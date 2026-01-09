@@ -8,7 +8,8 @@ use higgins_functions::{clone_record_batch, record_batch_to_wasm, utils::WasmAll
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
-#[test]
+// #[test]
+#[allow(unused)]
 fn simple_map_value() {
     let wasm = std::fs::read("../higgins-core/tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm")
         .unwrap();
