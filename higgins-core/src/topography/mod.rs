@@ -223,6 +223,8 @@ pub fn apply_configuration_to_topography(
 
     configuration
         .schema
+        .as_ref()
+        .unwrap()
         .iter()
         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
         .for_each(|(key, schema)| {
@@ -232,6 +234,8 @@ pub fn apply_configuration_to_topography(
     // Create the non-derived streams first.
     for (stream_name, topic_defintion) in configuration
         .streams
+        .as_ref()
+        .unwrap()
         .iter()
         .filter(|(_, def)| def.base.is_none())
     {
@@ -249,6 +253,8 @@ pub fn apply_configuration_to_topography(
 
     for (stream_name, topic_defintion) in configuration
         .streams
+        .as_ref()
+        .unwrap()
         .iter()
         .filter(|(_, def)| def.base.is_some())
     {

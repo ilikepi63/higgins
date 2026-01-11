@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 /// Topography. A configuration itself is also a Topography once it has been applied.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Configuration {
-    pub streams: BTreeMap<String, ConfigurationStreamDefinition>,
-    pub schema: BTreeMap<String, Schema>,
-    // functions: BTreeMap<String, Vec<u8>>,
+    pub streams: Option<BTreeMap<String, ConfigurationStreamDefinition>>,
+    pub schema: Option<BTreeMap<String, Schema>>,
+    pub storage: Option<BTreeMap<String, Storage>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -60,6 +60,36 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
         .collect::<Vec<_>>();
 
     arrow::datatypes::Schema::new(fields)
+}
+
+/// Generic Storage Container that is covariant over
+/// different storage container implementations.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct Storage {
+    #[serde(rename = "type")]
+    storage_type: StorageType,
+    #[serde(flatten)]
+    aws_s3_config: AwsS3Storage,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageType {
+    Memory,
+    File,
+    S3,
+}
+
+/// Storage container for AWS S3.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct AwsS3Storage {
+    aws_access_key_id: Option<String>,
+    aws_secret_access_key: Option<String>,
+    aws_region: Option<String>,
+    aws_endpoint: Option<String>,
+    aws_token: Option<String>,
+    aws_container_credentials_relative_uri: Option<String>,
+    aws_allow_http: Option<bool>,
 }
 
 /// Deserializes the given byte array into a configuration.
@@ -133,7 +163,7 @@ mod test {
                             function_name: None,
                         },
                     );
-                    streams
+                    Some(streams)
                 },
                 schema: {
                     let mut schema = BTreeMap::new();
@@ -150,36 +180,39 @@ mod test {
                     update_customer_fields.insert("id".to_string(), "string".to_string());
                     update_customer_fields.insert("last_name".to_string(), "string".to_string());
                     schema.insert("update_customer_event".to_string(), update_customer_fields);
-                    schema
+                    Some(schema)
                 },
+                storage: None,
             },
             "Configuration struct should match expected values"
         );
 
         // Assert individual fields
+        let config_streams = config.streams.unwrap();
+        let config_schema = config.schema.unwrap();
         assert_eq!(
-            config.streams.len(),
+            config_streams.len(),
             2,
             "Should have two stream definitions"
         );
         assert_eq!(
-            config.streams.get("customer").unwrap().partition_key,
+            config_streams.get("customer").unwrap().partition_key,
             "id",
             "Customer stream partition key should be id"
         );
         assert_eq!(
-            config.streams.get("customer").unwrap().stream_type,
+            config_streams.get("customer").unwrap().stream_type,
             Some("reduce".to_string()),
             "Customer stream type should be reduce"
         );
         assert_eq!(
-            config.streams.get("update_customer").unwrap().base,
+            config_streams.get("update_customer").unwrap().base,
             None,
             "Update_customer stream base should be None"
         );
-        assert_eq!(config.schema.len(), 2, "Should have two schema definitions");
+        assert_eq!(config_schema.len(), 2, "Should have two schema definitions");
         assert_eq!(
-            config.schema.get("customer").unwrap().get("age").unwrap(),
+            config_schema.get("customer").unwrap().get("age").unwrap(),
             "int32",
             "Customer schema age field should be int32"
         );
@@ -243,7 +276,7 @@ mod test {
 
         // Define the expected Configuration struct
         let expected = Configuration {
-            schema: BTreeMap::from([
+            schema: Some(BTreeMap::from([
                 (
                     "customer".to_string(),
                     BTreeMap::from([
@@ -276,8 +309,8 @@ mod test {
                         ("province".to_string(), "string".to_string()),
                     ]),
                 ),
-            ]),
-            streams: BTreeMap::from([
+            ])),
+            streams: Some(BTreeMap::from([
                 (
                     "customer".to_string(),
                     ConfigurationStreamDefinition {
@@ -335,27 +368,74 @@ mod test {
                         function_name: None,
                     },
                 ),
-            ]),
+            ])),
+            storage: None,
         };
-        assert_eq!(config.schema, expected.schema);
-        assert_eq!(
-            config.streams.get("address"),
-            expected.streams.get("address")
-        );
-        assert_eq!(
-            config.streams.get("customer"),
-            expected.streams.get("customer")
-        );
-
-        assert_eq!(
-            config.streams.get("customer_address"),
-            expected.streams.get("customer_address")
-        );
-
         // Assert that the deserialized configuration matches the expected one
         assert_eq!(
             config, expected,
             "Deserialized configuration does not match expected"
+        );
+
+        assert_eq!(config.schema, expected.schema);
+        let config_streams = config.streams.unwrap();
+        let expected_streams = expected.streams.unwrap();
+
+        assert_eq!(
+            config_streams.get("address"),
+            expected_streams.get("address")
+        );
+        assert_eq!(
+            config_streams.get("customer"),
+            expected_streams.get("customer")
+        );
+
+        assert_eq!(
+            config_streams.get("customer_address"),
+            expected_streams.get("customer_address")
+        );
+    }
+
+    #[test]
+    fn can_deserialize_basic_storage() {
+        let example_config = r#"
+            [storage.aws]
+            type = "s3"
+            aws_access_key_id = "112345"
+            aws_secret_access_key =  "secret"
+            aws_region = "EU_WEST_1"
+            "#;
+
+        let config = from_toml(example_config.as_bytes());
+
+        dbg!(&config);
+
+        assert_eq!(
+            config,
+            Configuration {
+                streams: None,
+                schema: None,
+                storage: Some({
+                    let mut map = BTreeMap::new();
+
+                    map.insert(
+                        "aws".to_string(),
+                        Storage {
+                            storage_type: StorageType::S3,
+                            aws_s3_config: AwsS3Storage {
+                                aws_access_key_id: Some("112345".to_string()),
+                                aws_secret_access_key: Some("secret".to_string()),
+                                aws_region: Some("EU_WEST_1".to_string()),
+                                aws_endpoint: None,
+                                aws_token: None,
+                                aws_container_credentials_relative_uri: None,
+                                aws_allow_http: None,
+                            },
+                        },
+                    );
+                    map
+                })
+            }
         );
     }
 }
