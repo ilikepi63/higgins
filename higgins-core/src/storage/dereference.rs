@@ -16,7 +16,11 @@ pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8
             // Retrieve the object store reference.
             let object_store = {
                 // let broker = broker.read().await;
-                broker.object_store.clone()
+                broker
+                    .object_store
+                    .as_ref()
+                    .ok_or(HigginsError::ObjectStoreNotConfigured)?
+                    .clone()
             };
 
             let object_name = uuid::Uuid::from_bytes(reference_object_store.object_key).to_string();

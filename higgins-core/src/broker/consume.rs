@@ -173,7 +173,14 @@ impl Broker {
             let batch_responses = batch_responses.clone();
 
             tokio::spawn(async move {
-                let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
+                let get_object_result = object_store
+                    .ok_or(HigginsError::ObjectStoreNotConfigured)
+                    .inspect_err(|_| {
+                        tracing::error!("Attempt to consume with no Object Store present.");
+                    })
+                    .unwrap()
+                    .get(&Path::from(object_name.as_str()))
+                    .await;
 
                 let result = match get_object_result {
                     Ok(get_result) => {

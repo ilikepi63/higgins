@@ -44,20 +44,6 @@ impl Broker {
         let flush_interval_in_ms: u64 = 500;
         let segment_size_in_bytes: u64 = 50_000;
 
-        let object_store_ref = {
-            let mut dir = dir.clone();
-
-            dir.push("data");
-
-            if !dir.exists() {
-                std::fs::create_dir(&dir).unwrap();
-            }
-
-            Arc::new(object_store::local::LocalFileSystem::new_with_prefix(dir).unwrap())
-        };
-
-        let object_store = object_store_ref.clone();
-
         let indexes = Arc::new(IndexDirectory::new(index_dir).unwrap());
 
         let buffer: MutableCollection =
@@ -85,7 +71,7 @@ impl Broker {
 
         Self {
             streams: BTreeMap::new(),
-            object_store,
+            object_store: None, // No object store is to be created at this point, as it is configurable.
             indexes,
             segment_size_in_bytes,
             flush_interval_in_ms,
@@ -101,58 +87,62 @@ impl Broker {
     }
 
     pub fn start(&mut self, _broker: Arc<RwLock<Self>>) {
-        let flush_interval_in_ms = self.flush_interval_in_ms;
+        if let Some(object_store) = self.object_store.as_ref() {
+            let flush_interval_in_ms = self.flush_interval_in_ms;
 
-        let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
-        self.flush_tx = Some(flush_tx);
-        let object_store_ref = self.object_store.clone();
-        let buffer = self.collection.clone();
+            let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
+            self.flush_tx = Some(flush_tx);
+            let object_store_ref = object_store.clone();
+            let buffer = self.collection.clone();
 
-        // Flusher task.
-        tokio::task::spawn(async move {
-            loop {
-                let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
+            // Flusher task.
+            tokio::task::spawn(async move {
+                loop {
+                    let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
 
-                // Await either a flush command or a timer expiry.
-                tokio::select! {
-                    _timer = timer => {    },
-                    _recv = flush_rx.recv() => {}
-                };
+                    // Await either a flush command or a timer expiry.
+                    tokio::select! {
+                        _timer = timer => {    },
+                        _recv = flush_rx.recv() => {}
+                    };
 
-                let mut buffer_lock = buffer.write().await;
+                    let mut buffer_lock = buffer.write().await;
 
-                if buffer_lock.0.size() > 0 {
-                    let mut new_ref = ProduceRequestCollection::new();
-                    let mut new_collection_vec = vec![];
-                    std::mem::swap(&mut buffer_lock.0, &mut new_ref);
-                    std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
+                    if buffer_lock.0.size() > 0 {
+                        let mut new_ref = ProduceRequestCollection::new();
+                        let mut new_collection_vec = vec![];
+                        std::mem::swap(&mut buffer_lock.0, &mut new_ref);
+                        std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
 
-                    drop(buffer_lock); // Explicitly drop the lock.
+                        drop(buffer_lock); // Explicitly drop the lock.
 
-                    match flush(new_ref, object_store_ref.clone()).await {
-                        Ok(responses) => {
-                            let mut iter = new_collection_vec.into_iter();
+                        match flush(new_ref, object_store_ref.clone()).await {
+                            Ok(responses) => {
+                                let mut iter = new_collection_vec.into_iter();
 
-                            // We need to fix riskless here.
-                            for response in responses {
-                                // TODO: O(n^2) here
-                                let res = iter
-                                    .find(|r| r.inner().request_id == response.request.request_id)
-                                    .unwrap();
+                                // We need to fix riskless here.
+                                for response in responses {
+                                    // TODO: O(n^2) here
+                                    let res = iter
+                                        .find(|r| {
+                                            r.inner().request_id == response.request.request_id
+                                        })
+                                        .unwrap();
 
-                                res.respond(response).unwrap();
+                                    res.respond(response).unwrap();
+                                }
                             }
-                        }
-                        Err(err) => {
-                            tracing::error!(
-                                "Error occurred when trying to flush buffer: {:#?}",
-                                err
-                            );
+                            Err(err) => {
+                                tracing::error!(
+                                    "Error occurred when trying to flush buffer: {:#?}",
+                                    err
+                                );
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 }
 
