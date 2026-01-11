@@ -2,6 +2,7 @@
 name = "higgins-codec"
 version = "0.1.3"
 edition = "2024"
+license-file = "../LICENSE.md"
 
 [dependencies]
 prost = "0.13.5"
