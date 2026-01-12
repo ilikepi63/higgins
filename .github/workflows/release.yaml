@@ -74,7 +74,7 @@ jobs:
           # If `true` all crates will be cached, otherwise only dependent crates will be cached.
           cache-all-crates: "true"
       - name: Build
-        run: cd ${{ matrix.directory }} && cargo build --release
+        run: cargo build --release
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
