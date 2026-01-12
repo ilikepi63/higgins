@@ -1,0 +1,83 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Release
+        uses: softprops/action-gh-release@v2
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          # MacOS Arm
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: higgins-cli
+            asset_name: higgins-cli
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: higgins
+            asset_name: higgins
+
+          # MacOS x86
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: higgins-cli
+            asset_name: higgins-cli
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: higgins
+            asset_name: higgins
+
+          # Windows x86
+          - target: x86_64-pc-windows-msvc
+            os: macos-latest
+            artifact_name: higgins-cli.exe
+            asset_name: higgins-cli
+          - target: x86_64-pc-windows-msvc
+            os: macos-latest
+            artifact_name: higgins.exe
+            asset_name: higgins
+
+          # Linux x86
+          - target: x86_64-unknown-linux-gnu
+            os: macos-latest
+            artifact_name: higgins-cli
+            asset_name: higgins-cli
+          - target: x86_64-unknown-linux-gnu
+            os: macos-latest
+            artifact_name: higgins
+            asset_name: higgins
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Determines if the cache should be saved even when the workflow has failed.
+          cache-on-failure: "true"
+          # Determines which crates are cached.
+          # If `true` all crates will be cached, otherwise only dependent crates will be cached.
+          cache-all-crates: "true"
+      - name: Build
+        run: cd ${{ matrix.directory }} && cargo build --release
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
