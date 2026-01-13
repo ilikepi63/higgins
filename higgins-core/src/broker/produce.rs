@@ -36,23 +36,29 @@ impl Broker {
             data,
         };
 
-        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
+        let response = self
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .put(request);
 
-        // Add the request to the buffer for flushing.
-        {
-            let mut buffer_lock = self.collection.write().await;
+        // let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
-            let _ = buffer_lock.0.collect(request.inner().clone());
+        // // Add the request to the buffer for flushing.
+        // {
+        //     let mut buffer_lock = self.collection.write().await;
 
-            buffer_lock.1.push(request);
+        //     let _ = buffer_lock.0.collect(request.inner().clone());
 
-            // TODO: This is currently hardcoded to 50kb, but we possibly want to make
-            if buffer_lock.0.size() > 50_000 {
-                let _ = self.flush_tx.as_ref().unwrap().send(()).await;
-            }
+        //     buffer_lock.1.push(request);
 
-            drop(buffer_lock);
-        }
+        //     // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+        //     if buffer_lock.0.size() > 50_000 {
+        //         let _ = self.flush_tx.as_ref().unwrap().send(()).await;
+        //     }
+
+        //     drop(buffer_lock);
+        // }
 
         // Await the response from flushing.
         let response = response.recv().await.unwrap();
@@ -142,20 +148,26 @@ impl Broker {
             data,
         };
 
-        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
+        let response = self
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .put(request);
 
-        let mut buffer_lock = self.collection.write().await;
+        // let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
-        let _ = buffer_lock.0.collect(request.inner().clone());
+        // let mut buffer_lock = self.collection.write().await;
 
-        buffer_lock.1.push(request);
+        // let _ = buffer_lock.0.collect(request.inner().clone());
 
-        // TODO: This is currently hardcoded to 50kb, but we possibly want to make
-        if buffer_lock.0.size() > 50_000 {
-            let _ = self.flush_tx.as_ref().unwrap().send(()).await;
-        }
+        // buffer_lock.1.push(request);
 
-        drop(buffer_lock);
+        // // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+        // if buffer_lock.0.size() > 50_000 {
+        //     let _ = self.flush_tx.as_ref().unwrap().send(()).await;
+        // }
+
+        // drop(buffer_lock);
 
         let response = response.recv().await.unwrap();
 
