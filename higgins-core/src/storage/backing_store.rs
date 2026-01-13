@@ -43,6 +43,19 @@ struct ObjectBackingStore {
     flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
 }
 
+impl ObjectBackingStore {
+    pub fn new(store: Arc<dyn ObjectStore>, flush_interval: u64) -> Self {
+        let collection = Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
+
+        Self {
+            flush_interval_in_ms: flush_interval,
+            object_store: store,
+            collection,
+            flush_tx: None,
+        }
+    }
+}
+
 impl BackingStore for ObjectBackingStore {
     type Error = HigginsError;
 
