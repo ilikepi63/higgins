@@ -1,6 +1,8 @@
 use super::Broker;
-
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
+use crate::topography::config::{Storage, StorageType};
+use higgins_functions::wasmtime::Memory;
+use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -133,5 +135,17 @@ impl Broker {
         }
 
         Ok(())
+    }
+}
+
+pub fn instantiate_storage_from_configuration(
+    (storage_config_name, storage_config): &(String, Storage),
+) {
+    match storage_config.storage_type {
+        StorageType::Memory => {
+            let object_storage = InMemory::new();
+        }
+        StorageType::File => {}
+        StorageType::S3 => {}
     }
 }

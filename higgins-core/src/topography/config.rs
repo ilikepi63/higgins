@@ -67,9 +67,9 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Storage {
     #[serde(rename = "type")]
-    storage_type: StorageType,
+    pub storage_type: StorageType,
     #[serde(flatten)]
-    aws_s3_config: AwsS3Storage,
+    pub aws_s3_config: AwsS3Storage,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
