@@ -16,7 +16,10 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = "0.3.19"
 uuid = { version = "1.16.0", features = ["v4"] }
+<<<<<<< HEAD
 object_store = {version = "0.12", features = ["aws", "azure", "gcp"]}
+=======
+>>>>>>> origin/main
 
 # Higgins
 higgins-codec = { path = "../higgins-codec" }
