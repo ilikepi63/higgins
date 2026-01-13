@@ -1,6 +1,6 @@
 use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
-use crate::storage::backing_store::ObjectBackingStore;
+use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
 use higgins_functions::wasmtime::Memory;
 use object_store::aws::AmazonS3Builder;
@@ -36,7 +36,8 @@ impl Broker {
 
         // Apply the storages.
         if let Some(storage) = self.topography.storage.as_ref() {
-            instantiate_storage_from_configuration(storage);
+            let backing_store = instantiate_storage_from_configuration(storage);
+            self.backing_store = Some(backing_store);
         }
 
         // Generate Stream metadata to create.
@@ -143,13 +144,19 @@ use crate::topography::config::AwsS3Storage;
 
 pub fn instantiate_storage_from_configuration(
     (_storage_config_name, storage_config): &(String, Storage),
-) {
+) -> Arc<dyn BackingStore<Error = HigginsError>> {
     match storage_config.storage_type {
         StorageType::Memory => {
             let store = InMemory::new();
-            ObjectBackingStore::new(Arc::new(store), 250); // TODO: magic number here.
+
+            let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
+            backing_store.start_task().unwrap();
+
+            Arc::new(backing_store) // TODO: magic number here.
         }
-        StorageType::File => {}
+        StorageType::File => {
+            todo!()
+        }
         StorageType::S3 => {
             let s3_builder = AmazonS3Builder::new();
 
@@ -201,7 +208,10 @@ pub fn instantiate_storage_from_configuration(
 
             let store = s3_builder.build().unwrap();
 
-            ObjectBackingStore::new(Arc::new(store), 250); // TODO: magic number here.
+            let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
+            backing_store.start_task().unwrap();
+
+            Arc::new(backing_store) // TODO: magic number here.
         }
     }
 }

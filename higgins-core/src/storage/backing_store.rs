@@ -23,7 +23,7 @@ use crate::{
 pub trait BackingStore: Send + Sync + std::fmt::Debug {
     type Error;
 
-    fn start_task(&self) -> Result<Flusher, Self::Error>;
+    fn start_task(&mut self) -> Result<(), Self::Error>;
     // Temporary shim to allow consumptions to happen.
     fn get_object_store(&self) -> Arc<dyn ObjectStore>;
 
@@ -31,7 +31,7 @@ pub trait BackingStore: Send + Sync + std::fmt::Debug {
     fn put(&self, request: ProduceRequest) -> Response<BatchCoordinate>;
 }
 
-pub struct Flusher(tokio::sync::mpsc::Sender<()>);
+pub struct Flusher(pub tokio::sync::mpsc::Sender<()>);
 
 type MutableCollection = Arc<
     RwLock<(
@@ -93,7 +93,7 @@ impl BackingStore for ObjectBackingStore {
         response
     }
 
-    fn start_task(&self) -> Result<Flusher, Self::Error> {
+    fn start_task(&mut self) -> Result<(), Self::Error> {
         let object_store = self.object_store.clone();
 
         let flush_interval_in_ms = self.flush_interval_in_ms;
@@ -149,7 +149,9 @@ impl BackingStore for ObjectBackingStore {
             }
         });
 
-        Ok(Flusher(flush_tx))
+        self.flush_tx = Some(flush_tx);
+
+        Ok(())
     }
 }
 
