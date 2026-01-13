@@ -8,7 +8,11 @@ use std::{net::TcpStream, time::Duration};
 
 mod common;
 
-static CONFIG: &str = r#"[schema.customer]
+static CONFIG: &str = r#"
+[storage.memory]
+type="memory"
+
+[schema.customer]
 id = "string"
 first_name = "string"
 last_name = "string"
