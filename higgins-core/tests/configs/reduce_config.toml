@@ -1,3 +1,6 @@
+[storage.memory]
+type= "memory"
+
 [schema.amount]
 id = "string"
 data = "int32"
