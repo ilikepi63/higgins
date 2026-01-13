@@ -1,8 +1,8 @@
 //! Currently, this is referred to as the `backing store`, which is a temporary name
 //! given to the hard storage that backs up the streams from Higgins.
 
-use crate::error::HigginsError;
 use crate::storage::shared_log_segment::SharedLogSegment;
+use crate::{error::HigginsError, utils::request_response::Response};
 use std::time::Duration;
 
 use riskless::{
@@ -26,6 +26,9 @@ pub trait BackingStore: Send + Sync + std::fmt::Debug {
     fn start_task(&self) -> Result<Flusher, Self::Error>;
     // Temporary shim to allow consumptions to happen.
     fn get_object_store(&self) -> Arc<dyn ObjectStore>;
+
+    /// Put data into this data store.
+    fn put(&self, request: ProduceRequest) -> Response<BatchCoordinate>;
 }
 
 pub struct Flusher(tokio::sync::mpsc::Sender<()>);
@@ -64,6 +67,30 @@ impl BackingStore for ObjectBackingStore {
 
     fn get_object_store(&self) -> Arc<dyn ObjectStore> {
         self.object_store.clone()
+    }
+
+    fn put(&self, request: ProduceRequest) -> Response<BatchCoordinate> {
+        let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
+
+        let collection_ref = self.collection.clone();
+        let flush_tx = self.flush_tx.as_ref().unwrap().clone();
+
+        tokio::spawn(async move {
+            let mut buffer_lock = collection_ref.write().await;
+
+            let _ = buffer_lock.0.collect(request.inner().clone());
+
+            buffer_lock.1.push(request);
+
+            // TODO: This is currently hardcoded to 50kb, but we possibly want to make
+            if buffer_lock.0.size() > 50_000 {
+                let _ = flush_tx.send(()).await;
+            }
+
+            drop(buffer_lock);
+        });
+
+        response
     }
 
     fn start_task(&self) -> Result<Flusher, Self::Error> {
