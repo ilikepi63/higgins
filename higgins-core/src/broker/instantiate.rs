@@ -87,109 +87,61 @@ impl Broker {
     }
 
     pub fn start(&mut self, _broker: Arc<RwLock<Self>>) {
-        if let Some(object_store) = self.object_store.as_ref() {
-            let flush_interval_in_ms = self.flush_interval_in_ms;
+        // if let Some(object_store) = self.object_store.as_ref() {
+        //     let flush_interval_in_ms = self.flush_interval_in_ms;
 
-            let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
-            self.flush_tx = Some(flush_tx);
-            let object_store_ref = object_store.clone();
-            let buffer = self.collection.clone();
+        //     let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
+        //     self.flush_tx = Some(flush_tx);
+        //     let object_store_ref = object_store.clone();
+        //     let buffer = self.collection.clone();
 
-            // Flusher task.
-            tokio::task::spawn(async move {
-                loop {
-                    let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
+        //     // Flusher task.
+        //     tokio::task::spawn(async move {
+        //         loop {
+        //             let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
 
-                    // Await either a flush command or a timer expiry.
-                    tokio::select! {
-                        _timer = timer => {    },
-                        _recv = flush_rx.recv() => {}
-                    };
+        //             // Await either a flush command or a timer expiry.
+        //             tokio::select! {
+        //                 _timer = timer => {    },
+        //                 _recv = flush_rx.recv() => {}
+        //             };
 
-                    let mut buffer_lock = buffer.write().await;
+        //             let mut buffer_lock = buffer.write().await;
 
-                    if buffer_lock.0.size() > 0 {
-                        let mut new_ref = ProduceRequestCollection::new();
-                        let mut new_collection_vec = vec![];
-                        std::mem::swap(&mut buffer_lock.0, &mut new_ref);
-                        std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
+        //             if buffer_lock.0.size() > 0 {
+        //                 let mut new_ref = ProduceRequestCollection::new();
+        //                 let mut new_collection_vec = vec![];
+        //                 std::mem::swap(&mut buffer_lock.0, &mut new_ref);
+        //                 std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
 
-                        drop(buffer_lock); // Explicitly drop the lock.
+        //                 drop(buffer_lock); // Explicitly drop the lock.
 
-                        match flush(new_ref, object_store_ref.clone()).await {
-                            Ok(responses) => {
-                                let mut iter = new_collection_vec.into_iter();
+        //                 match flush(new_ref, object_store_ref.clone()).await {
+        //                     Ok(responses) => {
+        //                         let mut iter = new_collection_vec.into_iter();
 
-                                // We need to fix riskless here.
-                                for response in responses {
-                                    // TODO: O(n^2) here
-                                    let res = iter
-                                        .find(|r| {
-                                            r.inner().request_id == response.request.request_id
-                                        })
-                                        .unwrap();
+        //                         // We need to fix riskless here.
+        //                         for response in responses {
+        //                             // TODO: O(n^2) here
+        //                             let res = iter
+        //                                 .find(|r| {
+        //                                     r.inner().request_id == response.request.request_id
+        //                                 })
+        //                                 .unwrap();
 
-                                    res.respond(response).unwrap();
-                                }
-                            }
-                            Err(err) => {
-                                tracing::error!(
-                                    "Error occurred when trying to flush buffer: {:#?}",
-                                    err
-                                );
-                            }
-                        }
-                    }
-                }
-            });
-        }
+        //                             res.respond(response).unwrap();
+        //                         }
+        //                     }
+        //                     Err(err) => {
+        //                         tracing::error!(
+        //                             "Error occurred when trying to flush buffer: {:#?}",
+        //                             err
+        //                         );
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     });
+        // }
     }
-}
-
-// This is a shim for a workaround while we fix flush.
-use object_store::ObjectStore;
-use object_store::PutPayload;
-
-async fn flush(
-    reqs: ProduceRequestCollection,
-    object_storage: Arc<dyn ObjectStore>,
-    // index_dir: Arc<IndexDirectory>,
-    // broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
-) -> Result<Vec<BatchCoordinate>, Box<dyn std::error::Error>> {
-    let path = uuid::Uuid::new_v4();
-
-    let reqs: SharedLogSegment = (path.as_bytes().to_owned(), reqs).try_into()?;
-
-    let batch_coords = reqs.get_batch_coords().clone();
-
-    let buf: bytes::Bytes = reqs.into();
-
-    let path_string = object_store::path::Path::from(path.to_string());
-
-    let _put_result = object_storage
-        .put(&path_string, PutPayload::from_bytes(buf))
-        .await?;
-
-    // TODO: assert put_result has the correct response?
-
-    // TODO: The responses here?
-    // let put_result = index_dir
-    //     .commit_file(
-    //         path.into_bytes(),
-    //         1,
-    //         buf_size.try_into()?,
-    //         batch_coords
-    //             .iter()
-    //             .map(CommitBatchRequest::from)
-    //             .collect::<Vec<_>>(),
-    //         broker,
-    //     )
-    //     .await;
-
-    // Ok(put_result
-    //     .iter()
-    //     .map(ProduceResponse::from)
-    //     .collect::<Vec<_>>())
-
-    Ok(batch_coords)
 }
