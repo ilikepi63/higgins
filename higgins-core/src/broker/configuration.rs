@@ -36,8 +36,7 @@ impl Broker {
 
         // Apply the storages.
         if let Some(storage) = self.topography.storage.as_ref() {
-            // Object storage instantiation goes here..
-            // self.object_store = Some()
+            instantiate_storage_from_configuration(storage);
         }
 
         // Generate Stream metadata to create.

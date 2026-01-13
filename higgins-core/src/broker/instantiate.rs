@@ -71,13 +71,14 @@ impl Broker {
 
         Self {
             streams: BTreeMap::new(),
-            object_store: None, // No object store is to be created at this point, as it is configurable.
+            // object_store: None, // No object store is to be created at this point, as it is configurable.
             indexes,
-            segment_size_in_bytes,
-            flush_interval_in_ms,
-            collection: cloned_buffer_ref,
-            flush_tx: None,
+            // segment_size_in_bytes,
+            // flush_interval_in_ms,
+            // collection: cloned_buffer_ref,
+            // flush_tx: None,
             dir,
+            backing_store: None,
             subscriptions: BTreeMap::new(),
             topography: Topography::new(),
             clients: ClientCollection::empty(),

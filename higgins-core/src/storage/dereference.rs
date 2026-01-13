@@ -17,9 +17,10 @@ pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8
             let object_store = {
                 // let broker = broker.read().await;
                 broker
-                    .object_store
+                    .backing_store
                     .as_ref()
                     .ok_or(HigginsError::ObjectStoreNotConfigured)?
+                    .get_object_store()
                     .clone()
             };
 

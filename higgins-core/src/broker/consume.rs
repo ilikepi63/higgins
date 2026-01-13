@@ -148,7 +148,12 @@ impl Broker {
         &self,
         batch_responses: Vec<FindBatchResponse>,
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
-        let object_storage = self.object_store.clone();
+        let object_storage = self
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .get_object_store()
+            .clone();
 
         let objects_to_retrieve = batch_responses
             .iter()
@@ -173,14 +178,7 @@ impl Broker {
             let batch_responses = batch_responses.clone();
 
             tokio::spawn(async move {
-                let get_object_result = object_store
-                    .ok_or(HigginsError::ObjectStoreNotConfigured)
-                    .inspect_err(|_| {
-                        tracing::error!("Attempt to consume with no Object Store present.");
-                    })
-                    .unwrap()
-                    .get(&Path::from(object_name.as_str()))
-                    .await;
+                let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
 
                 let result = match get_object_result {
                     Ok(get_result) => {

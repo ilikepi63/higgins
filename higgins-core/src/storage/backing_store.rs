@@ -20,10 +20,12 @@ use crate::{
 };
 
 /// Represents the roles starting
-trait BackingStore {
+pub trait BackingStore: Send + Sync + std::fmt::Debug {
     type Error;
 
     fn start_task(&self) -> Result<Flusher, Self::Error>;
+    // Temporary shim to allow consumptions to happen.
+    fn get_object_store(&self) -> Arc<dyn ObjectStore>;
 }
 
 pub struct Flusher(tokio::sync::mpsc::Sender<()>);
@@ -36,6 +38,7 @@ type MutableCollection = Arc<
 >;
 
 /// Backing store that replicates the S3 API.
+#[derive(Debug)]
 pub struct ObjectBackingStore {
     flush_interval_in_ms: u64,
     object_store: Arc<dyn ObjectStore>,
@@ -58,6 +61,10 @@ impl ObjectBackingStore {
 
 impl BackingStore for ObjectBackingStore {
     type Error = HigginsError;
+
+    fn get_object_store(&self) -> Arc<dyn ObjectStore> {
+        self.object_store.clone()
+    }
 
     fn start_task(&self) -> Result<Flusher, Self::Error> {
         let object_store = self.object_store.clone();
