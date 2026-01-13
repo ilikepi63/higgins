@@ -53,7 +53,7 @@ pub struct Topography {
     pub functions: BTreeMap<Key, Vec<u8>>,
     pub configurations: BTreeMap<Key, Configuration>,
     pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
-    pub storage: BTreeMap<Key, Storage>,
+    pub storage: Option<(String, Storage)>,
 }
 
 impl Default for Topography {
@@ -70,7 +70,7 @@ impl Topography {
             functions: BTreeMap::new(),
             configurations: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
-            storage: BTreeMap::new(),
+            storage: None,
         }
     }
 
@@ -222,6 +222,12 @@ pub fn apply_configuration_to_topography(
         configuration,
         topography
     );
+
+    if let Some(storage) = configuration.storage.as_ref() {
+        if let Some((name, storage)) = storage.first_key_value() {
+            topography.storage = Some((name.clone(), storage.clone()));
+        }
+    }
 
     configuration
         .schema

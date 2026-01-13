@@ -30,6 +30,13 @@ impl Broker {
         // Apply the configuration to the topography.
         apply_configuration_to_topography(config, &mut self.topography)?;
 
+        // Apply the storages.
+        // let storage = self.topography.storage.first_entry;
+
+        if let Some(storage) = storage {
+            let storage = storage.get();
+        }
+
         // Generate Stream metadata to create.
         let streams_to_create = self
             .topography

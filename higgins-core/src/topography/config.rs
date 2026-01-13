@@ -64,7 +64,7 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
 
 /// Generic Storage Container that is covariant over
 /// different storage container implementations.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Storage {
     #[serde(rename = "type")]
     storage_type: StorageType,
@@ -72,7 +72,7 @@ pub struct Storage {
     aws_s3_config: AwsS3Storage,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageType {
     Memory,
@@ -81,7 +81,7 @@ pub enum StorageType {
 }
 
 /// Storage container for AWS S3.
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AwsS3Storage {
     aws_access_key_id: Option<String>,
     aws_secret_access_key: Option<String>,
