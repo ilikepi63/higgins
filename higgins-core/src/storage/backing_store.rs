@@ -36,7 +36,7 @@ type MutableCollection = Arc<
 >;
 
 /// Backing store that replicates the S3 API.
-struct ObjectBackingStore {
+pub struct ObjectBackingStore {
     flush_interval_in_ms: u64,
     object_store: Arc<dyn ObjectStore>,
     collection: MutableCollection,

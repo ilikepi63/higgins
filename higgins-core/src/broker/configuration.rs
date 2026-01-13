@@ -1,7 +1,9 @@
 use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
+use crate::storage::backing_store::ObjectBackingStore;
 use crate::topography::config::{Storage, StorageType};
 use higgins_functions::wasmtime::Memory;
+use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -138,14 +140,81 @@ impl Broker {
     }
 }
 
+use crate::topography::config::AwsS3Storage;
+
 pub fn instantiate_storage_from_configuration(
-    (storage_config_name, storage_config): &(String, Storage),
+    (_storage_config_name, storage_config): &(String, Storage),
 ) {
     match storage_config.storage_type {
         StorageType::Memory => {
-            let object_storage = InMemory::new();
+            let store = InMemory::new();
+            ObjectBackingStore::new(Arc::new(store), 250); // TODO: magic number here.
         }
         StorageType::File => {}
-        StorageType::S3 => {}
+        StorageType::S3 => {
+            let s3_builder = AmazonS3Builder::new();
+
+            let AwsS3Storage {
+                aws_access_key_id,
+                aws_allow_http,
+                aws_endpoint,
+                aws_region,
+                aws_secret_access_key,
+                aws_token,
+                ..
+            } = storage_config.aws_s3_config.clone();
+
+            let s3_builder = add_to_builder(
+                aws_access_key_id,
+                |builder, val| builder.with_access_key_id(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                aws_allow_http,
+                |builder, val| builder.with_allow_http(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                aws_endpoint,
+                |builder, val| builder.with_endpoint(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                aws_region,
+                |builder, val| builder.with_region(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                aws_secret_access_key,
+                |builder, val| builder.with_secret_access_key(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                aws_token,
+                |builder, val| builder.with_token(val),
+                s3_builder,
+            );
+
+            let store = s3_builder.build().unwrap();
+
+            ObjectBackingStore::new(Arc::new(store), 250); // TODO: magic number here.
+        }
+    }
+}
+
+fn add_to_builder<T, F: Fn(AmazonS3Builder, T) -> AmazonS3Builder>(
+    val: Option<T>,
+    f: F,
+    builder: AmazonS3Builder,
+) -> AmazonS3Builder {
+    if let Some(val) = val {
+        f(builder, val)
+    } else {
+        builder
     }
 }

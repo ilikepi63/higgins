@@ -83,13 +83,13 @@ pub enum StorageType {
 /// Storage container for AWS S3.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AwsS3Storage {
-    aws_access_key_id: Option<String>,
-    aws_secret_access_key: Option<String>,
-    aws_region: Option<String>,
-    aws_endpoint: Option<String>,
-    aws_token: Option<String>,
-    aws_container_credentials_relative_uri: Option<String>,
-    aws_allow_http: Option<bool>,
+    pub aws_access_key_id: Option<String>,
+    pub aws_secret_access_key: Option<String>,
+    pub aws_region: Option<String>,
+    pub aws_endpoint: Option<String>,
+    pub aws_token: Option<String>,
+    pub aws_container_credentials_relative_uri: Option<String>,
+    pub aws_allow_http: Option<bool>,
 }
 
 /// Deserializes the given byte array into a configuration.
