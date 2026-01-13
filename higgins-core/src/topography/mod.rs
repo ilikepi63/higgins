@@ -13,7 +13,7 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
 use crate::topography::{
-    config::{Configuration, ConfigurationStreamDefinition, schema_to_arrow_schema},
+    config::{Configuration, ConfigurationStreamDefinition, Storage, schema_to_arrow_schema},
     errors::TopographyError,
 };
 
@@ -53,6 +53,7 @@ pub struct Topography {
     pub functions: BTreeMap<Key, Vec<u8>>,
     pub configurations: BTreeMap<Key, Configuration>,
     pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
+    pub storage: BTreeMap<Key, Storage>,
 }
 
 impl Default for Topography {
@@ -69,6 +70,7 @@ impl Topography {
             functions: BTreeMap::new(),
             configurations: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
+            storage: BTreeMap::new(),
         }
     }
 
