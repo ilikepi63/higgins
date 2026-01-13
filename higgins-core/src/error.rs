@@ -31,6 +31,9 @@ pub enum HigginsError {
     #[error("Attempt to retrieve object from object store resulted in a failure: {0}")]
     ObjectStoreRetrievalError(String),
 
+    #[error("Attempt to retrieve object store but one was not configured. ")]
+    ObjectStoreNotConfigured,
+
     #[error("Unknown Error")]
     Unknown,
 }

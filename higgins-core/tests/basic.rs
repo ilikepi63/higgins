@@ -9,7 +9,8 @@ use tracing_test::traced_test;
 use common::get_random_port;
 
 fn get_dir() -> PathBuf {
-    let mut dir = temp_dir();
+    // let mut dir = temp_dir();
+    let mut dir = PathBuf::new();
     dir.push("basic");
     dir
 }
@@ -17,9 +18,10 @@ fn get_dir() -> PathBuf {
 static STREAM: &str = "update_customer";
 static PARTITION: &[u8] = "test_partition".as_bytes();
 
-#[traced_test]
 #[test]
 fn can_achieve_basic_broker_functionality() {
+    tracing_subscriber::fmt::init();
+
     let port = get_random_port();
 
     let dir = get_dir();

@@ -13,7 +13,7 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
 use crate::topography::{
-    config::{Configuration, ConfigurationStreamDefinition, schema_to_arrow_schema},
+    config::{Configuration, ConfigurationStreamDefinition, Storage, schema_to_arrow_schema},
     errors::TopographyError,
 };
 
@@ -53,6 +53,7 @@ pub struct Topography {
     pub functions: BTreeMap<Key, Vec<u8>>,
     pub configurations: BTreeMap<Key, Configuration>,
     pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
+    pub storage: Option<(String, Storage)>,
 }
 
 impl Default for Topography {
@@ -69,6 +70,7 @@ impl Topography {
             functions: BTreeMap::new(),
             configurations: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
+            storage: None,
         }
     }
 
@@ -221,8 +223,16 @@ pub fn apply_configuration_to_topography(
         topography
     );
 
+    if let Some(storage) = configuration.storage.as_ref() {
+        if let Some((name, storage)) = storage.first_key_value() {
+            topography.storage = Some((name.clone(), storage.clone()));
+        }
+    }
+
     configuration
         .schema
+        .as_ref()
+        .unwrap()
         .iter()
         .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
         .for_each(|(key, schema)| {
@@ -232,6 +242,8 @@ pub fn apply_configuration_to_topography(
     // Create the non-derived streams first.
     for (stream_name, topic_defintion) in configuration
         .streams
+        .as_ref()
+        .unwrap()
         .iter()
         .filter(|(_, def)| def.base.is_none())
     {
@@ -249,6 +261,8 @@ pub fn apply_configuration_to_topography(
 
     for (stream_name, topic_defintion) in configuration
         .streams
+        .as_ref()
+        .unwrap()
         .iter()
         .filter(|(_, def)| def.base.is_some())
     {

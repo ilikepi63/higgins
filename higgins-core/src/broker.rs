@@ -19,9 +19,9 @@ use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, error::HigginsError, storage::batch_coordinate::BatchCoordinate,
-    storage::index::directory::IndexDirectory, subscription::Subscription, topography::Topography,
-    utils::request_response::Request,
+    client::ClientCollection, error::HigginsError, storage::backing_store::BackingStore,
+    storage::batch_coordinate::BatchCoordinate, storage::index::directory::IndexDirectory,
+    subscription::Subscription, topography::Topography, utils::request_response::Request,
 };
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
@@ -39,15 +39,16 @@ type MutableCollection = Arc<
 pub struct Broker {
     dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
-    pub object_store: Arc<dyn ObjectStore>,
+    // pub object_store: Option<Arc<dyn ObjectStore>>,
 
     // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
     broker_indexes: Vec<(String, Vec<u8>, std::sync::Arc<tokio::sync::Mutex<()>>)>,
-    pub flush_interval_in_ms: u64,
-    pub segment_size_in_bytes: u64,
-    collection: MutableCollection,
-    flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
+    // // pub flush_interval_in_ms: u64,
+    // pub segment_size_in_bytes: u64,
+    // collection: MutableCollection,
+    // flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
+    pub backing_store: Option<Arc<dyn BackingStore<Error = HigginsError>>>,
 
     // Subscriptions.
     #[allow(clippy::type_complexity)]

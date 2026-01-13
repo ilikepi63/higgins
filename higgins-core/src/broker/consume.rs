@@ -148,7 +148,12 @@ impl Broker {
         &self,
         batch_responses: Vec<FindBatchResponse>,
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
-        let object_storage = self.object_store.clone();
+        let object_storage = self
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .get_object_store()
+            .clone();
 
         let objects_to_retrieve = batch_responses
             .iter()
