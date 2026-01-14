@@ -3,6 +3,7 @@
 use std::panic::UnwindSafe;
 
 use futures::FutureExt;
+use tokio::task::JoinHandle;
 
 use crate::error::HigginsError;
 
@@ -54,4 +55,20 @@ type TaskHandle = tokio::task::JoinHandle<()>;
 pub struct TaskPtr {
     handle: Option<TaskHandle>,
     tasks: Option<Vec<TaskPtr>>,
+}
+
+impl TaskPtr {
+    pub fn of_vec(v: Vec<TaskPtr>) -> Self {
+        Self {
+            handle: None,
+            tasks: Some(v),
+        }
+    }
+
+    pub fn of_task(t: JoinHandle<()>) -> Self {
+        Self {
+            handle: Some(t),
+            tasks: None,
+        }
+    }
 }
