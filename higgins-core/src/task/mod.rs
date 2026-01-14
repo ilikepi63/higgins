@@ -53,20 +53,23 @@ type TaskHandle = tokio::task::JoinHandle<()>;
 ///
 /// TODO: This might be better handled as a union type?
 pub struct TaskPtr {
+    name: String,
     handle: Option<TaskHandle>,
     tasks: Option<Vec<TaskPtr>>,
 }
 
 impl TaskPtr {
-    pub fn of_vec(v: Vec<TaskPtr>) -> Self {
+    pub fn of_vec(name: String, v: Vec<TaskPtr>) -> Self {
         Self {
+            name,
             handle: None,
             tasks: Some(v),
         }
     }
 
-    pub fn of_task(t: JoinHandle<()>) -> Self {
+    pub fn of_task(name: String, t: JoinHandle<()>) -> Self {
         Self {
+            name,
             handle: Some(t),
             tasks: None,
         }
