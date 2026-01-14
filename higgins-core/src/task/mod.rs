@@ -14,6 +14,8 @@ impl TaskHandler {
         F: Future + Send + 'static + UnwindSafe,
         F::Output: Send + 'static,
     {
-        tokio::spawn(async move { future.catch_unwind().await });
+        tokio::spawn(async move {
+            let unwind_result = future.catch_unwind().await;
+        });
     }
 }
