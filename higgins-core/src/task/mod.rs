@@ -7,7 +7,9 @@ use futures::FutureExt;
 use crate::error::HigginsError;
 
 /// Primary structure for handling the creation and deletion of tasks.
-pub struct TaskHandler;
+pub struct TaskHandler {
+    handle: TaskHandle,
+}
 
 impl TaskHandler {
     /// Spawn a future inside of this task handle.
@@ -37,4 +39,19 @@ impl TaskDescription {
 
         Ok(())
     }
+}
+
+/// Renaming struct for easier reference.
+///
+/// Generally, these tasks are considering long running tasks
+/// and should only be returning unit or !.
+type TaskHandle = tokio::task::JoinHandle<()>;
+
+/// A pointer to either a task handle
+/// or another set of task handles.
+///
+/// TODO: This might be better handled as a union type?
+pub struct TaskPtr {
+    handle: Option<TaskHandle>,
+    tasks: Option<Vec<TaskPtr>>,
 }
