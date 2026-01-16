@@ -10,6 +10,7 @@ use error::HigginsTaskError;
 pub mod error;
 
 /// Primary structure for handling the creation and deletion of tasks.
+#[derive(Debug)]
 pub struct TaskHandler {
     root: TaskPtr,
 }
@@ -50,6 +51,8 @@ impl TaskHandler {
     ) -> Result<&mut TaskPtr, HigginsTaskError> {
         let description_layers = task_description.layers();
 
+        todo!();
+
         loop {
             if description_layers.len() == 1 {
                 // If the layer is one length, we basically just create a taskhandle on the root layer.
@@ -62,6 +65,7 @@ impl TaskHandler {
 /// The description of a given task.
 ///
 /// This includes the logic that surrounds how layering of tasks are sorted out.
+#[derive(Debug)]
 pub struct TaskDescription(String);
 
 impl TaskDescription {
@@ -91,10 +95,17 @@ type TaskHandle = tokio::task::JoinHandle<()>;
 /// or another set of task handles.
 ///
 /// TODO: This might be better handled as a union type?
+#[derive(Debug)]
 pub struct TaskPtr {
     name: String,
     handle: Option<TaskHandle>,
     tasks: Option<Vec<TaskPtr>>,
+}
+
+impl PartialEq for TaskPtr {
+    fn eq(&self, other: &Self) -> bool {
+        other.name == self.name
+    }
 }
 
 impl TaskPtr {
@@ -119,8 +130,8 @@ impl TaskPtr {
 mod test {
     use super::*;
 
-    #[test]
-    fn basic_task_handler_happy_path() {
+    #[tokio::test]
+    async fn basic_task_handler_happy_path() {
         let task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
@@ -140,5 +151,31 @@ mod test {
             .unwrap();
 
         assert!(some_level.handle.is_some());
+    }
+
+    #[tokio::test]
+    async fn get_task_works_correctly() {
+        let mut task_handler = TaskHandler {
+            root: TaskPtr {
+                name: "some".to_string(),
+                handle: None,
+                tasks: Some(vec![TaskPtr {
+                    name: "hierarchy".to_string(),
+                    handle: Some(tokio::spawn(async move {})),
+                    tasks: None,
+                }]),
+            },
+        };
+
+        assert_eq!(
+            task_handler
+                .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+                .unwrap(),
+            &mut TaskPtr {
+                name: "hierarchy".to_string(),
+                handle: Some(tokio::spawn(async move {})),
+                tasks: None,
+            }
+        );
     }
 }
