@@ -26,7 +26,11 @@ impl TaskHandler {
     }
 
     /// Spawn a future inside of this task handle.
-    pub fn spawn<F>(task_description: TaskDescription, future: F) -> Result<(), HigginsTaskError>
+    pub fn spawn<F>(
+        &self,
+        task_description: TaskDescription,
+        future: F,
+    ) -> Result<(), HigginsTaskError>
     where
         F: Future + Send + 'static + UnwindSafe,
         F::Output: Send + 'static,
@@ -118,5 +122,23 @@ mod test {
     #[test]
     fn basic_task_handler_happy_path() {
         let task_handler = TaskHandler::new();
+
+        let result = task_handler.spawn(
+            TaskDescription("some::hierarchy".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        // Now we assert the hierarchy.
+
+        let task_handler_tasks = task_handler.root.tasks.unwrap();
+
+        let some_level = task_handler_tasks
+            .iter()
+            .find(|task| task.name == "some")
+            .unwrap();
+
+        assert!(some_level.handle.is_some());
     }
 }
