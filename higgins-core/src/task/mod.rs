@@ -49,14 +49,30 @@ impl TaskHandler {
         &mut self,
         task_description: TaskDescription,
     ) -> Result<&mut TaskPtr, HigginsTaskError> {
-        let description_layers = task_description.layers();
+        let mut description_layers = task_description.layers();
 
-        todo!();
+        let mut current_task_ptr = &mut self.root;
 
         loop {
-            if description_layers.len() == 1 {
-                // If the layer is one length, we basically just create a taskhandle on the root layer.
-                return Ok(&mut self.root);
+            let next_layer = description_layers.pop_front();
+
+            match next_layer {
+                Some(next_layer) => {
+                    let existing_task = current_task_ptr
+                        .tasks
+                        .as_mut()
+                        .map(|v| v.iter_mut().find(|task| task.name == next_layer))
+                        .flatten();
+
+                    match existing_task {
+                        Some(task) => {
+                            current_task_ptr = task;
+                            continue;
+                        }
+                        None => return Err(HigginsTaskError::TaskHierarchyDoesNotExist),
+                    }
+                }
+                None => return Ok(current_task_ptr),
             }
         }
     }
@@ -155,14 +171,20 @@ mod test {
 
     #[tokio::test]
     async fn get_task_works_correctly() {
+        tracing_subscriber::fmt::init();
+
         let mut task_handler = TaskHandler {
             root: TaskPtr {
-                name: "some".to_string(),
+                name: "root".to_string(),
                 handle: None,
                 tasks: Some(vec![TaskPtr {
-                    name: "hierarchy".to_string(),
+                    name: "some".to_string(),
                     handle: Some(tokio::spawn(async move {})),
-                    tasks: None,
+                    tasks: Some(vec![TaskPtr {
+                        name: "hierarchy".to_string(),
+                        handle: Some(tokio::spawn(async move {})),
+                        tasks: None,
+                    }]),
                 }]),
             },
         };
@@ -177,5 +199,23 @@ mod test {
                 tasks: None,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn get_task_fails_correctly() {
+        tracing_subscriber::fmt::init();
+
+        let mut task_handler = TaskHandler {
+            root: TaskPtr {
+                name: "root".to_string(),
+                handle: None,
+                tasks: None,
+            },
+        };
+
+        assert!(matches!(
+            task_handler.get_task_handle_vec(TaskDescription("some::hierarchy".to_string())),
+            Err(HigginsTaskError::TaskHierarchyDoesNotExist)
+        ));
     }
 }
