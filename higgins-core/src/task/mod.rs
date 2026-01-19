@@ -234,8 +234,6 @@ mod test {
 
         dbg!(&task_handler);
 
-        panic!();
-
         assert_eq!(
             task_handler
                 .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
