@@ -4,6 +4,7 @@ use std::{collections::VecDeque, convert::Infallible, panic::UnwindSafe};
 
 use futures::FutureExt;
 use tokio::task::JoinHandle;
+use tracing_subscriber::layer;
 
 use crate::error::HigginsError;
 use error::HigginsTaskError;
@@ -28,7 +29,7 @@ impl TaskHandler {
 
     /// Spawn a future inside of this task handle.
     pub fn spawn<F>(
-        &self,
+        &mut self,
         task_description: TaskDescription,
         future: F,
     ) -> Result<(), HigginsTaskError>
@@ -36,11 +37,83 @@ impl TaskHandler {
         F: Future + Send + 'static + UnwindSafe,
         F::Output: Send + 'static,
     {
-        tokio::spawn(async move {
-            let unwind_result = future.catch_unwind().await;
-        });
+        let mut layers = task_description.layers();
+
+        let mut current_task_ptr = &mut self.root;
+
+        loop {
+            let next_layer = layers.pop_front();
+
+            match next_layer {
+                Some(next_layer) => {
+                    let exist = {
+                        let vec_exists = current_task_ptr.tasks.is_some();
+                        let task_exists = current_task_ptr.tasks.as_ref().is_some_and(|vec| {
+                            vec.iter().find(|task| task.name == next_layer).is_some()
+                        });
+
+                        (vec_exists, task_exists)
+                    };
+
+                    current_task_ptr = match exist {
+                        // or If there is already a vec, add a task to the vec
+                        (true, false) => {
+                            current_task_ptr.tasks.as_mut().unwrap().push(TaskPtr {
+                                name: next_layer,
+                                handle: None, //Some(Self::spawn_task(future)),
+                                tasks: None,
+                            });
+                            current_task_ptr
+                                .tasks
+                                .as_mut()
+                                .unwrap()
+                                .first_mut()
+                                .unwrap()
+                        }
+                        // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
+                        (false, _) => {
+                            current_task_ptr.tasks.replace(vec![TaskPtr {
+                                name: next_layer,
+                                handle: None, //Some(Self::spawn_task(future)),
+                                tasks: None,
+                            }]);
+
+                            current_task_ptr
+                                .tasks
+                                .as_mut()
+                                .unwrap()
+                                .first_mut()
+                                .unwrap()
+                        }
+                        // If there already exists a task, make that task the one we are pointing to.
+                        (true, true) => current_task_ptr
+                            .tasks
+                            .as_mut()
+                            .unwrap()
+                            .iter_mut()
+                            .find(|val| val.name == next_layer)
+                            .unwrap(),
+                    };
+                }
+                None => {
+                    let task_handle = Self::spawn_task(future);
+                    current_task_ptr.handle = Some(task_handle);
+                    break;
+                }
+            }
+        }
 
         Ok(())
+    }
+
+    fn spawn_task<F>(fut: F) -> JoinHandle<()>
+    where
+        F: Future + Send + 'static + UnwindSafe,
+        F::Output: Send + 'static,
+    {
+        tokio::spawn(async move {
+            let unwind_result = fut.catch_unwind().await;
+        })
     }
 
     /// Given a task description, retrieves the vector in which this task needs to
@@ -148,7 +221,7 @@ mod test {
 
     #[tokio::test]
     async fn basic_task_handler_happy_path() {
-        let task_handler = TaskHandler::new();
+        let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
             TaskDescription("some::hierarchy".to_string()),
@@ -159,14 +232,20 @@ mod test {
 
         // Now we assert the hierarchy.
 
-        let task_handler_tasks = task_handler.root.tasks.unwrap();
+        dbg!(&task_handler);
 
-        let some_level = task_handler_tasks
-            .iter()
-            .find(|task| task.name == "some")
-            .unwrap();
+        panic!();
 
-        assert!(some_level.handle.is_some());
+        assert_eq!(
+            task_handler
+                .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+                .unwrap(),
+            &mut TaskPtr {
+                name: "hierarchy".to_string(),
+                handle: Some(tokio::spawn(async move {})),
+                tasks: None,
+            }
+        );
     }
 
     #[tokio::test]
