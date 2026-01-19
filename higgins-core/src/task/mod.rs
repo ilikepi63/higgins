@@ -56,8 +56,14 @@ impl TaskHandler {
                     };
 
                     current_task_ptr = match exist {
-                        // or If there is already a vec, add a task to the vec
+                        // or If there is alre ady a vec, add a task to the vec
                         (true, false) => {
+                            let index = current_task_ptr
+                                .tasks
+                                .as_ref()
+                                .map(|v| v.len())
+                                .unwrap_or(0);
+
                             current_task_ptr.tasks.as_mut().unwrap().push(TaskPtr {
                                 name: next_layer,
                                 handle: None, //Some(Self::spawn_task(future)),
@@ -67,7 +73,7 @@ impl TaskHandler {
                                 .tasks
                                 .as_mut()
                                 .unwrap()
-                                .first_mut()
+                                .get_mut(index)
                                 .unwrap()
                         }
                         // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
@@ -230,8 +236,6 @@ mod test {
 
         assert!(result.is_ok());
 
-        // Now we assert the hierarchy.
-
         dbg!(&task_handler);
 
         assert_eq!(
@@ -244,6 +248,112 @@ mod test {
                 tasks: None,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn task_handler_task_hierarchy_spawning() {
+        let mut task_handler = TaskHandler::new();
+
+        let result = task_handler.spawn(
+            TaskDescription("some::hierarchy".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        dbg!(&task_handler);
+
+        let task_ptr = task_handler
+            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .unwrap();
+
+        assert_eq!(task_ptr.name, "some".to_string());
+        assert!(task_ptr.handle.is_none());
+
+        let result = task_handler.spawn(TaskDescription("some".to_string()), async move {});
+
+        assert!(result.is_ok());
+
+        let some_handler = task_handler
+            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .unwrap();
+
+        assert_eq!(some_handler.name, "some".to_string());
+        assert!(some_handler.handle.is_some());
+
+        let handler = task_handler
+            .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+            .unwrap();
+
+        assert_eq!(handler.name, "hierarchy".to_string());
+        assert!(handler.handle.is_some());
+    }
+
+    #[tokio::test]
+    async fn task_handler_task_hierarchy_side_spawning() {
+        let mut task_handler = TaskHandler::new();
+
+        println!("hierarchy");
+        let result = task_handler.spawn(
+            TaskDescription("some::hierarchy".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        let task_ptr = task_handler
+            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .unwrap();
+
+        assert_eq!(task_ptr.name, "some".to_string());
+        assert!(task_ptr.handle.is_none());
+
+        println!("thing");
+
+        let result = task_handler.spawn(TaskDescription("some::thing".to_string()), async move {});
+
+        assert!(result.is_ok());
+
+        println!("thingelse");
+
+        let result = task_handler.spawn(
+            TaskDescription("some::thingelse".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        dbg!(&task_handler);
+
+        let some_handler = task_handler
+            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .unwrap();
+
+        assert_eq!(some_handler.name, "some".to_string());
+        assert!(some_handler.handle.is_none());
+
+        let handler = task_handler
+            .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+            .unwrap();
+
+        assert_eq!(handler.name, "hierarchy".to_string());
+        assert!(handler.handle.is_some());
+
+        let handler = task_handler
+            .get_task_handle_vec(TaskDescription("some::thing".to_string()))
+            .unwrap();
+
+        assert_eq!(handler.name, "thing".to_string());
+        assert!(handler.handle.is_some());
+
+        let handler = task_handler
+            .get_task_handle_vec(TaskDescription("some::thingelse".to_string()))
+            .unwrap();
+
+        assert_eq!(handler.name, "thingelse".to_string());
+        assert!(handler.handle.is_some());
+
+        dbg!(&task_handler);
     }
 
     #[tokio::test]
