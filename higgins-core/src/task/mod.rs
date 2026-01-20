@@ -29,7 +29,7 @@ impl TaskHandler {
     /// Spawn a future inside of this task handle.
     pub fn spawn<F>(
         &mut self,
-        task_description: TaskDescription,
+        task_description: &TaskDescription,
         future: F,
     ) -> Result<(), HigginsTaskError>
     where
@@ -125,7 +125,7 @@ impl TaskHandler {
     /// be placed.
     pub fn get_task_handle_vec(
         &mut self,
-        task_description: TaskDescription,
+        task_description: &TaskDescription,
     ) -> Result<&mut TaskPtr, HigginsTaskError> {
         let mut description_layers = task_description.layers();
 
@@ -157,7 +157,7 @@ impl TaskHandler {
 
     pub fn get_container_task(
         &mut self,
-        task_description: TaskDescription,
+        task_description: &TaskDescription,
     ) -> Result<&mut TaskPtr, HigginsTaskError> {
         let mut description_layers = task_description.layers();
 
@@ -201,9 +201,11 @@ impl TaskHandler {
     pub fn abort(&mut self, task_description: TaskDescription) -> Result<(), HigginsTaskError> {
         let layers = task_description.layers();
 
-        let mut task = self.get_task_handle_vec(task_description)?;
+        let mut task = self.get_task_handle_vec(&task_description)?;
 
         Self::abort_recursive(task);
+
+        let container_task = self.get_container_task(&task_description);
 
         Ok(())
     }
@@ -294,7 +296,7 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            TaskDescription("some::hierarchy".to_string()),
+            &TaskDescription("some::hierarchy".to_string()),
             async move {},
         );
 
@@ -304,7 +306,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+                .get_task_handle_vec(&&TaskDescription("some::hierarchy".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
@@ -319,7 +321,7 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            TaskDescription("some::hierarchy".to_string()),
+            &TaskDescription("some::hierarchy".to_string()),
             async move {},
         );
 
@@ -328,25 +330,25 @@ mod test {
         dbg!(&task_handler);
 
         let task_ptr = task_handler
-            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .get_task_handle_vec(&TaskDescription("some".to_string()))
             .unwrap();
 
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
 
-        let result = task_handler.spawn(TaskDescription("some".to_string()), async move {});
+        let result = task_handler.spawn(&TaskDescription("some".to_string()), async move {});
 
         assert!(result.is_ok());
 
         let some_handler = task_handler
-            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .get_task_handle_vec(&TaskDescription("some".to_string()))
             .unwrap();
 
         assert_eq!(some_handler.name, "some".to_string());
         assert!(some_handler.handle.is_some());
 
         let handler = task_handler
-            .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+            .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
             .unwrap();
 
         assert_eq!(handler.name, "hierarchy".to_string());
@@ -359,14 +361,14 @@ mod test {
 
         println!("hierarchy");
         let result = task_handler.spawn(
-            TaskDescription("some::hierarchy".to_string()),
+            &TaskDescription("some::hierarchy".to_string()),
             async move {},
         );
 
         assert!(result.is_ok());
 
         let task_ptr = task_handler
-            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .get_task_handle_vec(&TaskDescription("some".to_string()))
             .unwrap();
 
         assert_eq!(task_ptr.name, "some".to_string());
@@ -374,14 +376,14 @@ mod test {
 
         println!("thing");
 
-        let result = task_handler.spawn(TaskDescription("some::thing".to_string()), async move {});
+        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
 
         assert!(result.is_ok());
 
         println!("thingelse");
 
         let result = task_handler.spawn(
-            TaskDescription("some::thingelse".to_string()),
+            &TaskDescription("some::thingelse".to_string()),
             async move {},
         );
 
@@ -390,28 +392,28 @@ mod test {
         dbg!(&task_handler);
 
         let some_handler = task_handler
-            .get_task_handle_vec(TaskDescription("some".to_string()))
+            .get_task_handle_vec(&TaskDescription("some".to_string()))
             .unwrap();
 
         assert_eq!(some_handler.name, "some".to_string());
         assert!(some_handler.handle.is_none());
 
         let handler = task_handler
-            .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+            .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
             .unwrap();
 
         assert_eq!(handler.name, "hierarchy".to_string());
         assert!(handler.handle.is_some());
 
         let handler = task_handler
-            .get_task_handle_vec(TaskDescription("some::thing".to_string()))
+            .get_task_handle_vec(&TaskDescription("some::thing".to_string()))
             .unwrap();
 
         assert_eq!(handler.name, "thing".to_string());
         assert!(handler.handle.is_some());
 
         let handler = task_handler
-            .get_task_handle_vec(TaskDescription("some::thingelse".to_string()))
+            .get_task_handle_vec(&TaskDescription("some::thingelse".to_string()))
             .unwrap();
 
         assert_eq!(handler.name, "thingelse".to_string());
@@ -442,7 +444,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_task_handle_vec(TaskDescription("some::hierarchy".to_string()))
+                .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
@@ -474,7 +476,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_container_task(TaskDescription("some::hierarchy".to_string()))
+                .get_container_task(&TaskDescription("some::hierarchy".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "some".to_string(),
@@ -485,7 +487,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_container_task(TaskDescription("some".to_string()))
+                .get_container_task(&TaskDescription("some".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "root".to_string(),
@@ -508,7 +510,7 @@ mod test {
         };
 
         assert!(matches!(
-            task_handler.get_task_handle_vec(TaskDescription("some::hierarchy".to_string())),
+            task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
             Err(HigginsTaskError::TaskHierarchyDoesNotExist)
         ));
     }
