@@ -199,7 +199,7 @@ impl TaskHandler {
 
     /// Aborts the given task identified by the hierarchy,
     /// recursively aborting every task that is it's subordinate.
-    pub fn abort(&mut self, task_description: TaskDescription) -> Result<(), HigginsTaskError> {
+    pub fn abort(&mut self, task_description: &TaskDescription) -> Result<(), HigginsTaskError> {
         let aborted_task_name = {
             let task = self.get_task_handle_vec(&task_description)?;
 
@@ -435,6 +435,66 @@ mod test {
         assert!(handler.handle.is_some());
 
         dbg!(&task_handler);
+    }
+
+    #[tokio::test]
+    async fn task_handler_task_hierarchy_side_spawning_abort() {
+        let mut task_handler = TaskHandler::new();
+
+        println!("hierarchy");
+        let result = task_handler.spawn(
+            &TaskDescription("some::hierarchy".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        let task_ptr = task_handler
+            .get_task_handle_vec(&TaskDescription("some".to_string()))
+            .unwrap();
+
+        assert_eq!(task_ptr.name, "some".to_string());
+        assert!(task_ptr.handle.is_none());
+
+        println!("thing");
+
+        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
+
+        assert!(result.is_ok());
+
+        println!("thingelse");
+
+        let result = task_handler.spawn(
+            &TaskDescription("some::thingelse".to_string()),
+            async move {},
+        );
+
+        assert!(result.is_ok());
+
+        let result =
+            task_handler.spawn(&TaskDescription("other::thing".to_string()), async move {});
+
+        assert!(result.is_ok());
+
+        dbg!(&task_handler);
+
+        task_handler
+            .abort(&TaskDescription("some".to_string()))
+            .unwrap();
+
+        dbg!(&task_handler);
+
+        assert!(matches!(
+            task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
+            Err(HigginsTaskError::TaskHierarchyDoesNotExist)
+        ));
+
+        let other_thing_task = task_handler
+            .get_task_handle_vec(&TaskDescription("other::thing".to_string()))
+            .unwrap();
+
+        assert!(other_thing_task.handle.is_some());
+        assert_eq!(other_thing_task.name, "thing".to_string());
     }
 
     #[tokio::test]
