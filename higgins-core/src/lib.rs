@@ -24,7 +24,7 @@ mod error;
 pub mod functions;
 pub mod storage;
 pub mod subscription;
-mod task;
+pub mod task;
 pub mod topography;
 pub mod utils;
 

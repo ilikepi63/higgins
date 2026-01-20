@@ -7,9 +7,9 @@ mod produce;
 mod streams;
 mod subscriptions;
 
-pub use indexes::BrokerIndexFile;
-
+use crate::task::TaskHandler;
 use arrow::{array::RecordBatch, datatypes::Schema};
+pub use indexes::BrokerIndexFile;
 use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
@@ -51,6 +51,8 @@ pub struct Broker {
 
     // Functions
     pub functions: FunctionCollection,
+
+    pub task_handler: TaskHandler,
 }
 
 impl Broker {
