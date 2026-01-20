@@ -1,5 +1,8 @@
 //! The primitives for handling asynchronous tasks inside of higgins.
 
+// TODO: Remove this when we integrate this into Higgins.
+#![allow(unused)]
+
 use std::{collections::VecDeque, panic::UnwindSafe};
 
 use arrow::compute::kernels::numeric::sub;

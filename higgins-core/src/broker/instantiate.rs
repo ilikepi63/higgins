@@ -1,26 +1,24 @@
 use super::Broker;
-use crate::storage::shared_log_segment::SharedLogSegment;
 
-use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection},
-    object_store::{self},
-};
-use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc, time::Duration};
+// use riskless::messages::{ProduceRequest, ProduceRequestCollection};
+use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, storage::batch_coordinate::BatchCoordinate,
-    storage::index::directory::IndexDirectory, topography::Topography,
-    utils::request_response::Request,
+    client::ClientCollection,
+    // storage::batch_coordinate::BatchCoordinate,
+    storage::index::directory::IndexDirectory,
+    topography::Topography,
+    // utils::request_response::Request,
 };
 
-type MutableCollection = Arc<
-    RwLock<(
-        ProduceRequestCollection,
-        Vec<Request<ProduceRequest, BatchCoordinate>>,
-    )>,
->;
+// type MutableCollection = Arc<
+//     RwLock<(
+//         ProduceRequestCollection,
+//         Vec<Request<ProduceRequest, BatchCoordinate>>,
+//     )>,
+// >;
 
 impl Broker {
     /// Creates a new instance of a Broker.
@@ -41,15 +39,15 @@ impl Broker {
             }
         };
 
-        let flush_interval_in_ms: u64 = 500;
-        let segment_size_in_bytes: u64 = 50_000;
+        // let flush_interval_in_ms: u64 = 500;
+        // let segment_size_in_bytes: u64 = 50_000;
 
         let indexes = Arc::new(IndexDirectory::new(index_dir).unwrap());
 
-        let buffer: MutableCollection =
-            Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
+        // let buffer: MutableCollection =
+        //     Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
 
-        let cloned_buffer_ref = buffer.clone();
+        // let cloned_buffer_ref = buffer.clone();
 
         let functions_dir = {
             let mut cwd = dir.clone();
