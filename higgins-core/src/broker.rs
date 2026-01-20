@@ -10,29 +10,18 @@ mod subscriptions;
 pub use indexes::BrokerIndexFile;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
-use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection},
-    object_store::{self, ObjectStore},
-};
+use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
     client::ClientCollection, error::HigginsError, storage::backing_store::BackingStore,
-    storage::batch_coordinate::BatchCoordinate, storage::index::directory::IndexDirectory,
-    subscription::Subscription, topography::Topography, utils::request_response::Request,
+    storage::index::directory::IndexDirectory, subscription::Subscription, topography::Topography,
 };
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
 type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
-
-type MutableCollection = Arc<
-    RwLock<(
-        ProduceRequestCollection,
-        Vec<Request<ProduceRequest, BatchCoordinate>>,
-    )>,
->;
 
 /// This is a pretty naive implementation of what the broker might look like.
 #[derive(Debug)]

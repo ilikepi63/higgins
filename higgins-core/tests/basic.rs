@@ -1,10 +1,9 @@
 mod common;
 
-use std::{env::temp_dir, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
 use higgins_shared::PartitionName;
-use tracing_test::traced_test;
 
 use common::get_random_port;
 

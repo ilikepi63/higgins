@@ -2,7 +2,6 @@ use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
-use higgins_functions::wasmtime::Memory;
 use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;

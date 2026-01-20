@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::storage::{batch_coordinate::BatchCoordinate, index::IndexType};
+use crate::storage::index::IndexType;
 use arrow::array::RecordBatch;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
@@ -11,7 +11,6 @@ use crate::{
         dereference::{Reference, S3Reference},
         index::Index,
     },
-    utils::request_response::Request,
 };
 
 impl Broker {
