@@ -2,6 +2,7 @@
 
 use std::{collections::VecDeque, panic::UnwindSafe};
 
+use arrow::compute::kernels::numeric::sub;
 use futures::FutureExt;
 use tokio::task::JoinHandle;
 
@@ -199,13 +200,27 @@ impl TaskHandler {
     /// Aborts the given task identified by the hierarchy,
     /// recursively aborting every task that is it's subordinate.
     pub fn abort(&mut self, task_description: TaskDescription) -> Result<(), HigginsTaskError> {
-        let layers = task_description.layers();
+        let aborted_task_name = {
+            let task = self.get_task_handle_vec(&task_description)?;
 
-        let mut task = self.get_task_handle_vec(&task_description)?;
+            Self::abort_recursive(task);
 
-        Self::abort_recursive(task);
+            task.name.clone()
+        };
 
-        let container_task = self.get_container_task(&task_description);
+        let container_task = self.get_container_task(&task_description).unwrap();
+
+        if let Some(sub_tasks) = container_task.tasks.as_mut() {
+            let index = sub_tasks
+                .iter()
+                .enumerate()
+                .find(|(_, t)| t.name == aborted_task_name)
+                .map(|(i, _)| i);
+
+            if let Some(i) = index {
+                sub_tasks.remove(i);
+            }
+        }
 
         Ok(())
     }
