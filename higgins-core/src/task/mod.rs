@@ -154,6 +154,71 @@ impl TaskHandler {
             }
         }
     }
+
+    pub fn get_container_task(
+        &mut self,
+        task_description: TaskDescription,
+    ) -> Result<&mut TaskPtr, HigginsTaskError> {
+        let mut description_layers = task_description.layers();
+
+        let mut current_task_ptr = &mut self.root;
+
+        loop {
+            let next_layer = description_layers.pop_front();
+
+            match next_layer {
+                Some(next_layer) => {
+                    let existing_task = current_task_ptr
+                        .tasks
+                        .as_mut()
+                        .map(|v| v.iter_mut().find(|task| task.name == next_layer))
+                        .flatten()
+                        .is_some();
+
+                    match existing_task {
+                        true => {
+                            if description_layers.len() < 1 {
+                                return Ok(current_task_ptr);
+                            } else {
+                                current_task_ptr = current_task_ptr
+                                    .tasks
+                                    .as_mut()
+                                    .map(|v| v.iter_mut().find(|task| task.name == next_layer))
+                                    .flatten()
+                                    .unwrap();
+                            }
+                        }
+                        false => return Err(HigginsTaskError::TaskHierarchyDoesNotExist),
+                    }
+                }
+                None => return Err(HigginsTaskError::TaskHierarchyDoesNotExist),
+            }
+        }
+    }
+
+    /// Aborts the given task identified by the hierarchy,
+    /// recursively aborting every task that is it's subordinate.
+    pub fn abort(&mut self, task_description: TaskDescription) -> Result<(), HigginsTaskError> {
+        let layers = task_description.layers();
+
+        let mut task = self.get_task_handle_vec(task_description)?;
+
+        Self::abort_recursive(task);
+
+        Ok(())
+    }
+
+    fn abort_recursive(task: &mut TaskPtr) {
+        if let Some(sub_tasks) = task.tasks.as_mut() {
+            for sub_task in sub_tasks.iter_mut() {
+                Self::abort_recursive(sub_task);
+            }
+
+            if let Some(handle) = task.handle.as_mut() {
+                handle.abort();
+            }
+        }
+    }
 }
 
 /// The description of a given task.
@@ -381,6 +446,49 @@ mod test {
                 .unwrap(),
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
+                handle: Some(tokio::spawn(async move {})),
+                tasks: None,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn get_task_container_works_correctly() {
+        tracing_subscriber::fmt::init();
+
+        let mut task_handler = TaskHandler {
+            root: TaskPtr {
+                name: "root".to_string(),
+                handle: None,
+                tasks: Some(vec![TaskPtr {
+                    name: "some".to_string(),
+                    handle: Some(tokio::spawn(async move {})),
+                    tasks: Some(vec![TaskPtr {
+                        name: "hierarchy".to_string(),
+                        handle: Some(tokio::spawn(async move {})),
+                        tasks: None,
+                    }]),
+                }]),
+            },
+        };
+
+        assert_eq!(
+            task_handler
+                .get_container_task(TaskDescription("some::hierarchy".to_string()))
+                .unwrap(),
+            &mut TaskPtr {
+                name: "some".to_string(),
+                handle: Some(tokio::spawn(async move {})),
+                tasks: None,
+            }
+        );
+
+        assert_eq!(
+            task_handler
+                .get_container_task(TaskDescription("some".to_string()))
+                .unwrap(),
+            &mut TaskPtr {
+                name: "root".to_string(),
                 handle: Some(tokio::spawn(async move {})),
                 tasks: None,
             }
