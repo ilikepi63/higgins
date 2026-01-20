@@ -499,8 +499,6 @@ mod test {
 
     #[tokio::test]
     async fn get_task_works_correctly() {
-        tracing_subscriber::fmt::init();
-
         let mut task_handler = TaskHandler {
             root: TaskPtr {
                 name: "root".to_string(),
@@ -531,8 +529,6 @@ mod test {
 
     #[tokio::test]
     async fn get_task_container_works_correctly() {
-        tracing_subscriber::fmt::init();
-
         let mut task_handler = TaskHandler {
             root: TaskPtr {
                 name: "root".to_string(),
@@ -574,8 +570,6 @@ mod test {
 
     #[tokio::test]
     async fn get_task_fails_correctly() {
-        tracing_subscriber::fmt::init();
-
         let mut task_handler = TaskHandler {
             root: TaskPtr {
                 name: "root".to_string(),
