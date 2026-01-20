@@ -1,10 +1,9 @@
 //! The primitives for handling asynchronous tasks inside of higgins.
 
-use std::{collections::VecDeque, convert::Infallible, panic::UnwindSafe};
+use std::{collections::VecDeque, panic::UnwindSafe};
 
 use futures::FutureExt;
 use tokio::task::JoinHandle;
-use tracing_subscriber::layer;
 
 use crate::error::HigginsError;
 use error::HigginsTaskError;
