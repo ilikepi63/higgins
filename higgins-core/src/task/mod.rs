@@ -19,15 +19,21 @@ pub struct TaskHandler {
     root: TaskPtr,
 }
 
+unsafe fn extend_lifetime<'a, T>(val: &'a mut T) -> &'static mut T {
+    std::mem::transmute::<&'a mut T, &'static mut T>(val)
+}
+
 impl TaskHandler {
     pub fn new() -> Self {
-        Self {
+        let mut task_handler = Self {
             root: TaskPtr {
                 name: "root".to_string(),
                 handle: None,
                 tasks: Some(vec![]),
             },
-        }
+        };
+
+        task_handler
     }
 
     /// Spawn a future inside of this task handle.
@@ -105,8 +111,14 @@ impl TaskHandler {
                     };
                 }
                 None => {
-                    let task_handle = Self::spawn_task(future);
-                    current_task_ptr.handle = Some(task_handle);
+                    let task_handler_static_ref: &'static mut TaskHandler = unsafe {
+                        std::mem::transmute::<&mut TaskHandler, &'static mut TaskHandler>(self)
+                    };
+
+                    let task_handle =
+                        Self::spawn_task(task_handler_static_ref, task_description, future);
+                    // task_handler_static_ref.update_task(task_description, task_handle);
+                    // current_task_ptr.handle = Some(task_handle);
                     break;
                 }
             }
@@ -115,14 +127,37 @@ impl TaskHandler {
         Ok(())
     }
 
-    fn spawn_task<F>(fut: F) -> JoinHandle<()>
+    fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
+
+    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F)
+    //-> JoinHandle<()>
     where
         F: Future + Send + 'static + UnwindSafe,
         F::Output: Send + 'static,
     {
-        tokio::spawn(async move {
-            let unwind_result = fut.catch_unwind().await;
-        })
+        let task_description_for_task = task_description.clone();
+
+        let mut handler_ptr = TaskHandlerReference::from(self);
+
+        let handle = tokio::spawn(async move {
+            let result = fut.catch_unwind().await;
+
+            match result {
+                Ok(result) => {
+                    tracing::trace!(
+                        "{:#?} completed, Removing from tree..",
+                        task_description_for_task
+                    );
+
+                    unsafe { handler_ptr.abort(&task_description_for_task) };
+                }
+                Err(err) => {
+                    tracing::error!("Received an error during ");
+                }
+            }
+        });
+
+        self.get_task_handle_vec(&task_description).unwrap().handle = Some(handle);
     }
 
     /// Given a task description, retrieves the vector in which this task needs to
@@ -241,10 +276,29 @@ impl TaskHandler {
     }
 }
 
+/// A TaskHandlerReference that allows a task to keep a reference to the handle.
+///
+/// A task will never outlive the TaskHandler it belongs to, and therefore dereferencing this ptr
+/// should never be UB.
+struct TaskHandlerReference(*mut TaskHandler);
+
+impl TaskHandlerReference {
+    pub fn from(handler: &mut TaskHandler) -> Self {
+        Self(std::ptr::from_mut(handler))
+    }
+
+    pub unsafe fn abort(&mut self, task_description: &TaskDescription) {
+        unsafe { (*(self.0)).abort(task_description) };
+    }
+}
+
+/// SAFETY: Tasks that reference this handle will never outlive the struct it points to.
+unsafe impl Send for TaskHandlerReference {}
+
 /// The description of a given task.
 ///
 /// This includes the logic that surrounds how layering of tasks are sorted out.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaskDescription(String);
 
 impl TaskDescription {
