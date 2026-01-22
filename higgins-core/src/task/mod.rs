@@ -33,18 +33,14 @@ impl TaskHandler {
     }
 
     /// Spawn a future inside of this task handle.
-    pub fn spawn<F>(
-        &mut self,
-        task_description: &TaskDescription,
-        future: F,
-    ) -> Result<(), HigginsTaskError>
+    pub fn spawn<F>(&mut self, config: &SpawnTaskConfig, future: F) -> Result<(), HigginsTaskError>
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
         println!("Starting the task..");
 
-        let mut layers = task_description.layers();
+        let mut layers = config.description.layers();
 
         let mut current_task_ptr = &mut self.root;
 
@@ -109,7 +105,7 @@ impl TaskHandler {
                     };
                 }
                 None => {
-                    let task_handle = self.spawn_task(task_description, future);
+                    let task_handle = self.spawn_task(config, future);
                     // task_handler_static_ref.update_task(task_description, task_handle);
                     // current_task_ptr.handle = Some(task_handle);
                     break;
@@ -122,14 +118,14 @@ impl TaskHandler {
 
     fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
 
-    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F)
+    fn spawn_task<F>(&mut self, config: &SpawnTaskConfig, fut: F)
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
         println!("Calling spawn_task..");
 
-        let task_description_for_task = task_description.clone();
+        let task_description_for_task = config.description.clone();
 
         let mut handler_ptr = TaskHandlerReference::from(self);
 
@@ -156,13 +152,33 @@ impl TaskHandler {
 
         println!("Updating the handle in the task_description..");
 
-        self.get_task_handle_vec(task_description)
-            .map(|task| {
-                task.handle = Some(handle);
-            })
-            .inspect_err(|err| {
-                tracing::error!("Error retrieving task handle: {task_description}");
-            });
+        let task_description = config.description.clone();
+
+        match config.unique {
+            true => {
+                self.get_task_handle_vec(&task_description)
+                    .map(|task| {
+                        let length = task
+                            .tasks
+                            .as_ref()
+                            .map(|v| v.len())
+                            .unwrap_or(0)
+                            .to_string();
+                    })
+                    .inspect_err(|err| {
+                        tracing::error!("Error retrieving task handle: {task_description}");
+                    });
+            }
+            false => {
+                self.get_task_handle_vec(&task_description)
+                    .map(|task| {
+                        task.handle = Some(handle);
+                    })
+                    .inspect_err(|err| {
+                        tracing::error!("Error retrieving task handle: {task_description}");
+                    });
+            }
+        }
 
         // handle
     }
@@ -373,6 +389,31 @@ impl TaskPtr {
             tasks: None,
         }
     }
+
+    /// Add a subtask to this TaskPtr.
+    ///
+    /// If the Task doesn't have a vec assigned to it, this creates one.
+    pub fn add_sub_task(&mut self, ptr: TaskPtr) {
+        match self.tasks.as_mut() {
+            Some(tasks) => {
+                tasks.push(ptr);
+            }
+            None => {
+                self.tasks.insert(vec![ptr]);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SpawnTaskConfig {
+    description: TaskDescription,
+    /// Whether or not this task should be spawned uniquely.
+    ///
+    /// This will either create the task inside of the current hierarchy, or add it to the hierarchy's vec
+    /// with a generated id. This is toggled usually if you are spawning many tasks that sit side-by-side,
+    /// but the specific ID's of those tasks are not important for the hierarchical nature of the TaskHandler.
+    unique: bool,
 }
 
 #[cfg(test)]
@@ -388,7 +429,10 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -413,7 +457,10 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -428,7 +475,13 @@ mod test {
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
 
-        let result = task_handler.spawn(&TaskDescription("some".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
@@ -453,7 +506,10 @@ mod test {
 
         println!("hierarchy");
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -468,14 +524,23 @@ mod test {
 
         println!("thing");
 
-        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thing".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
         println!("thingelse");
 
         let result = task_handler.spawn(
-            &TaskDescription("some::thingelse".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thingelse".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -520,7 +585,10 @@ mod test {
 
         println!("hierarchy");
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -535,21 +603,35 @@ mod test {
 
         println!("thing");
 
-        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
         println!("thingelse");
 
         let result = task_handler.spawn(
-            &TaskDescription("some::thingelse".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thingelse".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
         assert!(result.is_ok());
 
-        let result =
-            task_handler.spawn(&TaskDescription("other::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("other::thing".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
@@ -667,9 +749,15 @@ mod test {
 
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
 
-        task_handler.spawn(&TaskDescription("some::what".to_string()), async move {
-            tx.send(()); // send to this channel so we know that this was executed.
-        });
+        task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::".to_string()),
+                unique: false,
+            },
+            async move {
+                tx.send(()); // send to this channel so we know that this was executed.
+            },
+        );
 
         // Pause this task so that the spawned one can operate.
         rx.await; // Await the spawn.
