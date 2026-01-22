@@ -159,15 +159,10 @@ impl TaskHandler {
             true => {
                 self.get_task_handle_vec(&task_description)
                     .map(|task| {
-                        let length = task
-                            .tasks
-                            .as_ref()
-                            .map(|v| v.len())
-                            .unwrap_or(0)
-                            .to_string();
+                        let name = task.get_unique_sub_task_name();
 
                         task.add_sub_task(TaskPtr {
-                            name: length,
+                            name,
                             handle: Some(handle),
                             tasks: None,
                         });
@@ -408,6 +403,32 @@ impl TaskPtr {
             None => {
                 self.tasks.insert(vec![ptr]);
             }
+        }
+    }
+
+    /// Retrieve a unique name for a task ptr before adding it into
+    /// this TaskPtr.
+    ///
+    /// NOTE: This is not a great method, as we could be doing a lot of
+    /// lookups depending on how often tasks get spawned/deallocated.
+    pub fn get_unique_sub_task_name(&self) -> String {
+        let mut length = self.tasks.as_ref().map(|t| t.len()).unwrap_or(0);
+
+        loop {
+            if self
+                .tasks
+                .as_ref()
+                .map(|tasks| {
+                    tasks
+                        .iter()
+                        .all(|sub_task| sub_task.name != length.to_string())
+                })
+                .unwrap_or(true)
+            {
+                return length.to_string();
+            }
+
+            length += 1;
         }
     }
 }
@@ -777,6 +798,131 @@ mod test {
                 .unwrap()
                 .tasks,
             Some(vec![])
+        );
+    }
+
+    #[tokio::test]
+    async fn task_unique_name_retrievable() {
+        let mut task_ptr = TaskPtr {
+            name: "root".to_string(),
+            handle: None,
+            tasks: None,
+        };
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![TaskPtr {
+                name: "0".to_string(),
+                handle: None,
+                tasks: None,
+            },],),
+        );
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "1".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "1".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+
+        // Remove a task.
+        task_ptr.tasks.as_mut().unwrap().remove(1);
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "3".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
         );
     }
 }
