@@ -42,6 +42,8 @@ impl TaskHandler {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
+        println!("Starting the task..");
+
         let mut layers = task_description.layers();
 
         let mut current_task_ptr = &mut self.root;
@@ -120,19 +122,23 @@ impl TaskHandler {
 
     fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
 
-    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F) -> JoinHandle<()>
+    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F)
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
+        println!("Calling spawn_task..");
+
         let task_description_for_task = task_description.clone();
 
         let mut handler_ptr = TaskHandlerReference::from(self);
 
         let handle = tokio::spawn(async move {
+            println!("{:#?} spawning..", task_description_for_task);
+
             let result = fut.await;
 
-            tracing::trace!(
+            println!(
                 "{:#?} completed, Removing from tree..",
                 task_description_for_task
             );
@@ -148,7 +154,17 @@ impl TaskHandler {
             // }
         });
 
-        handle
+        println!("Updating the handle in the task_description..");
+
+        self.get_task_handle_vec(task_description)
+            .map(|task| {
+                task.handle = Some(handle);
+            })
+            .inspect_err(|err| {
+                tracing::error!("Error retrieving task handle: {task_description}");
+            });
+
+        // handle
     }
 
     /// Given a task description, retrieves the vector in which this task needs to
@@ -294,6 +310,13 @@ unsafe impl Send for TaskHandlerReference {}
 #[derive(Debug, Clone)]
 pub struct TaskDescription(String);
 
+impl std::fmt::Display for TaskDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)?;
+        Ok(())
+    }
+}
+
 impl TaskDescription {
     pub fn push(&mut self, layer: &str) -> Result<(), HigginsError> {
         if layer.contains("::") {
@@ -355,6 +378,8 @@ impl TaskPtr {
 #[cfg(test)]
 mod test {
     use std::time::Duration;
+
+    use tokio::sync::oneshot::channel;
 
     use super::*;
 
@@ -640,23 +665,23 @@ mod test {
     async fn task_aborts_after_some_time() {
         let mut task_handler = TaskHandler::new();
 
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
         task_handler.spawn(&TaskDescription("some::what".to_string()), async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
+            tx.send(()); // send to this channel so we know that this was executed.
         });
 
-        dbg!(&task_handler);
+        // Pause this task so that the spawned one can operate.
+        rx.await; // Await the spawn.
 
-        tokio::time::sleep(Duration::from_millis(20));
-
-        dbg!(task_handler);
-
-        panic!();
-
-        // assert!(matches!(
-        //     task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
-        //     Err(HigginsTaskError::TaskHierarchyDoesNotExist)
-        // ));
+        // Assert that the task handle vec for this hierarchy has
+        // an empty task (the "what" task ptr has removed itself.)
+        assert_eq!(
+            task_handler
+                .get_task_handle_vec(&TaskDescription("some".to_string()))
+                .unwrap()
+                .tasks,
+            Some(vec![])
+        );
     }
 }
