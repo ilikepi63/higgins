@@ -67,11 +67,12 @@ impl TaskHandler {
                                 .map(|v| v.len())
                                 .unwrap_or(0);
 
-                            current_task_ptr.tasks.as_mut().unwrap().push(TaskPtr {
+                            current_task_ptr.add_sub_task(TaskPtr {
                                 name: next_layer,
                                 handle: None, //Some(Self::spawn_task(future)),
                                 tasks: None,
                             });
+
                             current_task_ptr
                                 .tasks
                                 .as_mut()
@@ -81,11 +82,11 @@ impl TaskHandler {
                         }
                         // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
                         (false, _) => {
-                            current_task_ptr.tasks.replace(vec![TaskPtr {
+                            current_task_ptr.add_sub_task(TaskPtr {
                                 name: next_layer,
                                 handle: None, //Some(Self::spawn_task(future)),
                                 tasks: None,
-                            }]);
+                            });
 
                             current_task_ptr
                                 .tasks
