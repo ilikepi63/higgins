@@ -164,6 +164,12 @@ impl TaskHandler {
                             .map(|v| v.len())
                             .unwrap_or(0)
                             .to_string();
+
+                        task.add_sub_task(TaskPtr {
+                            name: length,
+                            handle: Some(handle),
+                            tasks: None,
+                        });
                     })
                     .inspect_err(|err| {
                         tracing::error!("Error retrieving task handle: {task_description}");
