@@ -19,10 +19,6 @@ pub struct TaskHandler {
     root: TaskPtr,
 }
 
-unsafe fn extend_lifetime<'a, T>(val: &'a mut T) -> &'static mut T {
-    std::mem::transmute::<&'a mut T, &'static mut T>(val)
-}
-
 impl TaskHandler {
     pub fn new() -> Self {
         let mut task_handler = Self {
@@ -43,7 +39,7 @@ impl TaskHandler {
         future: F,
     ) -> Result<(), HigginsTaskError>
     where
-        F: Future + Send + 'static + UnwindSafe,
+        F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
         let mut layers = task_description.layers();
@@ -111,12 +107,7 @@ impl TaskHandler {
                     };
                 }
                 None => {
-                    let task_handler_static_ref: &'static mut TaskHandler = unsafe {
-                        std::mem::transmute::<&mut TaskHandler, &'static mut TaskHandler>(self)
-                    };
-
-                    let task_handle =
-                        Self::spawn_task(task_handler_static_ref, task_description, future);
+                    let task_handle = self.spawn_task(task_description, future);
                     // task_handler_static_ref.update_task(task_description, task_handle);
                     // current_task_ptr.handle = Some(task_handle);
                     break;
@@ -129,10 +120,9 @@ impl TaskHandler {
 
     fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
 
-    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F)
-    //-> JoinHandle<()>
+    fn spawn_task<F>(&mut self, task_description: &TaskDescription, fut: F) -> JoinHandle<()>
     where
-        F: Future + Send + 'static + UnwindSafe,
+        F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
         let task_description_for_task = task_description.clone();
@@ -140,24 +130,25 @@ impl TaskHandler {
         let mut handler_ptr = TaskHandlerReference::from(self);
 
         let handle = tokio::spawn(async move {
-            let result = fut.catch_unwind().await;
+            let result = fut.await;
 
-            match result {
-                Ok(result) => {
-                    tracing::trace!(
-                        "{:#?} completed, Removing from tree..",
-                        task_description_for_task
-                    );
+            tracing::trace!(
+                "{:#?} completed, Removing from tree..",
+                task_description_for_task
+            );
 
-                    unsafe { handler_ptr.abort(&task_description_for_task) };
-                }
-                Err(err) => {
-                    tracing::error!("Received an error during ");
-                }
-            }
+            unsafe { handler_ptr.abort(&task_description_for_task) };
+
+            // match result {
+            //     Ok(result) => {
+            //     }
+            //     Err(err) => {
+            //         tracing::error!("Received an error during ");
+            //     }
+            // }
         });
 
-        self.get_task_handle_vec(&task_description).unwrap().handle = Some(handle);
+        handle
     }
 
     /// Given a task description, retrieves the vector in which this task needs to
@@ -288,7 +279,9 @@ impl TaskHandlerReference {
     }
 
     pub unsafe fn abort(&mut self, task_description: &TaskDescription) {
-        unsafe { (*(self.0)).abort(task_description) };
+        unsafe {
+            (*(self.0)).abort(task_description);
+        }
     }
 }
 
@@ -361,6 +354,8 @@ impl TaskPtr {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use super::*;
 
     #[tokio::test]
@@ -639,5 +634,29 @@ mod test {
             task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
             Err(HigginsTaskError::TaskHierarchyDoesNotExist)
         ));
+    }
+
+    #[tokio::test]
+    async fn task_aborts_after_some_time() {
+        let mut task_handler = TaskHandler::new();
+
+        task_handler.spawn(&TaskDescription("some::what".to_string()), async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        });
+
+        dbg!(&task_handler);
+
+        tokio::time::sleep(Duration::from_millis(20));
+
+        dbg!(task_handler);
+
+        panic!();
+
+        // assert!(matches!(
+        //     task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
+        //     Err(HigginsTaskError::TaskHierarchyDoesNotExist)
+        // ));
     }
 }
