@@ -263,7 +263,7 @@ impl TaskHandler {
                 .map(|(i, _)| i);
 
             if let Some(i) = index {
-                sub_tasks.remove(i);
+                sub_tasks.swap_remove(i);
             }
         }
 
