@@ -10,6 +10,7 @@ use higgins_codec::{
 };
 use higgins_shared::PartitionName;
 use prost::Message as _;
+use task::SpawnTaskConfig;
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -33,15 +34,18 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let (writer_tx, mut writer_rx) = tokio::sync::mpsc::channel(100);
 
-    let client_id = {
-        let mut broker_lock = broker.write().await;
+    let spawning_broker = broker.clone();
 
-        broker_lock
-            .clients
-            .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))
-    };
+    let mut broker_lock = spawning_broker.write().await;
 
-    let _read_handle = tokio::spawn(async move {
+    let client_id = broker_lock
+        .clients
+        .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()));
+
+    let _read_handle = broker_lock.task_handler.spawn(&SpawnTaskConfig::new(
+        "tcp_read",
+     false
+    ),async move {
         loop {
             let frame = Frame::try_read_async(&mut read_socket).await.unwrap();
             let message = Message::decode(&mut frame.inner()).unwrap();
@@ -449,20 +453,25 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
         }
     });
 
-    let _write_handle = tokio::spawn(async move {
-        tracing::info!("Starting writing task..");
+    let _write_handle =
+        broker_lock
+            .task_handler
+            .spawn(&SpawnTaskConfig::new("tcp_write", false), async move {
+                tracing::info!("Starting writing task..");
 
-        while let Some(val) = writer_rx.recv().await {
-            tracing::info!("Received: {:#?} on the writing side", val);
+                while let Some(val) = writer_rx.recv().await {
+                    tracing::info!("Received: {:#?} on the writing side", val);
 
-            Frame::new(val.to_vec())
-                .try_write_async(&mut write_socket)
-                .await
-                .unwrap();
-            // let _result = write_socket.write_all(&val).await;
-            write_socket.flush().await.unwrap();
-        }
-    });
+                    Frame::new(val.to_vec())
+                        .try_write_async(&mut write_socket)
+                        .await
+                        .unwrap();
+                    // let _result = write_socket.write_all(&val).await;
+                    write_socket.flush().await.unwrap();
+                }
+            });
+
+    drop(broker_lock);
 }
 
 pub async fn run_server(dir: PathBuf, port: u16) {

@@ -444,6 +444,15 @@ pub struct SpawnTaskConfig {
     unique: bool,
 }
 
+impl SpawnTaskConfig {
+    pub fn new(description: &str, unique: bool) -> Self {
+        Self {
+            description: TaskDescription(description.to_string()),
+            unique,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::time::Duration;
