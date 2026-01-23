@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(tracing::Level::TRACE)
         .init();
 
-    let mut client = Client::connect("http://127.0.0.1:8080", Some(Duration::from_secs(3)))
+    let mut client = Client::connect("127.0.0.1:8080", Some(Duration::from_secs(3)))
         .await
         .unwrap();
 
