@@ -43,7 +43,6 @@ enum Commands {
     CreateConfiguration {
         #[arg(long, require_equals = true)]
         file: String,
-        // partitions?
     },
 }
 
@@ -74,6 +73,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Didn't receive a pong response.");
                 }
             }
+        }
+
+        Commands::CreateConfiguration { file } => {
+            let configuration = std::fs::read_to_string(&file).unwrap();
+
+            client
+                .upload_configuration(configuration.as_bytes())
+                .await
+                .unwrap();
+
+            client.recv().await.unwrap();
+
+            println!("Successfully uploaded result!");
         }
         Commands::Produce {
             topic,
