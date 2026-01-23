@@ -7,9 +7,9 @@ use crate::storage::arrow_ipc::{self};
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexType};
+use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
-
 use higgins_shared::PartitionName;
 
 macro_rules! get_sub {
@@ -71,46 +71,50 @@ pub async fn create_join_operator(
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
         let join_stream = join_stream.clone();
-        let broker = broker_ref.clone();
+        let task_broker = broker_ref.clone();
         let derivative_channel_tx = derivative_channel_tx.clone();
 
-        let _handle = tokio::spawn(async move {
-            // Create a subscription on each derivative
-            let (client_id, condvar, subscription) = {
-                let mut broker = broker.write().await;
-                let client_id = broker.clients.insert(super::ClientRef::NoOp);
-                let left_subscription = broker.create_subscription(join_stream.stream.0.inner());
-                let stream = join_stream.stream.clone();
-                let (left_notify, left_subscription) =
-                    get_sub!(broker, stream, left_subscription).unwrap();
+        let _handle = broker.task_handler.spawn(
+            &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
+            async move {
+                // Create a subscription on each derivative
+                let (client_id, condvar, subscription) = {
+                    let mut broker = task_broker.write().await;
+                    let client_id = broker.clients.insert(super::ClientRef::NoOp);
+                    let left_subscription =
+                        broker.create_subscription(join_stream.stream.0.inner());
+                    let stream = join_stream.stream.clone();
+                    let (left_notify, left_subscription) =
+                        get_sub!(broker, stream, left_subscription).unwrap();
 
-                tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
-                drop(broker); // Explicitly drop the lock.
+                    tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
+                    drop(broker); // Explicitly drop the lock.
 
-                (client_id, left_notify, left_subscription)
-            };
+                    (client_id, left_notify, left_subscription)
+                };
 
-            loop {
-                let offsets = eager_take_from_subscription_or_wait(
-                    subscription.clone(),
-                    condvar.clone(),
-                    client_id,
-                )
-                .await
-                .unwrap();
-
-                derivative_channel_tx
-                    .send((i, offsets))
+                loop {
+                    let offsets = eager_take_from_subscription_or_wait(
+                        subscription.clone(),
+                        condvar.clone(),
+                        client_id,
+                    )
                     .await
-                    .inspect_err(|err| {
-                        tracing::error!(
-                            "Error attempting to send to derivative channel: {:#?}",
-                            err
-                        );
-                    })
                     .unwrap();
-            }
-        });
+
+                    derivative_channel_tx
+                        .send((i, offsets))
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!(
+                                "Error attempting to send to derivative channel: {:#?}",
+                                err
+                            );
+                        })
+                        .unwrap();
+                }
+            },
+        );
 
         // Add the handle to the operator here.
         // operator.handles.push(handle);
@@ -120,7 +124,9 @@ pub async fn create_join_operator(
     // new joined stream.
     let stream = definition.base.0.0;
     let n_offsets = definition.joins.len();
-    let _collection_handle = tokio::spawn(async move {
+    let _collection_handle =             broker.task_handler.spawn(
+    &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
+    async move {
         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
             tracing::trace!(
                 "[JOIN COLLECTION] Received a notification for new offsets: {}",
@@ -225,7 +231,11 @@ pub async fn create_join_operator(
                 // Task that checks if previous value is completed, if not stops.
                 // If the previous task has been completed, query if the next index has been completed,
                 // if not, then complete it.
-                tokio::spawn(async move {
+                {
+                let mut broker = broker_ref.write().await;
+                broker.task_handler.spawn(
+                &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
+async move {
                     let index_file_view = index_file.view();
                     // Get the index preceding this one.
                     let previous_joined_index = match index {
@@ -314,7 +324,8 @@ pub async fn create_join_operator(
                         )
                         .await;
                     }
-                });
+                }).unwrap();
+                }
 
                 // This is not the most ideal place to get another reference to this index_file.
                 // Ideally we don't want multiple mutable references to the same broker index file,
@@ -335,7 +346,11 @@ pub async fn create_join_operator(
                 let amalgamate_broker = amalgamate_broker.clone();
                 // Queries the derivative data of all relying join streams and amalgamates it into
                 // one coherent data stream.
-                tokio::spawn(async move {
+                {
+                let mut  broker = broker_ref.write().await;
+                broker.task_handler.spawn(
+                &SpawnTaskConfig::new("joining", true) // TODO: we probably want this referencable from the stream.
+                ,async move {
                     let stream = amalgamate_definition.clone();
                     let partition = amalgamate_partition;
                     let broker = amalgamate_broker.clone();
@@ -456,7 +471,7 @@ pub async fn create_join_operator(
                             // Now do the subscription updating..
                         }
                     }
-                });
+                }).unwrap()};
             }
         }
     });
