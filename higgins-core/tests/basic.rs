@@ -42,9 +42,23 @@ fn can_achieve_basic_broker_functionality() {
     // 1. Do a basic Ping test.
     client.ping().unwrap();
 
+    match client.recv().unwrap() {
+        Response::Pong(_) => {
+            println!("Retrieved Pong!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
+
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
+
+    match client.recv().unwrap() {
+        Response::CreateConfiguration(_) => {
+            println!("Retrieved create configuration!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
 
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
@@ -56,6 +70,13 @@ fn can_achieve_basic_broker_functionality() {
             payload.as_bytes(),
         )
         .unwrap();
+
+    match client.recv().unwrap() {
+        Response::Produce(_) => {
+            println!("Retrieved Produce!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
 
     // Consume from the stream.
     client
