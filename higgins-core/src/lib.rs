@@ -293,7 +293,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Getindexrequest => {
                     tracing::trace!("Trying to retrieve the broker lock..");
 
-                    let broker_lock = broker.read().await;
+                    let mut broker_lock = broker.write().await;
 
                     tracing::trace!("Retrieved the GetIndexRequest");
 

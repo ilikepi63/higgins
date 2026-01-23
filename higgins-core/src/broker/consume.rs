@@ -1,5 +1,6 @@
 use super::Broker;
 
+use crate::task::SpawnTaskConfig;
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -54,7 +55,7 @@ impl Broker {
             .collect()
     }
     pub async fn get_by_timestamp(
-        &self,
+        &mut self,
         stream: &[u8],
         partition: &PartitionName,
         timestamp: u64,
@@ -145,7 +146,7 @@ impl Broker {
     }
 
     pub async fn dereference_find_batch_responses(
-        &self,
+        &mut self,
         batch_responses: Vec<FindBatchResponse>,
     ) -> Result<tokio::sync::mpsc::Receiver<ConsumeResponse>, HigginsError> {
         let object_storage = self
@@ -177,7 +178,7 @@ impl Broker {
             let object_store = object_storage.clone();
             let batch_responses = batch_responses.clone();
 
-            tokio::spawn(async move {
+            self.task_handler.spawn(&SpawnTaskConfig::new("consume", true), async move {
                 let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
 
                 let result = match get_object_result {
@@ -228,7 +229,7 @@ impl Broker {
                 } else {
                     tracing::trace!("No ConsumeBatches found for query.");
                 };
-            });
+            }).unwrap();
         }
 
         Ok(batch_reponse_rx)
