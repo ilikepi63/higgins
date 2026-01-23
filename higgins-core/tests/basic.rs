@@ -3,6 +3,7 @@ mod common;
 use std::{path::PathBuf, time::Duration};
 
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
+use higgins_client::Response;
 use higgins_shared::PartitionName;
 
 use common::get_random_port;
@@ -57,10 +58,17 @@ fn can_achieve_basic_broker_functionality() {
         .unwrap();
 
     // Consume from the stream.
-    let result = client.query_latest(
-        STREAM.as_bytes(),
-        &PartitionName::try_from(PARTITION).unwrap(),
-    );
+    client
+        .query_latest(
+            STREAM.as_bytes(),
+            &PartitionName::try_from(PARTITION).unwrap(),
+        )
+        .unwrap();
+
+    let result = client.recv().map(|res| match res {
+        Response::GetIndex(get_index_result) => get_index_result.records,
+        _ => panic!("Got an unexpect result."),
+    });
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 

@@ -48,10 +48,25 @@ fn can_update_subscription_after_created() {
     produce_client
         .upload_configuration(config.as_bytes())
         .unwrap();
+
+    match produce_client.recv().unwrap() {
+        Response::CreateConfiguration(_) => {
+            println!("Retrieved create configuration!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
+
     // Start a subscription on that stream.
-    let sub_id = produce_client
+    produce_client
         .create_subscription("update_customer".as_bytes())
         .unwrap();
+
+    let sub_id = match produce_client.recv().unwrap() {
+        Response::CreateSubscription(create_subscription_response) => {
+            create_subscription_response.subscription_id.unwrap()
+        }
+        _ => panic!("Retrieved unexpected result."),
+    };
 
     tracing::trace!("Successfully created subscription!");
 

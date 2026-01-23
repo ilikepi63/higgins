@@ -11,7 +11,7 @@ pub async fn upload_configuration<
 >(
     config: &[u8],
     socket: &mut S,
-) -> Result<CreateConfigurationResponse, HigginsClientError> {
+) -> Result<(), HigginsClientError> {
     let mut write_buf = BytesMut::new();
 
     let create_config_req = CreateConfigurationRequest {
@@ -29,19 +29,21 @@ pub async fn upload_configuration<
 
     frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read_async(socket).await?;
+    Ok(())
 
-    let slice = frame.inner();
+    // let frame = Frame::try_read_async(socket).await?;
 
-    let message = Message::decode(slice).unwrap();
+    // let slice = frame.inner();
 
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Createconfigurationresponse => Ok(message
-            .create_configuration_response
-            .ok_or(HigginsClientError::MissingPayload)?),
-        _ => Err(HigginsClientError::IncorrectResponseReceived(
-            Type::Createconfigurationresponse.as_str_name().to_string(),
-            message.r#type().as_str_name().to_string(),
-        )),
-    }
+    // let message = Message::decode(slice).unwrap();
+
+    // match Type::try_from(message.r#type).unwrap() {
+    //     Type::Createconfigurationresponse => Ok(message
+    //         .create_configuration_response
+    //         .ok_or(HigginsClientError::MissingPayload)?),
+    //     _ => Err(HigginsClientError::IncorrectResponseReceived(
+    //         Type::Createconfigurationresponse.as_str_name().to_string(),
+    //         message.r#type().as_str_name().to_string(),
+    //     )),
+    // }
 }

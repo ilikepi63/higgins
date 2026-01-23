@@ -1284,6 +1284,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "clap",
+ "higgins-client",
  "higgins-codec",
  "prost",
  "tokio",

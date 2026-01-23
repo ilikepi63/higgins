@@ -33,27 +33,27 @@ pub async fn upload_module<
     Ok(())
 }
 
-#[allow(unused)]
-pub async fn upload_module_sync<
-    S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
->(
-    name: &str,
-    wasm: &[u8],
-    socket: &mut S,
-) -> Result<(), HigginsClientError> {
-    upload_module(name, wasm, socket).await?;
+// #[allow(unused)]
+// pub async fn upload_module_sync<
+//     S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+// >(
+//     name: &str,
+//     wasm: &[u8],
+//     socket: &mut S,
+// ) -> Result<(), HigginsClientError> {
+//     upload_module(name, wasm, socket).await?;
 
-    let frame = Frame::try_read_async(socket).await?;
+//     let frame = Frame::try_read_async(socket).await?;
 
-    let slice = frame.inner();
+//     let slice = frame.inner();
 
-    let message = Message::decode(slice).unwrap();
+//     let message = Message::decode(slice).unwrap();
 
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Uploadmoduleresponse => Ok(()),
-        _ => Err(HigginsClientError::IncorrectResponseReceived(
-            Type::Uploadmoduleresponse.as_str_name().to_string(),
-            message.r#type().as_str_name().to_string(),
-        )),
-    }
-}
+//     match Type::try_from(message.r#type).unwrap() {
+//         Type::Uploadmoduleresponse => Ok(()),
+//         _ => Err(HigginsClientError::IncorrectResponseReceived(
+//             Type::Uploadmoduleresponse.as_str_name().to_string(),
+//             message.r#type().as_str_name().to_string(),
+//         )),
+//     }
+// }
