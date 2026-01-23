@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
+use crate::task::TaskHandler;
 use crate::{
     client::ClientCollection,
     // storage::batch_coordinate::BatchCoordinate,
@@ -82,6 +83,7 @@ impl Broker {
             clients: ClientCollection::empty(),
             functions: FunctionCollection::new(functions_dir),
             broker_indexes: Vec::new(),
+            task_handler: TaskHandler::new(),
         }
     }
 

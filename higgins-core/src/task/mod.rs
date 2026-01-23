@@ -21,26 +21,26 @@ pub struct TaskHandler {
 
 impl TaskHandler {
     pub fn new() -> Self {
-        Self {
+        let mut task_handler = Self {
             root: TaskPtr {
                 name: "root".to_string(),
                 handle: None,
                 tasks: Some(vec![]),
             },
-        }
+        };
+
+        task_handler
     }
 
     /// Spawn a future inside of this task handle.
-    pub fn spawn<F>(
-        &mut self,
-        task_description: &TaskDescription,
-        future: F,
-    ) -> Result<(), HigginsTaskError>
+    pub fn spawn<F>(&mut self, config: &SpawnTaskConfig, future: F) -> Result<(), HigginsTaskError>
     where
-        F: Future + Send + 'static + UnwindSafe,
+        F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        let mut layers = task_description.layers();
+        println!("Starting the task..");
+
+        let mut layers = config.description.layers();
 
         let mut current_task_ptr = &mut self.root;
 
@@ -67,11 +67,12 @@ impl TaskHandler {
                                 .map(|v| v.len())
                                 .unwrap_or(0);
 
-                            current_task_ptr.tasks.as_mut().unwrap().push(TaskPtr {
+                            current_task_ptr.add_sub_task(TaskPtr {
                                 name: next_layer,
                                 handle: None, //Some(Self::spawn_task(future)),
                                 tasks: None,
                             });
+
                             current_task_ptr
                                 .tasks
                                 .as_mut()
@@ -81,11 +82,11 @@ impl TaskHandler {
                         }
                         // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
                         (false, _) => {
-                            current_task_ptr.tasks.replace(vec![TaskPtr {
+                            current_task_ptr.add_sub_task(TaskPtr {
                                 name: next_layer,
                                 handle: None, //Some(Self::spawn_task(future)),
                                 tasks: None,
-                            }]);
+                            });
 
                             current_task_ptr
                                 .tasks
@@ -105,8 +106,9 @@ impl TaskHandler {
                     };
                 }
                 None => {
-                    let task_handle = Self::spawn_task(future);
-                    current_task_ptr.handle = Some(task_handle);
+                    let task_handle = self.spawn_task(config, future);
+                    // task_handler_static_ref.update_task(task_description, task_handle);
+                    // current_task_ptr.handle = Some(task_handle);
                     break;
                 }
             }
@@ -115,14 +117,72 @@ impl TaskHandler {
         Ok(())
     }
 
-    fn spawn_task<F>(fut: F) -> JoinHandle<()>
+    fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
+
+    fn spawn_task<F>(&mut self, config: &SpawnTaskConfig, fut: F)
     where
-        F: Future + Send + 'static + UnwindSafe,
+        F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        tokio::spawn(async move {
-            let unwind_result = fut.catch_unwind().await;
-        })
+        println!("Calling spawn_task..");
+
+        let task_description_for_task = config.description.clone();
+
+        let mut handler_ptr = TaskHandlerReference::from(self);
+
+        let handle = tokio::spawn(async move {
+            println!("{:#?} spawning..", task_description_for_task);
+
+            let result = fut.await;
+
+            println!(
+                "{:#?} completed, Removing from tree..",
+                task_description_for_task
+            );
+
+            unsafe { handler_ptr.abort(&task_description_for_task) };
+
+            // match result {
+            //     Ok(result) => {
+            //     }
+            //     Err(err) => {
+            //         tracing::error!("Received an error during ");
+            //     }
+            // }
+        });
+
+        println!("Updating the handle in the task_description..");
+
+        let task_description = config.description.clone();
+
+        match config.unique {
+            true => {
+                self.get_task_handle_vec(&task_description)
+                    .map(|task| {
+                        let name = task.get_unique_sub_task_name();
+
+                        task.add_sub_task(TaskPtr {
+                            name,
+                            handle: Some(handle),
+                            tasks: None,
+                        });
+                    })
+                    .inspect_err(|err| {
+                        tracing::error!("Error retrieving task handle: {task_description}");
+                    });
+            }
+            false => {
+                self.get_task_handle_vec(&task_description)
+                    .map(|task| {
+                        task.handle = Some(handle);
+                    })
+                    .inspect_err(|err| {
+                        tracing::error!("Error retrieving task handle: {task_description}");
+                    });
+            }
+        }
+
+        // handle
     }
 
     /// Given a task description, retrieves the vector in which this task needs to
@@ -221,7 +281,7 @@ impl TaskHandler {
                 .map(|(i, _)| i);
 
             if let Some(i) = index {
-                sub_tasks.remove(i);
+                sub_tasks.swap_remove(i);
             }
         }
 
@@ -241,11 +301,39 @@ impl TaskHandler {
     }
 }
 
+/// A TaskHandlerReference that allows a task to keep a reference to the handle.
+///
+/// A task will never outlive the TaskHandler it belongs to, and therefore dereferencing this ptr
+/// should never be UB.
+struct TaskHandlerReference(*mut TaskHandler);
+
+impl TaskHandlerReference {
+    pub fn from(handler: &mut TaskHandler) -> Self {
+        Self(std::ptr::from_mut(handler))
+    }
+
+    pub unsafe fn abort(&mut self, task_description: &TaskDescription) {
+        unsafe {
+            (*(self.0)).abort(task_description);
+        }
+    }
+}
+
+/// SAFETY: Tasks that reference this handle will never outlive the struct it points to.
+unsafe impl Send for TaskHandlerReference {}
+
 /// The description of a given task.
 ///
 /// This includes the logic that surrounds how layering of tasks are sorted out.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaskDescription(String);
+
+impl std::fmt::Display for TaskDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)?;
+        Ok(())
+    }
+}
 
 impl TaskDescription {
     pub fn push(&mut self, layer: &str) -> Result<(), HigginsError> {
@@ -303,10 +391,74 @@ impl TaskPtr {
             tasks: None,
         }
     }
+
+    /// Add a subtask to this TaskPtr.
+    ///
+    /// If the Task doesn't have a vec assigned to it, this creates one.
+    pub fn add_sub_task(&mut self, ptr: TaskPtr) {
+        match self.tasks.as_mut() {
+            Some(tasks) => {
+                tasks.push(ptr);
+            }
+            None => {
+                self.tasks.insert(vec![ptr]);
+            }
+        }
+    }
+
+    /// Retrieve a unique name for a task ptr before adding it into
+    /// this TaskPtr.
+    ///
+    /// NOTE: This is not a great method, as we could be doing a lot of
+    /// lookups depending on how often tasks get spawned/deallocated.
+    pub fn get_unique_sub_task_name(&self) -> String {
+        let mut length = self.tasks.as_ref().map(|t| t.len()).unwrap_or(0);
+
+        loop {
+            if self
+                .tasks
+                .as_ref()
+                .map(|tasks| {
+                    tasks
+                        .iter()
+                        .all(|sub_task| sub_task.name != length.to_string())
+                })
+                .unwrap_or(true)
+            {
+                return length.to_string();
+            }
+
+            length += 1;
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SpawnTaskConfig {
+    description: TaskDescription,
+    /// Whether or not this task should be spawned uniquely.
+    ///
+    /// This will either create the task inside of the current hierarchy, or add it to the hierarchy's vec
+    /// with a generated id. This is toggled usually if you are spawning many tasks that sit side-by-side,
+    /// but the specific ID's of those tasks are not important for the hierarchical nature of the TaskHandler.
+    unique: bool,
+}
+
+impl SpawnTaskConfig {
+    pub fn new(description: &str, unique: bool) -> Self {
+        Self {
+            description: TaskDescription(description.to_string()),
+            unique,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
+    use tokio::sync::oneshot::channel;
+
     use super::*;
 
     #[tokio::test]
@@ -314,7 +466,10 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -339,7 +494,10 @@ mod test {
         let mut task_handler = TaskHandler::new();
 
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -354,7 +512,13 @@ mod test {
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
 
-        let result = task_handler.spawn(&TaskDescription("some".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
@@ -379,7 +543,10 @@ mod test {
 
         println!("hierarchy");
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -394,14 +561,23 @@ mod test {
 
         println!("thing");
 
-        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thing".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
         println!("thingelse");
 
         let result = task_handler.spawn(
-            &TaskDescription("some::thingelse".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thingelse".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -446,7 +622,10 @@ mod test {
 
         println!("hierarchy");
         let result = task_handler.spawn(
-            &TaskDescription("some::hierarchy".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
@@ -461,21 +640,35 @@ mod test {
 
         println!("thing");
 
-        let result = task_handler.spawn(&TaskDescription("some::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::hierarchy".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
         println!("thingelse");
 
         let result = task_handler.spawn(
-            &TaskDescription("some::thingelse".to_string()),
+            &SpawnTaskConfig {
+                description: TaskDescription("some::thingelse".to_string()),
+                unique: false,
+            },
             async move {},
         );
 
         assert!(result.is_ok());
 
-        let result =
-            task_handler.spawn(&TaskDescription("other::thing".to_string()), async move {});
+        let result = task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("other::thing".to_string()),
+                unique: false,
+            },
+            async move {},
+        );
 
         assert!(result.is_ok());
 
@@ -585,5 +778,160 @@ mod test {
             task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string())),
             Err(HigginsTaskError::TaskHierarchyDoesNotExist)
         ));
+    }
+
+    #[tokio::test]
+    async fn task_aborts_after_some_time() {
+        let mut task_handler = TaskHandler::new();
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+
+        task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::".to_string()),
+                unique: false,
+            },
+            async move {
+                tx.send(()); // send to this channel so we know that this was executed.
+            },
+        );
+
+        // Pause this task so that the spawned one can operate.
+        rx.await; // Await the spawn.
+
+        // Assert that the task handle vec for this hierarchy has
+        // an empty task (the "what" task ptr has removed itself.)
+        assert_eq!(
+            task_handler
+                .get_task_handle_vec(&TaskDescription("some".to_string()))
+                .unwrap()
+                .tasks,
+            Some(vec![])
+        );
+    }
+
+    #[tokio::test]
+    async fn task_unique_name_retrievable() {
+        let mut task_ptr = TaskPtr {
+            name: "root".to_string(),
+            handle: None,
+            tasks: None,
+        };
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![TaskPtr {
+                name: "0".to_string(),
+                handle: None,
+                tasks: None,
+            },],),
+        );
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "1".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "1".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+
+        // Remove a task.
+        task_ptr.tasks.as_mut().unwrap().remove(1);
+
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
+        let unique_name = task_ptr.get_unique_sub_task_name();
+
+        task_ptr.add_sub_task(TaskPtr {
+            name: unique_name,
+            handle: None,
+            tasks: None,
+        });
+        assert_eq!(
+            task_ptr.tasks,
+            Some(vec![
+                TaskPtr {
+                    name: "0".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "2".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+                TaskPtr {
+                    name: "3".to_string(),
+                    handle: None,
+                    tasks: None,
+                },
+            ],),
+        );
     }
 }

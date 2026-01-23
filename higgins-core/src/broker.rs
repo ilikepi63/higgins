@@ -7,9 +7,9 @@ mod produce;
 mod streams;
 mod subscriptions;
 
-pub use indexes::BrokerIndexFile;
-
+use crate::task::TaskHandler;
 use arrow::{array::RecordBatch, datatypes::Schema};
+pub use indexes::BrokerIndexFile;
 use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
@@ -51,6 +51,8 @@ pub struct Broker {
 
     // Functions
     pub functions: FunctionCollection,
+
+    pub task_handler: TaskHandler,
 }
 
 impl Broker {
@@ -60,26 +62,6 @@ impl Broker {
             .iter()
             .find(|(id, _)| *id == stream_name)
             .map(|(_, (_, tx, _rx))| tx.subscribe())
-    }
-
-    /// Apply a reduction function to the stream.
-    pub fn reduce(
-        &mut self,
-        stream_name: &[u8],
-        reduced_stream_name: &[u8],
-        reduced_stream_schema: Arc<Schema>,
-        func: ReductionFn,
-    ) {
-        let current_rx = self.get_receiver(stream_name).unwrap();
-
-        let (tx, rx) = tokio::sync::broadcast::channel(100);
-
-        ReduceFunction::new(func, current_rx, tx.clone());
-
-        self.streams.insert(
-            reduced_stream_name.to_owned(),
-            (reduced_stream_schema, tx, rx),
-        );
     }
 
     /// Creates a partition from a partition key.
@@ -111,33 +93,5 @@ impl Broker {
         }
 
         Ok(())
-    }
-}
-
-pub trait ReductionFnTypeSig:
-    Fn(&Option<RecordBatch>, &RecordBatch) -> RecordBatch + Send + 'static
-{
-}
-
-type ReductionFn = fn(&Option<RecordBatch>, &RecordBatch) -> RecordBatch;
-
-pub struct ReduceFunction;
-
-impl ReduceFunction {
-    /// Create a new instance of a reduction function.
-    pub fn new(func: ReductionFn, mut rx: Receiver, tx: Sender) -> Self {
-        tokio::spawn(async move {
-            let last_value: Option<RecordBatch> = None;
-
-            while let Ok(value) = rx.recv().await {
-                let result = func(&last_value, &value);
-
-                if let Err(e) = tx.send(result) {
-                    tracing::error!("Error sending result: {:#?}", e);
-                };
-            }
-        });
-
-        Self
     }
 }
