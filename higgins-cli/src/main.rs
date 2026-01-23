@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bytes::BytesMut;
 use clap::{Parser, Subcommand};
-use higgins_client::Client;
+use higgins_client::{Client, Response};
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
 use tokio::{
@@ -52,7 +52,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .pretty()
         .with_thread_names(true)
-        .with_max_level(tracing::Level::TRACE)
         .init();
 
     let mut client = Client::connect("127.0.0.1:8080", Some(Duration::from_secs(3)))
@@ -63,7 +62,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Ping {} => {
-            let result = client.ping().await.unwrap();
+            client.ping().await.unwrap();
+
+            let result = client.recv().await.unwrap();
+
+            match result {
+                Response::Pong(_) => {
+                    println!("Pong!");
+                }
+                _ => {
+                    println!("Didn't receive a pong response.");
+                }
+            }
         }
         Commands::Produce {
             topic,
