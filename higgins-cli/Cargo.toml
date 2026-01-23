@@ -15,3 +15,4 @@ prost = "0.13.5"
 # Higgins
 higgins-codec = {path = "../higgins-codec"}
 higgins-client = {path = "../higgins-client"}
+higgins-shared = {path = "../higgins-shared"}

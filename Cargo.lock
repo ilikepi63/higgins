@@ -1286,6 +1286,7 @@ dependencies = [
  "clap",
  "higgins-client",
  "higgins-codec",
+ "higgins-shared",
  "prost",
  "tokio",
  "tracing",

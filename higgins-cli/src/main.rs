@@ -6,6 +6,7 @@ use bytes::BytesMut;
 use clap::{Parser, Subcommand};
 use higgins_client::{Client, Response};
 use higgins_codec::{Message, ProduceRequest, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -92,6 +93,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             key,
             file_name,
         } => {
+            let payload = std::fs::read(&file_name).unwrap();
+
+            client
+                .produce(
+                    &topic,
+                    &PartitionName::try_from(key.as_slice()).unwrap(),
+                    &payload,
+                )
+                .await
+                .unwrap();
+
+            client.recv().await.unwrap();
+
+            println!("Successfully Produced!");
+
             // let data = std::fs::read_to_string(&file_name).unwrap();
 
             // let request = ProduceRequest {
