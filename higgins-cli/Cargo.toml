@@ -10,5 +10,8 @@ clap = { version = "4.5.39", features = ["derive"] }
 tokio = { version = "1.45.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
-higgins-codec = {path = "../higgins-codec"}
 prost = "0.13.5"
+
+# Higgins
+higgins-codec = {path = "../higgins-codec"}
+higgins-client = {path = "../higgins-client"}
