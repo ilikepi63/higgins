@@ -44,7 +44,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let _read_handle = broker_lock.task_handler.spawn(&SpawnTaskConfig::new(
         "tcp_read",
-     false
+        true // Needs to be unique as this is a socket per client.
     ),async move {
         loop {
             let frame = Frame::try_read_async(&mut read_socket).await.unwrap();
