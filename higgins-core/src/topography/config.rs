@@ -431,7 +431,7 @@ mod test {
                                 aws_token: None,
                                 aws_container_credentials_relative_uri: None,
                                 aws_allow_http: None,
-                                bucket_name: Some("bucket".to_string()),
+                                bucket_name: None,
                             },
                         },
                     );
