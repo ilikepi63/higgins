@@ -15,6 +15,18 @@ use std::{path::PathBuf, str::FromStr};
 
 use higgins::run_server;
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(long, require_equals = true)]
+    topic: String,
+    #[arg(long, require_equals = true)]
+    key: Vec<u8>,
+    #[arg(long, require_equals = true)]
+    file_name: String,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
