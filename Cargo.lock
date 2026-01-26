@@ -1251,6 +1251,7 @@ dependencies = [
  "arrow-json",
  "async-trait",
  "bytes",
+ "clap",
  "colored",
  "futures",
  "get-port",

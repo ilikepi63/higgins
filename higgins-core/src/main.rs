@@ -11,9 +11,9 @@ pub mod task;
 pub mod topography;
 pub mod utils;
 
-use std::{path::PathBuf, str::FromStr};
-
+use clap::{Parser, Subcommand};
 use higgins::run_server;
+use std::{path::PathBuf, str::FromStr};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
