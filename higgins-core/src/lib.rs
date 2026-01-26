@@ -47,7 +47,15 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
         true // Needs to be unique as this is a socket per client.
     ),async move {
         loop {
-            let frame = Frame::try_read_async(&mut read_socket).await.unwrap();
+            let frame = match Frame::try_read_async(&mut read_socket).await {
+                Ok(frame) => frame,
+                Err(_) => {
+                    // Usually means that EOF was received on the socket, terminating this.
+                    break;
+                }
+            };
+
+
             let message = Message::decode(&mut frame.inner()).unwrap();
 
             tracing::info!("Received a message {:#?}, responding.", message);
@@ -130,6 +138,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     };
 
                     tracing::trace!("[PRODUCE] Successfully created the partition.");
+
+                    tracing::trace!("[PRODUCE] Streams: {:#?}", broker);
 
                     let (schema, _tx, _rx) = broker
                         .get_stream(&stream_name)

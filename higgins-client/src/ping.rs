@@ -23,28 +23,3 @@ pub async fn ping<S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
     frame.try_write_async(socket).await?;
     Ok(())
 }
-
-// #[allow(unused)]
-// pub async fn ping_sync<
-//     S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
-// >(
-//     socket: &mut S,
-// ) -> Result<(), HigginsClientError> {
-//     let mut read_buf = BytesMut::zeroed(20);
-
-//     ping(socket).await?;
-
-//     let frame = Frame::try_read_async(socket).await?;
-
-//     let slice = frame.inner();
-
-//     let message = Message::decode(slice).unwrap();
-
-//     match Type::try_from(message.r#type).unwrap() {
-//         Type::Pong => Ok(()),
-//         _ => Err(HigginsClientError::IncorrectResponseReceived(
-//             Type::Pong.as_str_name().to_string(),
-//             message.r#type().as_str_name().to_string(),
-//         )),
-//     }
-// }
