@@ -2,18 +2,9 @@
 
 use std::time::Duration;
 
-use bytes::BytesMut;
 use clap::{Parser, Subcommand};
 use higgins_client::{Client, Response};
-use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_shared::PartitionName;
-use prost::Message as _;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-};
-
-use crate::ping::handle_ping_cmd;
 
 mod ping;
 
