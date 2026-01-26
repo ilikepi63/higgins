@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use higgins_codec::{GetIndexRequest, Index, Message, Record, frame::Frame, message::Type};
+use higgins_codec::{GetIndexRequest, Index, Message, frame::Frame, message::Type};
 use higgins_shared::PartitionName;
 use prost::Message as _;
 
