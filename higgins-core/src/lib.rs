@@ -29,6 +29,8 @@ pub mod task;
 pub mod topography;
 pub mod utils;
 
+mod handlers;
+
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
 
@@ -66,23 +68,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
             match Type::try_from(message.r#type).unwrap() {
                 Type::Ping => {
-                    tracing::trace!("Received Ping, sending Pong.");
-
-                    let mut result = BytesMut::new();
-
-                    let pong = Pong::default();
-
-                    Message {
-                        r#type: Type::Pong as i32,
-                        pong: Some(pong),
-                        ..Default::default()
-                    }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    tracing::info!("Responding with: {:#?}", result.clone().to_vec());
-
-                    writer_tx.send(result).await.unwrap();
+                    handlers::handle_ping(writer_tx.clone()).await;
                 }
                 Type::Createsubscriptionrequest => {
                     tracing::trace!(
