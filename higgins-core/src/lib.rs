@@ -71,38 +71,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     handlers::handle_ping(writer_tx.clone()).await;
                 }
                 Type::Createsubscriptionrequest => {
-                    tracing::trace!(
-                        "Received CreateSubscriptionRequest: {:#?}",
-                        message.create_subscription_request
-                    );
-
-                    let CreateSubscriptionRequest {
-                            stream_name,..
-                            // offset_type,
-                            // timestamp,
-                            // offset,
-                        } = message.create_subscription_request.unwrap();
-
-                    let mut broker = broker.write().await;
-
-                    let subscription_id = broker.create_subscription(&stream_name);
-
-                    let resp = CreateSubscriptionResponse {
-                        errors: vec![],
-                        subscription_id: Some(subscription_id),
-                    };
-
-                    let mut result = BytesMut::new();
-
-                    Message {
-                        r#type: Type::Createsubscriptionresponse as i32,
-                        create_subscription_response: Some(resp),
-                        ..Default::default()
-                    }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
+                    handlers::handle_create_subscription(message, broker.clone() ,writer_tx.clone()).await;
                 }
                 Type::Producerequest => {
                     tracing::info!("[PRODUCE] Received produce request. Handling.");
