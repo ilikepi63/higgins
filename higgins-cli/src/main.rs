@@ -6,8 +6,6 @@ use clap::{Parser, Subcommand};
 use higgins_client::{Client, Response};
 use higgins_shared::PartitionName;
 
-mod ping;
-
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
