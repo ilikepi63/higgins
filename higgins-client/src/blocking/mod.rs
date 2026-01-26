@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::{error::HigginsClientError, recv::Response};
-use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record};
 use higgins_shared::PartitionName;
 use tokio::net::ToSocketAddrs;
 pub struct Client(crate::Client, tokio::runtime::Runtime);

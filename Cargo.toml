@@ -14,3 +14,4 @@ exclude = ["higgins-functions/tests/example_wasm"]
 tokio = { version = "1", features = ["full"] }
 thiserror = { version = "2" }
 tracing = "0.1"
+clap = { version = "4", features = ["derive"] }

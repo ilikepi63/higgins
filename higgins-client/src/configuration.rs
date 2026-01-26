@@ -1,7 +1,5 @@
 use bytes::BytesMut;
-use higgins_codec::{
-    CreateConfigurationRequest, CreateConfigurationResponse, Message, frame::Frame, message::Type,
-};
+use higgins_codec::{CreateConfigurationRequest, Message, frame::Frame, message::Type};
 use prost::Message as _;
 
 use crate::error::HigginsClientError;
@@ -30,20 +28,4 @@ pub async fn upload_configuration<
     frame.try_write_async(socket).await?;
 
     Ok(())
-
-    // let frame = Frame::try_read_async(socket).await?;
-
-    // let slice = frame.inner();
-
-    // let message = Message::decode(slice).unwrap();
-
-    // match Type::try_from(message.r#type).unwrap() {
-    //     Type::Createconfigurationresponse => Ok(message
-    //         .create_configuration_response
-    //         .ok_or(HigginsClientError::MissingPayload)?),
-    //     _ => Err(HigginsClientError::IncorrectResponseReceived(
-    //         Type::Createconfigurationresponse.as_str_name().to_string(),
-    //         message.r#type().as_str_name().to_string(),
-    //     )),
-    // }
 }
