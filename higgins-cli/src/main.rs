@@ -104,7 +104,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap();
 
-            client.recv().await.unwrap();
+            let result = client.recv().await.unwrap();
+
+            println!("Result: {:#?}", result);
 
             println!("Successfully Produced!");
 

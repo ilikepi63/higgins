@@ -90,6 +90,7 @@ pub struct AwsS3Storage {
     pub aws_token: Option<String>,
     pub aws_container_credentials_relative_uri: Option<String>,
     pub aws_allow_http: Option<bool>,
+    pub bucket_name: Option<String>,
 }
 
 /// Deserializes the given byte array into a configuration.
@@ -430,6 +431,7 @@ mod test {
                                 aws_token: None,
                                 aws_container_credentials_relative_uri: None,
                                 aws_allow_http: None,
+                                bucket_name: Some("bucket".to_string()),
                             },
                         },
                     );

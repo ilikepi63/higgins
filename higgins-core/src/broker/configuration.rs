@@ -166,6 +166,7 @@ pub fn instantiate_storage_from_configuration(
                 aws_region,
                 aws_secret_access_key,
                 aws_token,
+                bucket_name,
                 ..
             } = storage_config.aws_s3_config.clone();
 
@@ -202,6 +203,12 @@ pub fn instantiate_storage_from_configuration(
             let s3_builder = add_to_builder(
                 aws_token,
                 |builder, val| builder.with_token(val),
+                s3_builder,
+            );
+
+            let s3_builder = add_to_builder(
+                bucket_name,
+                |builder, val| builder.with_bucket_name(val),
                 s3_builder,
             );
 

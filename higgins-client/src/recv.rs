@@ -6,6 +6,7 @@ use higgins_codec::{
 };
 use prost::Message as _;
 
+#[derive(Debug)]
 pub enum Response {
     CreateConfiguration(CreateConfigurationResponse),
     CreateSubscription(CreateSubscriptionResponse),
