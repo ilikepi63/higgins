@@ -11,20 +11,20 @@ pub mod task;
 pub mod topography;
 pub mod utils;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use higgins::run_server;
 use std::{path::PathBuf, str::FromStr};
 
-/// Simple program to greet a person
+static DEFAULT_PORT: u16 = 4932;
+static DEFAULT_DIR: &str = "data";
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(long, require_equals = true)]
-    topic: String,
+    port: Option<u16>,
     #[arg(long, require_equals = true)]
-    key: Vec<u8>,
-    #[arg(long, require_equals = true)]
-    file_name: String,
+    dir: Option<String>,
 }
 
 #[tokio::main]
@@ -37,9 +37,18 @@ async fn main() {
         // sets this to be the default, global collector for this application.
         .init();
 
-    let port = 8080; // TODO: this needs to go to env vars.
+    let args = Args::parse();
 
-    let dir = PathBuf::from_str("higgins_data").unwrap();
+    let port = args.port.unwrap_or(DEFAULT_PORT);
 
-    run_server(dir, port).await;
+    let dir = PathBuf::from_str(&args.dir.unwrap_or(DEFAULT_DIR.to_string()));
+
+    match dir {
+        Ok(dir) => {
+            run_server(dir, port).await;
+        }
+        Err(_) => {
+            tracing::error!("Incorrect directory name given.");
+        }
+    };
 }
