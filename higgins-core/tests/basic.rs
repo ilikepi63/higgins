@@ -3,6 +3,7 @@ mod common;
 use std::{path::PathBuf, time::Duration};
 
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
+use higgins_client::Response;
 use higgins_shared::PartitionName;
 
 use common::get_random_port;
@@ -41,9 +42,23 @@ fn can_achieve_basic_broker_functionality() {
     // 1. Do a basic Ping test.
     client.ping().unwrap();
 
+    match client.recv().unwrap() {
+        Response::Pong(_) => {
+            println!("Retrieved Pong!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
+
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
+
+    match client.recv().unwrap() {
+        Response::CreateConfiguration(_) => {
+            println!("Retrieved create configuration!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
 
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
@@ -56,11 +71,25 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
+    match client.recv().unwrap() {
+        Response::Produce(_) => {
+            println!("Retrieved Produce!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
+
     // Consume from the stream.
-    let result = client.query_latest(
-        STREAM.as_bytes(),
-        &PartitionName::try_from(PARTITION).unwrap(),
-    );
+    client
+        .query_latest(
+            STREAM.as_bytes(),
+            &PartitionName::try_from(PARTITION).unwrap(),
+        )
+        .unwrap();
+
+    let result = client.recv().map(|res| match res {
+        Response::GetIndex(get_index_result) => get_index_result.records,
+        _ => panic!("Got an unexpect result."),
+    });
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 

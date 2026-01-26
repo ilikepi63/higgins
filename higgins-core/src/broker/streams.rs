@@ -10,6 +10,7 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 
 impl Broker {
     pub fn get_stream(&self, stream_name: &[u8]) -> Option<&(Arc<Schema>, Sender, Receiver)> {
+        tracing::trace!("[GET_STREAM] Retrieving streams from {:#?}", self.streams);
         self.streams.get(stream_name)
     }
 

@@ -13,7 +13,7 @@ pub async fn query_by_timestamp<
     partition: &PartitionName,
     socket: &mut T,
     timestamp: u64,
-) -> Result<Vec<Record>, HigginsClientError> {
+) -> Result<(), HigginsClientError> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
@@ -37,22 +37,24 @@ pub async fn query_by_timestamp<
 
     frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read_async(socket).await?;
+    Ok(())
 
-    let slice = frame.inner();
+    // let frame = Frame::try_read_async(socket).await?;
 
-    let message = Message::decode(slice).unwrap();
+    // let slice = frame.inner();
 
-    let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Getindexresponse => {
-            let response = message.get_index_response.unwrap();
+    // let message = Message::decode(slice).unwrap();
 
-            response.records
-        }
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    };
+    // let result = match Type::try_from(message.r#type).unwrap() {
+    //     Type::Getindexresponse => {
+    //         let response = message.get_index_response.unwrap();
 
-    Ok(result)
+    //         response.records
+    //     }
+    //     _ => panic!("Received incorrect response from server for Create Subscription request."),
+    // };
+
+    // Ok(result)
 }
 
 #[allow(unused)]
@@ -62,7 +64,7 @@ pub async fn query_latest<
     stream: &[u8],
     partition: &PartitionName,
     socket: &mut T,
-) -> Result<Vec<Record>, HigginsClientError> {
+) -> Result<(), HigginsClientError> {
     let request = GetIndexRequest {
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
@@ -87,19 +89,21 @@ pub async fn query_latest<
 
     frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read_async(socket).await?;
+    Ok(())
 
-    let slice = frame.inner();
+    // let frame = Frame::try_read_async(socket).await?;
 
-    let message = Message::decode(slice).unwrap();
-    let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Getindexresponse => {
-            let response = message.get_index_response.unwrap();
+    // let slice = frame.inner();
 
-            response.records
-        }
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    };
+    // let message = Message::decode(slice).unwrap();
+    // let result = match Type::try_from(message.r#type).unwrap() {
+    //     Type::Getindexresponse => {
+    //         let response = message.get_index_response.unwrap();
 
-    Ok(result)
+    //         response.records
+    //     }
+    //     _ => panic!("Received incorrect response from server for Create Subscription request."),
+    // };
+
+    // Ok(result)
 }

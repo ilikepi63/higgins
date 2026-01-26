@@ -37,28 +37,28 @@ pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::mark
     frame.try_write_async(socket).await.unwrap();
 }
 
-/// Produce synchronously to a listener awaiting the response.
-#[allow(unused)]
-pub async fn produce_sync<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
-    stream: &[u8],
-    partition: &PartitionName,
-    payload: &[u8],
-    socket: &mut T,
-) -> Result<ProduceResponse, HigginsClientError> {
-    produce(stream, partition, payload, socket).await;
+// Produce synchronously to a listener awaiting the response.
+// #[allow(unused)]
+// pub async fn produce_sync<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
+//     stream: &[u8],
+//     partition: &PartitionName,
+//     payload: &[u8],
+//     socket: &mut T,
+// ) -> Result<ProduceResponse, HigginsClientError> {
+//     produce(stream, partition, payload, socket).await;
 
-    let mut read_buf = BytesMut::zeroed(1024);
+//     let mut read_buf = BytesMut::zeroed(1024);
 
-    let frame = Frame::try_read_async(socket).await.unwrap();
+//     let frame = Frame::try_read_async(socket).await.unwrap();
 
-    let slice = frame.inner();
+//     let slice = frame.inner();
 
-    let message = Message::decode(slice).unwrap();
+//     let message = Message::decode(slice).unwrap();
 
-    let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Produceresponse => message.produce_response.unwrap(),
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    };
+//     let result = match Type::try_from(message.r#type).unwrap() {
+//         Type::Produceresponse => message.produce_response.unwrap(),
+//         _ => panic!("Received incorrect response from server for Create Subscription request."),
+//     };
 
-    Ok(result)
-}
+//     Ok(result)
+// }

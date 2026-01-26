@@ -2,12 +2,11 @@ use crate::{
     configuration::upload_configuration,
     error::HigginsClientError,
     functions::upload_module,
-    ping::ping_sync,
-    produce::produce_sync,
+    ping::ping,
+    produce::produce,
     query::{query_by_timestamp, query_latest},
     subscription::{create_subscription, take},
 };
-use higgins_codec::{CreateConfigurationResponse, ProduceResponse, Record};
 use higgins_shared::PartitionName;
 use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -37,12 +36,13 @@ impl Client {
         stream: &str,
         partition: &PartitionName,
         payload: &[u8],
-    ) -> Result<ProduceResponse, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         timeout!(
-            produce_sync(stream.as_bytes(), partition, payload, &mut self.0),
+            produce(stream.as_bytes(), partition, payload, &mut self.0),
             self.1
         )
-        .await?
+        .await?;
+        Ok(())
     }
 
     pub async fn take(
@@ -55,7 +55,7 @@ impl Client {
     }
 
     pub async fn ping(&mut self) -> Result<(), HigginsClientError> {
-        timeout!(ping_sync(&mut self.0), self.1).await?
+        timeout!(ping(&mut self.0), self.1).await?
     }
 
     pub async fn query_by_timestamp(
@@ -63,7 +63,7 @@ impl Client {
         stream: &[u8],
         partition: &PartitionName,
         timestamp: u64,
-    ) -> Result<Vec<Record>, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         timeout!(
             query_by_timestamp(stream, partition, &mut self.0, timestamp),
             self.1
@@ -75,14 +75,11 @@ impl Client {
         &mut self,
         stream: &[u8],
         partition: &PartitionName,
-    ) -> Result<Vec<Record>, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         timeout!(query_latest(stream, partition, &mut self.0), self.1).await?
     }
 
-    pub async fn create_subscription(
-        &mut self,
-        stream: &[u8],
-    ) -> Result<Vec<u8>, HigginsClientError> {
+    pub async fn create_subscription(&mut self, stream: &[u8]) -> Result<(), HigginsClientError> {
         timeout!(create_subscription(stream, &mut self.0), self.1).await?
     }
 
@@ -94,10 +91,7 @@ impl Client {
         timeout!(upload_module(name, module, &mut self.0), self.1).await?
     }
 
-    pub async fn upload_configuration(
-        &mut self,
-        config: &[u8],
-    ) -> Result<CreateConfigurationResponse, HigginsClientError> {
+    pub async fn upload_configuration(&mut self, config: &[u8]) -> Result<(), HigginsClientError> {
         timeout!(upload_configuration(config, &mut self.0), self.1).await?
     }
 }

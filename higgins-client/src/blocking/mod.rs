@@ -23,7 +23,7 @@ impl Client {
         stream: &str,
         partition: &PartitionName,
         payload: &[u8],
-    ) -> Result<ProduceResponse, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.produce(stream, partition, payload))
     }
 
@@ -45,7 +45,7 @@ impl Client {
         stream: &[u8],
         partition: &PartitionName,
         timestamp: u64,
-    ) -> Result<Vec<Record>, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         self.1
             .block_on(self.0.query_by_timestamp(stream, partition, timestamp))
     }
@@ -54,11 +54,11 @@ impl Client {
         &mut self,
         stream: &[u8],
         partition: &PartitionName,
-    ) -> Result<Vec<Record>, HigginsClientError> {
+    ) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.query_latest(stream, partition))
     }
 
-    pub fn create_subscription(&mut self, stream: &[u8]) -> Result<Vec<u8>, HigginsClientError> {
+    pub fn create_subscription(&mut self, stream: &[u8]) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.create_subscription(stream))
     }
 
@@ -66,10 +66,7 @@ impl Client {
         self.1.block_on(self.0.upload_module(name, module))
     }
 
-    pub fn upload_configuration(
-        &mut self,
-        config: &[u8],
-    ) -> Result<CreateConfigurationResponse, HigginsClientError> {
+    pub fn upload_configuration(&mut self, config: &[u8]) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.upload_configuration(config))
     }
 

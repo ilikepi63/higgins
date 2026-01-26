@@ -10,7 +10,7 @@ pub async fn create_subscription<
 >(
     stream: &[u8],
     socket: &mut T,
-) -> Result<Vec<u8>, HigginsClientError> {
+) -> Result<(), HigginsClientError> {
     let create_subscription = CreateSubscriptionRequest {
         offset: None,
         offset_type: 0,
@@ -31,26 +31,28 @@ pub async fn create_subscription<
 
     frame.try_write_async(socket).await?;
 
-    let frame = Frame::try_read_async(socket).await?;
+    Ok(())
 
-    let slice = frame.inner();
+    // let frame = Frame::try_read_async(socket).await?;
 
-    let message = Message::decode(slice).unwrap();
+    // let slice = frame.inner();
 
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Createsubscriptionresponse => {
-            let sub_id = message
-                .create_subscription_response
-                .ok_or(HigginsClientError::MissingPayload)?
-                .subscription_id;
+    // let message = Message::decode(slice).unwrap();
 
-            Ok(sub_id.ok_or(HigginsClientError::MissingPayload)?)
-        }
-        _ => Err(HigginsClientError::IncorrectResponseReceived(
-            Type::Createsubscriptionresponse.as_str_name().to_string(),
-            message.r#type().as_str_name().to_string(),
-        )),
-    }
+    // match Type::try_from(message.r#type).unwrap() {
+    //     Type::Createsubscriptionresponse => {
+    //         let sub_id = message
+    //             .create_subscription_response
+    //             .ok_or(HigginsClientError::MissingPayload)?
+    //             .subscription_id;
+
+    //         Ok(sub_id.ok_or(HigginsClientError::MissingPayload)?)
+    //     }
+    //     _ => Err(HigginsClientError::IncorrectResponseReceived(
+    //         Type::Createsubscriptionresponse.as_str_name().to_string(),
+    //         message.r#type().as_str_name().to_string(),
+    //     )),
+    // }
 }
 
 pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(

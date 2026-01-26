@@ -229,15 +229,14 @@ pub fn apply_configuration_to_topography(
         }
     }
 
-    configuration
-        .schema
-        .as_ref()
-        .unwrap()
-        .iter()
-        .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
-        .for_each(|(key, schema)| {
-            let _ = topography.add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
-        });
+    if let Some(schema) = configuration.schema.as_ref() {
+        schema
+            .iter()
+            .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
+            .for_each(|(key, schema)| {
+                let _ = topography.add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
+            });
+    }
 
     // Create the non-derived streams first.
     for (stream_name, topic_defintion) in configuration
