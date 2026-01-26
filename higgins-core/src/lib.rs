@@ -1,12 +1,10 @@
-use std::{io::Cursor, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
-use arrow_json::ReaderBuilder;
 use bytes::BytesMut;
 use higgins_codec::{
-    CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Error, GetIndexResponse, Message, Pong, ProduceRequest,
-    ProduceResponse, Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse,
-    frame::Frame, message::Type,
+    CreateConfigurationRequest, CreateConfigurationResponse, Error, GetIndexResponse, Message,
+    Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse, frame::Frame,
+    message::Type,
 };
 use higgins_shared::PartitionName;
 use prost::Message as _;
@@ -74,69 +72,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     handlers::handle_create_subscription(message, broker.clone() ,writer_tx.clone()).await;
                 }
                 Type::Producerequest => {
-                    tracing::info!("[PRODUCE] Received produce request. Handling.");
-
-                    let ProduceRequest {
-                        stream_name,
-                        partition_key,
-                        payload,
-                    } = message.produce_request.unwrap();
-
-                    tracing::info!("[PRODUCE] Attempting to take the broker lock..");
-
-                    let mut broker = broker.write().await;
-
-                    tracing::info!("[PRODUCE] Retrieved the broker lock.");
-
-                    if let Err(err) = broker.create_partition(&stream_name, &partition_key).await {
-                        tracing::error!("Failed to create partition inside of broker: {:#?}", err);
-                    };
-
-                    tracing::trace!("[PRODUCE] Successfully created the partition.");
-
-                    tracing::trace!("[PRODUCE] Streams: {:#?}", broker);
-
-                    let (schema, _tx, _rx) = broker
-                        .get_stream(&stream_name)
-                        .expect("Could not find stream for stream_name.");
-
-                    tracing::trace!("[PRODUCE] Retrieved the stream.");
-
-                    let cursor = Cursor::new(payload);
-                    let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
-                    let batch = reader.next().unwrap().unwrap();
-
-                    tracing::trace!("[PRODUCE] Read the batch, producing..");
-
-                    let result = broker
-                        .produce(
-                            &stream_name,
-                            &PartitionName::try_from(&partition_key[..]).unwrap(),
-                            batch,
-                        )
-                        .await;
-
-                    tracing::trace!(
-                        "Result from producing to {}: {:#?}",
-                        String::from_utf8(stream_name.to_vec()).unwrap(),
-                        result
-                    );
-
-                    drop(broker);
-
-                    let mut result = BytesMut::new();
-
-                    let resp = ProduceResponse::default();
-
-                    Message {
-                        r#type: Type::Produceresponse as i32,
-                        produce_response: Some(resp),
-                        ..Default::default()
-                    }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
+                    handlers::handle_produce(message, broker.clone() ,writer_tx.clone()).await;
                 }
                 Type::Produceresponse => {}
                 Type::Metadatarequest => todo!(),
