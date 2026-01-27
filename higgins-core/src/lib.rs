@@ -1,9 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use bytes::BytesMut;
-use higgins_codec::{
-    Message, UploadModuleRequest, UploadModuleResponse, frame::Frame, message::Type,
-};
+use higgins_codec::{Message, frame::Frame, message::Type};
 use prost::Message as _;
 use task::SpawnTaskConfig;
 use tokio::{
@@ -113,29 +110,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Getindexresponse => {}
                     Type::Uploadmodulerequest => {
-                        tracing::trace!("Received Upload Module Request.");
-
-                        let UploadModuleRequest { name, value } = message
-                            .upload_module_request
-                            .expect("Marked Upload Module Request without a body.");
-
-                        let broker_lock = broker.write().await;
-
-                        broker_lock.functions.put_function(&name, value).await;
-
-                        let mut result = BytesMut::new();
-
-                        let response = UploadModuleResponse::default();
-
-                        Message {
-                            r#type: Type::Uploadmoduleresponse as i32,
-                            upload_module_response: Some(response),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        writer_tx.send(result).await.unwrap();
+                        handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
+                            .await;
                     }
                     Type::Uploadmoduleresponse => {}
                 }
