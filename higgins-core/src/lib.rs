@@ -3,8 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use bytes::BytesMut;
 use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, Error, GetIndexResponse, Message,
-    Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse, frame::Frame,
-    message::Type,
+    Record, UploadModuleRequest, UploadModuleResponse, frame::Frame, message::Type,
 };
 use higgins_shared::PartitionName;
 use prost::Message as _;
@@ -79,34 +78,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 Type::Metadataresponse => todo!(),
                 Type::Pong => todo!(),
                 Type::Takerecordsrequest => {
-                    tracing::trace!("[TAKE] Received a TakeRecordsRequest!");
-                    let broker_ref = broker.clone();
-
-                    let TakeRecordsRequest {
-                        n,
-                        stream_name,
-                        subscription_id,
-                    } = message.take_records_request.unwrap();
-
-                    // TODO: Wrap this behind test cfg flag.
-                    tracing::info!(
-                        "Sub ID: {:#?}",
-                        uuid::Uuid::from_slice(&subscription_id).unwrap()
-                    );
-
-                    let mut broker = broker.write().await;
-
-                    broker
-                        .take_from_subscription(
-                            client_id,
-                            &stream_name,
-                            &subscription_id,
-                            writer_tx.clone(),
-                            broker_ref,
-                            n,
-                        )
-                        .await
-                        .unwrap();
+                    handlers::handle_take_records(broker.clone(), message, client_id, writer_tx.clone()).await;
                 }
                 Type::Takerecordsresponse => {
                     // we don't handle this.
