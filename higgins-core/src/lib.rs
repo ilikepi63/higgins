@@ -1,14 +1,6 @@
-use std::{io::Cursor, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
-use arrow_json::ReaderBuilder;
-use bytes::BytesMut;
-use higgins_codec::{
-    CreateConfigurationRequest, CreateConfigurationResponse, CreateSubscriptionRequest,
-    CreateSubscriptionResponse, Error, GetIndexResponse, Message, Pong, ProduceRequest,
-    ProduceResponse, Record, TakeRecordsRequest, UploadModuleRequest, UploadModuleResponse,
-    frame::Frame, message::Type,
-};
-use higgins_shared::PartitionName;
+use higgins_codec::{Message, frame::Frame, message::Type};
 use prost::Message as _;
 use task::SpawnTaskConfig;
 use tokio::{
@@ -17,7 +9,7 @@ use tokio::{
     sync::RwLock,
 };
 
-use crate::{broker::Broker, client::ClientRef, storage::arrow_ipc::read_arrow};
+use crate::{broker::Broker, client::ClientRef};
 pub mod broker;
 pub mod client;
 mod derive;
@@ -28,6 +20,8 @@ pub mod subscription;
 pub mod task;
 pub mod topography;
 pub mod utils;
+
+mod handlers;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
@@ -42,426 +36,88 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
         .clients
         .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()));
 
-    let _read_handle = broker_lock.task_handler.spawn(&SpawnTaskConfig::new(
-        "tcp_read",
-        true // Needs to be unique as this is a socket per client.
-    ),async move {
-        loop {
-            let frame = match Frame::try_read_async(&mut read_socket).await {
-                Ok(frame) => frame,
-                Err(_) => {
-                    // Usually means that EOF was received on the socket, terminating this.
-                    break;
-                }
-            };
-
-
-            let message = Message::decode(&mut frame.inner()).unwrap();
-
-            tracing::info!("Received a message {:#?}, responding.", message);
-
-            let t = Type::try_from(message.r#type);
-
-            tracing::info!("Request Type: {:#?}", t);
-
-            match Type::try_from(message.r#type).unwrap() {
-                Type::Ping => {
-                    tracing::trace!("Received Ping, sending Pong.");
-
-                    let mut result = BytesMut::new();
-
-                    let pong = Pong::default();
-
-                    Message {
-                        r#type: Type::Pong as i32,
-                        pong: Some(pong),
-                        ..Default::default()
+    let _read_handle = broker_lock.task_handler.spawn(
+        &SpawnTaskConfig::new(
+            "tcp_read", true, // Needs to be unique as this is a socket per client.
+        ),
+        async move {
+            loop {
+                let frame = match Frame::try_read_async(&mut read_socket).await {
+                    Ok(frame) => frame,
+                    Err(_) => {
+                        // Usually means that EOF was received on the socket, terminating this.
+                        break;
                     }
-                    .encode(&mut result)
-                    .unwrap();
+                };
 
-                    tracing::info!("Responding with: {:#?}", result.clone().to_vec());
+                let message = Message::decode(&mut frame.inner()).unwrap();
 
-                    writer_tx.send(result).await.unwrap();
-                }
-                Type::Createsubscriptionrequest => {
-                    tracing::trace!(
-                        "Received CreateSubscriptionRequest: {:#?}",
-                        message.create_subscription_request
-                    );
+                tracing::info!("Received a message {:#?}, responding.", message);
 
-                    let CreateSubscriptionRequest {
-                            stream_name,..
-                            // offset_type,
-                            // timestamp,
-                            // offset,
-                        } = message.create_subscription_request.unwrap();
+                let t = Type::try_from(message.r#type);
 
-                    let mut broker = broker.write().await;
+                tracing::info!("Request Type: {:#?}", t);
 
-                    let subscription_id = broker.create_subscription(&stream_name);
-
-                    let resp = CreateSubscriptionResponse {
-                        errors: vec![],
-                        subscription_id: Some(subscription_id),
-                    };
-
-                    let mut result = BytesMut::new();
-
-                    Message {
-                        r#type: Type::Createsubscriptionresponse as i32,
-                        create_subscription_response: Some(resp),
-                        ..Default::default()
+                match Type::try_from(message.r#type).unwrap() {
+                    Type::Ping => {
+                        handlers::handle_ping(writer_tx.clone()).await;
                     }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
-                }
-                Type::Producerequest => {
-                    tracing::info!("[PRODUCE] Received produce request. Handling.");
-
-                    let ProduceRequest {
-                        stream_name,
-                        partition_key,
-                        payload,
-                    } = message.produce_request.unwrap();
-
-                    tracing::info!("[PRODUCE] Attempting to take the broker lock..");
-
-                    let mut broker = broker.write().await;
-
-                    tracing::info!("[PRODUCE] Retrieved the broker lock.");
-
-                    if let Err(err) = broker.create_partition(&stream_name, &partition_key).await {
-                        tracing::error!("Failed to create partition inside of broker: {:#?}", err);
-                    };
-
-                    tracing::trace!("[PRODUCE] Successfully created the partition.");
-
-                    tracing::trace!("[PRODUCE] Streams: {:#?}", broker);
-
-                    let (schema, _tx, _rx) = broker
-                        .get_stream(&stream_name)
-                        .expect("Could not find stream for stream_name.");
-
-                    tracing::trace!("[PRODUCE] Retrieved the stream.");
-
-                    let cursor = Cursor::new(payload);
-                    let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
-                    let batch = reader.next().unwrap().unwrap();
-
-                    tracing::trace!("[PRODUCE] Read the batch, producing..");
-
-                    let result = broker
-                        .produce(
-                            &stream_name,
-                            &PartitionName::try_from(&partition_key[..]).unwrap(),
-                            batch,
+                    Type::Createsubscriptionrequest => {
+                        handlers::handle_create_subscription(
+                            message,
+                            broker.clone(),
+                            writer_tx.clone(),
                         )
                         .await;
-
-                    tracing::trace!(
-                        "Result from producing to {}: {:#?}",
-                        String::from_utf8(stream_name.to_vec()).unwrap(),
-                        result
-                    );
-
-                    drop(broker);
-
-                    let mut result = BytesMut::new();
-
-                    let resp = ProduceResponse::default();
-
-                    Message {
-                        r#type: Type::Produceresponse as i32,
-                        produce_response: Some(resp),
-                        ..Default::default()
                     }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
-                }
-                Type::Produceresponse => {}
-                Type::Metadatarequest => todo!(),
-                Type::Metadataresponse => todo!(),
-                Type::Pong => todo!(),
-                Type::Takerecordsrequest => {
-                    tracing::trace!("[TAKE] Received a TakeRecordsRequest!");
-                    let broker_ref = broker.clone();
-
-                    let TakeRecordsRequest {
-                        n,
-                        stream_name,
-                        subscription_id,
-                    } = message.take_records_request.unwrap();
-
-                    // TODO: Wrap this behind test cfg flag.
-                    tracing::info!(
-                        "Sub ID: {:#?}",
-                        uuid::Uuid::from_slice(&subscription_id).unwrap()
-                    );
-
-                    let mut broker = broker.write().await;
-
-                    broker
-                        .take_from_subscription(
-                            client_id,
-                            &stream_name,
-                            &subscription_id,
+                    Type::Producerequest => {
+                        handlers::handle_produce(message, broker.clone(), writer_tx.clone()).await;
+                    }
+                    Type::Createconfigurationrequest => {
+                        handlers::handle_create_configuration(
+                            broker.clone(),
+                            message,
                             writer_tx.clone(),
-                            broker_ref,
-                            n,
                         )
-                        .await
-                        .unwrap();
-                }
-                Type::Takerecordsresponse => {
-                    // we don't handle this.
-                }
-                Type::Createconfigurationrequest => {
-                    tracing::info!("We're trying to get the lock.");
+                        .await;
+                    }
+                    Type::Takerecordsrequest => {
+                        handlers::handle_take_records(
+                            broker.clone(),
+                            message,
+                            client_id,
+                            writer_tx.clone(),
+                        )
+                        .await;
+                    }
+                    Type::Getindexrequest => {
+                        handlers::handle_get_index(message, broker.clone(), writer_tx.clone())
+                            .await;
+                    }
+                    Type::Uploadmodulerequest => {
+                        handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
+                            .await;
+                    }
+                    Type::Metadatarequest => todo!(),
 
-                    let broker_ref = broker.clone();
-
-                    let mut broker = broker.write().await;
-
-                    tracing::info!("Applying configuration..");
-
-                    if let Some(CreateConfigurationRequest { data }) =
-                        message.create_configuration_request
-                    {
-                        tracing::trace!("Making a config");
-
-                        let result = broker.apply_configuration(&data, broker_ref).await;
-
-                        tracing::trace!("Returned {:#?} from configuratin update.", result);
-
-                        if let Err(err) = result {
-                            let create_configuration_response = CreateConfigurationResponse {
-                                errors: vec![err.to_string()],
-                            };
-
-                            let mut result = BytesMut::new();
-
-                            Message {
-                                r#type: Type::Createconfigurationresponse as i32,
-                                create_configuration_response: Some(create_configuration_response),
-                                ..Default::default()
-                            }
-                            .encode(&mut result)
-                            .unwrap();
-
-                            let _ = writer_tx.send(result).await;
-                        } else {
-                            let create_configuration_response =
-                                CreateConfigurationResponse { errors: vec![] };
-
-                            tracing::info!("Responding with: {:#?}", create_configuration_response);
-
-                            let mut result = BytesMut::new();
-
-                            Message {
-                                r#type: Type::Createconfigurationresponse as i32,
-                                create_configuration_response: Some(create_configuration_response),
-                                ..Default::default()
-                            }
-                            .encode(&mut result)
-                            .unwrap();
-
-                            let result = writer_tx.send(result).await;
-                            tracing::info!("Result from writing: {:#?}", result);
-                        }
-                    } else {
-                        let create_configuration_response = CreateConfigurationResponse {
-                                errors: vec!["Malformed request for creating configuration. Please include CreateConfigurationRequest in body.".into()]
-                            };
-
-                        let mut result = BytesMut::new();
-
-                        Message {
-                            r#type: Type::Createconfigurationresponse as i32,
-                            create_configuration_response: Some(create_configuration_response),
-                            ..Default::default()
-                        }
-                        .encode(&mut result)
-                        .unwrap();
-
-                        tracing::info!("Responding with: {:#?}", result.clone().to_vec());
-
-                        writer_tx.send(result).await.unwrap();
+                    Type::Produceresponse
+                    | Type::Metadataresponse
+                    | Type::Pong
+                    | Type::Takerecordsresponse
+                    | Type::Createconfigurationresponse
+                    | Type::Deleteconfigurationrequest
+                    | Type::Deleteconfigurationresponse
+                    | Type::Createsubscriptionresponse
+                    | Type::Error
+                    | Type::Getindexresponse
+                    | Type::Uploadmoduleresponse => {
+                        handlers::errors::handle_incorrect_message_received(writer_tx.clone())
+                            .await;
                     }
                 }
-                Type::Createconfigurationresponse => todo!(),
-                Type::Deleteconfigurationrequest => todo!(),
-                Type::Deleteconfigurationresponse => todo!(),
-                Type::Createsubscriptionresponse => {
-                    todo!();
-                }
-                Type::Error => {}
-                Type::Getindexrequest => {
-                    tracing::trace!("Trying to retrieve the broker lock..");
-
-                    let mut broker_lock = broker.write().await;
-
-                    tracing::trace!("Retrieved the GetIndexRequest");
-
-                    let request = message.get_index_request.unwrap(); // TODO: error response here.
-                    tracing::trace!("Retrieved the GetIndexRequest: {:#?}", request);
-
-                    for index in request.indexes {
-                        // We can potentially query in three different ways using this request, so
-                        // this match arm reflects that.
-                        match index.r#type() {
-                            higgins_codec::index::Type::Timestamp => {
-                                let values = broker_lock
-                                    .get_by_timestamp(
-                                        &index.stream,
-                                        &PartitionName::try_from(&index.partition[..]).unwrap(),
-                                        index.timestamp(),
-                                    )
-                                    .await
-                                    .unwrap();
-
-                                let response = GetIndexResponse {
-                                    records: values
-                                        .batches
-                                        .iter()
-                                        .map(|batch| {
-                                            let stream_reader = read_arrow(&batch.data);
-
-                                            let batches = stream_reader
-                                                .filter_map(|val| val.ok())
-                                                .collect::<Vec<_>>();
-
-                                            let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                                            // Infer the batches
-                                            let buf = Vec::new();
-                                            let mut writer =
-                                                arrow_json::LineDelimitedWriter::new(buf);
-                                            writer.write_batches(&batch_refs).unwrap();
-                                            writer.finish().unwrap();
-
-                                            // Get the underlying buffer back,
-                                            let buf = writer.into_inner();
-
-                                            Record {
-                                                data: buf,
-                                                stream: batch.topic.as_bytes().to_vec(),
-                                                offset: batch.offset,
-                                                partition: batch.partition.clone(),
-                                            }
-                                        })
-                                        .collect::<Vec<_>>(),
-                                };
-
-                                // let responses = collect_consume_responses(values).await;
-
-                                // for response in responses {
-                                let mut result = BytesMut::new();
-
-                                Message {
-                                    r#type: Type::Getindexresponse as i32,
-                                    get_index_response: Some(response),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                writer_tx.send(result).await.unwrap();
-                                // }
-                            }
-                            higgins_codec::index::Type::Latest => {
-                                tracing::trace!("Retrieved a Latest GetIndexRequest",);
-
-                                let partition =
-                                    &PartitionName::try_from(&index.partition[..]).unwrap();
-
-                                let responses =
-                                    broker_lock.get_latest(&index.stream, partition).await;
-
-                                for response in responses {
-                                    let response = response.await.unwrap();
-
-                                    tracing::trace!(
-                                        "Response for GetIndexRequest: {:#?}",
-                                        response
-                                    );
-
-                                    let index_response = GetIndexResponse {
-                                        records: vec![Record {
-                                            data: response,
-                                            stream: vec![],
-                                            partition: vec![],
-                                            offset: 0,
-                                        }],
-                                    };
-
-                                    let mut result = BytesMut::new();
-
-                                    Message {
-                                        r#type: Type::Getindexresponse as i32,
-                                        get_index_response: Some(index_response),
-                                        ..Default::default()
-                                    }
-                                    .encode(&mut result)
-                                    .unwrap();
-
-                                    writer_tx.send(result).await.unwrap();
-                                }
-                            }
-                            higgins_codec::index::Type::Offset => {
-                                let mut result = BytesMut::new();
-
-                                let mut error = Error::default();
-
-                                error.set_type(higgins_codec::error::Type::Unimplemented);
-
-                                Message {
-                                    r#type: Type::Error as i32,
-                                    error: Some(error),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                writer_tx.send(result).await.unwrap();
-                            }
-                        }
-                    }
-                }
-                Type::Getindexresponse => {}
-                Type::Uploadmodulerequest => {
-                    tracing::trace!("Received Upload Module Request.");
-
-                    let UploadModuleRequest { name, value } = message
-                        .upload_module_request
-                        .expect("Marked Upload Module Request without a body.");
-
-                    let broker_lock = broker.write().await;
-
-                    broker_lock.functions.put_function(&name, value).await;
-
-                    let mut result = BytesMut::new();
-
-                    let response = UploadModuleResponse::default();
-
-                    Message {
-                        r#type: Type::Uploadmoduleresponse as i32,
-                        upload_module_response: Some(response),
-                        ..Default::default()
-                    }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
-                }
-                Type::Uploadmoduleresponse => {}
             }
-        }
-    });
+        },
+    );
 
     let _write_handle =
         broker_lock
