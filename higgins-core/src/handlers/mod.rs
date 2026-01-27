@@ -1,5 +1,6 @@
 mod create_configuration;
 mod create_subscription;
+pub mod errors;
 mod get_index;
 mod ping;
 mod produce;

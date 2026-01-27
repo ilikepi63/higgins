@@ -73,10 +73,14 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     Type::Producerequest => {
                         handlers::handle_produce(message, broker.clone(), writer_tx.clone()).await;
                     }
-                    Type::Produceresponse => {}
-                    Type::Metadatarequest => todo!(),
-                    Type::Metadataresponse => todo!(),
-                    Type::Pong => todo!(),
+                    Type::Createconfigurationrequest => {
+                        handlers::handle_create_configuration(
+                            broker.clone(),
+                            message,
+                            writer_tx.clone(),
+                        )
+                        .await;
+                    }
                     Type::Takerecordsrequest => {
                         handlers::handle_take_records(
                             broker.clone(),
@@ -86,34 +90,30 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         )
                         .await;
                     }
-                    Type::Takerecordsresponse => {
-                        // we don't handle this.
-                    }
-                    Type::Createconfigurationrequest => {
-                        handlers::handle_create_configuration(
-                            broker.clone(),
-                            message,
-                            writer_tx.clone(),
-                        )
-                        .await;
-                    }
-                    Type::Createconfigurationresponse => todo!(),
-                    Type::Deleteconfigurationrequest => todo!(),
-                    Type::Deleteconfigurationresponse => todo!(),
-                    Type::Createsubscriptionresponse => {
-                        todo!();
-                    }
-                    Type::Error => {}
                     Type::Getindexrequest => {
                         handlers::handle_get_index(message, broker.clone(), writer_tx.clone())
                             .await;
                     }
-                    Type::Getindexresponse => {}
                     Type::Uploadmodulerequest => {
                         handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
                             .await;
                     }
-                    Type::Uploadmoduleresponse => {}
+                    Type::Metadatarequest => todo!(),
+
+                    Type::Produceresponse
+                    | Type::Metadataresponse
+                    | Type::Pong
+                    | Type::Takerecordsresponse
+                    | Type::Createconfigurationresponse
+                    | Type::Deleteconfigurationrequest
+                    | Type::Deleteconfigurationresponse
+                    | Type::Createsubscriptionresponse
+                    | Type::Error
+                    | Type::Getindexresponse
+                    | Type::Uploadmoduleresponse => {
+                        handlers::errors::handle_incorrect_message_received(writer_tx.clone())
+                            .await;
+                    }
                 }
             }
         },
