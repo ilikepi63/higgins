@@ -57,6 +57,16 @@ pub struct Topography {
     pub storage: Option<(String, Storage)>,
 }
 
+type Described<T> = (String, T);
+
+/// A unit that is atomically added to a typography.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum TypographyUnit {
+    Stream(Described<StreamDefinition>),
+    Schema(Described<Arc<Schema>>),
+    Storage(Described<Storage>),
+}
+
 impl Default for Topography {
     fn default() -> Self {
         Self::new()
