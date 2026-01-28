@@ -297,6 +297,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af7686986a3bf2254c9fb130c623cdcb2f8e1f15763e7c71c310f0834da3d292"
 dependencies = [
  "bitflags",
+ "serde",
 ]
 
 [[package]]
@@ -1249,6 +1250,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-json",
+ "arrow-schema",
  "async-trait",
  "bytes",
  "clap",

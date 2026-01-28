@@ -7,19 +7,8 @@ use tokio::sync::RwLock;
 use crate::functions::collection::FunctionCollection;
 use crate::task::TaskHandler;
 use crate::{
-    client::ClientCollection,
-    // storage::batch_coordinate::BatchCoordinate,
-    storage::index::directory::IndexDirectory,
-    topography::Topography,
-    // utils::request_response::Request,
+    client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
 };
-
-// type MutableCollection = Arc<
-//     RwLock<(
-//         ProduceRequestCollection,
-//         Vec<Request<ProduceRequest, BatchCoordinate>>,
-//     )>,
-// >;
 
 impl Broker {
     /// Creates a new instance of a Broker.
@@ -40,15 +29,7 @@ impl Broker {
             }
         };
 
-        // let flush_interval_in_ms: u64 = 500;
-        // let segment_size_in_bytes: u64 = 50_000;
-
         let indexes = Arc::new(IndexDirectory::new(index_dir).unwrap());
-
-        // let buffer: MutableCollection =
-        //     Arc::new(RwLock::new((ProduceRequestCollection::new(), vec![])));
-
-        // let cloned_buffer_ref = buffer.clone();
 
         let functions_dir = {
             let mut cwd = dir.clone();
@@ -70,12 +51,7 @@ impl Broker {
 
         Self {
             streams: BTreeMap::new(),
-            // object_store: None, // No object store is to be created at this point, as it is configurable.
             indexes,
-            // segment_size_in_bytes,
-            // flush_interval_in_ms,
-            // collection: cloned_buffer_ref,
-            // flush_tx: None,
             dir,
             backing_store: None,
             subscriptions: BTreeMap::new(),
@@ -85,64 +61,5 @@ impl Broker {
             broker_indexes: Vec::new(),
             task_handler: TaskHandler::new(),
         }
-    }
-
-    pub fn start(&mut self, _broker: Arc<RwLock<Self>>) {
-        // if let Some(object_store) = self.object_store.as_ref() {
-        //     let flush_interval_in_ms = self.flush_interval_in_ms;
-
-        //     let (flush_tx, mut flush_rx) = tokio::sync::mpsc::channel::<()>(1);
-        //     self.flush_tx = Some(flush_tx);
-        //     let object_store_ref = object_store.clone();
-        //     let buffer = self.collection.clone();
-
-        //     // Flusher task.
-        //     tokio::task::spawn(async move {
-        //         loop {
-        //             let timer = tokio::time::sleep(Duration::from_millis(flush_interval_in_ms)); // TODO: retrieve this from the configuration.
-
-        //             // Await either a flush command or a timer expiry.
-        //             tokio::select! {
-        //                 _timer = timer => {    },
-        //                 _recv = flush_rx.recv() => {}
-        //             };
-
-        //             let mut buffer_lock = buffer.write().await;
-
-        //             if buffer_lock.0.size() > 0 {
-        //                 let mut new_ref = ProduceRequestCollection::new();
-        //                 let mut new_collection_vec = vec![];
-        //                 std::mem::swap(&mut buffer_lock.0, &mut new_ref);
-        //                 std::mem::swap(&mut buffer_lock.1, &mut new_collection_vec);
-
-        //                 drop(buffer_lock); // Explicitly drop the lock.
-
-        //                 match flush(new_ref, object_store_ref.clone()).await {
-        //                     Ok(responses) => {
-        //                         let mut iter = new_collection_vec.into_iter();
-
-        //                         // We need to fix riskless here.
-        //                         for response in responses {
-        //                             // TODO: O(n^2) here
-        //                             let res = iter
-        //                                 .find(|r| {
-        //                                     r.inner().request_id == response.request.request_id
-        //                                 })
-        //                                 .unwrap();
-
-        //                             res.respond(response).unwrap();
-        //                         }
-        //                     }
-        //                     Err(err) => {
-        //                         tracing::error!(
-        //                             "Error occurred when trying to flush buffer: {:#?}",
-        //                             err
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     });
-        // }
     }
 }
