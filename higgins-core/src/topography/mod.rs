@@ -19,6 +19,7 @@ use crate::topography::{
 
 pub mod config;
 pub mod errors;
+mod file;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?

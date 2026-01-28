@@ -70,7 +70,6 @@ feature-depth = 1
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-    #"RUSTSEC-0000-0000",
     { id = "RUSTSEC-2025-0118", reason = "Requires further investigation." },
     { id = "RUSTSEC-2025-0046", reason = "Requires further investigation." },
     { id = "RUSTSEC-2025-0055", reason = "Requires further investigation." },
