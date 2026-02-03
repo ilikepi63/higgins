@@ -14,4 +14,8 @@ pub enum TopographyError {
     JoinStreamDoesNotExist,
     #[error("Attempt to Join a stream with no mapping attributes.")]
     JoinStreamWithoutMappingAttributes,
+    #[error("IO Error")]
+    IOError(#[from] std::io::Error),
+    #[error("JSON Serialization Error")]
+    SerdeJsonError(#[from] serde_json::error::Error)
 }
