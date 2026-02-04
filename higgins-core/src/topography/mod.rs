@@ -21,6 +21,8 @@ pub mod config;
 pub mod errors;
 mod file;
 
+use file::TopographyFile;
+
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]
@@ -49,6 +51,7 @@ impl From<&str> for Key {
 /// A topography explains all of the existing streams, schema and the associated keys within them.
 #[derive(Debug)]
 pub struct Topography {
+    pub file: TopographyFile,
     pub streams: BTreeMap<Key, StreamDefinition>,
     pub schema: BTreeMap<Key, Arc<Schema>>,
     pub functions: BTreeMap<Key, Vec<u8>>,
@@ -67,15 +70,10 @@ pub enum TypographyUnit {
     Storage(Described<Storage>),
 }
 
-impl Default for Topography {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Topography {
-    pub fn new() -> Self {
+    pub fn from_file(file: std::path::PathBuf) -> Self {
         Self {
+            file: TopographyFile::new(file),
             streams: BTreeMap::new(),
             schema: BTreeMap::new(),
             functions: BTreeMap::new(),

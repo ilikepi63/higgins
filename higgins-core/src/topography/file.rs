@@ -5,11 +5,15 @@ use std::path::PathBuf;
 
 use {std::io::Read as _, std::io::Write as _};
 
-pub struct TypographyFile(PathBuf);
+static FILE_NAME: &str = "topography.jsonl";
 
-impl TypographyFile {
+#[derive(Debug)]
+pub struct TopographyFile(PathBuf);
 
-    pub fn new(path: PathBuf) -> Self {
+impl TopographyFile {
+
+    pub fn new(mut path: PathBuf) -> Self {
+        path.push(FILE_NAME);
         Self(path)
     }
 
@@ -26,6 +30,13 @@ impl TypographyFile {
                     (file, false)
                 },
                 false => {
+
+                    let mut dir_path = self.0.clone();
+
+                    if dir_path.pop() {
+                        std::fs::create_dir_all(dir_path);
+                    }
+
                     let file = std::fs::OpenOptions::new()
                             .create(true)
                             .append(true)
@@ -63,6 +74,7 @@ impl TypographyFile {
     where
         for<'a> T: Deserialize<'a>,
     {
+
         let mut file = std::fs::OpenOptions::new().read(true).open(&self.0)?;
 
         let mut data = Vec::new();
@@ -85,7 +97,7 @@ impl TypographyFile {
 
 #[cfg(test)]
 mod tests {
-    use super::TypographyFile;
+    use super::TopographyFile;
     use serde_json::json;
     use std::path::PathBuf;
     use std::str::FromStr;
@@ -98,7 +110,7 @@ mod tests {
         let moved_temp_file_name = temp_file_name.clone();
 
         let result = std::panic::catch_unwind(|| {
-            let typography_file = TypographyFile::new(moved_temp_file_name);
+            let typography_file = TopographyFile::new(moved_temp_file_name);
 
             typography_file.add_item(json!({ "a": 1 })).expect("add item");
 
@@ -106,7 +118,7 @@ mod tests {
             assert_eq!(values, vec![json!({ "a": 1 })]);
         });
 
-        std::fs::remove_file(temp_file_name).unwrap();
+        std::fs::remove_dir_all(temp_file_name).unwrap();
 
         result.unwrap();
     }
@@ -118,7 +130,7 @@ mod tests {
         let moved_temp_file_name = temp_file_name.clone();
 
         let result = std::panic::catch_unwind(|| {
-            let typography_file = TypographyFile::new(moved_temp_file_name);
+            let typography_file = TopographyFile::new(moved_temp_file_name);
 
             typography_file.add_item(json!({ "a": 1 })).expect("add item");
             typography_file.add_item(json!({ "b": 2 })).expect("add item");
@@ -127,7 +139,7 @@ mod tests {
             assert_eq!(values, vec![json!({ "a": 1 }), json!({"b": 2})]);
         });
 
-        std::fs::remove_file(temp_file_name).unwrap();
+        std::fs::remove_dir_all(temp_file_name).unwrap();
 
         result.unwrap();
 

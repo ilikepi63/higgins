@@ -2,7 +2,6 @@ use super::Broker;
 
 // use riskless::messages::{ProduceRequest, ProduceRequestCollection};
 use std::{collections::BTreeMap, fs::create_dir, path::PathBuf, sync::Arc};
-use tokio::sync::RwLock;
 
 use crate::functions::collection::FunctionCollection;
 use crate::task::TaskHandler;
@@ -49,13 +48,15 @@ impl Broker {
             cwd
         };
 
+        let topography_dir = dir.clone();
+
         Self {
             streams: BTreeMap::new(),
             indexes,
             dir,
             backing_store: None,
             subscriptions: BTreeMap::new(),
-            topography: Topography::new(),
+            topography: Topography::from_file(topography_dir),
             clients: ClientCollection::empty(),
             functions: FunctionCollection::new(functions_dir),
             broker_indexes: Vec::new(),
