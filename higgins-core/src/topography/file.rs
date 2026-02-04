@@ -16,14 +16,9 @@ impl TypographyFile {
     /// Appends an item to this file.
     fn add_item<T: Serialize>(&self, val: T) -> Result<(), TopographyError> {
 
-        println!("Calling..");
-
         let (mut file, created) = {
-            match std::fs::exists(&self.0).inspect_err(|e| {
-                println!("Yes, error here");
-            })? {
+            match std::fs::exists(&self.0)? {
                 true => {
-                    println!("Exists!");
                     let  file = std::fs::OpenOptions::new()
                             .append(true)
                            .open(&self.0)?;
@@ -31,7 +26,6 @@ impl TypographyFile {
                     (file, false)
                 },
                 false => {
-                    println!("Doesn't exist!");
                     let file = std::fs::OpenOptions::new()
                             .create(true)
                             .append(true)
@@ -45,7 +39,6 @@ impl TypographyFile {
         };
 
         let serialized = serde_json::to_string(&val)?;
-        println!("Writing {:#?}", serialized);
 
         let value = {
             match created {
@@ -57,8 +50,6 @@ impl TypographyFile {
                 }
             }
         };
-
-        println!("Writing {:#?}", value);
 
         file.write_all(value.as_bytes())?;
 
@@ -95,7 +86,6 @@ impl TypographyFile {
 #[cfg(test)]
 mod tests {
     use super::TypographyFile;
-    use super::super::errors::TopographyError;
     use serde_json::json;
     use std::path::PathBuf;
     use std::str::FromStr;
