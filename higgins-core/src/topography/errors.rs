@@ -17,5 +17,7 @@ pub enum TopographyError {
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
     #[error("JSON Serialization Error")]
-    SerdeJsonError(#[from] serde_json::error::Error)
+    SerdeJsonError(#[from] serde_json::error::Error),
+    #[error("Conversion to Utf8 String Error")]
+    FromUtf8Error(#[from] std::string::FromUtf8Error)
 }
