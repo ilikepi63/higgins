@@ -152,6 +152,99 @@ impl Topography {
     pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition>{
         &self.streams
     }
+
+    /// Applies an entire configuration to this topography.
+    pub fn apply_configuration_to_topography(
+        &mut self,
+        configuration: Configuration,
+    ) -> Result<Key, TopographyError> {
+        tracing::info!(
+            "Applying configuration {:#?} to Topography: {:#?}",
+            configuration,
+            self
+        );
+
+        if let Some(storage) = configuration.storage.as_ref() {
+            if let Some((name, storage)) = storage.first_key_value() {
+                self.storage = Some((name.clone(), storage.clone()));
+            }
+        }
+
+        if let Some(schema) = configuration.schema.as_ref() {
+            schema
+                .iter()
+                .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
+                .for_each(|(key, schema)| {
+                    let _ = self.add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
+                });
+        }
+
+        // Create the non-derived streams first.
+        for (stream_name, topic_defintion) in configuration
+            .streams
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|(_, def)| def.base.is_none())
+        {
+            match &topic_defintion.base {
+                Some(_derived_from) => unreachable!(),
+                None => {
+                    tracing::trace!("Applying stream {}", stream_name);
+                    let result =
+                        self.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
+
+                    tracing::trace!("Result from applying stream: {:#?}", result);
+                }
+            }
+        }
+
+        for (stream_name, topic_defintion) in configuration
+            .streams
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|(_, def)| def.base.is_some())
+        {
+            match &topic_defintion.base {
+                Some(_derived_from) => {
+                    tracing::trace!("Applying a derived stream: {stream_name}..");
+
+                    // Create just normal schema.
+                    let _schema = self
+                        .schema
+                        .get(&Key::from(topic_defintion.schema.as_str()))
+                        .unwrap_or_else(|| {
+                            panic!("No Schema defined for key {}", topic_defintion.schema)
+                        });
+
+                    let _topic_type = FunctionType::from(
+                        topic_defintion
+                            .stream_type
+                            .as_ref()
+                            .expect("Derived stream without a function type.")
+                            .as_str(),
+                    );
+
+                    let _ = self.add_stream(
+                        Key::from(stream_name.as_str()),
+                        StreamDefinition::from(topic_defintion),
+                    ); // TODO: This should likely be a warning.
+                }
+                None => unreachable!(),
+            }
+        }
+
+        let config_id = uuid::Uuid::new_v4();
+
+        let config_id = Key(config_id.as_bytes().to_vec());
+
+        self
+            .configurations
+            .insert(config_id.clone(), configuration);
+
+        Ok(config_id)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -234,96 +327,4 @@ impl From<&str> for FunctionType {
 pub struct SubscriptionDeclaration {
     #[allow(unused)]
     topic: Vec<u8>,
-}
-
-pub fn apply_configuration_to_topography(
-    configuration: Configuration,
-    topography: &mut Topography,
-) -> Result<Key, TopographyError> {
-    tracing::info!(
-        "Applying configuration {:#?} to Topography: {:#?}",
-        configuration,
-        topography
-    );
-
-    if let Some(storage) = configuration.storage.as_ref() {
-        if let Some((name, storage)) = storage.first_key_value() {
-            topography.storage = Some((name.clone(), storage.clone()));
-        }
-    }
-
-    if let Some(schema) = configuration.schema.as_ref() {
-        schema
-            .iter()
-            .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
-            .for_each(|(key, schema)| {
-                let _ = topography.add_schema(Key::from(key.as_str()), schema); // TODO: perhaps this should be a warning?.
-            });
-    }
-
-    // Create the non-derived streams first.
-    for (stream_name, topic_defintion) in configuration
-        .streams
-        .as_ref()
-        .unwrap()
-        .iter()
-        .filter(|(_, def)| def.base.is_none())
-    {
-        match &topic_defintion.base {
-            Some(_derived_from) => unreachable!(),
-            None => {
-                tracing::trace!("Applying stream {}", stream_name);
-                let result =
-                    topography.add_stream(Key::from(stream_name.as_str()), topic_defintion.into());
-
-                tracing::trace!("Result from applying stream: {:#?}", result);
-            }
-        }
-    }
-
-    for (stream_name, topic_defintion) in configuration
-        .streams
-        .as_ref()
-        .unwrap()
-        .iter()
-        .filter(|(_, def)| def.base.is_some())
-    {
-        match &topic_defintion.base {
-            Some(_derived_from) => {
-                tracing::trace!("Applying a derived stream: {stream_name}..");
-
-                // Create just normal schema.
-                let _schema = topography
-                    .schema
-                    .get(&Key::from(topic_defintion.schema.as_str()))
-                    .unwrap_or_else(|| {
-                        panic!("No Schema defined for key {}", topic_defintion.schema)
-                    });
-
-                let _topic_type = FunctionType::from(
-                    topic_defintion
-                        .stream_type
-                        .as_ref()
-                        .expect("Derived stream without a function type.")
-                        .as_str(),
-                );
-
-                let _ = topography.add_stream(
-                    Key::from(stream_name.as_str()),
-                    StreamDefinition::from(topic_defintion),
-                ); // TODO: This should likely be a warning.
-            }
-            None => unreachable!(),
-        }
-    }
-
-    let config_id = uuid::Uuid::new_v4();
-
-    let config_id = Key(config_id.as_bytes().to_vec());
-
-    topography
-        .configurations
-        .insert(config_id.clone(), configuration);
-
-    Ok(config_id)
 }

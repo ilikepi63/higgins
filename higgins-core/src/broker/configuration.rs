@@ -15,7 +15,7 @@ use crate::{
 };
 use crate::{
     error::HigginsError,
-    topography::{apply_configuration_to_topography, config::from_toml},
+    topography::{config::from_toml},
 };
 
 impl Broker {
@@ -31,7 +31,7 @@ impl Broker {
         let config = from_toml(config);
 
         // Apply the configuration to the topography.
-        apply_configuration_to_topography(config, &mut self.topography)?;
+        self.topography.apply_configuration_to_topography(config)?;
 
         // Apply the storages.
         if let Some(storage) = self.topography.get_storage() {
