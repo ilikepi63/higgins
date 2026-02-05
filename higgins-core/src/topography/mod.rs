@@ -51,13 +51,13 @@ impl From<&str> for Key {
 /// A topography explains all of the existing streams, schema and the associated keys within them.
 #[derive(Debug)]
 pub struct Topography {
-    pub file: TopographyFile,
-    pub streams: BTreeMap<Key, StreamDefinition>,
-    pub schema: BTreeMap<Key, Arc<Schema>>,
-    pub functions: BTreeMap<Key, Vec<u8>>,
-    pub configurations: BTreeMap<Key, Configuration>,
-    pub subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
-    pub storage: Option<(String, Storage)>,
+    file: TopographyFile,
+    streams: BTreeMap<Key, StreamDefinition>,
+    schema: BTreeMap<Key, Arc<Schema>>,
+    functions: BTreeMap<Key, Vec<u8>>,
+    configurations: BTreeMap<Key, Configuration>,
+    subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
+    storage: Option<(String, Storage)>,
 }
 
 type Described<T> = (String, T);
@@ -137,6 +137,20 @@ impl Topography {
     /// Retrieve the stream definition of the given stream key.
     pub fn get_stream_definition_by_key(&self, stream: String) -> Option<&StreamDefinition> {
         self.streams.get(&Key(stream.as_bytes().to_owned()))
+    }
+
+    /// Retrieve the stream definition of the given stream key.
+    pub fn get_schema_by_key(&self, schema_key: String) -> Option<&Arc<Schema>> {
+        self.schema.get(&Key(schema_key.as_bytes().to_owned()))
+    }
+
+    /// Gets the storage setup for this topography.
+    pub fn get_storage(&self) -> Option<&(String, Storage)> {
+        self.storage.as_ref()
+    }
+
+    pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition>{
+        &self.streams
     }
 }
 

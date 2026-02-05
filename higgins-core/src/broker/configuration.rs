@@ -34,7 +34,7 @@ impl Broker {
         apply_configuration_to_topography(config, &mut self.topography)?;
 
         // Apply the storages.
-        if let Some(storage) = self.topography.storage.as_ref() {
+        if let Some(storage) = self.topography.get_storage() {
             let backing_store = instantiate_storage_from_configuration(storage);
             self.backing_store = Some(backing_store);
         }
@@ -42,11 +42,11 @@ impl Broker {
         // Generate Stream metadata to create.
         let streams_to_create = self
             .topography
-            .streams
+            .get_streams()
             .iter()
             .filter_map(|(stream_key, def)| {
                 if !self.streams.contains_key(stream_key.inner()) {
-                    let schema = self.topography.schema.get(&def.schema).unwrap().clone();
+                    let schema = self.topography.get_schema_by_key(String::from_utf8(def.schema.0.to_owned()).ok()?)?.clone(); //.schema.get(&def.schema).unwrap().clone();
 
                     return Some((stream_key.clone(), schema));
                 }
@@ -62,7 +62,7 @@ impl Broker {
         // Retrieve derived streams metadata.
         let derived_streams = self
             .topography
-            .streams
+            .get_streams()
             .iter()
             .filter_map(|(key, def)| def.base.as_ref().map(|_| (key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
@@ -91,7 +91,7 @@ impl Broker {
 
                     let left = self
                         .topography
-                        .streams
+                        .get_streams()
                         .iter()
                         .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
                         .map(|(key, def)| (key.clone(), def.clone()))
@@ -112,7 +112,7 @@ impl Broker {
 
                     let left = self
                         .topography
-                        .streams
+                        .get_streams()
                         .iter()
                         .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
                         .map(|(key, def)| (key.clone(), def.clone()))

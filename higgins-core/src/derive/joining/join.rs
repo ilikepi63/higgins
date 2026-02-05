@@ -68,8 +68,8 @@ pub struct JoinWithStream {
     pub stream: (Key, StreamDefinition),
 }
 
-impl From<(&Key, &StreamDefinition)> for JoinWithStream {
-    fn from((key, def): (&Key, &StreamDefinition)) -> Self {
+impl From<(Key, &StreamDefinition)> for JoinWithStream {
+    fn from((key, def): (Key, &StreamDefinition)) -> Self {
         Self {
             stream: (key.clone(), def.clone()),
         }
