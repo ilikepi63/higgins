@@ -34,7 +34,7 @@ impl TopographyFile {
                     let mut dir_path = self.0.clone();
 
                     if dir_path.pop() {
-                        std::fs::create_dir_all(dir_path);
+                        std::fs::create_dir_all(dir_path)?;
                     }
 
                     let file = std::fs::OpenOptions::new()
