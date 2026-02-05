@@ -66,7 +66,7 @@ type Described<T> = (String, T);
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum TopographyUnit {
     Stream(Described<StreamDefinition>),
-    Schema(Described<Arc<Schema>>),
+    Schema(Described<Schema>),
     Storage(Described<Storage>),
 }
 
@@ -84,7 +84,7 @@ impl Topography {
                         acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
                     },
                     TopographyUnit::Schema((key, schema)) => {
-                          acc.1.insert(Key(key.as_bytes().to_owned()), schema.clone());
+                          acc.1.insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
                     },
                     TopographyUnit::Storage((key, storage)) => {
                           acc.2 = Some((key.to_owned(), storage.clone()))
@@ -107,10 +107,11 @@ impl Topography {
     pub fn add_schema(&mut self, key: Key, schema: Arc<Schema>) -> Result<(), TopographyError> {
         // For the most part, this will just upload the schema as there should not be any dependencies/references inside of it.
 
-        let entry = self.schema.entry(key);
+        let entry = self.schema.entry(key.clone());
 
         match entry {
             Entry::Vacant(vacant_entry) => {
+                self.file.add_item(TopographyUnit::Schema((String::from_utf8(key.0.to_owned())?, (*schema).clone())))?;
                 vacant_entry.insert(schema);
                 Ok(())
             }
@@ -144,10 +145,11 @@ impl Topography {
             return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
         }
 
-        let entry = self.streams.entry(key);
+        let entry = self.streams.entry(key.clone());
 
         match entry {
             Entry::Vacant(vacant_entry) => {
+                self.file.add_item(TopographyUnit::Stream((String::from_utf8(key.0.to_owned())?, stream.clone())))?;
                 vacant_entry.insert(stream);
                 Ok(())
             }

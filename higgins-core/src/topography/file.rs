@@ -18,7 +18,7 @@ impl TopographyFile {
     }
 
     /// Appends an item to this file.
-    fn add_item<T: Serialize>(&self, val: T) -> Result<(), TopographyError> {
+    pub fn add_item<T: Serialize>(&self, val: T) -> Result<(), TopographyError> {
 
         let (mut file, created) = {
             match std::fs::exists(&self.0)? {
