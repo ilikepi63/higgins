@@ -75,39 +75,37 @@ impl Topography {
         let file = TopographyFile::new(file);
 
         let (streams, schema, storage) = match file.read() {
-            Ok(operations) => {
+            Ok(operations) => Ok(operations.iter().fold(
+                (BTreeMap::new(), BTreeMap::new(), None),
+                |mut acc, unit| {
+                    match unit {
+                        TopographyUnit::Stream((key, stream)) => {
+                            acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
+                        }
+                        TopographyUnit::Schema((key, schema)) => {
+                            acc.1
+                                .insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
+                        }
+                        TopographyUnit::Storage((key, storage)) => {
+                            acc.2 = Some((key.to_owned(), storage.clone()))
+                        }
+                    };
 
-                    Ok(operations
-                        .iter()
-                        .fold((BTreeMap::new(), BTreeMap::new(), None), |mut acc, unit| {
-                            match unit {
-                                TopographyUnit::Stream((key, stream)) => {
-                                    acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
-                                }
-                                TopographyUnit::Schema((key, schema)) => {
-                                    acc.1
-                                        .insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
-                                }
-                                TopographyUnit::Storage((key, storage)) => {
-                                    acc.2 = Some((key.to_owned(), storage.clone()))
-                                }
-                            };
-
-                            acc
-                        }))
-            },
+                    acc
+                },
+            )),
             Err(err) => {
-
-                if let TopographyError:: IOError(err) = &err && err.kind() == std::io::ErrorKind::NotFound {
+                if let TopographyError::IOError(err) = &err
+                    && err.kind() == std::io::ErrorKind::NotFound
+                {
                     Ok((BTreeMap::new(), BTreeMap::new(), None))
-                }else {
+                } else {
                     Err(err)
                 }
             }
         }?;
 
         // let operations: Vec<TopographyUnit> = file.read();
-
 
         Ok(Self {
             file,
