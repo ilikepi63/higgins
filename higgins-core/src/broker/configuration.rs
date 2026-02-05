@@ -13,10 +13,7 @@ use crate::{
     },
     topography::FunctionType,
 };
-use crate::{
-    error::HigginsError,
-    topography::{config::from_toml},
-};
+use crate::{error::HigginsError, topography::config::from_toml};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
@@ -46,7 +43,10 @@ impl Broker {
             .iter()
             .filter_map(|(stream_key, def)| {
                 if !self.streams.contains_key(stream_key.inner()) {
-                    let schema = self.topography.get_schema_by_key(String::from_utf8(def.schema.0.to_owned()).ok()?)?.clone(); //.schema.get(&def.schema).unwrap().clone();
+                    let schema = self
+                        .topography
+                        .get_schema_by_key(String::from_utf8(def.schema.0.to_owned()).ok()?)?
+                        .clone(); //.schema.get(&def.schema).unwrap().clone();
 
                     return Some((stream_key.clone(), schema));
                 }

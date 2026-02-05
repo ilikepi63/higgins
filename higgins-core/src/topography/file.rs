@@ -11,7 +11,6 @@ static FILE_NAME: &str = "topography.jsonl";
 pub struct TopographyFile(PathBuf);
 
 impl TopographyFile {
-
     pub fn new(mut path: PathBuf) -> Self {
         path.push(FILE_NAME);
         Self(path)
@@ -19,18 +18,14 @@ impl TopographyFile {
 
     /// Appends an item to this file.
     pub fn add_item<T: Serialize>(&self, val: T) -> Result<(), TopographyError> {
-
         let (mut file, created) = {
             match std::fs::exists(&self.0)? {
                 true => {
-                    let  file = std::fs::OpenOptions::new()
-                            .append(true)
-                           .open(&self.0)?;
+                    let file = std::fs::OpenOptions::new().append(true).open(&self.0)?;
 
                     (file, false)
-                },
+                }
                 false => {
-
                     let mut dir_path = self.0.clone();
 
                     if dir_path.pop() {
@@ -38,13 +33,11 @@ impl TopographyFile {
                     }
 
                     let file = std::fs::OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                           .open(&self.0)?;
-
+                        .create(true)
+                        .append(true)
+                        .open(&self.0)?;
 
                     (file, true)
-
                 }
             }
         };
@@ -74,7 +67,6 @@ impl TopographyFile {
     where
         for<'a> T: Deserialize<'a>,
     {
-
         let mut file = std::fs::OpenOptions::new().read(true).open(&self.0)?;
 
         let mut data = Vec::new();
@@ -102,17 +94,18 @@ mod tests {
     use std::path::PathBuf;
     use std::str::FromStr;
 
-
     #[test]
     fn add_item_writes_json_and_read_single() {
-        let temp_file_name =  PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
 
         let moved_temp_file_name = temp_file_name.clone();
 
         let result = std::panic::catch_unwind(|| {
             let typography_file = TopographyFile::new(moved_temp_file_name);
 
-            typography_file.add_item(json!({ "a": 1 })).expect("add item");
+            typography_file
+                .add_item(json!({ "a": 1 }))
+                .expect("add item");
 
             let values: Vec<serde_json::Value> = typography_file.read().expect("read values");
             assert_eq!(values, vec![json!({ "a": 1 })]);
@@ -125,15 +118,19 @@ mod tests {
 
     #[test]
     fn read_multiple_items_from_newline_separated_json() {
-        let temp_file_name =  PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
 
         let moved_temp_file_name = temp_file_name.clone();
 
         let result = std::panic::catch_unwind(|| {
             let typography_file = TopographyFile::new(moved_temp_file_name);
 
-            typography_file.add_item(json!({ "a": 1 })).expect("add item");
-            typography_file.add_item(json!({ "b": 2 })).expect("add item");
+            typography_file
+                .add_item(json!({ "a": 1 }))
+                .expect("add item");
+            typography_file
+                .add_item(json!({ "b": 2 }))
+                .expect("add item");
 
             let values: Vec<serde_json::Value> = typography_file.read().expect("read values");
             assert_eq!(values, vec![json!({ "a": 1 }), json!({"b": 2})]);
@@ -142,6 +139,5 @@ mod tests {
         std::fs::remove_dir_all(temp_file_name).unwrap();
 
         result.unwrap();
-
     }
 }

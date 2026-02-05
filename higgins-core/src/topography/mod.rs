@@ -72,29 +72,30 @@ pub enum TopographyUnit {
 
 impl Topography {
     pub fn from_file(file: std::path::PathBuf) -> Result<Self, TopographyError> {
-
         let file = TopographyFile::new(file);
 
         let operations: Vec<TopographyUnit> = file.read()?;
 
         let (streams, schema, storage) = {
-            operations.iter().fold((BTreeMap::new(), BTreeMap::new(), None), |mut acc, unit| {
-                match unit {
-                    TopographyUnit::Stream((key, stream)) => {
-                        acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
-                    },
-                    TopographyUnit::Schema((key, schema)) => {
-                          acc.1.insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
-                    },
-                    TopographyUnit::Storage((key, storage)) => {
-                          acc.2 = Some((key.to_owned(), storage.clone()))
-                    }
-                };
+            operations
+                .iter()
+                .fold((BTreeMap::new(), BTreeMap::new(), None), |mut acc, unit| {
+                    match unit {
+                        TopographyUnit::Stream((key, stream)) => {
+                            acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
+                        }
+                        TopographyUnit::Schema((key, schema)) => {
+                            acc.1
+                                .insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
+                        }
+                        TopographyUnit::Storage((key, storage)) => {
+                            acc.2 = Some((key.to_owned(), storage.clone()))
+                        }
+                    };
 
-                acc
-            })
+                    acc
+                })
         };
-
 
         Ok(Self {
             file,
@@ -111,7 +112,10 @@ impl Topography {
 
         match entry {
             Entry::Vacant(vacant_entry) => {
-                self.file.add_item(TopographyUnit::Schema((String::from_utf8(key.0.to_owned())?, (*schema).clone())))?;
+                self.file.add_item(TopographyUnit::Schema((
+                    String::from_utf8(key.0.to_owned())?,
+                    (*schema).clone(),
+                )))?;
                 vacant_entry.insert(schema);
                 Ok(())
             }
@@ -149,7 +153,10 @@ impl Topography {
 
         match entry {
             Entry::Vacant(vacant_entry) => {
-                self.file.add_item(TopographyUnit::Stream((String::from_utf8(key.0.to_owned())?, stream.clone())))?;
+                self.file.add_item(TopographyUnit::Stream((
+                    String::from_utf8(key.0.to_owned())?,
+                    stream.clone(),
+                )))?;
                 vacant_entry.insert(stream);
                 Ok(())
             }
@@ -177,7 +184,7 @@ impl Topography {
         self.storage = Some(storage.clone());
     }
 
-    pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition>{
+    pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition> {
         &self.streams
     }
 
@@ -194,7 +201,6 @@ impl Topography {
 
         // Apply the Storage configuration..
         if let Some(storage) = configuration.storage.as_ref() {
-
             if let Some((name, storage)) = storage.first_key_value() {
                 self.add_storage(&(name.clone(), storage.clone()));
             }

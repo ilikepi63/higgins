@@ -24,10 +24,13 @@ impl Broker {
 
     /// Get a stream inside of the topography.
     pub fn get_topography_stream(&self, key: &Key) -> Option<(Key, &StreamDefinition)> {
-        self.topography.get_stream_definition_by_key(String::from_utf8(key.0.to_owned()).ok()?).map(|stream_def| (key.clone(), stream_def))
+        self.topography
+            .get_stream_definition_by_key(String::from_utf8(key.0.to_owned()).ok()?)
+            .map(|stream_def| (key.clone(), stream_def))
     }
 
     pub fn get_schema(&self, key: &Key) -> Option<&Arc<arrow::datatypes::Schema>> {
-        self.topography.get_schema_by_key(String::from_utf8(key.0.to_owned()).ok()?)
+        self.topography
+            .get_schema_by_key(String::from_utf8(key.0.to_owned()).ok()?)
     }
 }
