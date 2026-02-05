@@ -54,9 +54,9 @@ pub struct Topography {
     file: TopographyFile,
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
-    functions: BTreeMap<Key, Vec<u8>>,
-    configurations: BTreeMap<Key, Configuration>,
-    subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
+    // functions: BTreeMap<Key, Vec<u8>>,
+    // configurations: BTreeMap<Key, Configuration>,
+    // subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
     storage: Option<(String, Storage)>,
 }
 
@@ -64,23 +64,44 @@ type Described<T> = (String, T);
 
 /// A unit that is atomically added to a typography.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum TypographyUnit {
+pub enum TopographyUnit {
     Stream(Described<StreamDefinition>),
     Schema(Described<Arc<Schema>>),
     Storage(Described<Storage>),
 }
 
 impl Topography {
-    pub fn from_file(file: std::path::PathBuf) -> Self {
-        Self {
-            file: TopographyFile::new(file),
-            streams: BTreeMap::new(),
-            schema: BTreeMap::new(),
-            functions: BTreeMap::new(),
-            configurations: BTreeMap::new(),
-            subscriptions: BTreeMap::new(),
-            storage: None,
-        }
+    pub fn from_file(file: std::path::PathBuf) -> Result<Self, TopographyError> {
+
+        let file = TopographyFile::new(file);
+
+        let operations: Vec<TopographyUnit> = file.read()?;
+
+        let (streams, schema, storage) = {
+            operations.iter().fold((BTreeMap::new(), BTreeMap::new(), None), |mut acc, unit| {
+                match unit {
+                    TopographyUnit::Stream((key, stream)) => {
+                        acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
+                    },
+                    TopographyUnit::Schema((key, schema)) => {
+                          acc.1.insert(Key(key.as_bytes().to_owned()), schema.clone());
+                    },
+                    TopographyUnit::Storage((key, storage)) => {
+                          acc.2 = Some((key.to_owned(), storage.clone()))
+                    }
+                };
+
+                acc
+            })
+        };
+
+
+        Ok(Self {
+            file,
+            streams,
+            schema,
+            storage,
+        })
     }
 
     pub fn add_schema(&mut self, key: Key, schema: Arc<Schema>) -> Result<(), TopographyError> {
@@ -157,14 +178,16 @@ impl Topography {
     pub fn apply_configuration_to_topography(
         &mut self,
         configuration: Configuration,
-    ) -> Result<Key, TopographyError> {
+    ) -> Result<(), TopographyError> {
         tracing::info!(
             "Applying configuration {:#?} to Topography: {:#?}",
             configuration,
             self
         );
 
+        // Apply the Storage configuration..
         if let Some(storage) = configuration.storage.as_ref() {
+
             if let Some((name, storage)) = storage.first_key_value() {
                 self.storage = Some((name.clone(), storage.clone()));
             }
@@ -235,15 +258,16 @@ impl Topography {
             }
         }
 
-        let config_id = uuid::Uuid::new_v4();
+        // Removing these configurations because yeap, not needed.
+        // let config_id = uuid::Uuid::new_v4();
 
-        let config_id = Key(config_id.as_bytes().to_vec());
+        // let config_id = Key(config_id.as_bytes().to_vec());
 
-        self
-            .configurations
-            .insert(config_id.clone(), configuration);
+        // self
+        //     .configurations
+        //     .insert(config_id.clone(), configuration);
 
-        Ok(config_id)
+        Ok(())
     }
 }
 

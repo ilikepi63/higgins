@@ -56,7 +56,7 @@ impl Broker {
             dir,
             backing_store: None,
             subscriptions: BTreeMap::new(),
-            topography: Topography::from_file(topography_dir),
+            topography: Topography::from_file(topography_dir).unwrap(),
             clients: ClientCollection::empty(),
             functions: FunctionCollection::new(functions_dir),
             broker_indexes: Vec::new(),
