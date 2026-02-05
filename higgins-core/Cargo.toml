@@ -5,7 +5,8 @@ edition = "2024"
 license-file = "../LICENSE.md"
 
 [dependencies]
-arrow = { version = "55.0.0", features = ["ffi"] }
+arrow = { version = "55", features = ["ffi"] }
+arrow-schema = { version = "55", features = ["serde"] }
 arrow-json = "55.1.0"
 async-trait = "0.1.88"
 bytes = "1.10.1"
@@ -30,6 +31,7 @@ zerocopy = { version = "0.8.27", features = ["derive"] }
 rand = "0.9.2"
 futures = "0.3.31"
 higgins-shared = { path = "../higgins-shared" }
+serde_json = "1.0.140"
 
 [dev-dependencies]
 higgins-client = { path = "../higgins-client" }
