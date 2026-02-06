@@ -375,3 +375,48 @@ pub struct SubscriptionDeclaration {
     #[allow(unused)]
     topic: Vec<u8>,
 }
+
+#[cfg(test)]
+pub mod test {
+
+    use crate::topography::config::from_toml;
+
+    use super::*;
+
+    static BASIC_CONFIG: &str = r#"
+    [storage.s3]
+    type="s3"
+    aws_access_key_id = "rustfsadmin"
+    aws_secret_access_key = "rustfsadmin"
+    aws_endpoint = "http://localhost:9000"
+    bucket_name = "bucket"
+    aws_allow_http = true
+
+    [schema.update_customer_event]
+    id = "string"
+    first_name = "string"
+    last_name = "string"
+    age = "int32"
+
+    [streams.update_customer]
+    schema = "update_customer_event"
+    partition_key = "id"
+    "#;
+
+    #[test]
+    pub fn can_convert_topography_to_configuration() {
+        let file_name = std::path::PathBuf::from(uuid::Uuid::new_v4().to_string());
+
+        let config = from_toml(BASIC_CONFIG.as_bytes());
+
+        let mut topography = Topography::from_file(file_name).unwrap();
+
+        topography
+            .apply_configuration_to_topography(config)
+            .unwrap();
+
+        let config_from_topography = topography.to_config();
+
+        assert_eq!(config, config_from_topography);
+    }
+}
