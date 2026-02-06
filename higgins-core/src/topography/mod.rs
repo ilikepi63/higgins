@@ -48,6 +48,12 @@ impl From<&str> for Key {
     }
 }
 
+impl Into<String> for Key {
+    fn into(self) -> String {
+        String::from_utf8(self.0).unwrap()
+    }
+}
+
 /// A topography explains all of the existing streams, schema and the associated keys within them.
 #[derive(Debug)]
 pub struct Topography {
@@ -113,6 +119,35 @@ impl Topography {
             schema,
             storage,
         })
+    }
+
+    /// Converts this Topography into a configuration.
+    pub fn to_config(&self) -> Configuration {
+        let streams = if self.streams.len() > 0 {
+            Some(
+                self.streams
+                    .iter()
+                    .map(|(key, definition)| {
+                        (
+                            key.clone().into(),
+                            ConfigurationStreamDefinition::from(definition.clone()),
+                        )
+                    })
+                    .collect::<BTreeMap<String, ConfigurationStreamDefinition>>(),
+            )
+        } else {
+            None
+        };
+
+        // if self.streams.len() > 0 {}
+
+        // if self.streams.len() > 0 {}
+
+        Configuration {
+            streams: None,
+            schema: None,
+            storage: None,
+        }
     }
 
     pub fn add_schema(&mut self, key: Key, schema: Arc<Schema>) -> Result<(), TopographyError> {
@@ -201,7 +236,7 @@ impl Topography {
     /// Applies an entire configuration to this topography.
     pub fn apply_configuration_to_topography(
         &mut self,
-        configuration: Configuration,
+        configuration: &Configuration,
     ) -> Result<(), TopographyError> {
         tracing::info!(
             "Applying configuration {:#?} to Topography: {:#?}",
@@ -370,6 +405,17 @@ impl From<&str> for FunctionType {
     }
 }
 
+impl Into<String> for FunctionType {
+    fn into(self) -> String {
+        match self {
+            FunctionType::Reduce => "reduce".to_string(),
+            FunctionType::Map => "map".to_string(),
+            FunctionType::Aggregate => "aggregate".to_string(),
+            FunctionType::Join => "join".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SubscriptionDeclaration {
     #[allow(unused)]
@@ -412,7 +458,7 @@ pub mod test {
         let mut topography = Topography::from_file(file_name).unwrap();
 
         topography
-            .apply_configuration_to_topography(config)
+            .apply_configuration_to_topography(&config)
             .unwrap();
 
         let config_from_topography = topography.to_config();

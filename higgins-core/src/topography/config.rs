@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use arrow::datatypes::{DataType, Field};
 use serde::{Deserialize, Serialize};
 
+use crate::topography::{FunctionType, Key, StreamDefinition};
+
 /// A Configuration is a serializable value that corresponds to a
 /// unit of implementation. These implementations aggregate to become a
 /// Topography. A configuration itself is also a Topography once it has been applied.
@@ -34,6 +36,20 @@ pub struct ConfigurationStreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+}
+
+impl From<StreamDefinition> for ConfigurationStreamDefinition {
+    fn from(value: StreamDefinition) -> Self {
+        ConfigurationStreamDefinition {
+            base: value.base.map(Key::into),
+            stream_type: value.stream_type.map(FunctionType::into),
+            partition_key: value.partition_key.into(),
+            schema: value.schema.into(),
+            join: value.join,
+            map: value.map,
+            function_name: value.function_name,
+        }
+    }
 }
 
 type Schema = BTreeMap<String, String>;
