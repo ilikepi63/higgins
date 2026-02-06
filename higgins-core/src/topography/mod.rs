@@ -155,12 +155,15 @@ impl Topography {
             None
         };
 
-        // if self.streams.len() > 0 {}
+        let storage = self
+            .storage
+            .clone()
+            .map(|storage| BTreeMap::from([storage]));
 
         Configuration {
             streams,
             schema,
-            storage: None,
+            storage,
         }
     }
 
