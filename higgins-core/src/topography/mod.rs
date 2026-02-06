@@ -13,7 +13,10 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
 use crate::topography::{
-    config::{Configuration, ConfigurationStreamDefinition, Storage, schema_to_arrow_schema},
+    config::{
+        Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
+        schema_to_arrow_schema,
+    },
     errors::TopographyError,
 };
 
@@ -139,13 +142,24 @@ impl Topography {
             None
         };
 
-        // if self.streams.len() > 0 {}
+        let schema = if self.schema.len() > 0 {
+            Some(
+                self.schema
+                    .iter()
+                    .map(|(key, definition)| {
+                        (key.clone().into(), arrow_schema_to_schema(definition))
+                    })
+                    .collect::<BTreeMap<String, config::Schema>>(),
+            )
+        } else {
+            None
+        };
 
         // if self.streams.len() > 0 {}
 
         Configuration {
-            streams: None,
-            schema: None,
+            streams,
+            schema,
             storage: None,
         }
     }
