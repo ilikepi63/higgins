@@ -28,7 +28,7 @@ impl Broker {
         let config = from_toml(config);
 
         // Apply the configuration to the topography.
-        self.topography.apply_configuration_to_topography(config)?;
+        self.topography.apply_configuration_to_topography(&config)?;
 
         // Apply the storages.
         if let Some(storage) = self.topography.get_storage() {

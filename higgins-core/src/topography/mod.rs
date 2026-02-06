@@ -13,7 +13,10 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
 use crate::topography::{
-    config::{Configuration, ConfigurationStreamDefinition, Storage, schema_to_arrow_schema},
+    config::{
+        Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
+        schema_to_arrow_schema,
+    },
     errors::TopographyError,
 };
 
@@ -45,6 +48,12 @@ impl Key {
 impl From<&str> for Key {
     fn from(value: &str) -> Self {
         Self(value.as_bytes().to_vec())
+    }
+}
+
+impl Into<String> for Key {
+    fn into(self) -> String {
+        String::from_utf8(self.0).unwrap()
     }
 }
 
@@ -113,6 +122,49 @@ impl Topography {
             schema,
             storage,
         })
+    }
+
+    /// Converts this Topography into a configuration.
+    pub fn to_config(&self) -> Configuration {
+        let streams = if self.streams.len() > 0 {
+            Some(
+                self.streams
+                    .iter()
+                    .map(|(key, definition)| {
+                        (
+                            key.clone().into(),
+                            ConfigurationStreamDefinition::from(definition.clone()),
+                        )
+                    })
+                    .collect::<BTreeMap<String, ConfigurationStreamDefinition>>(),
+            )
+        } else {
+            None
+        };
+
+        let schema = if self.schema.len() > 0 {
+            Some(
+                self.schema
+                    .iter()
+                    .map(|(key, definition)| {
+                        (key.clone().into(), arrow_schema_to_schema(definition))
+                    })
+                    .collect::<BTreeMap<String, config::Schema>>(),
+            )
+        } else {
+            None
+        };
+
+        let storage = self
+            .storage
+            .clone()
+            .map(|storage| BTreeMap::from([storage]));
+
+        Configuration {
+            streams,
+            schema,
+            storage,
+        }
     }
 
     pub fn add_schema(&mut self, key: Key, schema: Arc<Schema>) -> Result<(), TopographyError> {
@@ -201,7 +253,7 @@ impl Topography {
     /// Applies an entire configuration to this topography.
     pub fn apply_configuration_to_topography(
         &mut self,
-        configuration: Configuration,
+        configuration: &Configuration,
     ) -> Result<(), TopographyError> {
         tracing::info!(
             "Applying configuration {:#?} to Topography: {:#?}",
@@ -370,8 +422,64 @@ impl From<&str> for FunctionType {
     }
 }
 
+impl Into<String> for FunctionType {
+    fn into(self) -> String {
+        match self {
+            FunctionType::Reduce => "reduce".to_string(),
+            FunctionType::Map => "map".to_string(),
+            FunctionType::Aggregate => "aggregate".to_string(),
+            FunctionType::Join => "join".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SubscriptionDeclaration {
     #[allow(unused)]
     topic: Vec<u8>,
+}
+
+#[cfg(test)]
+pub mod test {
+
+    use crate::topography::config::from_toml;
+
+    use super::*;
+
+    static BASIC_CONFIG: &str = r#"
+    [storage.s3]
+    type="s3"
+    aws_access_key_id = "rustfsadmin"
+    aws_secret_access_key = "rustfsadmin"
+    aws_endpoint = "http://localhost:9000"
+    bucket_name = "bucket"
+    aws_allow_http = true
+
+    [schema.update_customer_event]
+    id = "string"
+    first_name = "string"
+    last_name = "string"
+    age = "int32"
+
+    [streams.update_customer]
+    schema = "update_customer_event"
+    partition_key = "id"
+    "#;
+
+    #[test]
+    pub fn can_convert_topography_to_configuration() {
+        let file_name = std::path::PathBuf::from(uuid::Uuid::new_v4().to_string());
+
+        let config = from_toml(BASIC_CONFIG.as_bytes());
+
+        let mut topography = Topography::from_file(file_name).unwrap();
+
+        topography
+            .apply_configuration_to_topography(&config)
+            .unwrap();
+
+        let config_from_topography = topography.to_config();
+
+        assert_eq!(config, config_from_topography);
+    }
 }

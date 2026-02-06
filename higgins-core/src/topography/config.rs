@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use arrow::datatypes::{DataType, Field};
 use serde::{Deserialize, Serialize};
 
+use crate::topography::{FunctionType, Key, StreamDefinition};
+
 /// A Configuration is a serializable value that corresponds to a
 /// unit of implementation. These implementations aggregate to become a
 /// Topography. A configuration itself is also a Topography once it has been applied.
@@ -36,7 +38,21 @@ pub struct ConfigurationStreamDefinition {
     pub function_name: Option<String>,
 }
 
-type Schema = BTreeMap<String, String>;
+impl From<StreamDefinition> for ConfigurationStreamDefinition {
+    fn from(value: StreamDefinition) -> Self {
+        ConfigurationStreamDefinition {
+            base: value.base.map(Key::into),
+            stream_type: value.stream_type.map(FunctionType::into),
+            partition_key: value.partition_key.into(),
+            schema: value.schema.into(),
+            join: value.join,
+            map: value.map,
+            function_name: value.function_name,
+        }
+    }
+}
+
+pub type Schema = BTreeMap<String, String>;
 
 pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
     let fields = schema
@@ -60,6 +76,29 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
         .collect::<Vec<_>>();
 
     arrow::datatypes::Schema::new(fields)
+}
+
+pub fn arrow_schema_to_schema(schema: &arrow::datatypes::Schema) -> Schema {
+    schema
+        .fields
+        .iter()
+        .map(|field| {
+            let s = match field.data_type() {
+                DataType::Utf8 => "string",
+                DataType::UInt8 => "uint8",
+                DataType::UInt16 => "uint16",
+                DataType::UInt32 => "uint32",
+                DataType::UInt64 => "uint64",
+                DataType::Int8 => "int8",
+                DataType::Int16 => "int16",
+                DataType::Int32 => "int32",
+                DataType::Int64 => "int64",
+                _ => unimplemented!(),
+            };
+
+            (field.name().to_owned(), s.to_owned())
+        })
+        .collect::<BTreeMap<String, String>>()
 }
 
 /// Generic Storage Container that is covariant over
