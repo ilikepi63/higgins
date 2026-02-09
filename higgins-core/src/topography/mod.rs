@@ -242,8 +242,13 @@ impl Topography {
     }
 
     /// Gets the storage setup for this topography.
-    pub fn add_storage(&mut self, storage: &(String, Storage)) {
+    pub fn add_storage(&mut self, storage: &(String, Storage)) -> Result<(), TopographyError> {
+        self.file.add_item(TopographyUnit::Storage((
+            storage.0.clone(),
+            storage.1.clone(),
+        )))?;
         self.storage = Some(storage.clone());
+        Ok(())
     }
 
     pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition> {
@@ -264,7 +269,7 @@ impl Topography {
         // Apply the Storage configuration..
         if let Some(storage) = configuration.storage.as_ref() {
             if let Some((name, storage)) = storage.first_key_value() {
-                self.add_storage(&(name.clone(), storage.clone()));
+                self.add_storage(&(name.clone(), storage.clone()))?;
             }
         }
 
