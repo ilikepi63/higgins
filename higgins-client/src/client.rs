@@ -1,5 +1,5 @@
 use crate::{
-    configuration::upload_configuration,
+    configuration::{get_current_topography, upload_configuration},
     error::HigginsClientError,
     functions::upload_module,
     ping::ping,
@@ -93,5 +93,9 @@ impl Client {
 
     pub async fn upload_configuration(&mut self, config: &[u8]) -> Result<(), HigginsClientError> {
         timeout!(upload_configuration(config, &mut self.0), self.1).await?
+    }
+
+    pub async fn get_current_topography(&mut self) -> Result<(), HigginsClientError> {
+        timeout!(get_current_topography(&mut self.0), self.1).await?
     }
 }
