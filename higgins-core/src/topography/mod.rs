@@ -242,8 +242,13 @@ impl Topography {
     }
 
     /// Gets the storage setup for this topography.
-    pub fn add_storage(&mut self, storage: &(String, Storage)) {
+    pub fn add_storage(&mut self, storage: &(String, Storage)) -> Result<(), TopographyError> {
+        self.file.add_item(TopographyUnit::Storage((
+            storage.0.clone(),
+            storage.1.clone(),
+        )))?;
         self.storage = Some(storage.clone());
+        Ok(())
     }
 
     pub fn get_streams(&self) -> &BTreeMap<Key, StreamDefinition> {
@@ -264,7 +269,7 @@ impl Topography {
         // Apply the Storage configuration..
         if let Some(storage) = configuration.storage.as_ref() {
             if let Some((name, storage)) = storage.first_key_value() {
-                self.add_storage(&(name.clone(), storage.clone()));
+                self.add_storage(&(name.clone(), storage.clone()))?;
             }
         }
 
@@ -442,9 +447,9 @@ pub struct SubscriptionDeclaration {
 #[cfg(test)]
 pub mod test {
 
-    use crate::topography::config::from_toml;
-
     use super::*;
+    use crate::topography::config::from_toml;
+    use std::panic::catch_unwind;
 
     static BASIC_CONFIG: &str = r#"
     [storage.s3]
@@ -470,16 +475,24 @@ pub mod test {
     pub fn can_convert_topography_to_configuration() {
         let file_name = std::path::PathBuf::from(uuid::Uuid::new_v4().to_string());
 
-        let config = from_toml(BASIC_CONFIG.as_bytes());
+        let destroy_file_name = file_name.clone();
 
-        let mut topography = Topography::from_file(file_name).unwrap();
+        let result = catch_unwind(|| {
+            let config = from_toml(BASIC_CONFIG.as_bytes());
 
-        topography
-            .apply_configuration_to_topography(&config)
-            .unwrap();
+            let mut topography = Topography::from_file(file_name).unwrap();
 
-        let config_from_topography = topography.to_config();
+            topography
+                .apply_configuration_to_topography(&config)
+                .unwrap();
 
-        assert_eq!(config, config_from_topography);
+            let config_from_topography = topography.to_config();
+
+            assert_eq!(config, config_from_topography);
+        });
+
+        std::fs::remove_dir_all(destroy_file_name).unwrap();
+
+        result.unwrap();
     }
 }
