@@ -1,10 +1,8 @@
 mod common;
 
-use std::{path::PathBuf, time::Duration};
-
-use arrow::compute::second;
 use higgins::run_server_returning;
 use higgins_client::Response;
+use std::{path::PathBuf, time::Duration};
 
 use common::get_random_port;
 
