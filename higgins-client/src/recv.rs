@@ -1,8 +1,8 @@
 use super::{Client, error::HigginsClientError};
 use higgins_codec::{
     CreateConfigurationResponse, CreateSubscriptionResponse, DeleteConfigurationResponse,
-    GetIndexResponse, Message, MetadataResponse, Pong, ProduceResponse, TakeRecordsResponse,
-    UploadModuleResponse, frame::Frame, message::Type,
+    GetCurrentTopographyResponse, GetIndexResponse, Message, MetadataResponse, Pong,
+    ProduceResponse, TakeRecordsResponse, UploadModuleResponse, frame::Frame, message::Type,
 };
 use prost::Message as _;
 
@@ -16,6 +16,7 @@ pub enum Response {
     Pong(Pong),
     Produce(ProduceResponse),
     TakeRecords(TakeRecordsResponse),
+    GetCurrentTopography(GetCurrentTopographyResponse),
     UploadModule(UploadModuleResponse),
 }
 
@@ -45,6 +46,9 @@ impl TryFrom<Message> for Response {
             }
             Type::Uploadmoduleresponse => Ok(Response::UploadModule(
                 value.upload_module_response.unwrap(),
+            )),
+            Type::Getcurrenttopographyresponse => Ok(Response::GetCurrentTopography(
+                value.get_current_topography_response.unwrap(),
             )),
             _ => Err(HigginsClientError::UnexpectedMessageReceived(value.r#type)),
         }

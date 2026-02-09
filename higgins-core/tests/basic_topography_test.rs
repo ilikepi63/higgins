@@ -2,24 +2,20 @@ mod common;
 
 use std::{path::PathBuf, time::Duration};
 
-use higgins::{run_server, storage::arrow_ipc::read_arrow};
+use higgins::run_server;
 use higgins_client::Response;
-use higgins_shared::PartitionName;
 
 use common::get_random_port;
 
 fn get_dir() -> PathBuf {
     // let mut dir = temp_dir();
     let mut dir = PathBuf::new();
-    dir.push("basic");
+    dir.push("basic_topography");
     dir
 }
 
-static STREAM: &str = "update_customer";
-static PARTITION: &[u8] = "test_partition".as_bytes();
-
 #[test]
-fn can_achieve_basic_broker_functionality() {
+fn can_achieve_basic_topography_retrieval() {
     tracing_subscriber::fmt::init();
 
     let port = get_random_port();
@@ -60,5 +56,20 @@ fn can_achieve_basic_broker_functionality() {
         _ => panic!("Retrieved unexpected result."),
     };
 
+    client.get_current_topography().unwrap();
+
+    match client.recv().unwrap() {
+        Response::GetCurrentTopography(topography) => {
+            let value: toml::Value = toml::from_slice(&topography.data).unwrap();
+            println!(
+                "Retrieved Topography: {}",
+                toml::to_string_pretty(&value).unwrap()
+            );
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
+
     std::fs::remove_dir_all(dir_remove).unwrap();
+
+    panic!();
 }
