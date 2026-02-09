@@ -143,6 +143,14 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     drop(broker_lock);
 }
 
+pub struct ServerHandle(tokio::sync::oneshot::Sender<()>);
+
+impl ServerHandle {
+    pub fn close(self) {
+        self.0.send(()).unwrap();
+    }
+}
+
 pub async fn run_server(dir: PathBuf, port: u16) {
     let broker = Arc::new(RwLock::new(Broker::new(dir)));
 
@@ -158,4 +166,43 @@ pub async fn run_server(dir: PathBuf, port: u16) {
 
         process_socket(socket, broker.clone()).await;
     }
+}
+
+// #[cfg(test)]
+pub fn run_server_returning(dir: PathBuf, port: u16) -> ServerHandle {
+    let broker = Arc::new(RwLock::new(Broker::new(dir)));
+
+    let (tx, mut rx) = tokio::sync::oneshot::channel();
+
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(async move {
+            let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
+                .await
+                .unwrap();
+
+            tracing::info!("Connected on {}", port);
+
+            loop {
+                tokio::select! {
+                    socket = listener.accept() => {
+                        let (socket, addr) = socket.unwrap();
+                        tracing::info!("Received connection from: {addr}");
+
+                        process_socket(socket, broker.clone()).await;
+
+                    },
+                    _ = &mut rx => {
+                        tracing::info!("Received close, will stop the server.");
+                        break;
+                    }
+                }
+            }
+        });
+
+        tracing::info!("Thread is no longer blocked.. terminating");
+    });
+
+    ServerHandle(tx)
 }
