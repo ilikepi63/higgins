@@ -472,9 +472,7 @@ impl IndexDirectory {
             let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
-                let (_, stream_def) = broker
-                    .get_topography_stream(&Key(topic.as_bytes().to_owned()))
-                    .unwrap();
+                let (_, stream_def) = broker.get_topography_stream(&Key::from(&topic)).unwrap();
 
                 (
                     IndexType::try_from(stream_def).unwrap(),

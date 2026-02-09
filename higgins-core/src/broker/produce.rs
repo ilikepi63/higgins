@@ -71,7 +71,7 @@ impl Broker {
 
         let (index_type, stream_def) = {
             let (_, stream_def) = self
-                .get_topography_stream(&crate::topography::Key(stream_name.to_owned()))
+                .get_topography_stream(&crate::topography::Key::try_from(stream_name).unwrap())
                 .unwrap();
 
             (
