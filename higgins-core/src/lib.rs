@@ -100,8 +100,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Metadatarequest => todo!(),
                     Type::Getcurrenttopographyrequest => {
-                        handlers::handle_get_topography(message, broker.clone(), writer_tx.clone())
-                            .await;
+                        handlers::handle_get_topography(broker.clone(), writer_tx.clone()).await;
                     }
                     Type::Produceresponse
                     | Type::Metadataresponse
