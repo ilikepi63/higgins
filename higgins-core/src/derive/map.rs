@@ -22,17 +22,17 @@ pub async fn create_mapped_stream_from_definition(
     let client_id = broker.clients.insert(ClientRef::NoOp);
 
     // Subscribe to both streams.
-    let left_subscription = broker.create_subscription(left.0.inner());
+    let left_subscription = broker.create_subscription(left.0.as_bytes());
 
     let (left_notify, left_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
+        .get_subscription_by_key(left.0.as_bytes(), &left_subscription)
         .unwrap();
     let (_right_notify, _right_subscription_ref) = broker
-        .get_subscription_by_key(left.0.inner(), &left_subscription)
+        .get_subscription_by_key(left.0.as_bytes(), &left_subscription)
         .unwrap();
 
     let left_broker = broker_ref.clone();
-    let left_stream_name = left.0.inner().to_owned();
+    let left_stream_name = left.0.as_bytes().to_owned();
     let left_stream_partition_key = left.1.partition_key;
 
     // Left join runner for this subscription.
@@ -89,7 +89,7 @@ pub async fn create_mapped_stream_from_definition(
                                 let partition_val = get_partition_key_from_record_batch(
                                     &record_batch,
                                     index,
-                                    String::from_utf8_lossy(left_stream_partition_key.inner())
+                                    String::from_utf8_lossy(left_stream_partition_key.as_bytes())
                                         .to_string()
                                         .as_str(),
                                 );
@@ -103,7 +103,7 @@ pub async fn create_mapped_stream_from_definition(
 
                                 let result = broker_lock
                                     .produce(
-                                        stream_name.inner(),
+                                        stream_name.as_bytes(),
                                         &PartitionName::try_from(&partition_val[..]).unwrap(),
                                         mapped_record_batch,
                                     )

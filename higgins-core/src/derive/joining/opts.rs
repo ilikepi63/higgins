@@ -15,7 +15,7 @@ use higgins_shared::PartitionName;
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
-            .get_subscription_by_key($left.0.inner(), &$sub)
+            .get_subscription_by_key($left.0.as_bytes(), &$sub)
             .ok_or(HigginsError::SubscriptionRetrievalFailed)
     };
 }
@@ -57,7 +57,7 @@ pub async fn create_join_operator(
         let schema = broker.get_schema(&join_definition_schema_key).unwrap();
 
         // Create the actual derived stream.
-        broker.create_stream(&definition.base.0.0, schema.clone());
+        broker.create_stream(&definition.base.0.as_bytes(), schema.clone());
 
         tracing::trace!("Successfully created the stream definition inside of the broker.");
     };
@@ -82,7 +82,7 @@ pub async fn create_join_operator(
                     let mut broker = task_broker.write().await;
                     let client_id = broker.clients.insert(super::ClientRef::NoOp);
                     let left_subscription =
-                        broker.create_subscription(join_stream.stream.0.inner());
+                        broker.create_subscription(join_stream.stream.0.as_bytes());
                     let stream = join_stream.stream.clone();
                     let (left_notify, left_subscription) =
                         get_sub!(broker, stream, left_subscription).unwrap();
@@ -122,7 +122,7 @@ pub async fn create_join_operator(
 
     // This task awaits all of the given derivative partitions and accumulates them into the
     // new joined stream.
-    let stream = definition.base.0.0;
+    let stream: Vec<u8> = definition.base.0.into();
     let n_offsets = definition.joins.len();
     let _collection_handle =             broker.task_handler.spawn(
     &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
@@ -148,7 +148,7 @@ pub async fn create_join_operator(
                     let mut broker = broker_ref.write().await;
                     let index_file: BrokerIndexFile = broker
                         .get_index_file(
-                            String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+                            String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
                             &partition,
                             JoinedIndex::size_of(n_offsets),
                         )
@@ -334,7 +334,7 @@ async move {
                     let mut broker = broker_ref.write().await;
                     let index_file: BrokerIndexFile = broker
                         .get_index_file(
-                            String::from_utf8(stream.clone()).unwrap(), // TODO: Enforce Strings for stream names.
+                            String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
                             &partition,
                             JoinedIndex::size_of(n_offsets),
                         )
@@ -400,7 +400,7 @@ async move {
 
                                     let data = broker_lock
                                         .get_at(
-                                            stream.joins.get(i).unwrap().stream.0.inner(),
+                                            stream.joins.get(i).unwrap().stream.0.as_bytes(),
                                             &partition,
                                             offset,
                                         )
@@ -438,7 +438,7 @@ async move {
                         // Retrieve the stream names for the given indexes.
                         .map(|data| data.as_ref().map(|(index, data)| {
                             let stream = stream.joins.get(*index).unwrap();
-                            (String::from_utf8(stream.stream.0.inner().to_owned()).unwrap(), data.clone())
+                            (String::from_utf8(stream.stream.0.as_bytes().to_owned()).unwrap(), data.clone())
                         })).collect::<Vec<_>>();
 
                         tracing::info!("We are amalgamating the derivative data now.");
@@ -458,7 +458,8 @@ async move {
                             // Places the data at the reference.
                             let mut new_index = broker
                                 .put_data(
-                                    String::from_utf8(stream.base.0.0.clone()).unwrap(),
+                                    stream.base.0.clone().into(),
+                                    // String::from_utf8(stream.base.0.as_bytes().to_owned()).unwrap(),
                                     &partition,
                                     &mut top_level_index,
                                     resultant_record_batch,

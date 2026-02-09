@@ -42,11 +42,14 @@ impl Broker {
             .get_streams()
             .iter()
             .filter_map(|(stream_key, def)| {
-                if !self.streams.contains_key(stream_key.inner()) {
+                if !self
+                    .streams
+                    .contains_key(&Into::<Vec<u8>>::into(stream_key))
+                {
                     let schema = self
                         .topography
-                        .get_schema_by_key(String::from_utf8(def.schema.0.to_owned()).ok()?)?
-                        .clone(); //.schema.get(&def.schema).unwrap().clone();
+                        .get_schema_by_key(def.schema.clone().into())?
+                        .clone();
 
                     return Some((stream_key.clone(), schema));
                 }
@@ -56,7 +59,7 @@ impl Broker {
             .collect::<Vec<_>>();
 
         for (key, schema) in streams_to_create {
-            self.create_stream(key.inner(), schema);
+            self.create_stream(Into::<Vec<u8>>::into(key).as_ref(), schema);
         }
 
         // Retrieve derived streams metadata.

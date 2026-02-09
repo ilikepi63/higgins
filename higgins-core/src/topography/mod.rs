@@ -29,31 +29,60 @@ use file::TopographyFile;
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]
-pub struct Key(pub Vec<u8>);
+pub struct Key(String);
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Key")
-            .field("inner", &String::from_utf8(self.0.clone()))
-            .finish()
+        f.debug_struct("Key").field("inner", &self.0).finish()
     }
 }
 
 impl Key {
-    pub fn inner(&self) -> &[u8] {
-        &self.0
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 }
 
 impl From<&str> for Key {
     fn from(value: &str) -> Self {
-        Self(value.as_bytes().to_vec())
+        Self(value.to_owned())
+    }
+}
+
+impl From<&String> for Key {
+    fn from(value: &String) -> Self {
+        Self(value.to_owned())
     }
 }
 
 impl Into<String> for Key {
     fn into(self) -> String {
-        String::from_utf8(self.0).unwrap()
+        self.0
+    }
+}
+
+impl Into<String> for &Key {
+    fn into(self) -> String {
+        self.0.to_owned()
+    }
+}
+
+impl Into<Vec<u8>> for Key {
+    fn into(self) -> Vec<u8> {
+        self.0.into_bytes()
+    }
+}
+impl Into<Vec<u8>> for &Key {
+    fn into(self) -> Vec<u8> {
+        self.0.clone().into_bytes()
+    }
+}
+
+impl TryFrom<&[u8]> for Key {
+    type Error = std::string::FromUtf8Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Key(String::from_utf8(value.to_owned())?))
     }
 }
 
@@ -89,11 +118,10 @@ impl Topography {
                 |mut acc, unit| {
                     match unit {
                         TopographyUnit::Stream((key, stream)) => {
-                            acc.0.insert(Key(key.as_bytes().to_owned()), stream.clone());
+                            acc.0.insert(Key::from(key), stream.clone());
                         }
                         TopographyUnit::Schema((key, schema)) => {
-                            acc.1
-                                .insert(Key(key.as_bytes().to_owned()), Arc::new(schema.clone()));
+                            acc.1.insert(Key::from(key), Arc::new(schema.clone()));
                         }
                         TopographyUnit::Storage((key, storage)) => {
                             acc.2 = Some((key.to_owned(), storage.clone()))
@@ -179,10 +207,8 @@ impl Topography {
 
         match entry {
             Entry::Vacant(vacant_entry) => {
-                self.file.add_item(TopographyUnit::Schema((
-                    String::from_utf8(key.0.to_owned())?,
-                    (*schema).clone(),
-                )))?;
+                self.file
+                    .add_item(TopographyUnit::Schema((key.into(), (*schema).clone())))?;
                 vacant_entry.insert(schema);
                 Ok(())
             }
@@ -220,10 +246,8 @@ impl Topography {
 
         match entry {
             Entry::Vacant(vacant_entry) => {
-                self.file.add_item(TopographyUnit::Stream((
-                    String::from_utf8(key.0.to_owned())?,
-                    stream.clone(),
-                )))?;
+                self.file
+                    .add_item(TopographyUnit::Stream((key.into(), stream.clone())))?;
                 vacant_entry.insert(stream);
                 Ok(())
             }
@@ -233,12 +257,12 @@ impl Topography {
 
     /// Retrieve the stream definition of the given stream key.
     pub fn get_stream_definition_by_key(&self, stream: String) -> Option<&StreamDefinition> {
-        self.streams.get(&Key(stream.as_bytes().to_owned()))
+        self.streams.get(&Key::from(&stream))
     }
 
     /// Retrieve the stream definition of the given stream key.
     pub fn get_schema_by_key(&self, schema_key: String) -> Option<&Arc<Schema>> {
-        self.schema.get(&Key(schema_key.as_bytes().to_owned()))
+        self.schema.get(&Key::from(&schema_key))
     }
 
     /// Gets the storage setup for this topography.
@@ -379,15 +403,9 @@ pub struct StreamDefinition {
 impl Debug for StreamDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StreamDefinition")
-            .field(
-                "base",
-                &self.base.as_ref().map(|v| String::from_utf8(v.0.clone())),
-            )
+            .field("base", &self.base.as_ref())
             .field("stream_type", &self.stream_type)
-            .field(
-                "partition_key",
-                &String::from_utf8(self.partition_key.0.clone()),
-            )
+            .field("partition_key", &self.partition_key.0)
             .field("schema", &self.schema)
             .field("join", &self.join)
             .field("map", &self.map)

@@ -29,7 +29,9 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
         (key, stream_definition, broker): (Key, StreamDefinition, &Broker),
     ) -> Result<Self, Self::Error> {
         let schema = broker
-            .get_stream(key.inner())
+            .get_stream(
+                &Into::<Vec<u8>>::into(key.clone()), // key.into()
+            )
             .map(|(schema, _, _)| schema.clone())
             .ok_or(TopographyError::SchemaNotFound(format!("{:#?}", key)))?;
 
@@ -39,7 +41,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
             .map(|joins| {
                 joins.into_iter().map(|stream_name| {
                     broker
-                        .get_topography_stream(&Key(stream_name.into_bytes()))
+                        .get_topography_stream(&Key::from(&stream_name))
                         .map(JoinWithStream::from)
                         .ok_or(TopographyError::JoinStreamDoesNotExist)
                 })
