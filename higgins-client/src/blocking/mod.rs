@@ -68,6 +68,9 @@ impl Client {
     pub fn upload_configuration(&mut self, config: &[u8]) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.upload_configuration(config))
     }
+    pub async fn get_current_topography(&mut self) -> Result<(), HigginsClientError> {
+        self.1.block_on(self.0.get_current_topography())
+    }
 
     pub fn recv(&mut self) -> Result<Response, HigginsClientError> {
         self.1.block_on(self.0.recv())
