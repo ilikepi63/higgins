@@ -148,6 +148,9 @@ message Message {
 
     UPLOADMODULEREQUEST = 17;
     UPLOADMODULERESPONSE = 18;
+
+    GETCURRENTTOPOGRAPHYREQUEST = 19;
+    GETCURRENTTOPOGRAPHYRESPONSE = 20;
   }
 
   Type type = 1;
@@ -171,4 +174,7 @@ message Message {
   optional GetIndexResponse getIndexResponse = 18;
   optional UploadModuleRequest uploadModuleRequest = 19;
   optional UploadModuleResponse uploadModuleResponse = 20;
+
+  optional GetCurrentTopographyRequest getCurrentTopographyRequest = 21;
+  optional GetCurrentTopographyResponse getCurrentTopographyResponse = 22;
 }
