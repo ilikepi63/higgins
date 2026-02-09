@@ -124,6 +124,11 @@ impl Topography {
         })
     }
 
+    /// Converst this to TOML-represented Config.
+    pub fn to_config_toml(&self) -> Result<String, TopographyError> {
+        Ok(toml::to_string(&self.to_config())?)
+    }
+
     /// Converts this Topography into a configuration.
     pub fn to_config(&self) -> Configuration {
         let streams = if self.streams.len() > 0 {

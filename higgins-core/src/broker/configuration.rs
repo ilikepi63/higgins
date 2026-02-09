@@ -137,6 +137,10 @@ impl Broker {
 
         Ok(())
     }
+
+    pub fn get_topography_as_config_string(&self) -> Result<String, HigginsError> {
+        Ok(self.topography.to_config_toml()?)
+    }
 }
 
 use crate::topography::config::AwsS3Storage;
