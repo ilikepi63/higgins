@@ -2,7 +2,8 @@ mod common;
 
 use std::{path::PathBuf, time::Duration};
 
-use higgins::run_server;
+use arrow::compute::second;
+use higgins::run_server_returning;
 use higgins_client::Response;
 
 use common::get_random_port;
@@ -14,6 +15,20 @@ fn get_dir() -> PathBuf {
     dir
 }
 
+pub fn setup_server(
+    dir: PathBuf,
+    port: u16,
+) -> (higgins::ServerHandle, higgins_client::blocking::Client) {
+    let server_handle = run_server_returning(dir, port);
+
+    std::thread::sleep(Duration::from_millis(100));
+
+    let client =
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+
+    (server_handle, client)
+}
+
 #[test]
 fn can_achieve_basic_topography_retrieval() {
     tracing_subscriber::fmt::init();
@@ -21,29 +36,11 @@ fn can_achieve_basic_topography_retrieval() {
     let port = get_random_port();
 
     let dir = get_dir();
+    let dir_clone = dir.clone();
 
     let dir_remove = dir.clone();
 
-    let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        rt.block_on(run_server(dir, port));
-    });
-
-    std::thread::sleep(Duration::from_millis(100));
-
-    let mut client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
-
-    // 1. Do a basic Ping test.
-    client.ping().unwrap();
-
-    match client.recv().unwrap() {
-        Response::Pong(_) => {
-            println!("Retrieved Pong!");
-        } //create_subscription_response.subscription_id.unwrap(),
-        _ => panic!("Retrieved unexpected result."),
-    };
+    let (server_handle, mut client) = setup_server(dir, port);
 
     // Upload a basic configuration with one stream.
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
@@ -58,18 +55,31 @@ fn can_achieve_basic_topography_retrieval() {
 
     client.get_current_topography().unwrap();
 
-    match client.recv().unwrap() {
+    let first_response = match client.recv().unwrap() {
         Response::GetCurrentTopography(topography) => {
             let value: toml::Value = toml::from_slice(&topography.data).unwrap();
-            println!(
-                "Retrieved Topography: {}",
-                toml::to_string_pretty(&value).unwrap()
-            );
-        } //create_subscription_response.subscription_id.unwrap(),
+            value
+        }
         _ => panic!("Retrieved unexpected result."),
     };
 
+    server_handle.close();
+
+    let (server_handle, mut client) = setup_server(dir_clone, port);
+
+    client.get_current_topography().unwrap();
+
+    let second_response = match client.recv().unwrap() {
+        Response::GetCurrentTopography(topography) => {
+            let value: toml::Value = toml::from_slice(&topography.data).unwrap();
+            value
+        }
+        _ => panic!("Retrieved unexpected result."),
+    };
+
+    server_handle.close();
+
     std::fs::remove_dir_all(dir_remove).unwrap();
 
-    panic!();
+    assert_eq!(first_response, second_response);
 }
