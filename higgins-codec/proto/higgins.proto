@@ -21,6 +21,21 @@ message CreateSubscriptionResponse {
   optional bytes subscription_id = 2;
 }
 
+message GetSubscriptionRequest {
+  optional bytes subscription_id = 1;
+}
+
+message Subscription {
+  string key = 1;
+  uint64 offset = 2;
+}
+
+message GetSubscriptionResponse {
+  repeated string errors = 1;
+  optional bytes subscription_id = 2;
+  repeated Subscription subscriptions = 3;
+}
+
 message TakeRecordsRequest {
   uint64 n = 1;
   bytes stream_name = 2;
@@ -151,6 +166,9 @@ message Message {
 
     GETCURRENTTOPOGRAPHYREQUEST = 19;
     GETCURRENTTOPOGRAPHYRESPONSE = 20;
+
+    GETSUBSCRIPTIONREQUEST = 21;
+    GETSUBSCRIPTIONRESPONSE = 22;
   }
 
   Type type = 1;
@@ -177,4 +195,7 @@ message Message {
 
   optional GetCurrentTopographyRequest getCurrentTopographyRequest = 21;
   optional GetCurrentTopographyResponse getCurrentTopographyResponse = 22;
+
+  optional GetSubscriptionRequest getSubscriptionRequest = 23;
+  optional GetSubscriptionResponse getSubscriptionResponse = 24;
 }
