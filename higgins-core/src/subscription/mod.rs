@@ -98,7 +98,7 @@ pub struct Subscription {
     pub client_counts: Vec<(u64, AtomicU64)>,
 
     // TODO: This will need to be moved to the file, when we decide on a data structure.
-    partitions: Vec<PartitionOffsets>,
+    pub partitions: Vec<PartitionOffsets>,
     file: SubscriptionFile,
 }
 
