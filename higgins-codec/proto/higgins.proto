@@ -26,16 +26,25 @@ message GetSubscriptionRequest {
   string stream = 2;
 }
 
-message Subscription {
+message KeyOffset {
   string key = 1;
   uint64 offset = 2;
+  uint64 last_completed_offset = 3;
+  uint64 max_offset = 4;
+  uint64 amount_to_take = 5;
+}
+
+message ClientCount {
+    uint64 client_id = 1;
+    uint64 count = 2;
 }
 
 message GetSubscriptionResponse {
   repeated string errors = 1;
   optional string stream = 2;
   optional bytes subscription_id = 3;
-  repeated Subscription subscriptions = 4;
+  repeated KeyOffset offsets = 4;
+  repeated ClientCount client_counts = 5;
 }
 
 message TakeRecordsRequest {
