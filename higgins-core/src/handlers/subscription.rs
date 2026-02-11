@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{
-    Error, GetCurrentTopographyResponse, GetSubscriptionRequest, Message, message::Type,
+    ClientCount, GetSubscriptionRequest, GetSubscriptionResponse, KeyOffset, Message, message::Type,
 };
 use prost::Message as _;
 use tokio::sync::RwLock;
+use zerocopy::IntoBytes;
 
 use crate::broker::Broker;
 use tokio::sync::mpsc::Sender;
@@ -29,33 +30,37 @@ pub async fn handle_get_subscription(
 
             let mut result = BytesMut::new();
 
-            // match topography_config {
-            //     Ok(topography_config) => {
-            //         Message {
-            //             r#type: Type::Getcurrenttopographyresponse as i32,
-            //             get_current_topography_response: Some(GetCurrentTopographyResponse {
-            //                 data: topography_config.into_bytes(),
-            //             }),
-            //             ..Default::default()
-            //         }
-            //         .encode(&mut result)
-            //         .unwrap();
+            Message {
+                r#type: Type::Getsubscriptionresponse as i32,
+                get_subscription_response: Some(GetSubscriptionResponse {
+                    errors: vec![],
+                    stream: Some(stream),
+                    subscription_id: Some(subscription_id),
+                    offsets: subscription_data
+                        .partitions
+                        .iter()
+                        .map(|key| KeyOffset {
+                            key: key.partition_id.0.as_bytes().to_owned(),
+                            max_offset: key.max_offset,
+                            last_completed_offset: key.last_completed_offset,
+                            amount_to_take: key.amount_to_take,
+                        })
+                        .collect(),
+                    client_counts: subscription_data
+                        .client_counts
+                        .iter()
+                        .map(|client_count| ClientCount {
+                            client_id: client_count.0,
+                            count: client_count.1.load(std::sync::atomic::Ordering::Relaxed),
+                        })
+                        .collect(),
+                }),
+                ..Default::default()
+            }
+            .encode(&mut result)
+            .unwrap();
 
-            //         let _ = writer_tx.send(result).await;
-            //     }
-            //     Err(err) => {
-            //         tracing::error!("Error occurred when trying to get topography: {:#?}", err);
-            //         Message {
-            //             r#type: Type::Error as i32,
-            //             error: Some(Error { r#type: 2 }),
-            //             ..Default::default()
-            //         }
-            //         .encode(&mut result)
-            //         .unwrap();
-
-            //         let _ = writer_tx.send(result).await;
-            //     }
-            // }
+            writer_tx.send(result).await.unwrap();
         };
     }
 }
