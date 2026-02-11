@@ -22,7 +22,8 @@ message CreateSubscriptionResponse {
 }
 
 message GetSubscriptionRequest {
-  optional bytes subscription_id = 1;
+  bytes subscription_id = 1;
+  string stream = 2;
 }
 
 message Subscription {
@@ -32,8 +33,9 @@ message Subscription {
 
 message GetSubscriptionResponse {
   repeated string errors = 1;
-  optional bytes subscription_id = 2;
-  repeated Subscription subscriptions = 3;
+  optional string stream = 2;
+  optional bytes subscription_id = 3;
+  repeated Subscription subscriptions = 4;
 }
 
 message TakeRecordsRequest {

@@ -5,6 +5,7 @@ mod get_index;
 mod get_topography;
 mod ping;
 mod produce;
+mod subscription;
 mod take_records;
 mod upload_module;
 
@@ -14,5 +15,6 @@ pub use get_index::handle_get_index;
 pub use get_topography::handle_get_topography;
 pub use ping::handle_ping;
 pub use produce::handle_produce;
+pub use subscription::handle_get_subscription;
 pub use take_records::handle_take_records;
 pub use upload_module::handle_upload_module;
