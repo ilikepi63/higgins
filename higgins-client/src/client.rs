@@ -5,7 +5,7 @@ use crate::{
     ping::ping,
     produce::produce,
     query::{query_by_timestamp, query_latest},
-    subscription::{create_subscription, take},
+    subscription::{create_subscription, get_subscription, take},
 };
 use higgins_shared::PartitionName;
 use std::time::Duration;
@@ -97,5 +97,16 @@ impl Client {
 
     pub async fn get_current_topography(&mut self) -> Result<(), HigginsClientError> {
         timeout!(get_current_topography(&mut self.0), self.1).await?
+    }
+    pub async fn get_subscription(
+        &mut self,
+        stream: &str,
+        subscription_id: &[u8],
+    ) -> Result<(), HigginsClientError> {
+        timeout!(
+            get_subscription(subscription_id, stream, &mut self.0),
+            self.1
+        )
+        .await?
     }
 }

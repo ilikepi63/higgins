@@ -17,13 +17,13 @@ use higgins_shared::PartitionName;
 #[derive(Clone, Debug)]
 pub struct PartitionOffsets {
     /// The ID for this specific partition.
-    partition_id: PartitionName,
+    pub partition_id: PartitionName,
     /// The current watermark or offset that has been acknowledged for this offset.
-    last_completed_offset: u64,
+    pub last_completed_offset: u64,
     /// The max offset, or the largest offset that exists within this partition.
-    max_offset: u64,
+    pub max_offset: u64,
     /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
-    amount_to_take: u64,
+    pub amount_to_take: u64,
 }
 
 impl PartialEq for PartitionOffsets {
@@ -98,7 +98,7 @@ pub struct Subscription {
     pub client_counts: Vec<(u64, AtomicU64)>,
 
     // TODO: This will need to be moved to the file, when we decide on a data structure.
-    partitions: Vec<PartitionOffsets>,
+    pub partitions: Vec<PartitionOffsets>,
     file: SubscriptionFile,
 }
 

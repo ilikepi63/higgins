@@ -72,6 +72,15 @@ impl Client {
         self.1.block_on(self.0.get_current_topography())
     }
 
+    pub fn get_subscription(
+        &mut self,
+        stream: &str,
+        subscription_id: &[u8],
+    ) -> Result<(), HigginsClientError> {
+        self.1
+            .block_on(self.0.get_subscription(stream, subscription_id))
+    }
+
     pub fn recv(&mut self) -> Result<Response, HigginsClientError> {
         self.1.block_on(self.0.recv())
     }

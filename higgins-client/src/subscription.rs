@@ -1,7 +1,7 @@
 use crate::error::HigginsClientError;
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
-use higgins_codec::{CreateSubscriptionRequest, TakeRecordsRequest};
+use higgins_codec::{CreateSubscriptionRequest, GetSubscriptionRequest, TakeRecordsRequest};
 use higgins_codec::{Message, message::Type};
 use prost::Message as _;
 
@@ -72,6 +72,35 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
     Message {
         r#type: Type::Takerecordsrequest as i32,
         take_records_request: Some(take_request),
+        ..Default::default()
+    }
+    .encode(&mut write_buf)
+    .unwrap();
+
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write_async(socket).await.unwrap();
+
+    Ok(())
+}
+
+pub async fn get_subscription<
+    T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
+    sub_id: &[u8],
+    stream: &str,
+    socket: &mut T,
+) -> Result<(), HigginsClientError> {
+    let req = GetSubscriptionRequest {
+        subscription_id: sub_id.to_owned(),
+        stream: stream.to_owned(),
+    };
+
+    let mut write_buf = BytesMut::new();
+
+    Message {
+        r#type: Type::Getsubscriptionrequest as i32,
+        get_subscription_request: Some(req),
         ..Default::default()
     }
     .encode(&mut write_buf)
