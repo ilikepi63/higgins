@@ -1,15 +1,12 @@
-use std::{
-    env::temp_dir,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
-use higgins_shared::PartitionName;
 
 mod common;
+
+static STREAM_NAME: &str = "update_customer";
 
 #[test]
 fn can_retrieve_data_from_subscription() {
@@ -53,14 +50,20 @@ fn can_retrieve_data_from_subscription() {
     };
 
     // Start a subscription on that stream.
-    client
-        .create_subscription("update_customer".as_bytes())
-        .unwrap();
+    client.create_subscription(STREAM_NAME.as_bytes()).unwrap();
 
     let sub_id = match client.recv().unwrap() {
         Response::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
+        _ => panic!("Retrieved unexpected result."),
+    };
+
+    client.get_subscription(STREAM_NAME, &sub_id).unwrap();
+
+    // Basically asserts that a Getsubscription request was returned
+    match client.recv().unwrap() {
+        Response::GetSubscription(_) => {}
         _ => panic!("Retrieved unexpected result."),
     };
 
