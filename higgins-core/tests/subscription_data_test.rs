@@ -64,8 +64,6 @@ fn can_retrieve_data_from_subscription() {
         _ => panic!("Retrieved unexpected result."),
     };
 
-    tracing::trace!("Successfully created subscription!");
-
     // Concurrently take from the socket.
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
