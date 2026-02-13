@@ -80,7 +80,7 @@ pub async fn create_join_operator(
                 // Create a subscription on each derivative
                 let (client_id, condvar, subscription) = {
                     let mut broker = task_broker.write().await;
-                    let client_id = broker.clients.insert(super::ClientRef::NoOp);
+                    let client_id = broker.clients.insert(super::ClientRef::NoOp).unwrap();
                     let left_subscription =
                         broker.create_subscription(join_stream.stream.0.as_bytes());
                     let stream = join_stream.stream.clone();
