@@ -2,6 +2,7 @@ use super::Broker;
 
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 use std::{
     collections::BTreeMap,
@@ -150,42 +151,23 @@ impl Broker {
                                 {
                                     let result = future.await;
 
-                                    results.push(result);
+                                    results.push(OffsetPayload {
+                                        stream: String::from_utf8(task_stream_name.clone())
+                                            .unwrap(),
+                                        key: partition.clone(),
+                                        offset,
+                                        bytes: result.unwrap(), // TODO: wrap this in a conversion function and filter out errors.
+                                    });
                                 }
 
                                 results
                             };
 
-                            for val in consumption {
-                                let val = val.unwrap();
+                            for mut val in consumption {
                                 let resp = TakeRecordsResponse {
                                     records: vec![{
-                                        let stream_reader = read_arrow(&val);
-
-                                        let batches = stream_reader
-                                            .filter_map(|val| val.ok())
-                                            .collect::<Vec<_>>();
-
-                                        let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                                        // Infer the batches
-                                        let buf = Vec::new();
-                                        let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-                                        writer.write_batches(&batch_refs).unwrap();
-                                        writer.finish().unwrap();
-
-                                        // Get the underlying buffer back,
-                                        let buf = writer.into_inner();
-
-                                        Record {
-                                            data: buf,
-                                            // TODO: Is this data still supported?
-                                            stream: vec![],
-                                            // batch.topic.as_bytes().to_vec(),
-                                            offset: 0,
-                                            // batch.offset,
-                                            partition: vec![], //  batch.partition.clone(),
-                                        }
+                                        val.infer();
+                                        val.into()
                                     }],
                                 };
 
@@ -221,5 +203,47 @@ impl Broker {
         notify.notify_waiters();
 
         Ok(())
+    }
+}
+
+/// Intermediary Struct that holds the payload and which stream/key/offset it came from.
+pub struct OffsetPayload {
+    pub stream: String,
+    pub key: PartitionName,
+    pub offset: u64,
+    pub bytes: Vec<u8>,
+}
+
+impl OffsetPayload {
+    /// Not sure why this logic was implemented in the first place, might just have been a quick one, but
+    /// adding into this for now. TODO: Try remove it?
+    pub fn infer(&mut self) {
+        let stream_reader = read_arrow(&self.bytes);
+
+        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+
+        let batch_refs = batches.iter().collect::<Vec<_>>();
+
+        // Infer the batches
+        let buf = Vec::new();
+        let mut writer = arrow_json::LineDelimitedWriter::new(buf);
+        writer.write_batches(&batch_refs).unwrap();
+        writer.finish().unwrap();
+
+        // Get the underlying buffer back,
+        let buf = writer.into_inner();
+
+        self.bytes = buf;
+    }
+}
+
+impl Into<Record> for OffsetPayload {
+    fn into(self) -> Record {
+        Record {
+            data: self.bytes,
+            stream: self.stream.as_bytes().to_vec(),
+            partition: self.key.0.to_vec(),
+            offset: self.offset,
+        }
     }
 }
