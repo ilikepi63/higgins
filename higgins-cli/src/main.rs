@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Ping {} => {
             client.ping().await.unwrap();
 
-            let result = client.recv().await.unwrap();
+            let result = client.recv(None).await.unwrap();
 
             match result {
                 Response::Pong(_) => {
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap();
 
-            client.recv().await.unwrap();
+            client.recv(None).await.unwrap();
 
             println!("Successfully uploaded result!");
         }
@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap();
 
-            let result = client.recv().await.unwrap();
+            let result = client.recv(None).await.unwrap();
 
             println!("Result: {:#?}", result);
 

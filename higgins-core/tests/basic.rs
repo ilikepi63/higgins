@@ -42,7 +42,7 @@ fn can_achieve_basic_broker_functionality() {
     // 1. Do a basic Ping test.
     client.ping().unwrap();
 
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::Pong(_) => {
             println!("Retrieved Pong!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -53,7 +53,7 @@ fn can_achieve_basic_broker_functionality() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -71,7 +71,7 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::Produce(_) => {
             println!("Retrieved Produce!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -86,7 +86,7 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
-    let result = client.recv().map(|res| match res {
+    let result = client.recv(None).map(|res| match res {
         Response::GetIndex(get_index_result) => get_index_result.records,
         _ => panic!("Got an unexpect result."),
     });
