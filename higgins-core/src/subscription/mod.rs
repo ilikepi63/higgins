@@ -125,7 +125,7 @@ impl Subscription {
                 let last_completed_offset = partition_offsets.get_last_completed_offset()?;
                 let max_offset = partition_offsets.get_max_offset()?;
 
-                println!("Read max offset: {max_offset}");
+                tracing::trace!("Read max offset: {max_offset}");
 
                 let amount_to_take = max_offset - last_completed_offset;
 
@@ -157,7 +157,7 @@ impl Subscription {
         offset: Option<u64>,
         max_offset: Option<u64>,
     ) -> Result<(), SubscriptionError> {
-        println!("Adding partition with max_offset: {:#?}", max_offset);
+        tracing::trace!("Adding partition with max_offset: {:#?}", max_offset);
 
         // Create the partition in the file.
         self.file

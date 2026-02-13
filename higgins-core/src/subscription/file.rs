@@ -103,7 +103,7 @@ impl PartitionOffsetsOwned {
     }
 
     pub fn set_max_offset(&mut self, val: &u64) -> Result<(), SubscriptionError> {
-        println!("Setting max offset {val}");
+        tracing::trace!("Setting max offset {val}");
 
         self.0[MAX_OFFSET..MAX_OFFSET + size_of::<u64>()].copy_from_slice(&val.to_be_bytes());
 
