@@ -34,7 +34,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let client_id = broker_lock
         .clients
-        .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()));
+        .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))
+        .unwrap();
 
     let _read_handle = broker_lock.task_handler.spawn(
         &SpawnTaskConfig::new(
