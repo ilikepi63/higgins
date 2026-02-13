@@ -1,4 +1,8 @@
+use std::collections::BTreeMap;
+
 use bytes::BytesMut;
+
+use crate::error::HigginsError;
 
 #[derive(Debug)]
 pub enum ClientRef {
@@ -9,53 +13,98 @@ pub enum ClientRef {
 impl ClientRef {}
 
 #[derive(Debug)]
-pub struct ClientCollection(Vec<(u64, ClientRef)>);
+pub struct ClientCollection(BTreeMap<u64, ClientRef>);
 
 impl ClientCollection {
     pub fn empty() -> Self {
-        Self(vec![])
+        Self(BTreeMap::new())
     }
 
-    /// Gets an open index from a range.
-    fn get_open_index(&self) -> u64 {
-        // As this is sorted, we can just iterate and return the missing index.
-        let _index_watermark = 0;
+    fn get_smallest_unused(&self) -> Option<u64> {
+        let mut expected = 0;
 
-        // let val = (0..self.0.len()).enumerate().find(|(index, val)|);
+        for (&id, _) in &self.0 {
+            if id > expected {
+                return Some(expected);
+            }
+            expected = id + 1;
+        }
 
-        0
-
-        // // We just want to continue if this is true.
-        // if i == 0 {
-        //     continue;
-        // }
-
-        // // If it is the last index, we just return self.len().
-        // if i == self. 0 .len() - 1  {
-        //     return self.0.len().into();
-        // }
-
-        // // otherwise we get a value from the range between this one and the previous.
-        // let current_index = self.0.get(i).unwrap().0;
-        // let prev_index = self.0.get(i - 1).unwrap().0;
-
-        // for i in prev_index..current_index {
-        //     // break and return the first index.
-        //     return i;
-        // }
-
-        // };
+        Some(expected)
     }
 
-    pub fn insert(&mut self, _client: ClientRef) -> u64 {
-        self.get_open_index()
+    pub fn insert(&mut self, client: ClientRef) -> Result<u64, HigginsError> {
+        let id = self
+            .get_smallest_unused()
+            .ok_or(HigginsError::TooManyClientsConnnectedToBroker)?;
+
+        self.0.insert(id, client);
+
+        Ok(id)
+    }
+
+    pub fn remove(&mut self, id: u64) {
+        self.0.remove(&id);
     }
 
     pub fn get(&self, client_id: u64) -> Option<&ClientRef> {
-        self.0
-            .binary_search_by(|v| v.0.cmp(&client_id))
-            .map(|i| self.0.get(i).map(|(_, client_ref)| client_ref))
-            .ok()
-            .flatten()
+        self.0.get(&client_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BytesMut;
+    use tokio::sync::mpsc;
+
+    fn dummy_client() -> ClientRef {
+        let (tx, _) = mpsc::channel::<BytesMut>(1);
+        ClientRef::AsyncTcpSocket(tx)
+    }
+
+    #[test]
+    fn starts_from_zero() {
+        let mut c = ClientCollection::empty();
+        assert_eq!(c.insert(dummy_client()).unwrap(), 0);
+        assert_eq!(c.insert(dummy_client()).unwrap(), 1);
+        assert!(c.get(0).is_some());
+        assert!(c.get(1).is_some());
+    }
+
+    #[test]
+    fn reuses_smallest_available_id() {
+        let mut c = ClientCollection::empty();
+        c.insert(dummy_client()).unwrap();
+        c.insert(dummy_client()).unwrap();
+        c.insert(dummy_client()).unwrap();
+
+        c.remove(1);
+        assert_eq!(c.insert(dummy_client()).unwrap(), 1);
+
+        c.remove(0);
+        c.remove(2);
+        assert_eq!(c.insert(dummy_client()).unwrap(), 0);
+    }
+
+    #[test]
+    fn len_and_is_empty() {
+        let mut c = ClientCollection::empty();
+        assert_eq!(c.0.len(), 0);
+
+        let id = c.insert(dummy_client()).unwrap();
+        assert_eq!(c.0.len(), 1);
+        assert_eq!(id, 0);
+
+        c.remove(id);
+        assert_eq!(c.0.len(), 0);
+    }
+
+    #[test]
+    fn get_returns_none_for_missing() {
+        let mut c = ClientCollection::empty();
+        c.insert(dummy_client()).unwrap();
+        assert!(c.get(0).is_some());
+        assert!(c.get(42).is_none());
     }
 }

@@ -36,4 +36,7 @@ pub enum HigginsError {
 
     #[error("Unknown Error")]
     Unknown,
+
+    #[error("Too many clients, could not connect.")]
+    TooManyClientsConnnectedToBroker,
 }
