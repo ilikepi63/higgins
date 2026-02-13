@@ -7,6 +7,7 @@ on:
 
 jobs:
   fmt:
+    if: github.event.pull_request.draft == false
     name: "Format"
     runs-on: ubuntu-latest
     steps:
@@ -21,6 +22,7 @@ jobs:
       - name: Run Format
         run: cargo fmt --check
   test:
+    if: github.event.pull_request.draft == false
     name: "Test"
     runs-on: ubuntu-latest
     steps:
@@ -35,6 +37,7 @@ jobs:
       - name: Test
         run: cargo test
   deny:
+    if: github.event.pull_request.draft == false
     name: "Cargo Deny"
     runs-on: ubuntu-latest
     steps:
