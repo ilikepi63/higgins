@@ -1,8 +1,4 @@
-use std::{
-    env::temp_dir,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;
@@ -13,6 +9,8 @@ use higgins_shared::PartitionName;
 mod common;
 
 static STREAM_NAME: &str = "update_customer";
+
+static PAYLOAD: &str = include_str!("customer.json");
 
 #[test]
 fn can_update_subscription_with_multiple_values() {
@@ -70,17 +68,18 @@ fn can_update_subscription_with_multiple_values() {
 
     println!("Subscription: {:#?}", subscription);
 
-    let _ = consume_client.take(sub_id, STREAM_NAME.as_bytes(), 100);
+    let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
-    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
+    let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    produce_client
-        .produce(
-            "update_customer",
-            &PartitionName::try_from("1").unwrap(),
-            payload.as_bytes(),
-        )
-        .unwrap();
+    println!("Subscription: {:#?}", subscription);
+
+    produce(
+        &mut produce_client,
+        "update_customer",
+        &PartitionName::try_from("1").unwrap(),
+        PAYLOAD.as_bytes(),
+    );
 
     let records = recv_until_take(&mut consume_client);
 
@@ -89,7 +88,9 @@ fn can_update_subscription_with_multiple_values() {
         records.iter().map(record_to_string).collect::<Vec<_>>()
     );
 
-    // Produce to the stream.
+    let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
+
+    println!("Subscription: {:#?}", subscription);
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 
@@ -146,4 +147,23 @@ pub fn create_subscription(
     };
 
     sub_id
+}
+
+pub fn produce(
+    client: &mut higgins_client::blocking::Client,
+    stream: &str,
+    partition: &PartitionName,
+    payload: &[u8],
+) -> higgins_codec::ProduceResponse {
+    client.produce(stream, partition, payload).unwrap();
+
+    match client.recv(None).unwrap() {
+        Response::Produce(response) => {
+            return response;
+        }
+        _ => {
+            tracing::error!("Received unexpected response message.");
+            panic!();
+        }
+    }
 }
