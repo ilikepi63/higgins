@@ -26,6 +26,22 @@ message GetSubscriptionRequest {
   string stream = 2;
 }
 
+message AcknowledgeSubscriptionOffsets {
+  string stream = 1;
+  bytes subscription_id = 2;
+  repeated Offset offset = 3;
+}
+
+message Offset {
+  string partition = 1;
+  repeated Range range = 2;
+}
+
+message Range {
+  uint64 start = 1;
+  uint64 end = 2;
+}
+
 message KeyOffset {
   bytes key = 1;
   uint64 last_completed_offset = 2;
@@ -34,8 +50,8 @@ message KeyOffset {
 }
 
 message ClientCount {
-    uint64 client_id = 1;
-    uint64 count = 2;
+  uint64 client_id = 1;
+  uint64 count = 2;
 }
 
 message GetSubscriptionResponse {
