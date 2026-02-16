@@ -67,13 +67,13 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    tracing::info!("Subscription: {:#?}", subscription);
+    println!("Subscription: {:#?}", subscription);
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    tracing::info!("Subscription: {:#?}", subscription);
+    println!("Subscription: {:#?}", subscription);
 
     produce(
         &mut produce_client,
@@ -97,7 +97,7 @@ fn can_update_subscription_with_multiple_values() {
                     PartitionName::try_from(record.partition.as_bytes()).unwrap(),
                     std::ops::Range {
                         start: record.offset,
-                        end: record.offset,
+                        end: record.offset + 1,
                     },
                 )
             })
@@ -109,7 +109,7 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    tracing::info!("Subscription: {:#?}", subscription);
+    println!("Subscription: {:#?}", subscription);
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 

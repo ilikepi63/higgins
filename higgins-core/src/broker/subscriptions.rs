@@ -37,15 +37,21 @@ impl Broker {
         subscription_id: Vec<u8>,
         offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
     ) -> Result<(String, Vec<(PartitionName, std::ops::Range<u64>)>), SubscriptionError> {
+        tracing::info!("Retrieved acknowledgement, acknowledging..");
+
         let (_, subscription) = self
             .get_subscription_by_key(stream.as_bytes(), &subscription_id)
             .ok_or(SubscriptionError::SubscriptionNotFound)?;
 
         let mut subscription = subscription.write().await;
 
+        tracing::info!("Retrieved the subscription: {:#?}", subscription);
+
         let failed_offsets = offsets.iter().fold(
             (String::new(), vec![]),
             |mut failed_offsets, (key, range)| {
+                tracing::info!("Acknowledging key {:#?} with range {:#?}", key, range);
+
                 if let Err(e) = subscription.acknowledge(&key, &range) {
                     failed_offsets.0 = e.to_string();
                     failed_offsets.1.push((key.to_owned(), range.clone()));
