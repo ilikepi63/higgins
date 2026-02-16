@@ -26,10 +26,17 @@ message GetSubscriptionRequest {
   string stream = 2;
 }
 
-message AcknowledgeSubscriptionOffsets {
+message AcknowledgeSubscriptionOffsetsRequest {
   string stream = 1;
   bytes subscription_id = 2;
   repeated Offset offset = 3;
+}
+
+message AcknowledgeSubscriptionOffsetsResponse {
+  string stream = 1;
+  bytes subscription_id = 2;
+  repeated Offset failed_offsets = 3;
+  string error = 4;
 }
 
 message Offset {
@@ -195,6 +202,8 @@ message Message {
 
     GETSUBSCRIPTIONREQUEST = 21;
     GETSUBSCRIPTIONRESPONSE = 22;
+    ACKNOWLEDGEREQUEST = 23;
+    ACKNOWLEDGERESPONSE = 24;
   }
 
   Type type = 1;
@@ -224,4 +233,7 @@ message Message {
 
   optional GetSubscriptionRequest getSubscriptionRequest = 23;
   optional GetSubscriptionResponse getSubscriptionResponse = 24;
+
+  optional AcknowledgeSubscriptionOffsetsRequest acknowledgeRequest = 25;
+  optional AcknowledgeSubscriptionOffsetsResponse acknowledgeResponse = 26;
 }

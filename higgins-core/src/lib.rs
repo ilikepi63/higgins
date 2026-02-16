@@ -111,6 +111,9 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         )
                         .await;
                     }
+                    Type::Acknowledgerequest => {
+                        todo!();
+                    }
                     Type::Produceresponse
                     | Type::Metadataresponse
                     | Type::Pong
@@ -123,7 +126,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     | Type::Getindexresponse
                     | Type::Uploadmoduleresponse
                     | Type::Getcurrenttopographyresponse
-                    | Type::Getsubscriptionresponse => {
+                    | Type::Getsubscriptionresponse
+                    | Type::Acknowledgeresponse => {
                         handlers::errors::handle_incorrect_message_received(writer_tx.clone())
                             .await;
                     }
