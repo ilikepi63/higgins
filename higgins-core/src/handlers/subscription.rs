@@ -67,7 +67,7 @@ pub async fn handle_get_subscription(
     }
 }
 
-pub async fn acknowledge(
+pub async fn handle_acknowledge(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
@@ -100,10 +100,13 @@ pub async fn acknowledge(
                     &unwrapped_range,
                 ) {
                     Ok(_) => {}
-                    Err(err) => failed_offsets.push(Offset {
-                        key: key.to_owned(),
-                        range: range.clone(),
-                    }),
+                    Err(err) => {
+                        tracing::error!("Failed to acknowledge partitions: {:#?}", err);
+                        failed_offsets.push(Offset {
+                            key: key.to_owned(),
+                            range: range.clone(),
+                        })
+                    }
                 };
             }
         };

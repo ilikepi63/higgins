@@ -112,7 +112,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                         .await;
                     }
                     Type::Acknowledgerequest => {
-                        todo!();
+                        handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
+                            .await;
                     }
                     Type::Produceresponse
                     | Type::Metadataresponse
