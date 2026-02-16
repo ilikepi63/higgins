@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{
@@ -80,35 +80,25 @@ pub async fn handle_acknowledge(
         offsets,
     }) = message.acknowledge_request
     {
-        let mut failed_offsets = vec![];
+        let offsets = offsets
+            .iter()
+            .map(|Offset { key, range }| {
+                (
+                    PartitionName::try_from(key.as_bytes()).unwrap(),
+                    std::ops::Range {
+                        start: range.unwrap().start,
+                        end: range.unwrap().end,
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
 
-        if let Some((_, subscription)) =
-            broker.get_subscription_by_key(stream.as_bytes(), &subscription_id)
+        let (error, failed_offsets) = match broker
+            .acknowledge(stream.clone(), subscription_id.clone(), offsets)
+            .await
         {
-            let mut subscription = subscription.write().await;
-
-            for Offset { key, range } in offsets.iter() {
-                let unwrapped_range: Range<u64> = range
-                    .map(|range| Range {
-                        start: range.start,
-                        end: range.end,
-                    })
-                    .unwrap();
-
-                match subscription.acknowledge(
-                    &PartitionName::try_from(key.as_bytes()).unwrap(),
-                    &unwrapped_range,
-                ) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        tracing::error!("Failed to acknowledge partitions: {:#?}", err);
-                        failed_offsets.push(Offset {
-                            key: key.to_owned(),
-                            range: range.clone(),
-                        })
-                    }
-                };
-            }
+            Ok(v) => v,
+            Err(err) => (err.to_string(), vec![]),
         };
 
         let mut result = BytesMut::new();
@@ -118,8 +108,17 @@ pub async fn handle_acknowledge(
             acknowledge_response: Some(AcknowledgeSubscriptionOffsetsResponse {
                 stream,
                 subscription_id,
-                failed_offsets,
-                error: String::new(),
+                failed_offsets: failed_offsets
+                    .iter()
+                    .map(|offset| Offset {
+                        key: offset.0.0.to_vec(),
+                        range: Some(higgins_codec::Range {
+                            start: offset.1.start,
+                            end: offset.1.end,
+                        }),
+                    })
+                    .collect(),
+                error,
             }),
             ..Default::default()
         }

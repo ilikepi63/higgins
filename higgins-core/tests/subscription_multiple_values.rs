@@ -51,7 +51,7 @@ fn can_update_subscription_with_multiple_values() {
 
     match produce_client.recv(Some(Duration::from_secs(1))).unwrap() {
         Response::CreateConfiguration(_) => {
-            println!("Retrieved create configuration!");
+            tracing::info!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
     };
@@ -67,13 +67,13 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    tracing::info!("Subscription: {:#?}", subscription);
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    tracing::info!("Subscription: {:#?}", subscription);
 
     produce(
         &mut produce_client,
@@ -84,7 +84,7 @@ fn can_update_subscription_with_multiple_values() {
 
     let response = recv_until_take(&mut consume_client);
 
-    println!("Response: {:#?}", response);
+    tracing::info!("Response: {:#?}", response);
 
     let acknowledge_response = acknowledge(
         STREAM_NAME,
@@ -105,11 +105,11 @@ fn can_update_subscription_with_multiple_values() {
         &mut consume_client,
     );
 
-    println!("Acknowledge Response: {:#?}", acknowledge_response);
+    tracing::info!("Acknowledge Response: {:#?}", acknowledge_response);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    tracing::info!("Subscription: {:#?}", subscription);
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 
