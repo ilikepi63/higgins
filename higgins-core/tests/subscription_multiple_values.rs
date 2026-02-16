@@ -3,7 +3,10 @@ use std::{env::temp_dir, time::Duration};
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
-use higgins_codec::{GetSubscriptionResponse, Record, TakeRecordsResponse};
+use higgins_codec::{
+    AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
+    Record, TakeRecordsResponse,
+};
 use higgins_shared::PartitionName;
 use zerocopy::IntoBytes;
 
@@ -67,13 +70,34 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_string()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec! {},
+            client_counts: vec![]
+        }
+    );
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_string()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec! {},
+            client_counts: vec![ClientCount {
+                client_id: 1,
+                count: 100
+            }]
+        }
+    );
 
     produce(
         &mut produce_client,
@@ -84,7 +108,27 @@ fn can_update_subscription_with_multiple_values() {
 
     let response = recv_until_take(&mut consume_client);
 
-    tracing::info!("Response: {:#?}", response);
+    assert_eq!(
+        response,
+        TakeRecordsResponse {
+            records: vec![Record {
+                data: vec![
+                    123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
+                    110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
+                    34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
+                    111, 101, 34, 125, 10,
+                ],
+                stream: STREAM_NAME.as_bytes().to_owned(),
+                partition: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0
+                ],
+                offset: 0
+            }]
+        }
+    );
+
+    // println!("Response: {:#?}", response);
 
     let acknowledge_response = acknowledge(
         STREAM_NAME,
@@ -105,15 +149,41 @@ fn can_update_subscription_with_multiple_values() {
         &mut consume_client,
     );
 
-    tracing::info!("Acknowledge Response: {:#?}", acknowledge_response);
+    assert_eq!(
+        acknowledge_response,
+        AcknowledgeSubscriptionOffsetsResponse {
+            stream: STREAM_NAME.to_string(),
+            subscription_id: sub_id.clone(),
+            failed_offsets: vec![],
+            error: "".to_string(),
+        }
+    );
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_owned()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec![KeyOffset {
+                key: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                last_completed_offset: 1,
+                max_offset: 1,
+                amount_to_take: 0,
+            },],
+            client_counts: vec![ClientCount {
+                client_id: 1,
+                count: 99,
+            },],
+        }
+    );
 
     std::fs::remove_dir_all(dir_remove).unwrap();
-
-    panic!();
 }
 
 /// Helper for receiving from a socket until it's taken.
