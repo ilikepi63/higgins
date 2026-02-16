@@ -40,7 +40,7 @@ message AcknowledgeSubscriptionOffsetsResponse {
 }
 
 message Offset {
-  string key = 1;
+  bytes key = 1;
   Range range = 2;
 }
 

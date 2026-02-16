@@ -81,7 +81,20 @@ impl Client {
             .block_on(self.0.get_subscription(stream, subscription_id))
     }
 
-    pub fn recv(&mut self, timeout: Option<std::time::Duration>) -> Result<Response, HigginsClientError> {
+    pub fn recv(
+        &mut self,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Response, HigginsClientError> {
         self.1.block_on(self.0.recv(timeout))
+    }
+
+    pub async fn acknowledge(
+        &mut self,
+        stream: &str,
+        subscription_id: &[u8],
+        offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
+    ) -> Result<(), HigginsClientError> {
+        self.1
+            .block_on(self.0.acknowledge(stream, subscription_id, offsets))
     }
 }

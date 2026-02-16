@@ -96,7 +96,7 @@ pub async fn handle_acknowledge(
                     .unwrap();
 
                 match subscription.acknowledge(
-                    &PartitionName::try_from(key.as_str()).unwrap(),
+                    &PartitionName::try_from(key.as_bytes()).unwrap(),
                     &unwrapped_range,
                 ) {
                     Ok(_) => {}
