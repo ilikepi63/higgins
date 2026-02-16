@@ -42,7 +42,7 @@ fn can_retrieve_data_from_subscription() {
 
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -52,7 +52,7 @@ fn can_retrieve_data_from_subscription() {
     // Start a subscription on that stream.
     client.create_subscription(STREAM_NAME.as_bytes()).unwrap();
 
-    let sub_id = match client.recv().unwrap() {
+    let sub_id = match client.recv(None).unwrap() {
         Response::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
@@ -62,7 +62,7 @@ fn can_retrieve_data_from_subscription() {
     client.get_subscription(STREAM_NAME, &sub_id).unwrap();
 
     // Basically asserts that a Getsubscription request was returned
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::GetSubscription(_) => {}
         _ => panic!("Retrieved unexpected result."),
     };

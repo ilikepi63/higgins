@@ -44,7 +44,7 @@ fn can_achieve_basic_topography_retrieval() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv().unwrap() {
+    match client.recv(None).unwrap() {
         Response::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -53,7 +53,7 @@ fn can_achieve_basic_topography_retrieval() {
 
     client.get_current_topography().unwrap();
 
-    let first_response = match client.recv().unwrap() {
+    let first_response = match client.recv(None).unwrap() {
         Response::GetCurrentTopography(topography) => {
             let value: toml::Value = toml::from_slice(&topography.data).unwrap();
             value
@@ -67,7 +67,7 @@ fn can_achieve_basic_topography_retrieval() {
 
     client.get_current_topography().unwrap();
 
-    let second_response = match client.recv().unwrap() {
+    let second_response = match client.recv(None).unwrap() {
         Response::GetCurrentTopography(topography) => {
             let value: toml::Value = toml::from_slice(&topography.data).unwrap();
             value

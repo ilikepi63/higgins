@@ -28,6 +28,8 @@ pub async fn handle_take_records(
         uuid::Uuid::from_slice(&subscription_id).unwrap()
     );
 
+
+
     let mut broker = broker.write().await;
 
     broker

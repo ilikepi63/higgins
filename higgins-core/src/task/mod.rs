@@ -38,7 +38,7 @@ impl TaskHandler {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        println!("Starting the task..");
+        tracing::trace!("Starting the task..");
 
         let mut layers = config.description.layers();
 
@@ -124,18 +124,18 @@ impl TaskHandler {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        println!("Calling spawn_task..");
+        tracing::trace!("Calling spawn_task..");
 
         let task_description_for_task = config.description.clone();
 
         let mut handler_ptr = TaskHandlerReference::from(self);
 
         let handle = tokio::spawn(async move {
-            println!("{:#?} spawning..", task_description_for_task);
+            tracing::trace!("{:#?} spawning..", task_description_for_task);
 
             let result = fut.await;
 
-            println!(
+            tracing::trace!(
                 "{:#?} completed, Removing from tree..",
                 task_description_for_task
             );
@@ -151,7 +151,7 @@ impl TaskHandler {
             // }
         });
 
-        println!("Updating the handle in the task_description..");
+        tracing::trace!("Updating the handle in the task_description..");
 
         let task_description = config.description.clone();
 
@@ -541,7 +541,6 @@ mod test {
     async fn task_handler_task_hierarchy_side_spawning() {
         let mut task_handler = TaskHandler::new();
 
-        println!("hierarchy");
         let result = task_handler.spawn(
             &SpawnTaskConfig {
                 description: TaskDescription("some::hierarchy".to_string()),
@@ -559,8 +558,6 @@ mod test {
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
 
-        println!("thing");
-
         let result = task_handler.spawn(
             &SpawnTaskConfig {
                 description: TaskDescription("some::thing".to_string()),
@@ -570,8 +567,6 @@ mod test {
         );
 
         assert!(result.is_ok());
-
-        println!("thingelse");
 
         let result = task_handler.spawn(
             &SpawnTaskConfig {
@@ -620,7 +615,6 @@ mod test {
     async fn task_handler_task_hierarchy_side_spawning_abort() {
         let mut task_handler = TaskHandler::new();
 
-        println!("hierarchy");
         let result = task_handler.spawn(
             &SpawnTaskConfig {
                 description: TaskDescription("some::hierarchy".to_string()),
@@ -638,8 +632,6 @@ mod test {
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
 
-        println!("thing");
-
         let result = task_handler.spawn(
             &SpawnTaskConfig {
                 description: TaskDescription("some::hierarchy".to_string()),
@@ -649,8 +641,6 @@ mod test {
         );
 
         assert!(result.is_ok());
-
-        println!("thingelse");
 
         let result = task_handler.spawn(
             &SpawnTaskConfig {

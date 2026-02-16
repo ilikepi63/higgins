@@ -168,8 +168,6 @@ impl<'a> JoinedIndex<'a> {
     fn within_bounds(buffer: &[u8], index: usize) -> bool {
         let resultant_length = buffer.len() - INDEXES_INDEX;
 
-        println!("Resultant Length: {}", resultant_length);
-
         let length = resultant_length / (size_of::<u8>() + size_of::<u64>());
 
         index < length

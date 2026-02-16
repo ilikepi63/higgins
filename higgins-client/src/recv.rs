@@ -64,8 +64,12 @@ impl TryFrom<Message> for Response {
 impl Client {
     /// Awaits on the socket, listening for any specific
     /// responses that may be coming.
-    pub async fn recv(&mut self) -> Result<Response, HigginsClientError> {
-        let frame = Frame::try_read_async(&mut self.0).await?;
+    pub async fn recv(&mut self, timeout: Option<std::time::Duration>) -> Result<Response, HigginsClientError> {
+
+        let frame = match timeout {
+            Some(duration) => tokio::time::timeout(duration, Frame::try_read_async(&mut self.0)).await??,
+            None => Frame::try_read_async(&mut self.0).await?
+        };
 
         let slice = frame.inner();
 

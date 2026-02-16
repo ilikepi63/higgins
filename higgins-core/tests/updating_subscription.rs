@@ -49,7 +49,7 @@ fn can_update_subscription_after_created() {
         .upload_configuration(config.as_bytes())
         .unwrap();
 
-    match produce_client.recv().unwrap() {
+    match produce_client.recv(None).unwrap() {
         Response::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -61,7 +61,7 @@ fn can_update_subscription_after_created() {
         .create_subscription("update_customer".as_bytes())
         .unwrap();
 
-    let sub_id = match produce_client.recv().unwrap() {
+    let sub_id = match produce_client.recv(None).unwrap() {
         Response::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
@@ -86,7 +86,7 @@ fn can_update_subscription_after_created() {
         loop {
             tracing::trace!("Consuming from stream..");
 
-            let response = consume_client.recv().unwrap();
+            let response = consume_client.recv(None).unwrap();
 
             match response {
                 Response::TakeRecords(response) => {
