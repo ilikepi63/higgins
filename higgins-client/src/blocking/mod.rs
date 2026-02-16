@@ -88,7 +88,7 @@ impl Client {
         self.1.block_on(self.0.recv(timeout))
     }
 
-    pub async fn acknowledge(
+    pub fn acknowledge(
         &mut self,
         stream: &str,
         subscription_id: &[u8],
