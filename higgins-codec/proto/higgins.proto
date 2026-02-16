@@ -29,7 +29,7 @@ message GetSubscriptionRequest {
 message AcknowledgeSubscriptionOffsetsRequest {
   string stream = 1;
   bytes subscription_id = 2;
-  repeated Offset offset = 3;
+  repeated Offset offsets = 3;
 }
 
 message AcknowledgeSubscriptionOffsetsResponse {
@@ -40,8 +40,8 @@ message AcknowledgeSubscriptionOffsetsResponse {
 }
 
 message Offset {
-  string partition = 1;
-  repeated Range range = 2;
+  string key = 1;
+  Range range = 2;
 }
 
 message Range {

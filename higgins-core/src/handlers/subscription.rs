@@ -1,9 +1,11 @@
-use std::sync::Arc;
+use std::{ops::Range, sync::Arc};
 
 use bytes::BytesMut;
 use higgins_codec::{
-    ClientCount, GetSubscriptionRequest, GetSubscriptionResponse, KeyOffset, Message, message::Type,
+    AcknowledgeSubscriptionOffsetsRequest, AcknowledgeSubscriptionOffsetsResponse, ClientCount,
+    GetSubscriptionRequest, GetSubscriptionResponse, KeyOffset, Message, Offset, message::Type,
 };
+use higgins_shared::PartitionName;
 use prost::Message as _;
 use tokio::sync::RwLock;
 use zerocopy::IntoBytes;
@@ -62,5 +64,65 @@ pub async fn handle_get_subscription(
 
             writer_tx.send(result).await.unwrap();
         };
+    }
+}
+
+pub async fn acknowledge(
+    message: Message,
+    broker: Arc<RwLock<Broker>>,
+    writer_tx: Sender<BytesMut>,
+) {
+    let broker = broker.read().await;
+
+    if let Some(AcknowledgeSubscriptionOffsetsRequest {
+        stream,
+        subscription_id,
+        offsets,
+    }) = message.acknowledge_request
+    {
+        let mut failed_offsets = vec![];
+
+        if let Some((_, subscription)) =
+            broker.get_subscription_by_key(stream.as_bytes(), &subscription_id)
+        {
+            let mut subscription = subscription.write().await;
+
+            for Offset { key, range } in offsets.iter() {
+                let unwrapped_range: Range<u64> = range
+                    .map(|range| Range {
+                        start: range.start,
+                        end: range.end,
+                    })
+                    .unwrap();
+
+                match subscription.acknowledge(
+                    &PartitionName::try_from(key.as_str()).unwrap(),
+                    &unwrapped_range,
+                ) {
+                    Ok(_) => {}
+                    Err(err) => failed_offsets.push(Offset {
+                        key: key.to_owned(),
+                        range: range.clone(),
+                    }),
+                };
+            }
+        };
+
+        let mut result = BytesMut::new();
+
+        Message {
+            r#type: Type::Acknowledgeresponse as i32,
+            acknowledge_response: Some(AcknowledgeSubscriptionOffsetsResponse {
+                stream,
+                subscription_id,
+                failed_offsets,
+                error: String::new(),
+            }),
+            ..Default::default()
+        }
+        .encode(&mut result)
+        .unwrap();
+
+        writer_tx.send(result).await.unwrap();
     }
 }
