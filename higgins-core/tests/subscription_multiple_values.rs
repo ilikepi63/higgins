@@ -185,5 +185,89 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
+    produce(
+        &mut produce_client,
+        STREAM_NAME,
+        &PartitionName::try_from("1").unwrap(),
+        PAYLOAD.as_bytes(),
+    );
+
+    let response = recv_until_take(&mut consume_client);
+
+    assert_eq!(
+        response,
+        TakeRecordsResponse {
+            records: vec![Record {
+                data: vec![
+                    123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
+                    110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
+                    34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
+                    111, 101, 34, 125, 10,
+                ],
+                stream: STREAM_NAME.as_bytes().to_owned(),
+                partition: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0
+                ],
+                offset: 1
+            }]
+        }
+    );
+
+    let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
+
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_owned()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec![KeyOffset {
+                key: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                last_completed_offset: 1,
+                max_offset: 1,
+                amount_to_take: 0,
+            },],
+            client_counts: vec![ClientCount {
+                client_id: 1,
+                count: 99,
+            },],
+        }
+    );
+
+    let acknowledge_response = acknowledge(
+        STREAM_NAME,
+        &sub_id,
+        response
+            .records
+            .iter()
+            .map(|record| {
+                (
+                    PartitionName::try_from(record.partition.as_bytes()).unwrap(),
+                    std::ops::Range {
+                        start: record.offset,
+                        end: record.offset + 1,
+                    },
+                )
+            })
+            .collect(),
+        &mut consume_client,
+    );
+
+    assert_eq!(
+        acknowledge_response,
+        AcknowledgeSubscriptionOffsetsResponse {
+            stream: STREAM_NAME.to_string(),
+            subscription_id: sub_id.clone(),
+            failed_offsets: vec![],
+            error: "".to_string(),
+        }
+    );
+
+    panic!();
+
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
