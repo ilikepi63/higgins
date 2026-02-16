@@ -5,6 +5,7 @@ use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use higgins_shared::PartitionName;
 use prost::Message as _;
 
+pub mod client_utils;
 pub mod configuration;
 pub mod data;
 pub mod functions;
