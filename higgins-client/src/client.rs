@@ -5,7 +5,7 @@ use crate::{
     ping::ping,
     produce::produce,
     query::{query_by_timestamp, query_latest},
-    subscription::{create_subscription, get_subscription, take},
+    subscription::{acknowledge, create_subscription, get_subscription, take},
 };
 use higgins_shared::PartitionName;
 use std::time::Duration;
@@ -105,6 +105,19 @@ impl Client {
     ) -> Result<(), HigginsClientError> {
         timeout!(
             get_subscription(subscription_id, stream, &mut self.0),
+            self.1
+        )
+        .await?
+    }
+
+    pub async fn acknowledge(
+        &mut self,
+        stream: &str,
+        subscription_id: &[u8],
+        offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
+    ) -> Result<(), HigginsClientError> {
+        timeout!(
+            acknowledge(subscription_id, stream, offsets, &mut self.0),
             self.1
         )
         .await?

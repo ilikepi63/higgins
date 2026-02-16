@@ -3,8 +3,12 @@ use std::{env::temp_dir, time::Duration};
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
-use higgins_codec::{GetSubscriptionResponse, Record};
+use higgins_codec::{
+    AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
+    Record, TakeRecordsResponse,
+};
 use higgins_shared::PartitionName;
+use zerocopy::IntoBytes;
 
 mod common;
 
@@ -50,7 +54,7 @@ fn can_update_subscription_with_multiple_values() {
 
     match produce_client.recv(Some(Duration::from_secs(1))).unwrap() {
         Response::CreateConfiguration(_) => {
-            println!("Retrieved create configuration!");
+            tracing::info!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
     };
@@ -66,43 +70,130 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_string()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec! {},
+            client_counts: vec![]
+        }
+    );
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_string()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec! {},
+            client_counts: vec![ClientCount {
+                client_id: 1,
+                count: 100
+            }]
+        }
+    );
 
     produce(
         &mut produce_client,
-        "update_customer",
+        STREAM_NAME,
         &PartitionName::try_from("1").unwrap(),
         PAYLOAD.as_bytes(),
     );
 
-    let records = recv_until_take(&mut consume_client);
+    let response = recv_until_take(&mut consume_client);
 
-    println!(
-        "Records: {:#?}",
-        records.iter().map(record_to_string).collect::<Vec<_>>()
+    assert_eq!(
+        response,
+        TakeRecordsResponse {
+            records: vec![Record {
+                data: vec![
+                    123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
+                    110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
+                    34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
+                    111, 101, 34, 125, 10,
+                ],
+                stream: STREAM_NAME.as_bytes().to_owned(),
+                partition: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0
+                ],
+                offset: 0
+            }]
+        }
+    );
+
+    // println!("Response: {:#?}", response);
+
+    let acknowledge_response = acknowledge(
+        STREAM_NAME,
+        &sub_id,
+        response
+            .records
+            .iter()
+            .map(|record| {
+                (
+                    PartitionName::try_from(record.partition.as_bytes()).unwrap(),
+                    std::ops::Range {
+                        start: record.offset,
+                        end: record.offset + 1,
+                    },
+                )
+            })
+            .collect(),
+        &mut consume_client,
+    );
+
+    assert_eq!(
+        acknowledge_response,
+        AcknowledgeSubscriptionOffsetsResponse {
+            stream: STREAM_NAME.to_string(),
+            subscription_id: sub_id.clone(),
+            failed_offsets: vec![],
+            error: "".to_string(),
+        }
     );
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    println!("Subscription: {:#?}", subscription);
+    assert_eq!(
+        subscription,
+        GetSubscriptionResponse {
+            errors: vec![],
+            stream: Some(STREAM_NAME.to_owned()),
+            subscription_id: Some(sub_id.clone()),
+            offsets: vec![KeyOffset {
+                key: vec![
+                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                last_completed_offset: 1,
+                max_offset: 1,
+                amount_to_take: 0,
+            },],
+            client_counts: vec![ClientCount {
+                client_id: 1,
+                count: 99,
+            },],
+        }
+    );
 
     std::fs::remove_dir_all(dir_remove).unwrap();
-
-    panic!();
 }
 
 /// Helper for receiving from a socket until it's taken.
-pub fn recv_until_take(consume_client: &mut higgins_client::blocking::Client) -> Vec<Record> {
+pub fn recv_until_take(
+    consume_client: &mut higgins_client::blocking::Client,
+) -> TakeRecordsResponse {
     loop {
         match consume_client.recv(None).unwrap() {
             Response::TakeRecords(response) => {
-                return response.records;
+                return response;
             }
             Response::Produce(response) => {
                 tracing::info!("Received produce response: {:#?}", response);
@@ -159,6 +250,25 @@ pub fn produce(
 
     match client.recv(None).unwrap() {
         Response::Produce(response) => {
+            return response;
+        }
+        _ => {
+            tracing::error!("Received unexpected response message.");
+            panic!();
+        }
+    }
+}
+
+pub fn acknowledge(
+    stream: &str,
+    sub_id: &[u8],
+    offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
+    client: &mut higgins_client::blocking::Client,
+) -> higgins_codec::AcknowledgeSubscriptionOffsetsResponse {
+    client.acknowledge(stream, &sub_id, offsets).unwrap();
+
+    match client.recv(None).unwrap() {
+        Response::Acknowledge(response) => {
             return response;
         }
         _ => {

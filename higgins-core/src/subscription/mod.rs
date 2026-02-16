@@ -8,7 +8,7 @@ pub mod file;
 
 use file::SubscriptionFile;
 use std::ops::Range;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
@@ -300,6 +300,9 @@ impl Subscription {
 
             partition_offset_index += 1;
         }
+
+        // Sub the count
+        count.fetch_sub(results.len() as u64, Ordering::AcqRel);
 
         Ok(results)
     }

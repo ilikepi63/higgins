@@ -1,8 +1,12 @@
 use crate::error::HigginsClientError;
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
-use higgins_codec::{CreateSubscriptionRequest, GetSubscriptionRequest, TakeRecordsRequest};
+use higgins_codec::{
+    AcknowledgeSubscriptionOffsetsRequest, CreateSubscriptionRequest, GetSubscriptionRequest,
+    Offset, Range, TakeRecordsRequest,
+};
 use higgins_codec::{Message, message::Type};
+use higgins_shared::PartitionName;
 use prost::Message as _;
 
 pub async fn create_subscription<
@@ -101,6 +105,46 @@ pub async fn get_subscription<
     Message {
         r#type: Type::Getsubscriptionrequest as i32,
         get_subscription_request: Some(req),
+        ..Default::default()
+    }
+    .encode(&mut write_buf)
+    .unwrap();
+
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write_async(socket).await.unwrap();
+
+    Ok(())
+}
+
+pub async fn acknowledge<
+    T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
+    sub_id: &[u8],
+    stream: &str,
+    offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
+    socket: &mut T,
+) -> Result<(), HigginsClientError> {
+    let req = AcknowledgeSubscriptionOffsetsRequest {
+        subscription_id: sub_id.to_owned(),
+        stream: stream.to_owned(),
+        offsets: offsets
+            .iter()
+            .map(|offset| Offset {
+                key: offset.0.0.to_vec(),
+                range: Some(Range {
+                    start: offset.1.start,
+                    end: offset.1.end,
+                }),
+            })
+            .collect(),
+    };
+
+    let mut write_buf = BytesMut::new();
+
+    Message {
+        r#type: Type::Acknowledgerequest as i32,
+        acknowledge_request: Some(req),
         ..Default::default()
     }
     .encode(&mut write_buf)

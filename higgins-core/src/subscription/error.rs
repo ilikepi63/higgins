@@ -29,6 +29,8 @@ pub enum SubscriptionError {
     RkyvError(#[from] rkyv::rancor::Error),
     #[error("Failue to convert from Integer.")]
     TryFromIntError(#[from] TryFromIntError),
+    #[error("Subscription not found.")]
+    SubscriptionNotFound,
     #[error("Unknown Subscription Error")]
     Unknown,
 }
