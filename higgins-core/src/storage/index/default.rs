@@ -1,6 +1,6 @@
 #[allow(unused_imports)] // No idea why this is throwing a warning.
 use bytes::{BufMut as _, BytesMut};
-use std::io::Write as _;
+use std::{fmt::Debug, io::Write as _};
 
 use crate::storage::dereference::Reference;
 
@@ -11,13 +11,19 @@ const TIMESTAMP_INDEX: usize = POSITION_INDEX + size_of::<u32>();
 const SIZE_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
 
 /// A default index for us with generic streams.
-#[derive(Debug)]
 pub struct DefaultIndex<'a>(&'a [u8]);
-//     pub offset: u64,
-//     pub object_key: [u8; 16],
-//     pub position: u32,
-//     pub timestamp: u64,
-//     pub size: u64,
+
+impl<'a> Debug for DefaultIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultIndex")
+            .field("offset", &self.offset())
+            .field("position", &self.position())
+            .field("reference", &self.reference())
+            .field("timestamp", &self.timestamp())
+            .field("size", &self.size())
+            .finish()
+    }
+}
 
 impl<'a> DefaultIndex<'a> {
     /// Creates a new instance of this index, wrapping the old.
