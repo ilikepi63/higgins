@@ -1,6 +1,7 @@
 use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
+use colored::Colorize;
 use higgins::run_server;
 use higgins_client::Response;
 use higgins_codec::{
@@ -61,12 +62,10 @@ fn can_update_subscription_with_multiple_values() {
         _ => panic!("Retrieved unexpected result."),
     };
 
-    // produce
-    // await take response.
-    // if no take response after some time, check subscription
-
     let mut consume_client =
         higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+
+    tracing::debug!("{}", "CREATE SUBSCRIPTION".blue());
 
     let sub_id = create_subscription(&mut consume_client, STREAM_NAME);
 
@@ -82,6 +81,8 @@ fn can_update_subscription_with_multiple_values() {
             client_counts: vec![]
         }
     );
+
+    tracing::debug!("{}", "TAKE".red());
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
@@ -100,6 +101,8 @@ fn can_update_subscription_with_multiple_values() {
             }]
         }
     );
+
+    tracing::debug!("{}", "FIRST PRODUCE".red());
 
     produce(
         &mut produce_client,
@@ -130,7 +133,7 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    // println!("Response: {:#?}", response);
+    tracing::debug!("{}", "FIRST TAKE".red());
 
     let acknowledge_response = acknowledge(
         STREAM_NAME,
@@ -161,6 +164,8 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
+    tracing::debug!("{}", "FIRST ACKNOWLEDGE".red());
+
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
     assert_eq!(
@@ -185,12 +190,16 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    produce(
+    tracing::debug!("{}", "SECOND PRODUCE".red());
+
+    let produce_response = produce(
         &mut produce_client,
         STREAM_NAME,
         &PartitionName::try_from("1").unwrap(),
         PAYLOAD.as_bytes(),
     );
+
+    println!("Produce Response: {:#?}", produce_response);
 
     let response = recv_until_take(&mut consume_client);
 

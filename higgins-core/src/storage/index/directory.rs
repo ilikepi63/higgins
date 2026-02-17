@@ -427,6 +427,8 @@ impl IndexDirectory {
             index_type: index_type.clone(),
         };
 
+        tracing::trace!("HERE IS THE COUNT: {:#?}", indexes.count());
+
         let offset = (indexes.count() + 1) as u64;
         let position = batch_coord.offset;
         let timestamp = SystemTime::now()
