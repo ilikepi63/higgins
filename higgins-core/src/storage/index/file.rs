@@ -106,7 +106,6 @@ mod tests {
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
-        // TODO: change this to reflect the new reference API
         DefaultIndex::put(
             0,
             crate::storage::dereference::Reference::Null,
@@ -121,13 +120,19 @@ mod tests {
 
         assert_eq!(file.as_view().count(), 1);
 
+        assert_eq!(file.as_view().get(0).unwrap(), val);
+
         file.append(&val).unwrap();
 
         assert_eq!(file.as_view().count(), 2);
 
+        assert_eq!(file.as_view().get(1).unwrap(), val);
+
         file.append(&val).unwrap();
 
         assert_eq!(file.as_view().count(), 3);
+
+        assert_eq!(file.as_view().get(2).unwrap(), val);
 
         fs::remove_file(path).unwrap();
     }
