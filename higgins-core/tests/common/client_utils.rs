@@ -36,9 +36,10 @@ pub fn get_subscription_data(
     client.get_subscription(stream, sub_id).unwrap();
 
     // Basically asserts that a Getsubscription request was returned
-    match client.recv(None).unwrap() {
+    let result = client.recv(None).unwrap();
+    match result {
         Response::GetSubscription(response) => return response,
-        _ => panic!("Retrieved unexpected result."),
+        _ => panic!("Retrieved unexpected result: {:#?}", result),
     };
 }
 

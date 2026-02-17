@@ -421,11 +421,9 @@ impl IndexDirectory {
             )
             .unwrap();
 
-        let indexes = IndexesView {
-            buffer: index_file.as_slice(),
-            element_size: size_of::<DefaultIndex>(),
-            index_type: index_type.clone(),
-        };
+        let indexes = index_file.as_view();
+
+        tracing::trace!("HERE IS THE COUNT: {:#?}", indexes.count());
 
         let offset = (indexes.count() + 1) as u64;
         let position = batch_coord.offset;
@@ -435,6 +433,12 @@ impl IndexDirectory {
             .as_secs();
 
         let mut val = vec![0; index_size_from_index_type_and_definition(index_type, stream_def)];
+
+        tracing::trace!(
+            "Size: {}, expected: {}",
+            index_size_from_index_type_and_definition(index_type, stream_def),
+            DefaultIndex::size_of()
+        );
 
         // TODO: change this to reflect the new reference API
         DefaultIndex::put(
@@ -452,6 +456,11 @@ impl IndexDirectory {
         tracing::info!("Saving Index: {:#?}", index);
 
         index_file.append(&index).unwrap();
+
+        tracing::trace!(
+            "Index file size after push: {}",
+            index_file.as_view().count()
+        );
 
         tracing::info!("Successfully saved Index: {:#?}", index);
         offset

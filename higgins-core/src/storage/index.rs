@@ -21,7 +21,7 @@ use crate::topography::{FunctionType, StreamDefinition};
 ///
 /// This is for use when the type of index is unknown as we do not have direct access to the underlying
 /// Stream.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub enum IndexType {
     #[default]
     Default,

@@ -92,6 +92,8 @@ impl Broker {
             )
             .await;
 
+        tracing::trace!("Offset: {:#?}", offset);
+
         // Watermark the subscription.
         let subscription = self.subscriptions.get(stream_name);
 
