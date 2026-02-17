@@ -237,12 +237,12 @@ fn can_update_subscription_with_multiple_values() {
                     0, 0, 0, 0, 0, 0,
                 ],
                 last_completed_offset: 1,
-                max_offset: 1,
-                amount_to_take: 0,
+                max_offset: 2,
+                amount_to_take: 1
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,
-                count: 99,
+                count: 98,
             },],
         }
     );
