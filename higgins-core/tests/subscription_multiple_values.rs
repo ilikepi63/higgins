@@ -225,6 +225,8 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
+    dbg!(&subscription);
+
     assert_eq!(
         subscription,
         GetSubscriptionResponse {
@@ -275,8 +277,6 @@ fn can_update_subscription_with_multiple_values() {
             error: "".to_string(),
         }
     );
-
-    panic!();
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }

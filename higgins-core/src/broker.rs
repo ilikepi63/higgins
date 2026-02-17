@@ -84,11 +84,18 @@ impl Broker {
 
                 tracing::trace!("[CREATE PARTITION] Retrieved the lock..");
 
-                sub.add_partition(
-                    &higgins_shared::PartitionName::try_from(partition_key)?,
-                    None,
-                    None,
-                )?;
+                if sub
+                    .partitions
+                    .iter()
+                    .find(|key| key.partition_id.0 == partition_key)
+                    .is_none()
+                {
+                    sub.add_partition(
+                        &higgins_shared::PartitionName::try_from(partition_key)?,
+                        None,
+                        None,
+                    )?;
+                };
             }
         }
 
