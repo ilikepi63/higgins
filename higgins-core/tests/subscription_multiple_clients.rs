@@ -18,7 +18,7 @@ static STREAM_NAME: &str = "update_customer";
 
 static PAYLOAD: &str = include_str!("customer.json");
 
-// #[test]
+#[test]
 fn subscription_works_with_multiple_clients() {
     tracing_subscriber::fmt::init();
 
