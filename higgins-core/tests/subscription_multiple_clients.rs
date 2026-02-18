@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
