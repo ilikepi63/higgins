@@ -137,7 +137,6 @@ impl Broker {
         );
 
         let task_subscription = subscription.clone();
-        let task_client_id = client_id;
         let task_stream_name = stream.to_vec();
         let task_notify = notify.clone();
 
@@ -171,7 +170,11 @@ impl Broker {
 
                     tracing::trace!("[TAKE] Taking the amount: {n}");
 
-                    let offsets = lock.take(task_client_id, n);
+                    let offsets = lock.take(n);
+
+                    if let Ok(offsets) = offsets.as_ref() {
+                        lock.remove_client_count(&client_id, offsets.len() as u64);
+                    }
 
                     drop(lock);
 
@@ -201,28 +204,7 @@ impl Broker {
                                 results
                             };
 
-                            for mut val in consumption {
-                                let resp = TakeRecordsResponse {
-                                    records: vec![{
-                                        val.infer();
-                                        val.into()
-                                    }],
-                                };
-
-                                let mut result = BytesMut::new();
-
-                                Message {
-                                    r#type: Type::Takerecordsresponse as i32,
-                                    take_records_response: Some(resp),
-                                    ..Default::default()
-                                }
-                                .encode(&mut result)
-                                .unwrap();
-
-                                tracing::trace!("[TAKE] Writing the amount back to client.");
-
-                                client_ref.send(result).await.unwrap();
-                            }
+                            write_offsets_to_client(consumption, client_ref.clone()).await;
                         }
                     };
 
@@ -283,5 +265,101 @@ impl Into<Record> for OffsetPayload {
             partition: self.key.0.to_vec(),
             offset: self.offset,
         }
+    }
+}
+
+pub async fn write_offsets_to_client(
+    consumption: Vec<OffsetPayload>,
+    client_ref: tokio::sync::mpsc::Sender<BytesMut>,
+) {
+    for mut val in consumption {
+        let resp = TakeRecordsResponse {
+            records: vec![{
+                val.infer();
+                val.into()
+            }],
+        };
+
+        let mut result = BytesMut::new();
+
+        Message {
+            r#type: Type::Takerecordsresponse as i32,
+            take_records_response: Some(resp),
+            ..Default::default()
+        }
+        .encode(&mut result)
+        .unwrap();
+
+        tracing::trace!("[TAKE] Writing the amount back to client.");
+
+        client_ref.send(result).await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::storage::arrow_ipc::write_arrow;
+
+    use super::*;
+    use bytes::BytesMut;
+    use prost::Message as ProstMessage;
+    use tokio::sync::mpsc;
+    use tokio::sync::mpsc::Sender;
+
+    #[tokio::test]
+    async fn write_offsets_sends_one_message_per_payload() {
+        let test_json = write_arrow(
+            &arrow::array::record_batch!(
+                ("a", Int32, [1, 2, 3]),
+                ("b", Float64, [Some(4.0), None, Some(5.0)]),
+                ("c", Utf8, ["alpha", "beta", "gamma"])
+            )
+            .unwrap(),
+        );
+
+        let (tx, mut rx): (Sender<BytesMut>, _) = mpsc::channel(16);
+
+        let payloads = vec![
+            OffsetPayload {
+                stream: "stream-a".to_string(),
+                key: PartitionName::try_from("part-1").unwrap(),
+                offset: 100,
+                bytes: test_json.clone(),
+            },
+            OffsetPayload {
+                stream: "stream-b".to_string(),
+                key: PartitionName::try_from("part-2").unwrap(),
+                offset: 200,
+                bytes: test_json,
+            },
+        ];
+
+        // Run the function under test
+        write_offsets_to_client(payloads, tx).await;
+
+        // Collect sent messages
+        let mut sent = vec![];
+        while let Some(msg) = rx.recv().await {
+            sent.push(msg);
+        }
+
+        assert_eq!(sent.len(), 2, "should send one message per payload");
+
+        let msg1 = Message::decode(&*sent[0]).expect("valid protobuf");
+        assert_eq!(msg1.r#type, Type::Takerecordsresponse as i32);
+        let resp1 = msg1.take_records_response.expect("has response");
+        assert_eq!(resp1.records.len(), 1);
+        let rec1 = &resp1.records[0];
+        assert_eq!(rec1.stream, b"stream-a".to_vec());
+        assert_eq!(rec1.partition, PartitionName::try_from("part-1").unwrap().0);
+        assert_eq!(rec1.offset, 100);
+
+        // Decode second
+        let msg2 = Message::decode(&*sent[1]).expect("valid protobuf");
+        let resp2 = msg2.take_records_response.expect("has response");
+        let rec2 = &resp2.records[0];
+        assert_eq!(rec2.stream, b"stream-b".to_vec());
+        assert_eq!(rec2.partition, PartitionName::try_from("part-2").unwrap().0);
+        assert_eq!(rec2.offset, 200);
     }
 }

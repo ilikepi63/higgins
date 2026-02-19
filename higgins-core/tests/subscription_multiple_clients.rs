@@ -1,16 +1,12 @@
-#![allow(unused)]
-
 use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
 use higgins_codec::{
-    AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
-    ProduceResponse, Record, TakeRecordsResponse,
+    ClientCount, GetSubscriptionResponse, KeyOffset, ProduceResponse, Record, TakeRecordsResponse,
 };
 use higgins_shared::PartitionName;
-use zerocopy::IntoBytes;
 
 mod common;
 
@@ -20,7 +16,10 @@ static STREAM_NAME: &str = "update_customer";
 
 static PAYLOAD: &str = include_str!("customer.json");
 
-// #[test]
+static CONSUME_CLIENT_ONE_COUNT: u64 = 1;
+static CONSUME_CLIENT_TWO_COUNT: u64 = 1;
+
+#[test]
 fn subscription_works_with_multiple_clients() {
     tracing_subscriber::fmt::init();
 
@@ -59,13 +58,9 @@ fn subscription_works_with_multiple_clients() {
     match produce_client.recv(Some(Duration::from_secs(1))).unwrap() {
         Response::CreateConfiguration(_) => {
             tracing::info!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        }
         _ => panic!("Retrieved unexpected result."),
     };
-
-    // produce
-    // await take response.
-    // if no take response after some time, check subscription
 
     let mut consume_client =
         higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
@@ -88,8 +83,16 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
-    let _ = second_consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
+    let _ = consume_client.take(
+        sub_id.clone(),
+        STREAM_NAME.as_bytes(),
+        CONSUME_CLIENT_ONE_COUNT,
+    );
+    let _ = second_consume_client.take(
+        sub_id.clone(),
+        STREAM_NAME.as_bytes(),
+        CONSUME_CLIENT_TWO_COUNT,
+    );
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
@@ -103,11 +106,11 @@ fn subscription_works_with_multiple_clients() {
             client_counts: vec![
                 ClientCount {
                     client_id: 2,
-                    count: 100
+                    count: CONSUME_CLIENT_TWO_COUNT
                 },
                 ClientCount {
                     client_id: 1,
-                    count: 100
+                    count: CONSUME_CLIENT_ONE_COUNT
                 }
             ]
         }
@@ -157,22 +160,31 @@ fn subscription_works_with_multiple_clients() {
                     49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0
                 ],
-                last_completed_offset: 0,
+                last_completed_offset: 1,
                 max_offset: 1,
-                amount_to_take: 1
+                amount_to_take: 0
             }],
             client_counts: vec![
                 ClientCount {
                     client_id: 2,
-                    count: 99
+                    count: CONSUME_CLIENT_TWO_COUNT
                 },
                 ClientCount {
                     client_id: 1,
-                    count: 100
+                    count: CONSUME_CLIENT_ONE_COUNT - 1
                 }
             ]
         }
     );
+
+    let produce_response = produce(
+        &mut produce_client,
+        STREAM_NAME,
+        &PartitionName::try_from("1").unwrap(),
+        PAYLOAD.as_bytes(),
+    );
+
+    assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
     let response = recv_until_take(&mut second_consume_client);
 
@@ -191,37 +203,8 @@ fn subscription_works_with_multiple_clients() {
                     49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0
                 ],
-                offset: 0
+                offset: 1
             }]
-        }
-    );
-
-    let acknowledge_response = acknowledge(
-        STREAM_NAME,
-        &sub_id,
-        response
-            .records
-            .iter()
-            .map(|record| {
-                (
-                    PartitionName::try_from(record.partition.as_bytes()).unwrap(),
-                    std::ops::Range {
-                        start: record.offset,
-                        end: record.offset + 1,
-                    },
-                )
-            })
-            .collect(),
-        &mut consume_client,
-    );
-
-    assert_eq!(
-        acknowledge_response,
-        AcknowledgeSubscriptionOffsetsResponse {
-            stream: STREAM_NAME.to_string(),
-            subscription_id: sub_id.clone(),
-            failed_offsets: vec![],
-            error: "".to_string(),
         }
     );
 
@@ -238,14 +221,20 @@ fn subscription_works_with_multiple_clients() {
                     49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0,
                 ],
-                last_completed_offset: 1,
-                max_offset: 1,
+                last_completed_offset: 2,
+                max_offset: 2,
                 amount_to_take: 0,
             },],
-            client_counts: vec![ClientCount {
-                client_id: 1,
-                count: 99,
-            },],
+            client_counts: vec![
+                ClientCount {
+                    client_id: 2,
+                    count: CONSUME_CLIENT_TWO_COUNT - 1,
+                },
+                ClientCount {
+                    client_id: 1,
+                    count: CONSUME_CLIENT_ONE_COUNT - 1,
+                },
+            ],
         }
     );
 

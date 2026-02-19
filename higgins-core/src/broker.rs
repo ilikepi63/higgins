@@ -101,4 +101,9 @@ impl Broker {
 
         Ok(())
     }
+
+    /// Retrieves a ClientRef given a client id.
+    pub fn get_client_by_id(&self, id: u64) -> Option<crate::client::ClientRef> {
+        self.clients.get(id).cloned()
+    }
 }

@@ -236,42 +236,16 @@ impl Subscription {
             ),
         }
     }
-    /// Takes the next few offsets of a set of partitions
-    /// TODO: implement round-robining for this.
-    pub fn take(
-        &mut self,
-        client_id: u64,
-        count: u64,
-    ) -> Result<Vec<(PartitionName, Offset)>, SubscriptionError> {
-        // Client specific logic.
 
-        let count: &mut AtomicU64 = if let Some((_, count)) = self
-            .client_counts
-            .iter_mut()
-            .find(|(id, _)| *id == client_id)
-        {
-            tracing::trace!("Found a client count for given count number: {:#?}", count);
+    /// Tries to take {count} many offsets from this subscription.
+    pub fn take(&mut self, count: u64) -> Result<Vec<(PartitionName, Offset)>, SubscriptionError> {
+        tracing::debug!(
+            "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+            self.partitions
+        );
 
-            count
-        } else {
-            let client_count = (client_id, AtomicU64::new(count));
-            self.client_counts.push(client_count);
-
-            &mut self
-                .client_counts
-                .iter_mut()
-                .rev()
-                .find(|(id, _)| *id == client_id)
-                .unwrap()
-                .1
-        };
-
-        tracing::trace!("Current count for subscription: {:#?}", count);
-
-        // subscription specific logic
-        // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
         let mut partition_offset_index = 0;
-        let mut offset_count = count.load(std::sync::atomic::Ordering::Relaxed);
+        let mut offset_count = count;
 
         let mut results = vec![];
 
@@ -283,10 +257,20 @@ impl Subscription {
                     for i in partition_offset.last_completed_offset.clone()
                         ..partition_offset.max_offset.clone()
                     {
+                        tracing::debug!(
+                            "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
+                            partition_offset
+                        );
+
+                        tracing::debug!(
+                            "[SUBSCRIPTION TAKE] Setting last completed offset: {:#?}",
+                            i
+                        );
+
                         // Push the offset on the resultant vec.
                         results.push((partition_offset.partition_id.clone(), i));
                         // Update the current last_completed_offset.
-                        partition_offset.set_last_completed_offset(i);
+                        partition_offset.set_last_completed_offset(i + 1);
 
                         // If the offset count has gotten to zero, we break here and continue with the while loop.
                         offset_count -= 1;
@@ -298,13 +282,22 @@ impl Subscription {
                 None => {}
             }
 
+            tracing::debug!(
+                "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+                self.partitions
+            );
+
             partition_offset_index += 1;
         }
 
-        // Sub the count
-        count.fetch_sub(results.len() as u64, Ordering::AcqRel);
-
         Ok(results)
+    }
+
+    /// Removes the client count for a specific set.
+    pub fn remove_client_count(&self, client: &u64, count: u64) {
+        if let Some((_, value)) = self.client_counts.iter().find(|(c, _)| c == client) {
+            value.fetch_sub(count, Ordering::AcqRel);
+        }
     }
 
     /// Sets the maximum offset for a partition.
@@ -444,7 +437,7 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
         // Take 5 offsets
-        let offsets = sub.take(1, 5).expect("Failed to take offsets");
+        let offsets = sub.take(5).expect("Failed to take offsets");
         assert_eq!(offsets.len(), 5);
         assert_eq!(
             offsets,
@@ -469,7 +462,7 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(0)).is_ok());
 
         // Try to take offsets
-        let offsets = sub.take(1, 5).expect("Failed to take offsets");
+        let offsets = sub.take(5).expect("Failed to take offsets");
         assert!(offsets.is_empty(), "No offsets should be available");
         sub.delete().unwrap();
     }
@@ -520,7 +513,7 @@ mod tests {
         assert!(sub.acknowledge(&key, &Range { start: 1, end: 2 }).is_ok());
 
         // Take 3 offsets (should skip acknowledged offsets 2 and 4)
-        let offsets = sub.take(1, 2).expect("Failed to take offsets");
+        let offsets = sub.take(2).expect("Failed to take offsets");
 
         assert_eq!(offsets.len(), 2);
         assert_eq!(offsets, vec![(key.clone(), 2), (key.clone(), 3)]);
@@ -538,7 +531,7 @@ mod tests {
         assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
 
         // Take 4 offsets (should distribute across partitions)
-        let offsets = sub.take(1, 4).expect("Failed to take offsets");
+        let offsets = sub.take(4).expect("Failed to take offsets");
         assert_eq!(offsets.len(), 4);
         // Note: Without round-robin logic, exact distribution may vary
         assert!(offsets.iter().any(|(k, o)| k == &key1 && *o == 0));

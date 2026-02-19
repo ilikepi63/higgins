@@ -1,16 +1,33 @@
 use std::collections::BTreeMap;
 
 use bytes::BytesMut;
+use higgins_codec::Message;
+use prost::Message as _;
 
 use crate::error::HigginsError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ClientRef {
     AsyncTcpSocket(tokio::sync::mpsc::Sender<BytesMut>),
     NoOp,
 }
 
-impl ClientRef {}
+impl ClientRef {
+    pub async fn send(&self, message: Message) -> Result<(), HigginsError> {
+        let mut result = BytesMut::new();
+
+        message.encode(&mut result).unwrap(); // TODO: Make this catchable from HigginsError.
+
+        match self {
+            ClientRef::AsyncTcpSocket(sender) => {
+                sender.send(result).await.unwrap();
+            }
+            ClientRef::NoOp => {}
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub struct ClientCollection(BTreeMap<u64, ClientRef>);
