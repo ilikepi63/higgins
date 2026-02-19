@@ -542,7 +542,7 @@ async fn eager_take_from_subscription_or_wait(
     let mut offsets = {
         tracing::trace!("[EAGER TAKE] Querying this again, taking {N} items.");
         let mut lock = subscription.write().await;
-        lock.take(client_id, N)?
+        lock.take(N)?
     };
 
     // If there are no given offsts, await the wakener then.
@@ -558,7 +558,7 @@ async fn eager_take_from_subscription_or_wait(
                 tracing::trace!(
                     "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
                 );
-                let taken = lock.take(client_id, N)?;
+                let taken = lock.take(N)?;
                 tracing::trace!("[EAGER TAKE] Exiting the eager take.");
 
                 // TODO: this likely should be removed and added once the join stream has been implemented.

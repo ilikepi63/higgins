@@ -137,7 +137,7 @@ impl Broker {
         );
 
         let task_subscription = subscription.clone();
-        let task_client_id = client_id;
+        // let task_client_id = client_id;
         let task_stream_name = stream.to_vec();
         let task_notify = notify.clone();
 
@@ -171,7 +171,11 @@ impl Broker {
 
                     tracing::trace!("[TAKE] Taking the amount: {n}");
 
-                    let offsets = lock.take(task_client_id, n);
+                    let offsets = lock.take(n);
+
+                    if let Ok(offsets) = offsets.as_ref() {
+                        lock.remove_client_count(&client_id, offsets.len() as u64);
+                    }
 
                     drop(lock);
 
@@ -298,7 +302,6 @@ mod tests {
     use crate::storage::arrow_ipc::write_arrow;
 
     use super::*;
-    use arrow::ipc::RecordBatch;
     use bytes::BytesMut;
     use prost::Message as ProstMessage;
     use tokio::sync::mpsc;

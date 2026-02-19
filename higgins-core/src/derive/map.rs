@@ -3,7 +3,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     broker::Broker,
-    client::ClientRef,
+    // client::ClientRef,
     derive::utils::get_partition_key_from_record_batch,
     error::HigginsError,
     functions::map::run_map_function,
@@ -19,7 +19,7 @@ pub async fn create_mapped_stream_from_definition(
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
+    // let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
 
     // Subscribe to both streams.
     let left_subscription = broker.create_subscription(left.0.as_bytes());
@@ -44,7 +44,7 @@ pub async fn create_mapped_stream_from_definition(
 
             let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
 
-            let offsets_result = lock.take(client_id, n);
+            let offsets_result = lock.take(n);
 
             drop(lock);
 
@@ -57,7 +57,7 @@ pub async fn create_mapped_stream_from_definition(
 
                     offsets = {
                         let mut lock = left_subscription_ref.write().await;
-                        lock.take(client_id, n).unwrap()
+                        lock.take(n).unwrap()
                     };
                 }
 
