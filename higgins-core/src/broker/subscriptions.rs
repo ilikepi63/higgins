@@ -137,7 +137,6 @@ impl Broker {
         );
 
         let task_subscription = subscription.clone();
-        // let task_client_id = client_id;
         let task_stream_name = stream.to_vec();
         let task_notify = notify.clone();
 

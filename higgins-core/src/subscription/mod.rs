@@ -239,8 +239,11 @@ impl Subscription {
 
     /// Tries to take {count} many offsets from this subscription.
     pub fn take(&mut self, count: u64) -> Result<Vec<(PartitionName, Offset)>, SubscriptionError> {
-        // subscription specific logic
-        // If it is more than zero, we need to iterate a little bit to see if we can retrieve more indices.
+        tracing::debug!(
+            "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+            self.partitions
+        );
+
         let mut partition_offset_index = 0;
         let mut offset_count = count;
 
@@ -254,10 +257,20 @@ impl Subscription {
                     for i in partition_offset.last_completed_offset.clone()
                         ..partition_offset.max_offset.clone()
                     {
+                        tracing::debug!(
+                            "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
+                            partition_offset
+                        );
+
+                        tracing::debug!(
+                            "[SUBSCRIPTION TAKE] Setting last completed offset: {:#?}",
+                            i
+                        );
+
                         // Push the offset on the resultant vec.
                         results.push((partition_offset.partition_id.clone(), i));
                         // Update the current last_completed_offset.
-                        partition_offset.set_last_completed_offset(i);
+                        partition_offset.set_last_completed_offset(i + 1);
 
                         // If the offset count has gotten to zero, we break here and continue with the while loop.
                         offset_count -= 1;
@@ -268,6 +281,11 @@ impl Subscription {
                 }
                 None => {}
             }
+
+            tracing::debug!(
+                "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+                self.partitions
+            );
 
             partition_offset_index += 1;
         }
