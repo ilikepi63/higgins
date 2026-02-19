@@ -4,17 +4,6 @@ use std::fmt::Debug;
 /// JoinedIndex represents the index metadata that one will use to
 /// keep track of both offsets of each stream this is derived from.
 pub struct JoinedIndex<'a>(&'a [u8]);
-// /// The offset of the resultant index.
-// pub offset: u64,
-// /// The timestamp for this index.
-// pub timestamp: u64,
-// /// Whether or not this join has been completed by alternative join data. This
-// /// Generally means that the join has been appended with the other joined data.
-// pub completed: bool,
-// /// The object key holding the resultant data from the joining.
-// pub object_key: Option<[u8; 16]>,
-// /// The offsets of the derivative streams.
-// pub offsets: T,
 
 const OFFSET_INDEX: usize = 0;
 const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
@@ -288,12 +277,6 @@ mod test {
     use crate::utils::test::{ByteInterval, Interval, print_bytes_coloured};
     use colored::Color;
 
-    // const OFFSET_INDEX: usize = 0;
-    // const TIMESTAMP_INDEX: usize = OFFSET_INDEX + size_of::<u64>();
-    // const COMPLETED_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
-    // const OBJECT_KEY_INDEX: usize = COMPLETED_INDEX + size_of::<bool>();
-    // const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
-
     #[test]
     fn print_bytes_coloured_test() {
         let bytes = [1_u8; 10];
@@ -338,11 +321,6 @@ mod test {
                 Color::Red,
                 "Second Index".to_string(),
             ),
-            // Interval(
-            //     ByteInterval(INDEXES_INDEX + 18, INDEXES_INDEX + 27),
-            //     Color::Yellow,
-            //     "Last Index".to_string(),
-            // ),
         ];
 
         print_bytes_coloured(join_index_bytes, intervals);

@@ -19,8 +19,6 @@ pub async fn create_mapped_stream_from_definition(
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    // let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
-
     // Subscribe to both streams.
     let left_subscription = broker.create_subscription(left.0.as_bytes());
 

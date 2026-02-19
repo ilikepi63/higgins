@@ -69,9 +69,6 @@ pub async fn handle_get_index(
                         .collect::<Vec<_>>(),
                 };
 
-                // let responses = collect_consume_responses(values).await;
-
-                // for response in responses {
                 let mut result = BytesMut::new();
 
                 Message {

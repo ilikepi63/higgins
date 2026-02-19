@@ -37,14 +37,6 @@ pub async fn create_join_operator(
     broker_ref: Arc<RwLock<Broker>>,
 ) {
     tracing::trace!("Setting up Join Operator for definition: {:#?}", definition);
-    // We leak this handle. This is primarily so that we can access this handle from multiple
-    // tasks without having to use a form a reference checking.
-    // let operator: &'static mut JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
-    //     is_working: AtomicBool::new(true),
-    //     handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
-    // }));
-
-    tracing::trace!("Created the join operator struct.");
 
     // Redefined for movements.
     let amalgamate_definition = definition.clone();

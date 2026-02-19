@@ -92,9 +92,6 @@ pub struct Topography {
     file: TopographyFile,
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
-    // functions: BTreeMap<Key, Vec<u8>>,
-    // configurations: BTreeMap<Key, Configuration>,
-    // subscriptions: BTreeMap<Key, SubscriptionDeclaration>,
     storage: Option<(String, Storage)>,
 }
 

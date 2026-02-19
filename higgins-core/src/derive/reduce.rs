@@ -20,8 +20,6 @@ pub async fn create_reduced_stream_from_definition(
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    // let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
-
     // Subscribe to both streams.
     let left_subscription = broker.create_subscription(left.0.as_bytes());
 
@@ -43,8 +41,6 @@ pub async fn create_reduced_stream_from_definition(
             let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
 
             let offsets_result = lock.take(n);
-
-            //lock.remove_client_count(&client_id, offsets_result.len() as u64);
 
             drop(lock);
 

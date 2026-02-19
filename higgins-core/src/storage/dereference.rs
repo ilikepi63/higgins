@@ -143,12 +143,6 @@ impl S3Reference {
 mod tests {
     use super::*;
 
-    // Placeholder for Broker and HigginsError; assuming they are defined in the crate
-    // and can be instantiated for testing purposes (e.g., Broker::default() or similar).
-    // If Broker requires additional setup, adjust accordingly.
-    // For dereference S3 tests, a mock object store would be ideal (e.g., an in-memory
-    // implementation of the object store trait from riskless).
-
     #[test]
     fn test_reference_null_to_bytes() {
         let mut buffer = [0u8; Reference::size_of()];
@@ -176,19 +170,15 @@ mod tests {
         let result = reference.to_bytes(&mut buffer);
         assert!(result.is_ok());
 
-        // Verify discriminator
         let discriminator = u16::from_be_bytes(buffer[0..2].try_into().unwrap());
         assert_eq!(discriminator, OBJECT_STORE_DISCRIMINATOR);
 
-        // Verify object_key
         let read_key: [u8; 16] = buffer[2..18].try_into().unwrap();
         assert_eq!(read_key, object_key);
 
-        // Verify position
         let read_position = u64::from_be_bytes(buffer[18..26].try_into().unwrap());
         assert_eq!(read_position, position);
 
-        // Verify size
         let read_size = u64::from_be_bytes(buffer[26..34].try_into().unwrap());
         assert_eq!(read_size, size);
     }
@@ -249,8 +239,6 @@ mod tests {
         let deserialized = Reference::from_bytes(&buffer);
         match deserialized {
             Reference::S3(s3_ref) => {
-                // assert_eq!(s3_ref, original.as_ref().unwrap_s3()); // Assuming a helper method; adjust if needed
-                // Or manually:
                 assert_eq!(s3_ref.object_key, object_key);
                 assert_eq!(s3_ref.position, position);
                 assert_eq!(s3_ref.size, size);
@@ -274,64 +262,4 @@ mod tests {
         assert_eq!(S3Reference::size_of(), expected_size);
         assert_eq!(S3Reference::size_of(), 32); // 16 + 8 + 8
     }
-
-    // #[tokio::test]
-    // async fn test_dereference_null() {
-    //     // Placeholder: Create a broker instance. Adjust based on actual Broker implementation.
-    //     // For example: let broker = Arc::new(RwLock::new(Broker::new(mock_object_store)));
-    //     let broker = Arc::new(RwLock::new(Broker {})); // Compile-time placeholder; replace with valid init
-
-    //     let result = dereference(Reference::Null, broker).await;
-    //     assert!(result.is_err());
-    //     // Verify specific error variant
-    //     if let Err(HigginsError::NullDereferenceError) = result {
-    //         // Expected
-    //     } else {
-    //         panic!("Expected NullDereferenceError");
-    //     }
-    // }
-
-    // Note: Full testing of dereference(Reference::S3) requires a mock object store that returns
-    // predictable bytes() results. Below is a skeleton for such a test, assuming an in-memory
-    // object store implementation is available (e.g., via riskless or a test double).
-    /*
-    #[tokio::test]
-    async fn test_dereference_s3_success() {
-        // Setup: Create mock object store with known data
-        let mock_data = vec![0u8; 100]; // 100 bytes of known data
-        let mock_object_store = MockObjectStore::new(mock_data); // Hypothetical mock
-        let broker = Arc::new(RwLock::new(Broker {
-            object_store: mock_object_store,
-            ..Default::default()
-        }));
-
-        let object_key = uuid::Uuid::new_v4().as_bytes().to_owned().try_into().unwrap();
-        let position = 10u64;
-        let size = 20u64;
-        let reference = Reference::S3(S3Reference {
-            object_key,
-            position,
-            size,
-        });
-
-        let result = dereference(reference, broker).await;
-        assert!(result.is_ok());
-        let data = result.unwrap();
-        assert_eq!(data.len(), size as usize);
-        // Verify slice matches expected bytes from mock_data[position..position + size]
-        // e.g., assert_eq!(data, &mock_data[10..30]);
-    }
-
-    #[tokio::test]
-    async fn test_dereference_s3_invalid_position() {
-        // Test overflow or invalid slice; adjust mock to return large enough bytes
-        // ...
-    }
-
-    #[tokio::test]
-    async fn test_dereference_s3_object_not_found() {
-        // Mock store returns Err on get
-        // ...
-    }
-    */
 }
