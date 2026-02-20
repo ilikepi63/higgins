@@ -93,6 +93,10 @@ impl Client {
 
         let message = Message::decode(slice).unwrap();
 
+        if let Some(id) = message.correlation_id {
+            self.2.remove(id);
+        }
+
         Ok(Response {
             metadata: ResponseMetadata {
                 correlation_id: message.correlation_id,
