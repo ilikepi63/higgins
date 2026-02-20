@@ -104,7 +104,6 @@ fn can_implement_a_basic_stream_join() {
 
     produce_sync(
         b"customer",
-        &PartitionName::try_from("1").unwrap(),
         r#"
         {
             "id": "1",
@@ -131,7 +130,6 @@ fn can_implement_a_basic_stream_join() {
 
     produce_sync(
         b"address",
-        &PartitionName::try_from("1").unwrap(),
         r#"
         {
             "customer_id": "1",

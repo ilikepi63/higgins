@@ -16,7 +16,7 @@ fn get_dir() -> PathBuf {
 }
 
 static STREAM: &str = "update_customer";
-static PARTITION: &[u8] = "test_partition".as_bytes();
+static PARTITION: &[u8] = "1".as_bytes();
 
 #[test]
 fn can_achieve_basic_broker_functionality() {
@@ -63,15 +63,9 @@ fn can_achieve_basic_broker_functionality() {
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    client
-        .produce(
-            STREAM,
-            &PartitionName::try_from(PARTITION).unwrap(),
-            payload.as_bytes(),
-        )
-        .unwrap();
+    client.produce(STREAM, payload.as_bytes()).unwrap();
 
-    match client.recv(None).unwrap() {
+    match client.recv(Some(Duration::from_secs(1))).unwrap() {
         Response::Produce(_) => {
             println!("Retrieved Produce!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -86,10 +80,12 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
-    let result = client.recv(None).map(|res| match res {
-        Response::GetIndex(get_index_result) => get_index_result.records,
-        _ => panic!("Got an unexpect result."),
-    });
+    let result = client
+        .recv(Some(Duration::from_secs(1)))
+        .map(|res| match res {
+            Response::GetIndex(get_index_result) => get_index_result.records,
+            _ => panic!("Got an unexpect result."),
+        });
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 

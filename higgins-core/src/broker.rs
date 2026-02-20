@@ -9,6 +9,7 @@ mod subscriptions;
 
 use crate::task::TaskHandler;
 use arrow::{array::RecordBatch, datatypes::Schema};
+use higgins_shared::PartitionName;
 pub use indexes::BrokerIndexFile;
 use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -68,7 +69,7 @@ impl Broker {
     pub async fn create_partition(
         &mut self,
         stream_name: &[u8],
-        partition_key: &[u8],
+        key: &PartitionName,
     ) -> Result<(), HigginsError> {
         tracing::trace!("[CREATE PARTITION] Creating the partition");
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
@@ -79,17 +80,15 @@ impl Broker {
 
                 tracing::trace!("[CREATE PARTITION] Retrieved the lock..");
 
+                tracing::trace!("[CREATE_PARTITION] Creating: {:#?}", sub);
+
                 if sub
                     .partitions
                     .iter()
-                    .find(|key| key.partition_id.0 == partition_key)
+                    .find(|sub_key| sub_key.partition_id == *key)
                     .is_none()
                 {
-                    sub.add_partition(
-                        &higgins_shared::PartitionName::try_from(partition_key)?,
-                        None,
-                        None,
-                    )?;
+                    sub.add_partition(key, None, None)?;
                 };
             }
         }

@@ -34,14 +34,9 @@ impl Client {
     pub async fn produce(
         &mut self,
         stream: &str,
-        partition: &PartitionName,
         payload: &[u8],
     ) -> Result<(), HigginsClientError> {
-        timeout!(
-            produce(stream.as_bytes(), partition, payload, &mut self.0),
-            self.1
-        )
-        .await?;
+        timeout!(produce(stream.as_bytes(), payload, &mut self.0), self.1).await?;
         Ok(())
     }
 

@@ -7,7 +7,6 @@ use std::{
 use crate::common::get_random_port;
 use higgins::run_server;
 use higgins_client::Response;
-use higgins_shared::PartitionName;
 
 mod common;
 
@@ -121,11 +120,7 @@ fn can_update_subscription_after_created() {
 
     for _ in 0..NUMBER_OF_MESSAGES {
         produce_client
-            .produce(
-                "update_customer",
-                &PartitionName::try_from("1").unwrap(),
-                payload.as_bytes(),
-            )
+            .produce("update_customer", payload.as_bytes())
             .unwrap();
     }
 

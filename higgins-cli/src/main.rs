@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use higgins_client::{Client, Response};
-use higgins_shared::PartitionName;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -20,8 +19,6 @@ enum Commands {
     Produce {
         #[arg(long, require_equals = true)]
         topic: String,
-        #[arg(long, require_equals = true)]
-        key: Vec<u8>,
         #[arg(long, require_equals = true)]
         file_name: String,
     },
@@ -77,21 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("Successfully uploaded result!");
         }
-        Commands::Produce {
-            topic,
-            key,
-            file_name,
-        } => {
+        Commands::Produce { topic, file_name } => {
             let payload = std::fs::read(&file_name).unwrap();
 
-            client
-                .produce(
-                    &topic,
-                    &PartitionName::try_from(key.as_slice()).unwrap(),
-                    &payload,
-                )
-                .await
-                .unwrap();
+            client.produce(&topic, &payload).await.unwrap();
 
             let result = client.recv(None).await.unwrap();
 

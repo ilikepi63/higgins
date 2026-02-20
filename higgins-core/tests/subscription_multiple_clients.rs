@@ -6,7 +6,6 @@ use higgins_client::Response;
 use higgins_codec::{
     ClientCount, GetSubscriptionResponse, KeyOffset, ProduceResponse, Record, TakeRecordsResponse,
 };
-use higgins_shared::PartitionName;
 
 mod common;
 
@@ -116,12 +115,7 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
@@ -177,12 +171,7 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
@@ -210,33 +199,36 @@ fn subscription_works_with_multiple_clients() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    assert_eq!(
-        subscription,
-        GetSubscriptionResponse {
-            errors: vec![],
-            stream: Some(STREAM_NAME.to_owned()),
-            subscription_id: Some(sub_id.clone()),
-            offsets: vec![KeyOffset {
-                key: vec![
-                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0,
-                ],
-                last_completed_offset: 2,
-                max_offset: 2,
-                amount_to_take: 0,
-            },],
-            client_counts: vec![
-                ClientCount {
-                    client_id: 2,
-                    count: CONSUME_CLIENT_TWO_COUNT - 1,
-                },
-                ClientCount {
-                    client_id: 1,
-                    count: CONSUME_CLIENT_ONE_COUNT - 1,
-                },
+    dbg!(&subscription);
+
+    let expected = GetSubscriptionResponse {
+        errors: vec![],
+        stream: Some(STREAM_NAME.to_owned()),
+        subscription_id: Some(sub_id.clone()),
+        offsets: vec![KeyOffset {
+            key: vec![
+                49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
             ],
-        }
-    );
+            last_completed_offset: 2,
+            max_offset: 2,
+            amount_to_take: 0,
+        }],
+        client_counts: vec![
+            ClientCount {
+                client_id: 2,
+                count: CONSUME_CLIENT_TWO_COUNT - 1,
+            },
+            ClientCount {
+                client_id: 1,
+                count: CONSUME_CLIENT_ONE_COUNT - 1,
+            },
+        ],
+    };
+
+    dbg!(&expected);
+
+    assert_eq!(subscription, expected);
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }

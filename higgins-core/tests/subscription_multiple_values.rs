@@ -104,12 +104,7 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "FIRST PRODUCE".red());
 
-    produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     let response = recv_until_take(&mut consume_client);
 
@@ -192,12 +187,7 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "SECOND PRODUCE".red());
 
-    let produce_response = produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     println!("Produce Response: {:#?}", produce_response);
 
