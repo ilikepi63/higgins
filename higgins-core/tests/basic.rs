@@ -16,7 +16,7 @@ fn get_dir() -> PathBuf {
 }
 
 static STREAM: &str = "update_customer";
-static PARTITION: &[u8] = "test_partition".as_bytes();
+static PARTITION: &[u8] = "1".as_bytes();
 
 #[test]
 fn can_achieve_basic_broker_functionality() {
@@ -145,5 +145,5 @@ fn can_achieve_basic_broker_functionality() {
         "Doe"
     );
 
-    // std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove).unwrap();
 }

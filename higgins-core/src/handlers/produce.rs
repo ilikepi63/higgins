@@ -95,7 +95,13 @@ pub async fn handle_produce(
 
     tracing::trace!("[PRODUCE] Key: {:#?}", key);
 
-    if let Err(err) = broker.create_partition(&stream_name, &key.as_bytes()).await {
+    if let Err(err) = broker
+        .create_partition(
+            &stream_name,
+            &PartitionName::try_from(key.as_bytes()).unwrap(),
+        )
+        .await
+    {
         tracing::error!("Failed to create partition inside of broker: {:#?}", err);
     };
 
