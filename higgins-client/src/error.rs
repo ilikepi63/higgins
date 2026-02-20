@@ -14,6 +14,8 @@ pub enum HigginsClientError {
     EncodeError(#[from] EncodeError),
     #[error("Missing Payload")]
     MissingPayload,
+    #[error("Too Many Concurrent Requests")]
+    TooManyConcurrentRequests,
     #[error("IOError")]
     IOError(#[from] std::io::Error),
     #[error("Tokio Timeout Elapsed")]

@@ -8,7 +8,18 @@ use higgins_codec::{
 use prost::Message as _;
 
 #[derive(Debug)]
-pub enum Response {
+pub struct ResponseMetadata {
+    pub correlation_id: Option<u64>,
+}
+
+#[derive(Debug)]
+pub struct Response {
+    pub metadata: ResponseMetadata,
+    pub body: ResponseBody,
+}
+
+#[derive(Debug)]
+pub enum ResponseBody {
     CreateConfiguration(CreateConfigurationResponse),
     CreateSubscription(CreateSubscriptionResponse),
     DeleteConfiguration(DeleteConfigurationResponse),
@@ -23,7 +34,7 @@ pub enum Response {
     Acknowledge(AcknowledgeSubscriptionOffsetsResponse),
 }
 
-impl TryFrom<Message> for Response {
+impl TryFrom<Message> for ResponseBody {
     type Error = HigginsClientError;
 
     fn try_from(value: Message) -> Result<Self, Self::Error> {
@@ -31,34 +42,34 @@ impl TryFrom<Message> for Response {
             tracing::error!("Error when trying to convert enum value: {:#?}", err);
             HigginsClientError::UnexpectedMessageReceived(value.r#type)
         })? {
-            Type::Createconfigurationresponse => Ok(Response::CreateConfiguration(
+            Type::Createconfigurationresponse => Ok(ResponseBody::CreateConfiguration(
                 value.create_configuration_response.unwrap(),
             )),
-            Type::Createsubscriptionresponse => Ok(Response::CreateSubscription(
+            Type::Createsubscriptionresponse => Ok(ResponseBody::CreateSubscription(
                 value.create_subscription_response.unwrap(),
             )),
-            Type::Deleteconfigurationresponse => Ok(Response::DeleteConfiguration(
+            Type::Deleteconfigurationresponse => Ok(ResponseBody::DeleteConfiguration(
                 value.delete_configuration_response.unwrap(),
             )),
-            Type::Getindexresponse => Ok(Response::GetIndex(value.get_index_response.unwrap())),
-            Type::Metadataresponse => Ok(Response::Metadata(value.metadata_response.unwrap())),
-            Type::Pong => Ok(Response::Pong(value.pong.unwrap())),
-            Type::Produceresponse => Ok(Response::Produce(value.produce_response.unwrap())),
-            Type::Takerecordsresponse => {
-                Ok(Response::TakeRecords(value.take_records_response.unwrap()))
-            }
-            Type::Uploadmoduleresponse => Ok(Response::UploadModule(
+            Type::Getindexresponse => Ok(ResponseBody::GetIndex(value.get_index_response.unwrap())),
+            Type::Metadataresponse => Ok(ResponseBody::Metadata(value.metadata_response.unwrap())),
+            Type::Pong => Ok(ResponseBody::Pong(value.pong.unwrap())),
+            Type::Produceresponse => Ok(ResponseBody::Produce(value.produce_response.unwrap())),
+            Type::Takerecordsresponse => Ok(ResponseBody::TakeRecords(
+                value.take_records_response.unwrap(),
+            )),
+            Type::Uploadmoduleresponse => Ok(ResponseBody::UploadModule(
                 value.upload_module_response.unwrap(),
             )),
-            Type::Getcurrenttopographyresponse => Ok(Response::GetCurrentTopography(
+            Type::Getcurrenttopographyresponse => Ok(ResponseBody::GetCurrentTopography(
                 value.get_current_topography_response.unwrap(),
             )),
-            Type::Getsubscriptionresponse => Ok(Response::GetSubscription(
+            Type::Getsubscriptionresponse => Ok(ResponseBody::GetSubscription(
                 value.get_subscription_response.unwrap(),
             )),
-            Type::Acknowledgeresponse => {
-                Ok(Response::Acknowledge(value.acknowledge_response.unwrap()))
-            }
+            Type::Acknowledgeresponse => Ok(ResponseBody::Acknowledge(
+                value.acknowledge_response.unwrap(),
+            )),
             _ => Err(HigginsClientError::UnexpectedMessageReceived(value.r#type)),
         }
     }
@@ -82,6 +93,15 @@ impl Client {
 
         let message = Message::decode(slice).unwrap();
 
-        Response::try_from(message)
+        if let Some(id) = message.correlation_id {
+            self.2.remove(id);
+        }
+
+        Ok(Response {
+            metadata: ResponseMetadata {
+                correlation_id: message.correlation_id,
+            },
+            body: ResponseBody::try_from(message)?,
+        })
     }
 }

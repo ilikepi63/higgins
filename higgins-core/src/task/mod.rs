@@ -1,12 +1,7 @@
 //! The primitives for handling asynchronous tasks inside of higgins.
 
-// TODO: Remove this when we integrate this into Higgins.
-#![allow(unused)]
+use std::collections::VecDeque;
 
-use std::{collections::VecDeque, panic::UnwindSafe};
-
-use arrow::compute::kernels::numeric::sub;
-use futures::FutureExt;
 use tokio::task::JoinHandle;
 
 use crate::error::HigginsError;
@@ -21,7 +16,7 @@ pub struct TaskHandler {
 
 impl TaskHandler {
     pub fn new() -> Self {
-        let mut task_handler = Self {
+        let task_handler = Self {
             root: TaskPtr {
                 name: "root".to_string(),
                 handle: None,
@@ -106,9 +101,7 @@ impl TaskHandler {
                     };
                 }
                 None => {
-                    let task_handle = self.spawn_task(config, future);
-                    // task_handler_static_ref.update_task(task_description, task_handle);
-                    // current_task_ptr.handle = Some(task_handle);
+                    self.spawn_task(config, future);
                     break;
                 }
             }
@@ -117,7 +110,7 @@ impl TaskHandler {
         Ok(())
     }
 
-    fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
+    // fn update_task(&mut self, task_description: &TaskDescription, task_handle: JoinHandle<()>) {}
 
     fn spawn_task<F>(&mut self, config: &SpawnTaskConfig, fut: F)
     where
@@ -133,7 +126,7 @@ impl TaskHandler {
         let handle = tokio::spawn(async move {
             tracing::trace!("{:#?} spawning..", task_description_for_task);
 
-            let result = fut.await;
+            let _result = fut.await;
 
             tracing::trace!(
                 "{:#?} completed, Removing from tree..",
@@ -149,28 +142,24 @@ impl TaskHandler {
 
         match config.unique {
             true => {
-                self.get_task_handle_vec(&task_description)
-                    .map(|task| {
-                        let name = task.get_unique_sub_task_name();
+                if let Err(e) = self.get_task_handle_vec(&task_description).map(|task| {
+                    let name = task.get_unique_sub_task_name();
 
-                        task.add_sub_task(TaskPtr {
-                            name,
-                            handle: Some(handle),
-                            tasks: None,
-                        });
-                    })
-                    .inspect_err(|err| {
-                        tracing::error!("Error retrieving task handle: {task_description}");
+                    task.add_sub_task(TaskPtr {
+                        name,
+                        handle: Some(handle),
+                        tasks: None,
                     });
+                }) {
+                    tracing::error!("Task creation failed: {:#?}", e);
+                };
             }
             false => {
-                self.get_task_handle_vec(&task_description)
-                    .map(|task| {
-                        task.handle = Some(handle);
-                    })
-                    .inspect_err(|err| {
-                        tracing::error!("Error retrieving task handle: {task_description}");
-                    });
+                if let Err(e) = self.get_task_handle_vec(&task_description).map(|task| {
+                    task.handle = Some(handle);
+                }) {
+                    tracing::error!("Task creation failed: {:#?}", e);
+                };
             }
         }
 
@@ -305,8 +294,8 @@ impl TaskHandlerReference {
     }
 
     pub unsafe fn abort(&mut self, task_description: &TaskDescription) {
-        unsafe {
-            (*(self.0)).abort(task_description);
+        if let Err(err) = unsafe { (*(self.0)).abort(task_description) } {
+            tracing::error!("Error attempting to abort task: {:#?}", err);
         }
     }
 }
@@ -393,7 +382,7 @@ impl TaskPtr {
                 tasks.push(ptr);
             }
             None => {
-                self.tasks.insert(vec![ptr]);
+                let _ = self.tasks.insert(vec![ptr]);
             }
         }
     }
@@ -447,9 +436,6 @@ impl SpawnTaskConfig {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
-
-    use tokio::sync::oneshot::channel;
 
     use super::*;
 
@@ -768,18 +754,20 @@ mod test {
 
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
 
-        task_handler.spawn(
-            &SpawnTaskConfig {
-                description: TaskDescription("some::".to_string()),
-                unique: false,
-            },
-            async move {
-                tx.send(()); // send to this channel so we know that this was executed.
-            },
-        );
+        task_handler
+            .spawn(
+                &SpawnTaskConfig {
+                    description: TaskDescription("some::".to_string()),
+                    unique: false,
+                },
+                async move {
+                    tx.send(()).unwrap(); // send to this channel so we know that this was executed.
+                },
+            )
+            .unwrap();
 
         // Pause this task so that the spawned one can operate.
-        rx.await; // Await the spawn.
+        rx.await.unwrap(); // Await the spawn.
 
         // Assert that the task handle vec for this hierarchy has
         // an empty task (the "what" task ptr has removed itself.)

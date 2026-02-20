@@ -1,7 +1,7 @@
 mod common;
 
 use higgins::run_server_returning;
-use higgins_client::Response;
+use higgins_client::ResponseBody;
 use std::{path::PathBuf, time::Duration};
 
 use common::get_random_port;
@@ -44,8 +44,8 @@ fn can_achieve_basic_topography_retrieval() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv(None).unwrap() {
-        Response::CreateConfiguration(_) => {
+    match client.recv(None).unwrap().body {
+        ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -53,8 +53,8 @@ fn can_achieve_basic_topography_retrieval() {
 
     client.get_current_topography().unwrap();
 
-    let first_response = match client.recv(None).unwrap() {
-        Response::GetCurrentTopography(topography) => {
+    let first_response = match client.recv(None).unwrap().body {
+        ResponseBody::GetCurrentTopography(topography) => {
             let value: toml::Value = toml::from_slice(&topography.data).unwrap();
             value
         }
@@ -67,8 +67,8 @@ fn can_achieve_basic_topography_retrieval() {
 
     client.get_current_topography().unwrap();
 
-    let second_response = match client.recv(None).unwrap() {
-        Response::GetCurrentTopography(topography) => {
+    let second_response = match client.recv(None).unwrap().body {
+        ResponseBody::GetCurrentTopography(topography) => {
             let value: toml::Value = toml::from_slice(&topography.data).unwrap();
             value
         }

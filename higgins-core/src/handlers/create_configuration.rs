@@ -54,6 +54,7 @@ pub async fn handle_create_configuration(
             let mut result = BytesMut::new();
 
             Message {
+                correlation_id: message.correlation_id,
                 r#type: Type::Createconfigurationresponse as i32,
                 create_configuration_response: Some(create_configuration_response),
                 ..Default::default()
@@ -72,6 +73,7 @@ pub async fn handle_create_configuration(
         let mut result = BytesMut::new();
 
         Message {
+            correlation_id: message.correlation_id,
             r#type: Type::Createconfigurationresponse as i32,
             create_configuration_response: Some(create_configuration_response),
             ..Default::default()

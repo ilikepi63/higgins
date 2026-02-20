@@ -3,7 +3,7 @@ mod common;
 use std::{path::PathBuf, time::Duration};
 
 use higgins::{run_server, storage::arrow_ipc::read_arrow};
-use higgins_client::Response;
+use higgins_client::ResponseBody;
 use higgins_shared::PartitionName;
 
 use common::get_random_port;
@@ -42,8 +42,8 @@ fn can_achieve_basic_broker_functionality() {
     // 1. Do a basic Ping test.
     client.ping().unwrap();
 
-    match client.recv(None).unwrap() {
-        Response::Pong(_) => {
+    match client.recv(None).unwrap().body {
+        ResponseBody::Pong(_) => {
             println!("Retrieved Pong!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -53,8 +53,8 @@ fn can_achieve_basic_broker_functionality() {
     let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv(None).unwrap() {
-        Response::CreateConfiguration(_) => {
+    match client.recv(None).unwrap().body {
+        ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -65,8 +65,8 @@ fn can_achieve_basic_broker_functionality() {
 
     client.produce(STREAM, payload.as_bytes()).unwrap();
 
-    match client.recv(Some(Duration::from_secs(1))).unwrap() {
-        Response::Produce(_) => {
+    match client.recv(Some(Duration::from_secs(1))).unwrap().body {
+        ResponseBody::Produce(_) => {
             println!("Retrieved Produce!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -82,8 +82,8 @@ fn can_achieve_basic_broker_functionality() {
 
     let result = client
         .recv(Some(Duration::from_secs(1)))
-        .map(|res| match res {
-            Response::GetIndex(get_index_result) => get_index_result.records,
+        .map(|res| match res.body {
+            ResponseBody::GetIndex(get_index_result) => get_index_result.records,
             _ => panic!("Got an unexpect result."),
         });
 

@@ -72,6 +72,7 @@ pub async fn handle_get_index(
                 let mut result = BytesMut::new();
 
                 Message {
+                    correlation_id: message.correlation_id,
                     r#type: Type::Getindexresponse as i32,
                     get_index_response: Some(response),
                     ..Default::default()
@@ -106,6 +107,7 @@ pub async fn handle_get_index(
                     let mut result = BytesMut::new();
 
                     Message {
+                        correlation_id: message.correlation_id,
                         r#type: Type::Getindexresponse as i32,
                         get_index_response: Some(index_response),
                         ..Default::default()
@@ -124,6 +126,7 @@ pub async fn handle_get_index(
                 error.set_type(higgins_codec::error::Type::Unimplemented);
 
                 Message {
+                    correlation_id: message.correlation_id,
                     r#type: Type::Error as i32,
                     error: Some(error),
                     ..Default::default()

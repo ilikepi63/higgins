@@ -11,4 +11,4 @@ pub mod blocking;
 mod client;
 
 pub use client::Client;
-pub use recv::Response;
+pub use recv::*;

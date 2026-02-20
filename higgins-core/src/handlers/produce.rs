@@ -128,6 +128,7 @@ pub async fn handle_produce(
     let resp = ProduceResponse::default();
 
     Message {
+        correlation_id: message.correlation_id,
         r#type: Type::Produceresponse as i32,
         produce_response: Some(resp),
         ..Default::default()

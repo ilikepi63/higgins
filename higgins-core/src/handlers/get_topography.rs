@@ -8,7 +8,11 @@ use tokio::sync::RwLock;
 use crate::broker::Broker;
 use tokio::sync::mpsc::Sender;
 
-pub async fn handle_get_topography(broker: Arc<RwLock<Broker>>, writer_tx: Sender<BytesMut>) {
+pub async fn handle_get_topography(
+    message: Message,
+    broker: Arc<RwLock<Broker>>,
+    writer_tx: Sender<BytesMut>,
+) {
     tracing::info!("We're trying to get the lock.");
 
     let broker = broker.read().await;
@@ -22,6 +26,7 @@ pub async fn handle_get_topography(broker: Arc<RwLock<Broker>>, writer_tx: Sende
     match topography_config {
         Ok(topography_config) => {
             Message {
+                correlation_id: message.correlation_id,
                 r#type: Type::Getcurrenttopographyresponse as i32,
                 get_current_topography_response: Some(GetCurrentTopographyResponse {
                     data: topography_config.into_bytes(),
@@ -36,6 +41,7 @@ pub async fn handle_get_topography(broker: Arc<RwLock<Broker>>, writer_tx: Sende
         Err(err) => {
             tracing::error!("Error occurred when trying to get topography: {:#?}", err);
             Message {
+                correlation_id: message.correlation_id,
                 r#type: Type::Error as i32,
                 error: Some(Error { r#type: 2 }),
                 ..Default::default()

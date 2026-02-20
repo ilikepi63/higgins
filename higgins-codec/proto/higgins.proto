@@ -235,4 +235,6 @@ message Message {
 
   optional AcknowledgeSubscriptionOffsetsRequest acknowledgeRequest = 25;
   optional AcknowledgeSubscriptionOffsetsResponse acknowledgeResponse = 26;
+
+  optional uint64 correlationId = 27;
 }

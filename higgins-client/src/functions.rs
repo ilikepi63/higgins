@@ -10,6 +10,7 @@ pub async fn upload_module<
 >(
     name: &str,
     wasm: &[u8],
+    request_id: u64,
     socket: &mut S,
 ) -> Result<(), HigginsClientError> {
     let mut write_buf = BytesMut::new();
@@ -22,6 +23,7 @@ pub async fn upload_module<
     Message {
         r#type: Type::Uploadmodulerequest as i32,
         upload_module_request: Some(request),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;

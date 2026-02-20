@@ -3,7 +3,7 @@ use higgins_codec::{Message, Pong, message::Type};
 use prost::Message as _;
 use tokio::sync::mpsc::Sender;
 
-pub async fn handle_ping(writer_tx: Sender<BytesMut>) {
+pub async fn handle_ping(message: Message, writer_tx: Sender<BytesMut>) {
     tracing::trace!("Received Ping, sending Pong.");
 
     let mut result = BytesMut::new();
@@ -11,6 +11,7 @@ pub async fn handle_ping(writer_tx: Sender<BytesMut>) {
     let pong = Pong::default();
 
     Message {
+        correlation_id: message.correlation_id,
         r#type: Type::Pong as i32,
         pong: Some(pong),
         ..Default::default()
