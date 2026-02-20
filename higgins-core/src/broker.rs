@@ -28,15 +28,10 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 pub struct Broker {
     dir: PathBuf,
     streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
-    // pub object_store: Option<Arc<dyn ObjectStore>>,
 
     // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
     broker_indexes: Vec<(String, Vec<u8>, std::sync::Arc<tokio::sync::Mutex<()>>)>,
-    // // pub flush_interval_in_ms: u64,
-    // pub segment_size_in_bytes: u64,
-    // collection: MutableCollection,
-    // flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
     pub backing_store: Option<Arc<dyn BackingStore<Error = HigginsError>>>,
 
     // Subscriptions.

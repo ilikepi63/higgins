@@ -149,7 +149,7 @@ impl<'a> IndexesView<'a> {
         Some(&self.buffer[(self.count() - 1) * self.element_size..])
     }
 
-    // Finds an index by timestamp using binary search
+    /// Finds an index by timestamp using binary search
     /// If an exact match isn't found, returns the index with the nearest timestamp
     /// that is greater than or equal to the requested timestamp
     pub fn find_by_timestamp(&'a self, timestamp: u64) -> Option<Index<'a>> {

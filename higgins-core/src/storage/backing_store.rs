@@ -174,26 +174,5 @@ async fn flush(
         .put(&path_string, PutPayload::from_bytes(buf))
         .await?;
 
-    // TODO: assert put_result has the correct response?
-
-    // TODO: The responses here?
-    // let put_result = index_dir
-    //     .commit_file(
-    //         path.into_bytes(),
-    //         1,
-    //         buf_size.try_into()?,
-    //         batch_coords
-    //             .iter()
-    //             .map(CommitBatchRequest::from)
-    //             .collect::<Vec<_>>(),
-    //         broker,
-    //     )
-    //     .await;
-
-    // Ok(put_result
-    //     .iter()
-    //     .map(ProduceResponse::from)
-    //     .collect::<Vec<_>>())
-
     Ok(batch_coords)
 }

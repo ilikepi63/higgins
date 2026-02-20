@@ -141,14 +141,6 @@ impl TaskHandler {
             );
 
             unsafe { handler_ptr.abort(&task_description_for_task) };
-
-            // match result {
-            //     Ok(result) => {
-            //     }
-            //     Err(err) => {
-            //         tracing::error!("Received an error during ");
-            //     }
-            // }
         });
 
         tracing::trace!("Updating the handle in the task_description..");

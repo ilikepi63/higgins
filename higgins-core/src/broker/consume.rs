@@ -234,10 +234,4 @@ impl Broker {
 
         Ok(batch_reponse_rx)
     }
-
-    // pub async fn dereference_find_batch_response(
-    //     &self,
-    //     batch_response: FindBatchResponse,
-    // ) -> Result<ConsumeResponse, HigginsError> {
-    // }
 }
