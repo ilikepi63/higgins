@@ -61,7 +61,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                 match Type::try_from(message.r#type).unwrap() {
                     Type::Ping => {
-                        handlers::handle_ping(writer_tx.clone()).await;
+                        handlers::handle_ping(message, writer_tx.clone()).await;
                     }
                     Type::Createsubscriptionrequest => {
                         handlers::handle_create_subscription(
@@ -101,7 +101,8 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                     Type::Metadatarequest => todo!(),
                     Type::Getcurrenttopographyrequest => {
-                        handlers::handle_get_topography(broker.clone(), writer_tx.clone()).await;
+                        handlers::handle_get_topography(message, broker.clone(), writer_tx.clone())
+                            .await;
                     }
                     Type::Getsubscriptionrequest => {
                         handlers::handle_get_subscription(
@@ -129,8 +130,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     | Type::Getcurrenttopographyresponse
                     | Type::Getsubscriptionresponse
                     | Type::Acknowledgeresponse => {
-                        handlers::errors::handle_incorrect_message_received(writer_tx.clone())
-                            .await;
+                        handlers::errors::handle_incorrect_message_received(
+                            message,
+                            writer_tx.clone(),
+                        )
+                        .await;
                     }
                 }
             }

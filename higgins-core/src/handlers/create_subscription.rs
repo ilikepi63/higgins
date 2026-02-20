@@ -35,6 +35,7 @@ pub async fn handle_create_subscription(
     let mut result = BytesMut::new();
 
     Message {
+        correlation_id: message.correlation_id,
         r#type: Type::Createsubscriptionresponse as i32,
         create_subscription_response: Some(resp),
         ..Default::default()

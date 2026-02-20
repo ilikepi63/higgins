@@ -33,6 +33,7 @@ pub async fn handle_get_subscription(
             let mut result = BytesMut::new();
 
             Message {
+                correlation_id: message.correlation_id,
                 r#type: Type::Getsubscriptionresponse as i32,
                 get_subscription_response: Some(GetSubscriptionResponse {
                     errors: vec![],
@@ -104,6 +105,7 @@ pub async fn handle_acknowledge(
         let mut result = BytesMut::new();
 
         Message {
+            correlation_id: message.correlation_id,
             r#type: Type::Acknowledgeresponse as i32,
             acknowledge_response: Some(AcknowledgeSubscriptionOffsetsResponse {
                 stream,

@@ -28,6 +28,7 @@ pub async fn handle_upload_module(
     let response = UploadModuleResponse::default();
 
     Message {
+        correlation_id: message.correlation_id,
         r#type: Type::Uploadmoduleresponse as i32,
         upload_module_response: Some(response),
         ..Default::default()
