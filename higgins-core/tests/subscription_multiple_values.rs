@@ -3,7 +3,7 @@ use std::{env::temp_dir, time::Duration};
 use crate::common::get_random_port;
 use colored::Colorize;
 use higgins::run_server;
-use higgins_client::Response;
+use higgins_client::ResponseBody;
 use higgins_codec::{
     AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
     Record, TakeRecordsResponse,
@@ -55,8 +55,12 @@ fn can_update_subscription_with_multiple_values() {
         .upload_configuration(config.as_bytes())
         .unwrap();
 
-    match produce_client.recv(Some(Duration::from_secs(1))).unwrap() {
-        Response::CreateConfiguration(_) => {
+    match produce_client
+        .recv(Some(Duration::from_secs(1)))
+        .unwrap()
+        .body
+    {
+        ResponseBody::CreateConfiguration(_) => {
             tracing::info!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),

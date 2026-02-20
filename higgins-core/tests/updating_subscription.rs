@@ -6,7 +6,7 @@ use std::{
 
 use crate::common::get_random_port;
 use higgins::run_server;
-use higgins_client::Response;
+use higgins_client::ResponseBody;
 
 mod common;
 
@@ -48,8 +48,8 @@ fn can_update_subscription_after_created() {
         .upload_configuration(config.as_bytes())
         .unwrap();
 
-    match produce_client.recv(None).unwrap() {
-        Response::CreateConfiguration(_) => {
+    match produce_client.recv(None).unwrap().body {
+        ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -60,8 +60,8 @@ fn can_update_subscription_after_created() {
         .create_subscription("update_customer".as_bytes())
         .unwrap();
 
-    let sub_id = match produce_client.recv(None).unwrap() {
-        Response::CreateSubscription(create_subscription_response) => {
+    let sub_id = match produce_client.recv(None).unwrap().body {
+        ResponseBody::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
         _ => panic!("Retrieved unexpected result."),
@@ -87,8 +87,8 @@ fn can_update_subscription_after_created() {
 
             let response = consume_client.recv(None).unwrap();
 
-            match response {
-                Response::TakeRecords(response) => {
+            match response.body {
+                ResponseBody::TakeRecords(response) => {
                     let mut result_vec = result_vec.lock().unwrap();
 
                     for record in response.records.iter() {
@@ -100,7 +100,7 @@ fn can_update_subscription_after_created() {
                         }
                     }
                 }
-                Response::Produce(response) => {
+                ResponseBody::Produce(response) => {
                     tracing::info!("Received produce response: {:#?}", response);
                 }
                 _ => {

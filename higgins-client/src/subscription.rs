@@ -13,6 +13,7 @@ pub async fn create_subscription<
     T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
     stream: &[u8],
+    request_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let create_subscription = CreateSubscriptionRequest {
@@ -26,6 +27,7 @@ pub async fn create_subscription<
 
     Message {
         r#type: Type::Createsubscriptionrequest as i32,
+        correlation_id: Some(request_id),
         create_subscription_request: Some(create_subscription),
         ..Default::default()
     }
@@ -36,33 +38,13 @@ pub async fn create_subscription<
     frame.try_write_async(socket).await?;
 
     Ok(())
-
-    // let frame = Frame::try_read_async(socket).await?;
-
-    // let slice = frame.inner();
-
-    // let message = Message::decode(slice).unwrap();
-
-    // match Type::try_from(message.r#type).unwrap() {
-    //     Type::Createsubscriptionresponse => {
-    //         let sub_id = message
-    //             .create_subscription_response
-    //             .ok_or(HigginsClientError::MissingPayload)?
-    //             .subscription_id;
-
-    //         Ok(sub_id.ok_or(HigginsClientError::MissingPayload)?)
-    //     }
-    //     _ => Err(HigginsClientError::IncorrectResponseReceived(
-    //         Type::Createsubscriptionresponse.as_str_name().to_string(),
-    //         message.r#type().as_str_name().to_string(),
-    //     )),
-    // }
 }
 
 pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin>(
     sub_id: Vec<u8>,
     stream_name: &[u8],
     n: u64,
+    request_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let take_request = TakeRecordsRequest {
@@ -76,6 +58,7 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
     Message {
         r#type: Type::Takerecordsrequest as i32,
         take_records_request: Some(take_request),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)
@@ -93,6 +76,7 @@ pub async fn get_subscription<
 >(
     sub_id: &[u8],
     stream: &str,
+    request_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let req = GetSubscriptionRequest {
@@ -105,6 +89,7 @@ pub async fn get_subscription<
     Message {
         r#type: Type::Getsubscriptionrequest as i32,
         get_subscription_request: Some(req),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)
@@ -123,6 +108,7 @@ pub async fn acknowledge<
     sub_id: &[u8],
     stream: &str,
     offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
+    request_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let req = AcknowledgeSubscriptionOffsetsRequest {
@@ -145,6 +131,7 @@ pub async fn acknowledge<
     Message {
         r#type: Type::Acknowledgerequest as i32,
         acknowledge_request: Some(req),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)

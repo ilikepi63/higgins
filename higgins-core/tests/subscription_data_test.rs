@@ -2,7 +2,7 @@ use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;
-use higgins_client::Response;
+use higgins_client::ResponseBody;
 
 mod common;
 
@@ -42,8 +42,8 @@ fn can_retrieve_data_from_subscription() {
 
     client.upload_configuration(config.as_bytes()).unwrap();
 
-    match client.recv(None).unwrap() {
-        Response::CreateConfiguration(_) => {
+    match client.recv(None).unwrap().body {
+        ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
@@ -52,8 +52,8 @@ fn can_retrieve_data_from_subscription() {
     // Start a subscription on that stream.
     client.create_subscription(STREAM_NAME.as_bytes()).unwrap();
 
-    let sub_id = match client.recv(None).unwrap() {
-        Response::CreateSubscription(create_subscription_response) => {
+    let sub_id = match client.recv(None).unwrap().body {
+        ResponseBody::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
         _ => panic!("Retrieved unexpected result."),
@@ -62,8 +62,8 @@ fn can_retrieve_data_from_subscription() {
     client.get_subscription(STREAM_NAME, &sub_id).unwrap();
 
     // Basically asserts that a Getsubscription request was returned
-    match client.recv(None).unwrap() {
-        Response::GetSubscription(_) => {}
+    match client.recv(None).unwrap().body {
+        ResponseBody::GetSubscription(_) => {}
         _ => panic!("Retrieved unexpected result."),
     };
 

@@ -10,6 +10,7 @@ pub async fn upload_configuration<
     S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
     config: &[u8],
+    request_id: u64,
     socket: &mut S,
 ) -> Result<(), HigginsClientError> {
     let mut write_buf = BytesMut::new();
@@ -21,6 +22,7 @@ pub async fn upload_configuration<
     Message {
         r#type: Type::Createconfigurationrequest as i32,
         create_configuration_request: Some(create_config_req),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;
@@ -35,6 +37,7 @@ pub async fn upload_configuration<
 pub async fn get_current_topography<
     S: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
 >(
+    request_id: u64,
     socket: &mut S,
 ) -> Result<(), HigginsClientError> {
     let mut write_buf = BytesMut::new();
@@ -44,6 +47,7 @@ pub async fn get_current_topography<
     Message {
         r#type: Type::Getcurrenttopographyrequest as i32,
         get_current_topography_request: Some(req),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;

@@ -11,6 +11,7 @@ pub async fn query_by_timestamp<
 >(
     stream: &[u8],
     partition: &PartitionName,
+    request_id: u64,
     socket: &mut T,
     timestamp: u64,
 ) -> Result<(), HigginsClientError> {
@@ -30,6 +31,7 @@ pub async fn query_by_timestamp<
     Message {
         r#type: Type::Getindexrequest as i32,
         get_index_request: Some(request),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;
@@ -38,23 +40,6 @@ pub async fn query_by_timestamp<
     frame.try_write_async(socket).await?;
 
     Ok(())
-
-    // let frame = Frame::try_read_async(socket).await?;
-
-    // let slice = frame.inner();
-
-    // let message = Message::decode(slice).unwrap();
-
-    // let result = match Type::try_from(message.r#type).unwrap() {
-    //     Type::Getindexresponse => {
-    //         let response = message.get_index_response.unwrap();
-
-    //         response.records
-    //     }
-    //     _ => panic!("Received incorrect response from server for Create Subscription request."),
-    // };
-
-    // Ok(result)
 }
 
 #[allow(unused)]
@@ -63,6 +48,7 @@ pub async fn query_latest<
 >(
     stream: &[u8],
     partition: &PartitionName,
+    request_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let request = GetIndexRequest {
@@ -81,6 +67,7 @@ pub async fn query_latest<
     Message {
         r#type: Type::Getindexrequest as i32,
         get_index_request: Some(request),
+        correlation_id: Some(request_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;
@@ -90,20 +77,4 @@ pub async fn query_latest<
     frame.try_write_async(socket).await?;
 
     Ok(())
-
-    // let frame = Frame::try_read_async(socket).await?;
-
-    // let slice = frame.inner();
-
-    // let message = Message::decode(slice).unwrap();
-    // let result = match Type::try_from(message.r#type).unwrap() {
-    //     Type::Getindexresponse => {
-    //         let response = message.get_index_response.unwrap();
-
-    //         response.records
-    //     }
-    //     _ => panic!("Received incorrect response from server for Create Subscription request."),
-    // };
-
-    // Ok(result)
 }

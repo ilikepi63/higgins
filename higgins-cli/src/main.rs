@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
-use higgins_client::{Client, Response};
+use higgins_client::{Client, ResponseBody};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -52,8 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let result = client.recv(None).await.unwrap();
 
-            match result {
-                Response::Pong(_) => {
+            match result.body {
+                ResponseBody::Pong(_) => {
                     println!("Pong!");
                 }
                 _ => {
