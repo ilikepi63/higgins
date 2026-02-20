@@ -36,15 +36,10 @@ pub async fn create_join_operator(
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) {
-    tracing::trace!("Setting up Join Operator for definition: {:#?}", definition);
-    // We leak this handle. This is primarily so that we can access this handle from multiple
-    // tasks without having to use a form a reference checking.
-    // let operator: &'static mut JoinOperatorHandle = Box::leak(Box::new(JoinOperatorHandle {
-    //     is_working: AtomicBool::new(true),
-    //     handles: Vec::with_capacity(INITIAL_SIZE_OF_HANDLE_VEC),
-    // }));
-
-    tracing::trace!("Created the join operator struct.");
+    tracing::trace!(
+        "[JOIN] Setting up Join Operator for definition: {:#?}",
+        definition.base.0
+    );
 
     // Redefined for movements.
     let amalgamate_definition = definition.clone();
@@ -59,10 +54,10 @@ pub async fn create_join_operator(
         // Create the actual derived stream.
         broker.create_stream(&definition.base.0.as_bytes(), schema.clone());
 
-        tracing::trace!("Successfully created the stream definition inside of the broker.");
+        tracing::trace!("[JOIN] Successfully created the stream definition inside of the broker.");
     };
 
-    tracing::trace!("Successfully created the join stream.");
+    tracing::trace!("[JOIN] Successfully created the join stream.");
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
@@ -101,6 +96,8 @@ pub async fn create_join_operator(
                     )
                     .await
                     .unwrap();
+
+                    tracing::trace!("Retrieved offsets {:#?} from {client_id}.", offsets);
 
                     derivative_channel_tx
                         .send((i, offsets))
@@ -559,19 +556,20 @@ async fn eager_take_from_subscription_or_wait(
                     "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
                 );
                 let taken = lock.take(N)?;
-                tracing::trace!("[EAGER TAKE] Exiting the eager take.");
+                tracing::trace!("[EAGER TAKE] Retrieved {:#?}", taken);
 
                 // TODO: this likely should be removed and added once the join stream has been implemented.
                 // Because we don't have shadow acknowledgements, we can't really support this right now.
                 for (key, offset) in taken.iter() {
-                    lock.acknowledge(
+                    if let Err(err) = lock.acknowledge(
                         key,
                         &std::ops::Range {
                             start: *offset,
-                            end: offset + 1,
+                            end: *offset,
                         },
-                    )
-                    .unwrap();
+                    ) {
+                        tracing::error!("{:#?} when trying to acknowledge the partition.", err);
+                    };
                 }
 
                 taken
