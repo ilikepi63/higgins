@@ -17,13 +17,8 @@ impl Client {
         Ok(Self(client, rt))
     }
 
-    pub fn produce(
-        &mut self,
-        stream: &str,
-        partition: &PartitionName,
-        payload: &[u8],
-    ) -> Result<(), HigginsClientError> {
-        self.1.block_on(self.0.produce(stream, partition, payload))
+    pub fn produce(&mut self, stream: &str, payload: &[u8]) -> Result<(), HigginsClientError> {
+        self.1.block_on(self.0.produce(stream, payload))
     }
 
     pub fn take(

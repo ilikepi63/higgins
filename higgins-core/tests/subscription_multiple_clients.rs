@@ -6,7 +6,6 @@ use higgins_client::Response;
 use higgins_codec::{
     ClientCount, GetSubscriptionResponse, KeyOffset, ProduceResponse, Record, TakeRecordsResponse,
 };
-use higgins_shared::PartitionName;
 
 mod common;
 
@@ -116,12 +115,7 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
@@ -177,12 +171,7 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(
-        &mut produce_client,
-        STREAM_NAME,
-        &PartitionName::try_from("1").unwrap(),
-        PAYLOAD.as_bytes(),
-    );
+    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 

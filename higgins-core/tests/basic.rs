@@ -63,13 +63,7 @@ fn can_achieve_basic_broker_functionality() {
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    client
-        .produce(
-            STREAM,
-            &PartitionName::try_from(PARTITION).unwrap(),
-            payload.as_bytes(),
-        )
-        .unwrap();
+    client.produce(STREAM, payload.as_bytes()).unwrap();
 
     match client.recv(None).unwrap() {
         Response::Produce(_) => {

@@ -26,7 +26,6 @@ pub fn produce<T: std::io::Read + std::io::Write>(
     socket: &mut T,
 ) {
     let produce_request = ProduceRequest {
-        partition_key: partition.0.to_vec(),
         payload: payload.to_vec(),
         stream_name: stream.to_vec(),
     };

@@ -62,10 +62,9 @@ pub fn create_subscription(
 pub fn produce(
     client: &mut higgins_client::blocking::Client,
     stream: &str,
-    partition: &PartitionName,
     payload: &[u8],
 ) -> higgins_codec::ProduceResponse {
-    client.produce(stream, partition, payload).unwrap();
+    client.produce(stream, payload).unwrap();
 
     match client.recv(None).unwrap() {
         Response::Produce(response) => {
