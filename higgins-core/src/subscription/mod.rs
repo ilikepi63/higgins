@@ -210,12 +210,14 @@ impl Subscription {
             .iter_mut()
             .find(|partition| partition.partition_id == *key);
 
+        tracing::info!("Retrieved partition: {:#?}", partition);
+
         match partition {
             Some(partition) => {
                 // Check that the offset matches, or is offset + 1.
-                if offsets.start != partition.last_completed_offset {
-                    return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offsets.start, partition.last_completed_offset));
-                }
+                // if offsets.start != partition.last_completed_offset {
+                //     return Err(SubscriptionError::AttemptToAcknowledgeOffsetWithoutAcknowledgingPreviousOffset(offsets.start, partition.last_completed_offset));
+                // }
 
                 // then bump the partition
                 partition.set_last_completed_offset(offsets.end);

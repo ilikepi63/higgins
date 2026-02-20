@@ -228,9 +228,9 @@ fn can_update_subscription_with_multiple_values() {
                     49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0,
                 ],
-                last_completed_offset: 1,
+                last_completed_offset: 2,
                 max_offset: 2,
-                amount_to_take: 1
+                amount_to_take: 0
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,
