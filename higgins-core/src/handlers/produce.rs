@@ -44,6 +44,8 @@ pub async fn handle_produce(
 
     let key = &stream_definition.partition_key;
 
+    tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
+
     let key = String::from_utf8(key.as_bytes().to_vec()).unwrap();
 
     let key_type = schema.field_with_name(&key).unwrap().data_type();
@@ -54,6 +56,8 @@ pub async fn handle_produce(
             .index_of(&String::from_utf8(key.as_bytes().to_vec()).unwrap())
             .unwrap(),
     );
+
+    tracing::trace!("[PRODUCE] Array: {:#?}", array);
 
     let key = match key_type {
         // DataType::Int8 => {
@@ -88,6 +92,8 @@ pub async fn handle_produce(
         }
         _ => unimplemented!(),
     };
+
+    tracing::trace!("[PRODUCE] Key: {:#?}", key);
 
     if let Err(err) = broker.create_partition(&stream_name, &key.as_bytes()).await {
         tracing::error!("Failed to create partition inside of broker: {:#?}", err);

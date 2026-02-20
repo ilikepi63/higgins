@@ -65,7 +65,7 @@ fn can_achieve_basic_broker_functionality() {
 
     client.produce(STREAM, payload.as_bytes()).unwrap();
 
-    match client.recv(None).unwrap() {
+    match client.recv(Some(Duration::from_secs(1))).unwrap() {
         Response::Produce(_) => {
             println!("Retrieved Produce!");
         } //create_subscription_response.subscription_id.unwrap(),
@@ -80,10 +80,12 @@ fn can_achieve_basic_broker_functionality() {
         )
         .unwrap();
 
-    let result = client.recv(None).map(|res| match res {
-        Response::GetIndex(get_index_result) => get_index_result.records,
-        _ => panic!("Got an unexpect result."),
-    });
+    let result = client
+        .recv(Some(Duration::from_secs(1)))
+        .map(|res| match res {
+            Response::GetIndex(get_index_result) => get_index_result.records,
+            _ => panic!("Got an unexpect result."),
+        });
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 
@@ -143,5 +145,5 @@ fn can_achieve_basic_broker_functionality() {
         "Doe"
     );
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    // std::fs::remove_dir_all(dir_remove).unwrap();
 }
