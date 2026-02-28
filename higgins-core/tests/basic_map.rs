@@ -44,10 +44,7 @@ fn can_implement_basic_map() {
     client
         .upload_module(
             "map",
-            &std::fs::read(
-                "tests/functions/basic-map/target/wasm32-unknown-unknown/release/basic_map.wasm",
-            )
-            .unwrap(),
+            &std::fs::read("tests/functions/basic_map.wasm").unwrap(),
         )
         .unwrap();
 
