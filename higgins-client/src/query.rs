@@ -78,3 +78,41 @@ pub async fn query_latest<
 
     Ok(())
 }
+
+#[allow(unused)]
+pub async fn query_at<
+    T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::marker::Unpin,
+>(
+    stream: &[u8],
+    partition: &PartitionName,
+    offset: u64,
+    request_id: u64,
+    socket: &mut T,
+) -> Result<(), HigginsClientError> {
+    let request = GetIndexRequest {
+        indexes: vec![Index {
+            r#type: higgins_codec::index::Type::Offset.into(),
+            stream: stream.to_owned(),
+            partition: partition.0.to_vec(),
+            timestamp: None,
+            index: Some(offset),
+        }],
+    };
+
+    let mut write_buf = BytesMut::new();
+    let mut read_buf = BytesMut::zeroed(8048);
+
+    Message {
+        r#type: Type::Getindexrequest as i32,
+        get_index_request: Some(request),
+        correlation_id: Some(request_id),
+        ..Default::default()
+    }
+    .encode(&mut write_buf)?;
+
+    let frame = Frame::new(write_buf.to_vec());
+
+    frame.try_write_async(socket).await?;
+
+    Ok(())
+}

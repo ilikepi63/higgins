@@ -52,6 +52,15 @@ impl Client {
         self.1.block_on(self.0.query_latest(stream, partition))
     }
 
+    pub fn query_at(
+        &mut self,
+        stream: &[u8],
+        partition: &PartitionName,
+        offset: u64,
+    ) -> Result<(), HigginsClientError> {
+        self.1.block_on(self.0.query_at(stream, partition, offset))
+    }
+
     pub fn create_subscription(&mut self, stream: &[u8]) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.create_subscription(stream))
     }
