@@ -1,19 +1,12 @@
-use crate::common::{
-    configuration::upload_configuration, functions::upload_module_sync, ping::ping_sync,
-    produce_sync, query::query_latest,
-};
 use arrow::array::AsArray;
 use arrow::datatypes::Int32Type;
 use common::get_random_port;
-use get_port::{Ops, Range, tcp::TcpPort};
 use higgins::run_server;
 use higgins::storage::arrow_ipc::read_arrow;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
-use higgins_codec::GetIndexResponse;
 use higgins_shared::PartitionName;
-use serde_json::json;
-use std::{env::temp_dir, net::TcpStream, time::Duration};
+use std::{env::temp_dir, time::Duration};
 
 mod common;
 
