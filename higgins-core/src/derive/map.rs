@@ -3,7 +3,6 @@ use tokio::sync::RwLock;
 
 use crate::{
     broker::Broker,
-    // client::ClientRef,
     derive::utils::get_partition_key_from_record_batch,
     error::HigginsError,
     functions::map::run_map_function,
@@ -72,16 +71,30 @@ pub async fn create_mapped_stream_from_definition(
                         .consume(&left_stream_name, &partition, offset, 50_000)
                         .await;
 
+                    let mut records = vec![];
+
                     for val in consumption {
                         let val = val.await.unwrap();
-                        tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
+                        records.push(val);
+                    }
+
+                    drop(broker_lock);
+
+                    for val in records {
+                        tracing::trace!("[DERIVED TAKE] Received consume Response");
 
                         let stream_reader = read_arrow(&val);
 
                         let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
+                        tracing::trace!("[DERIVED TAKE] Iterating through batches..");
+
                         for record_batch in batches {
+                            tracing::trace!("[DERIVED TAKE] Awaiting the broker lock..");
+
                             let mut broker_lock = left_broker.write().await;
+
+                            tracing::trace!("[DERIVED TAKE] We are reading the stream values in..");
 
                             for index in 0..record_batch.num_rows() {
                                 let partition_val = get_partition_key_from_record_batch(
@@ -97,7 +110,16 @@ pub async fn create_mapped_stream_from_definition(
                                     .get_function(stream_def.function_name.as_ref().unwrap())
                                     .await;
 
+                                tracing::trace!("[DERIVED TAKE] We have fetched the module.");
+
                                 let mapped_record_batch = run_map_function(&record_batch, module);
+
+                                tracing::trace!(
+                                    "[DERIVED TAKE] Result from mapping: {:#?}",
+                                    mapped_record_batch
+                                );
+
+                                tracing::trace!("[DERIVED TAKE] Producing to the stream..");
 
                                 let result = broker_lock
                                     .produce(
