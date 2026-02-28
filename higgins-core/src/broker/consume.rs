@@ -119,7 +119,6 @@ impl Broker {
         stream: &[u8],
         partition: &PartitionName,
         offset: u64,
-        //broker: Arc<tokio::sync::RwLock<Broker>>,
     ) -> Result<Option<Vec<u8>>, HigginsError> {
         let stream_def = self
             .topography
