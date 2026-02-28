@@ -4,7 +4,7 @@ use crate::{
     functions::upload_module,
     ping::ping,
     produce::produce,
-    query::{query_by_timestamp, query_latest},
+    query::{query_at, query_by_timestamp, query_latest},
     subscription::{acknowledge, create_subscription, get_subscription, take},
 };
 use higgins_shared::{PartitionName, UniqueCollection};
@@ -119,6 +119,27 @@ impl Client {
             query_latest(
                 stream,
                 partition,
+                self.2
+                    .insert(0)
+                    .ok_or(HigginsClientError::TooManyConcurrentRequests)?,
+                &mut self.0
+            ),
+            self.1
+        )
+        .await?
+    }
+
+    pub async fn query_at(
+        &mut self,
+        stream: &[u8],
+        partition: &PartitionName,
+        index: u64,
+    ) -> Result<(), HigginsClientError> {
+        timeout!(
+            query_at(
+                stream,
+                partition,
+                index,
                 self.2
                     .insert(0)
                     .ok_or(HigginsClientError::TooManyConcurrentRequests)?,

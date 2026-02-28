@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::storage::arrow_ipc::read_arrow;
 use bytes::BytesMut;
-use higgins_codec::{Error, GetIndexResponse, Message, Record, message::Type};
+use higgins_codec::{GetIndexResponse, Message, Record, message::Type};
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -119,16 +119,34 @@ pub async fn handle_get_index(
                 }
             }
             higgins_codec::index::Type::Offset => {
+                tracing::trace!("Retrieved a At Offset GetIndexRequest",);
+
+                let offset = index.index.unwrap();
+
+                let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
+
+                let response = broker_lock
+                    .get_at(&index.stream, partition, offset)
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap();
+
+                let index_response = GetIndexResponse {
+                    records: vec![Record {
+                        data: response,
+                        stream: vec![],
+                        partition: vec![],
+                        offset: 0,
+                    }],
+                };
+
                 let mut result = BytesMut::new();
-
-                let mut error = Error::default();
-
-                error.set_type(higgins_codec::error::Type::Unimplemented);
 
                 Message {
                     correlation_id: message.correlation_id,
-                    r#type: Type::Error as i32,
-                    error: Some(error),
+                    r#type: Type::Getindexresponse as i32,
+                    get_index_response: Some(index_response),
                     ..Default::default()
                 }
                 .encode(&mut result)
