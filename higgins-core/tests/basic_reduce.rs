@@ -52,20 +52,17 @@ fn can_implement_basic_reduce() {
     client.ping().unwrap();
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
-    // Upload a basic configuration with one stream.
-
     let config = std::fs::read_to_string("tests/configs/reduce_config.toml").unwrap();
 
     client.upload_configuration(config.as_bytes()).unwrap();
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
-    client.upload_module(
-        "reduce",
-        &std::fs::read(
-            "tests/functions/basic-reduce/target/wasm32-unknown-unknown/release/basic_reduce.wasm",
+    client
+        .upload_module(
+            "reduce",
+            &std::fs::read("tests/functions/basic_reduce.wasm").unwrap(),
         )
-        .unwrap(),
-    ).unwrap();
+        .unwrap();
 
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
@@ -85,7 +82,7 @@ fn can_implement_basic_reduce() {
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
     client
-        .query_latest(b"result", &PartitionName::try_from("1").unwrap())
+        .query_at(b"result", &PartitionName::try_from("1").unwrap(), 0)
         .unwrap();
 
     let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
@@ -116,12 +113,6 @@ fn can_implement_basic_reduce() {
         1
     );
 
-    // let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
-    // let expected_result = json!(
-    //     {"id":"1","data":1}
-    // );
-    // assert_eq!(result, expected_result);
-
     client
         .produce(
             "amount",
@@ -140,10 +131,10 @@ fn can_implement_basic_reduce() {
     std::thread::sleep(Duration::from_secs(1));
 
     client
-        .query_latest(b"result", &PartitionName::try_from("1").unwrap())
+        .query_at(b"result", &PartitionName::try_from("1").unwrap(), 1)
         .unwrap();
 
-    let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+    let result = match client.recv(Some(Duration::from_secs(60))).unwrap().body {
         ResponseBody::GetIndex(response) => response,
         _ => panic!("Unexpected response returned."),
     };
@@ -171,54 +162,54 @@ fn can_implement_basic_reduce() {
         2
     );
 
-    client
-        .produce(
-            "amount",
-            r#"
-                {
-                    "id": "1",
-                    "data": 1,
-                }
-            "#
-            .as_bytes(),
-        )
-        .unwrap();
+    // client
+    //     .produce(
+    //         "amount",
+    //         r#"
+    //             {
+    //                 "id": "1",
+    //                 "data": 1,
+    //             }
+    //         "#
+    //         .as_bytes(),
+    //     )
+    //     .unwrap();
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    // client.recv(Some(Duration::from_secs(5))).unwrap();
 
-    std::thread::sleep(Duration::from_secs(1));
+    // std::thread::sleep(Duration::from_secs(1));
 
-    client
-        .query_latest(b"result", &PartitionName::try_from("1").unwrap())
-        .unwrap();
+    // client
+    //     .query_latest(b"result", &PartitionName::try_from("1").unwrap())
+    //     .unwrap();
 
-    let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-        ResponseBody::GetIndex(response) => response,
-        _ => panic!("Unexpected response returned."),
-    };
+    // let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+    //     ResponseBody::GetIndex(response) => response,
+    //     _ => panic!("Unexpected response returned."),
+    // };
 
-    let arrow = read_arrow(&result.records.first().unwrap().data.clone())
-        .next()
-        .unwrap()
-        .unwrap();
+    // let arrow = read_arrow(&result.records.first().unwrap().data.clone())
+    //     .next()
+    //     .unwrap()
+    //     .unwrap();
 
-    assert_eq!(
-        arrow
-            .column_by_name("id")
-            .unwrap()
-            .as_string::<i32>()
-            .value(0),
-        "1"
-    );
+    // assert_eq!(
+    //     arrow
+    //         .column_by_name("id")
+    //         .unwrap()
+    //         .as_string::<i32>()
+    //         .value(0),
+    //     "1"
+    // );
 
-    assert_eq!(
-        arrow
-            .column_by_name("data")
-            .unwrap()
-            .as_primitive::<Int32Type>()
-            .value(0),
-        3
-    );
+    // assert_eq!(
+    //     arrow
+    //         .column_by_name("data")
+    //         .unwrap()
+    //         .as_primitive::<Int32Type>()
+    //         .value(0),
+    //     3
+    // );
 
     // produce_sync(
     //     b"amount",

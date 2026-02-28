@@ -111,7 +111,7 @@ pub async fn create_reduced_stream_from_definition(
                                         .get_at(
                                             stream_name.as_bytes(),
                                             &PartitionName::try_from(&partition_val[..]).unwrap(),
-                                            offset,
+                                            offset - 1,
                                         )
                                         .await
                                         .inspect_err(|err| {
@@ -146,6 +146,8 @@ pub async fn create_reduced_stream_from_definition(
                                                 stream_def.function_name.as_ref().unwrap(),
                                             )
                                             .await;
+
+                                        tracing::trace!("Applying the function..");
 
                                         let reduced_record_batch = run_reduce_function(
                                             &record_batch,
