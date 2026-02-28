@@ -1,3 +1,5 @@
+use arrow::array::RecordBatch;
+use arrow_schema::ArrowError;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -57,10 +59,10 @@ pub async fn create_reduced_stream_from_definition(
                     };
                 }
 
-                tracing::trace!(
-                    "[DERIVED TAKE] Received offsets {:#?}. Initiating join.",
-                    offsets
-                );
+                // tracing::trace!(
+                //     "[DERIVED TAKE] Received offsets {:#?}. Initiating Reduce.",
+                //     offsets
+                // );
 
                 //Get payloads from offsets.
                 for (partition, offset) in offsets {
@@ -70,9 +72,17 @@ pub async fn create_reduced_stream_from_definition(
                         .consume(&left_stream_name, &partition, offset, 50_000)
                         .await;
 
+                    let mut records = vec![];
+
                     for val in consumption {
                         let val = val.await.unwrap();
-                        tracing::trace!("[DERIVED TAKE] Received consume Response {:#?}.", val);
+                        records.push(val);
+                    }
+
+                    drop(broker_lock);
+
+                    for val in records {
+                        tracing::trace!("[DERIVED TAKE] Received consume Response",);
 
                         let stream_reader = read_arrow(&val);
 
@@ -81,9 +91,8 @@ pub async fn create_reduced_stream_from_definition(
                         for record_batch in batches {
                             let mut broker_lock = left_broker.write().await;
 
-                            let epoch_val = epoch();
-
                             for index in 0..record_batch.num_rows() {
+                                tracing::trace!("[DERIVED TAKE] Getting the partition key",);
                                 let partition_val = get_partition_key_from_record_batch(
                                     &record_batch,
                                     index,
@@ -92,24 +101,42 @@ pub async fn create_reduced_stream_from_definition(
                                         .as_str(),
                                 );
 
-                                let prev_record = broker_lock
-                                    .get_by_timestamp(
-                                        stream_name.as_bytes(),
-                                        &PartitionName::try_from(&partition_val[..]).unwrap(),
-                                        epoch_val,
-                                    )
-                                    .await
-                                    .and_then(|consume| {
-                                        consume.batches.first().map(|batch| {
-                                            let stream_reader = read_arrow(&batch.data);
+                                tracing::trace!("[DERIVED TAKE] Getting the previous index..",);
 
-                                            let batches = stream_reader
-                                                .filter_map(|val| val.ok())
-                                                .collect::<Vec<_>>();
-                                            batches.into_iter().next()
+                                tracing::trace!("[REDUCE] Check with current offset: {offset}");
+
+                                let prev_record = match offset {
+                                    0 => None,
+                                    _ => broker_lock
+                                        .get_at(
+                                            stream_name.as_bytes(),
+                                            &PartitionName::try_from(&partition_val[..]).unwrap(),
+                                            offset,
+                                        )
+                                        .await
+                                        .inspect_err(|err| {
+                                            tracing::error!(
+                                                "Failed to retrieve offset with error: {:#?}",
+                                                err
+                                            )
                                         })
-                                    })
-                                    .flatten();
+                                        .ok()
+                                        .flatten()
+                                        .map(|arrow_bytes| {
+                                             tracing::trace!("bytes: {:#?}", arrow_bytes);
+                                            let mut batches = read_arrow(&arrow_bytes);
+                                            tracing::trace!("batches: {:#?}", batches);
+                                            batches.nth(0).inspect(|val| {
+                                                tracing::trace!("Correctly retrieved a value from the batches: {:#?}", val);
+                                            }).map(|result| result.ok()).flatten()
+                                        }),
+                                }
+                                .flatten();
+
+                                tracing::trace!(
+                                    "[DERIVED TAKE] Making the change with prev record: {:#?}",
+                                    prev_record
+                                );
 
                                 match prev_record {
                                     Some(prev_record) => {
@@ -126,6 +153,11 @@ pub async fn create_reduced_stream_from_definition(
                                             module,
                                         );
 
+                                        tracing::trace!(
+                                            "Reduced Record batch: {:#?}",
+                                            reduced_record_batch
+                                        );
+
                                         let result = broker_lock
                                             .produce(
                                                 stream_name.as_bytes(),
@@ -136,11 +168,13 @@ pub async fn create_reduced_stream_from_definition(
                                             .await;
 
                                         tracing::trace!(
-                                            "Result from producing with a join: {:#?}",
+                                            "Result from producing with a reduce: {:#?}",
                                             result
                                         );
                                     }
                                     None => {
+                                        tracing::trace!("No previous index found..");
+
                                         let result = broker_lock
                                             .produce(
                                                 stream_name.as_bytes(),
@@ -149,11 +183,6 @@ pub async fn create_reduced_stream_from_definition(
                                                 record_batch.clone(),
                                             )
                                             .await;
-
-                                        tracing::trace!(
-                                            "Result from producing with a join: {:#?}",
-                                            result
-                                        );
                                     }
                                 }
                             }
