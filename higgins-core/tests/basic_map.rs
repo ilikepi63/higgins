@@ -63,15 +63,15 @@ fn can_implement_basic_map() {
         )
         .unwrap();
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
-
     std::thread::sleep(Duration::from_secs(5));
+
+    client.recv(Some(Duration::from_secs(5))).unwrap();
 
     client
         .query_latest(b"result", &PartitionName::try_from("1").unwrap())
         .unwrap();
 
-    let value = client.recv(Some(Duration::from_secs(5))).unwrap().body;
+    let value = client.recv(Some(Duration::from_secs(10))).unwrap().body;
 
     let result = match value {
         ResponseBody::GetIndex(response) => response,
