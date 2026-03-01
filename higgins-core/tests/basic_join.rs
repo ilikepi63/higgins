@@ -3,6 +3,9 @@ use crate::common::{
 };
 use common::get_random_port;
 use higgins::run_server;
+use higgins::storage::arrow_ipc::read_arrow;
+use higgins_client::ResponseBody;
+use higgins_client::blocking::Client;
 use higgins_shared::PartitionName;
 use std::{net::TcpStream, time::Duration};
 
@@ -92,19 +95,27 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
-    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+    let mut client = Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
-    socket
-        .set_read_timeout(Some(Duration::from_secs(10)))
-        .unwrap();
+    // let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
 
-    ping_sync(&mut socket);
+    // socket
+    //     .set_read_timeout(Some(Duration::from_secs(10)))
+    //     .unwrap();
 
-    upload_configuration(CONFIG.as_bytes(), &mut socket);
+    // ping_sync(&mut socket);
+    client.ping();
 
-    produce_sync(
-        b"customer",
-        r#"
+    client.recv(None);
+
+    client.upload_configuration(CONFIG.as_bytes());
+
+    client.recv(None);
+
+    client
+        .produce(
+            "customer",
+            r#"
         {
             "id": "1",
             "first_name": "TestFirstName",
@@ -112,25 +123,31 @@ fn can_implement_a_basic_stream_join() {
             "age": 30
         }
     "#
-        .as_bytes(),
-        &mut socket,
-    )
-    .unwrap();
+            .as_bytes(),
+        )
+        .unwrap();
+
+    client.recv(None);
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(
-        b"customer_address",
-        &PartitionName::try_from("1").unwrap(),
-        &mut socket,
-    )
-    .unwrap();
+    let _ = client
+        .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
+        .unwrap();
 
-    assert_eq!(result, create_batch_with_nulled_values_in_address());
+    let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+        ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+        _ => panic!("Incorrect response received"),
+    };
 
-    produce_sync(
-        b"address",
-        r#"
+    let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+
+    assert_eq!(record_batch, create_batch_with_nulled_values_in_address());
+
+    client
+        .produce(
+            "address",
+            r#"
         {
             "customer_id": "1",
             "address_line_1": "12 Tennatn Avenut",
@@ -139,21 +156,28 @@ fn can_implement_a_basic_stream_join() {
             "province": "Western Cape"
         }
     "#
-        .as_bytes(),
-        &mut socket,
-    )
-    .unwrap();
+            .as_bytes(),
+        )
+        .unwrap();
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let result = query_latest_arrow(
-        b"customer_address",
-        &PartitionName::try_from("1").unwrap(),
-        &mut socket,
-    )
-    .unwrap();
+    client.recv(None);
 
-    assert_eq!(result, create_test_customer_address_data());
+    let result = client
+        .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
+        .unwrap();
+
+    let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+        ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+        _ => panic!("Incorrect response received"),
+    };
+
+    let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+
+    assert_eq!(record_batch, create_test_customer_address_data());
+
+    // assert_eq!(result, create_test_customer_address_data());
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }
