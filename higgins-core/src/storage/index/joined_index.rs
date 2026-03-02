@@ -68,8 +68,8 @@ impl<'a> JoinedIndex<'a> {
             .copy_from_slice(timestamp.to_be_bytes().as_slice());
         data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
             .copy_from_slice(0_u8.to_be_bytes().as_slice());
-        data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
-            .copy_from_slice(0_u8.to_be_bytes().as_slice());
+        // data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
+        //     .copy_from_slice(0_u8.to_be_bytes().as_slice());
 
         reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 

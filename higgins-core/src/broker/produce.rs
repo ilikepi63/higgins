@@ -139,6 +139,18 @@ impl Broker {
 
         let response = response.recv().await.unwrap();
 
+        let reference = Reference::S3(S3Reference {
+            object_key: response.object_key,
+            position: response.offset,
+            size: response.size.into(),
+        });
+
+        let mut reference_bytes = [0_u8; Reference::size_of()];
+
+        reference.to_bytes(&mut reference_bytes).unwrap();
+
+        tracing::trace!("Reference: {:#?}", reference_bytes);
+
         let index = index.put_reference(Reference::S3(S3Reference {
             object_key: response.object_key,
             position: response.offset,

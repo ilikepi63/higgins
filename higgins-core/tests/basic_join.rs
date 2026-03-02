@@ -104,13 +104,13 @@ fn can_implement_a_basic_stream_join() {
     //     .unwrap();
 
     // ping_sync(&mut socket);
-    client.ping();
+    client.ping().unwrap();
 
-    client.recv(None);
+    client.recv(None).unwrap();
 
-    client.upload_configuration(CONFIG.as_bytes());
+    client.upload_configuration(CONFIG.as_bytes()).unwrap();
 
-    client.recv(None);
+    client.recv(None).unwrap();
 
     client
         .produce(
@@ -127,7 +127,7 @@ fn can_implement_a_basic_stream_join() {
         )
         .unwrap();
 
-    client.recv(None);
+    client.recv(None).unwrap();
 
     std::thread::sleep(Duration::from_secs(1));
 
@@ -162,9 +162,9 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_secs(1));
 
-    client.recv(None);
+    client.recv(None).unwrap();
 
-    let result = client
+    client
         .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
         .unwrap();
 
@@ -176,8 +176,6 @@ fn can_implement_a_basic_stream_join() {
     let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
 
     assert_eq!(record_batch, create_test_customer_address_data());
-
-    // assert_eq!(result, create_test_customer_address_data());
 
     std::fs::remove_dir_all(dir_remove).unwrap();
 }

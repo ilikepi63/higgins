@@ -232,7 +232,7 @@ pub async fn create_join_operator(
                 let mut broker = broker_ref.write().await;
                 broker.task_handler.spawn(
                 &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
-async move {
+                async move {
                     let index_file_view = index_file.view();
                     // Get the index preceding this one.
                     let previous_joined_index = match index {
@@ -448,10 +448,18 @@ async move {
                         // How do we write this back to the index now??
 
                         {
+                            tracing::trace!(
+                                "Awaiting a write lock.."
+                            );
+
                             let broker = amalgamate_broker.write().await;
+
 
                             let mut top_level_index = Index::of(index.inner(), IndexType::Join);
 
+                            tracing::trace!(
+                                "Putting at index: {:#?}", top_level_index
+                            );
                             // Places the data at the reference.
                             let mut new_index = broker
                                 .put_data(
@@ -463,6 +471,10 @@ async move {
                                 )
                                 .await
                                 .unwrap();
+
+                            tracing::trace!(
+                                "Completed putting at index: {:#?}", new_index
+                            );
 
                             index_file.put_at(completed_index, &mut new_index).unwrap();
 
