@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 pub mod join;
 pub mod mapping;
 mod opts;
+mod subscription;
 
 use crate::{
     broker::Broker,

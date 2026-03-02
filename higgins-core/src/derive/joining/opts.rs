@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
 
+use super::subscription::start_join_subscription_task;
 use crate::broker::BrokerIndexFile;
 use crate::storage::arrow_ipc::{self};
 use crate::storage::dereference::Reference;
@@ -11,7 +12,6 @@ use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 use higgins_shared::PartitionName;
-
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
@@ -65,56 +65,13 @@ pub async fn create_join_operator(
 
     // For each stream in the definition, we create a separate task to iterate over them.
     for (i, join_stream) in definition.joins.iter().enumerate() {
-        let join_stream = join_stream.clone();
-        let task_broker = broker_ref.clone();
-        let derivative_channel_tx = derivative_channel_tx.clone();
-
-        let _handle = broker.task_handler.spawn(
-            &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
-            async move {
-                // Create a subscription on each derivative
-                let (client_id, condvar, subscription) = {
-                    let mut broker = task_broker.write().await;
-                    let client_id = broker.clients.insert(super::ClientRef::NoOp).unwrap();
-                    let left_subscription =
-                        broker.create_subscription(join_stream.stream.0.as_bytes());
-                    let stream = join_stream.stream.clone();
-                    let (left_notify, left_subscription) =
-                        get_sub!(broker, stream, left_subscription).unwrap();
-
-                    tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
-                    drop(broker); // Explicitly drop the lock.
-
-                    (client_id, left_notify, left_subscription)
-                };
-
-                loop {
-                    let offsets = eager_take_from_subscription_or_wait(
-                        subscription.clone(),
-                        condvar.clone(),
-                        client_id,
-                    )
-                    .await
-                    .unwrap();
-
-                    tracing::trace!("Retrieved offsets {:#?} from {client_id}.", offsets);
-
-                    derivative_channel_tx
-                        .send((i, offsets))
-                        .await
-                        .inspect_err(|err| {
-                            tracing::error!(
-                                "Error attempting to send to derivative channel: {:#?}",
-                                err
-                            );
-                        })
-                        .unwrap();
-                }
-            },
+        start_join_subscription_task(
+            broker,
+            broker_ref.clone(),
+            join_stream.clone(),
+            derivative_channel_tx.clone(),
+            i,
         );
-
-        // Add the handle to the operator here.
-        // operator.handles.push(handle);
     }
 
     // This task awaits all of the given derivative partitions and accumulates them into the
@@ -545,7 +502,7 @@ static N: u64 = 10;
 
 /// Function that takes an amount from a subscription, otherwise awaits a notifier
 /// for the subscription for some of the given amount.
-async fn eager_take_from_subscription_or_wait(
+pub async fn eager_take_from_subscription_or_wait(
     subscription: Arc<RwLock<Subscription>>,
     notify: Arc<tokio::sync::Notify>,
     client_id: u64,
