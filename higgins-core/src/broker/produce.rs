@@ -157,7 +157,10 @@ impl Broker {
             size: response.size.into(),
         }));
 
-        tracing::trace!("Successfully written to the index: {:#?}", index);
+        tracing::trace!(
+            "Successfully written to the index: {:#?}",
+            Index::of(&index, IndexType::Join)
+        );
 
         Ok(index)
     }

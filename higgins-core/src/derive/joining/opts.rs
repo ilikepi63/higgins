@@ -473,8 +473,10 @@ pub async fn create_join_operator(
                                 .unwrap();
 
                             tracing::trace!(
-                                "Completed putting at index: {:#?}", new_index
+                                "Completed putting at index {}: data: {:#?}", completed_index, new_index
                             );
+
+
 
                             index_file.put_at(completed_index, &mut new_index).unwrap();
 

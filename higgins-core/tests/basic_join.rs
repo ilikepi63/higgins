@@ -7,6 +7,7 @@ use higgins::storage::arrow_ipc::read_arrow;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
 use higgins_shared::PartitionName;
+use std::panic::catch_unwind;
 use std::{net::TcpStream, time::Duration};
 
 mod common;
@@ -95,89 +96,88 @@ fn can_implement_a_basic_stream_join() {
 
     std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
-    let mut client = Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+    let result = catch_unwind(|| {
+        let mut client = Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
-    // let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+        client.ping().unwrap();
 
-    // socket
-    //     .set_read_timeout(Some(Duration::from_secs(10)))
-    //     .unwrap();
+        client.recv(None).unwrap();
 
-    // ping_sync(&mut socket);
-    client.ping().unwrap();
+        client.upload_configuration(CONFIG.as_bytes()).unwrap();
 
-    client.recv(None).unwrap();
+        client.recv(None).unwrap();
 
-    client.upload_configuration(CONFIG.as_bytes()).unwrap();
+        client
+            .produce(
+                "customer",
+                r#"
+            {
+                "id": "1",
+                "first_name": "TestFirstName",
+                "last_name": "TestSurname",
+                "age": 30
+            }
+        "#
+                .as_bytes(),
+            )
+            .unwrap();
 
-    client.recv(None).unwrap();
+        client.recv(None).unwrap();
 
-    client
-        .produce(
-            "customer",
-            r#"
-        {
-            "id": "1",
-            "first_name": "TestFirstName",
-            "last_name": "TestSurname",
-            "age": 30
-        }
-    "#
-            .as_bytes(),
-        )
-        .unwrap();
+        std::thread::sleep(Duration::from_secs(1));
 
-    client.recv(None).unwrap();
+        let _ = client
+            .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
+            .unwrap();
 
-    std::thread::sleep(Duration::from_secs(1));
+        let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+            _ => panic!("Incorrect response received"),
+        };
 
-    let _ = client
-        .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
-        .unwrap();
+        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
 
-    let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-        ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
-        _ => panic!("Incorrect response received"),
-    };
+        // dbg!(record_batch);
 
-    let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+        assert_eq!(record_batch, create_batch_with_nulled_values_in_address());
 
-    assert_eq!(record_batch, create_batch_with_nulled_values_in_address());
+        client
+            .produce(
+                "address",
+                r#"
+            {
+                "customer_id": "1",
+                "address_line_1": "12 Tennatn Avenut",
+                "address_line_2": "Bonteheuwel",
+                "city": "Cape Town",
+                "province": "Western Cape"
+            }
+        "#
+                .as_bytes(),
+            )
+            .unwrap();
 
-    client
-        .produce(
-            "address",
-            r#"
-        {
-            "customer_id": "1",
-            "address_line_1": "12 Tennatn Avenut",
-            "address_line_2": "Bonteheuwel",
-            "city": "Cape Town",
-            "province": "Western Cape"
-        }
-    "#
-            .as_bytes(),
-        )
-        .unwrap();
+        std::thread::sleep(Duration::from_secs(1));
 
-    std::thread::sleep(Duration::from_secs(1));
+        client.recv(None).unwrap();
 
-    client.recv(None).unwrap();
+        client
+            .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
+            .unwrap();
 
-    client
-        .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
-        .unwrap();
+        let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+            _ => panic!("Incorrect response received"),
+        };
 
-    let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-        ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
-        _ => panic!("Incorrect response received"),
-    };
+        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
 
-    let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
-
-    assert_eq!(record_batch, create_test_customer_address_data());
+        assert_eq!(record_batch, create_test_customer_address_data());
+    });
 
     std::fs::remove_dir_all(dir_remove).unwrap();
+
+    result.unwrap()
 }
 
 use arrow::array::RecordBatch;

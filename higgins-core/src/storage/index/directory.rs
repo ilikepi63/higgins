@@ -217,12 +217,21 @@ impl IndexDirectory {
 
         let index = indexes.last();
 
-        tracing::trace!("Index: {:#?}", index);
+        // #[cfg(test)]
+        {
+            tracing::trace!("ITERATING INDEXES");
+
+            for i in 0..indexes.count() {
+                let index = indexes.get(i).unwrap();
+                tracing::trace!("{:#?}", Index::of(&index, index_type.clone()));
+            }
+            tracing::trace!("COMPLETED ITERATING INDEXES");
+        }
 
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
         let index = index.map(|index_bytes| Index::of(index_bytes, index_type.clone()));
-
+        tracing::trace!("Index: {:#?}", index);
         match index {
             Some(index) => {
                 responses.push(index.reference());

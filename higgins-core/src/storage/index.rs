@@ -227,3 +227,49 @@ impl<'a> Deref for IndexesView<'a> {
         self.buffer
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::storage::index::{IndexType, joined_index::JoinedIndex};
+    use arrow::array::RecordBatch;
+    use higgins_shared::PartitionName;
+    use riskless::messages::ProduceRequest;
+
+    use crate::{
+        error::HigginsError,
+        storage::{
+            arrow_ipc::write_arrow,
+            dereference::{Reference, S3Reference},
+            index::Index,
+        },
+    };
+
+    #[test]
+    pub fn can_put_reference_correctly_in_join_index() {
+        let bytes = &vec![0_u8; JoinedIndex::size_of(2)];
+
+        let mut index = Index::of(bytes, IndexType::Join);
+
+        let object_key = [0_u8; 16];
+        let position = 0;
+        let size = 100;
+
+        let reference = Reference::S3(S3Reference {
+            object_key,
+            position,
+            size,
+        });
+
+        let mut reference_bytes = [0_u8; Reference::size_of()];
+
+        reference.to_bytes(&mut reference_bytes).unwrap();
+
+        tracing::trace!("Reference: {:#?}", reference_bytes);
+
+        let index = index.put_reference(reference);
+
+        let index = Index::of(&index, IndexType::Join);
+
+        assert!(matches!(index.reference(), Reference::S3(_)));
+    }
+}
