@@ -46,6 +46,15 @@ pub struct Index<'a> {
     data: &'a [u8],
 }
 
+impl<'a> std::fmt::Debug for Index<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Index")
+            .field("reference", &self.reference())
+            .field("timestamp", &self.timestamp())
+            .finish()
+    }
+}
+
 impl<'a> Index<'a> {
     // Constructors
     pub fn of(data: &'a [u8], index_type: IndexType) -> Self {
