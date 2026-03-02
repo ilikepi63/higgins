@@ -115,69 +115,7 @@ pub async fn create_join_operator(
                 tracing::trace!("[JOIN COLLECTION] Opened the index file for appending..",);
 
                 // Read before write operation to append a joined index to the index file.
-                {
-                    let mut lock = index_file.lock().await;
-
-                    let indexes = lock.as_indexes_mut();
-
-                    let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
-
-                    let timestamp = epoch();
-
-                    tracing::trace!("[JOIN COLLECTION] Timestamp for JoinedIndex: {timestamp}");
-
-                    // Initialize zero byte array.
-                    let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
-
-                    tracing::trace!("[JOIN COLLECTION] Offsets with size: {n_offsets}");
-
-                    let offsets = (0..(n_offsets))
-                        .map(|offset_val| {
-                            if offset_val == index {
-                                Some(offset)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
-
-                    tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
-
-                    JoinedIndex::put(
-                        joined_offset,
-                        Reference::Null,
-                        timestamp,
-                        &offsets,
-                        &mut joined_index_bytes,
-                    )
-                    .inspect_err(|err| {
-                        tracing::error!(
-                            "Failed to put Joined Index bytes into buffer with error: {:#?}",
-                            err,
-                        );
-                    })
-                    .unwrap();
-
-                    tracing::trace!(
-                        "Appending JoinedIndex: {:#?}",
-                        JoinedIndex::of(&joined_index_bytes)
-                    );
-
-                    lock.append(&joined_index_bytes)
-                        .await
-                        .inspect_err(|err| {
-                            tracing::error!(
-                                "Failed to append data to the index file with error: {:#?}",
-                                err
-                            );
-                        })
-                        .unwrap();
-
-                    tracing::trace!("[JOIN COLLECTION] Able to append the offset!",);
-
-                    tracing::trace!("[THIRD HANDLE] We are dropping the broker. ");
-                    drop(lock);
-                };
+                append_index_to_stream(&mut index_file, n_offsets, index, offset).await;
 
                 let (completed_index_collector_tx, mut completed_index_collector_rx) =
                     tokio::sync::mpsc::channel(100);
@@ -550,4 +488,78 @@ pub async fn eager_take_from_subscription_or_wait(
         }
         _ => Ok(offsets),
     }
+}
+
+pub async fn append_index_to_stream(
+    index_file: &mut BrokerIndexFile,
+    n_offsets: usize,
+    index: usize,
+    offset: u64,
+) {
+    tracing::trace!("[JOIN COLLECTION] Opened the index file for appending..",);
+
+    // Read before write operation to append a joined index to the index file.
+    {
+        let mut lock = index_file.lock().await;
+
+        let indexes = lock.as_indexes_mut();
+
+        let joined_offset = (indexes.count() + 1) as u64; // TODO: the fact that this is a u32 is a bit smelly.
+
+        let timestamp = epoch();
+
+        tracing::trace!("[JOIN COLLECTION] Timestamp for JoinedIndex: {timestamp}");
+
+        // Initialize zero byte array.
+        let mut joined_index_bytes = vec![0; JoinedIndex::size_of(n_offsets)];
+
+        tracing::trace!("[JOIN COLLECTION] Offsets with size: {n_offsets}");
+
+        let offsets = (0..(n_offsets))
+            .map(|offset_val| {
+                if offset_val == index {
+                    Some(offset)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        tracing::trace!("[JOIN COLLECTION] Putting in offsets: {:#?}", offsets);
+
+        JoinedIndex::put(
+            joined_offset,
+            Reference::Null,
+            timestamp,
+            &offsets,
+            &mut joined_index_bytes,
+        )
+        .inspect_err(|err| {
+            tracing::error!(
+                "Failed to put Joined Index bytes into buffer with error: {:#?}",
+                err,
+            );
+        })
+        .unwrap();
+
+        tracing::trace!(
+            "Appending JoinedIndex: {:#?}",
+            JoinedIndex::of(&joined_index_bytes)
+        );
+
+        lock.append(&joined_index_bytes)
+            .await
+            .inspect_err(|err| {
+                tracing::error!(
+                    "Failed to append data to the index file with error: {:#?}",
+                    err
+                );
+            })
+            .unwrap();
+
+        tracing::trace!("[JOIN COLLECTION] Able to append the offset!",);
+
+        tracing::trace!("[THIRD HANDLE] We are dropping the broker. ");
+        drop(lock);
+    };
 }
