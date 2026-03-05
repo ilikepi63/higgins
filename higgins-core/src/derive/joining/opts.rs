@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 
 use super::subscription::start_join_subscription_task;
 use crate::broker::BrokerIndexFile;
-use crate::storage::arrow_ipc::{self};
+use crate::broker::utils::get_arrow_data_at;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexType};
@@ -234,6 +234,13 @@ pub async fn create_join_operator(
                     index_file
                 };
 
+
+                // NOTES
+                // This is the task that awaits "completed" indexes.
+                //
+                // A "completed" index is on where the indexes of all the derivative indexes have been retrieved,
+                // but the data from those derivative indexes has not been amalgamated yet into a data record.
+
                 let amalgamate_definition: JoinDefinition = amalgamate_definition.clone();
                 let amalgamate_broker = amalgamate_broker.clone();
                 // Queries the derivative data of all relying join streams and amalgamates it into
@@ -285,35 +292,16 @@ pub async fn create_join_operator(
                                         "[JOIN COMPLETION] Successfully retrieved the offset."
                                     );
 
+
+
                                     tracing::trace!("[FOURTH HANDLE] We are attempting to retrieve the lock on the broker. ");
 
-                                    let broker_lock = broker.write().await;
-                                    tracing::trace!("[FOURTH HANDLE] We have successfully locked the broker. ");
-
-                                    let data = broker_lock
-                                        .get_at(
-                                            stream.joins.get(i).unwrap().stream.0.as_bytes(),
-                                            &partition,
-                                            offset,
-                                        )
-                                        .await.inspect_err(|err| tracing::error!("Retrieved an error when trying to unwrap this value: {:#?}", err))
-                                        .unwrap()
-                                        .unwrap();
-
-                                    tracing::trace!("[FOURTH HANDLE] We are dropping the broker. ");
-                                    drop(broker_lock); // Explicitly drop the lock here.
-
-                                    tracing::trace!(
-                                        "[JOIN COMPLETION] Retrieved the data at for index {:#?}.", offset
-                                    );
-
-                                    // Retrieve the first record, as there should be only one record.
-                                    let arrow_data =
-                                        arrow_ipc::read_arrow(&data).next()
-                                            .and_then(|r| r.ok())
-                                            .unwrap();
-
-                                    tracing::trace!("[JOIN COMPLETION] Arrow data for offset: {:#?}.", arrow_data);
+                                    let arrow_data = get_arrow_data_at(
+                                        stream.joins.get(i).unwrap().stream.0.as_bytes(),
+                                        &partition,
+                                        offset,
+                                        broker.clone()
+                                    ).await;
 
                                     Some((i, arrow_data))
                                 }

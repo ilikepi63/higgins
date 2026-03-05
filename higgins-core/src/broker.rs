@@ -6,6 +6,7 @@ mod instantiate;
 mod produce;
 mod streams;
 mod subscriptions;
+pub mod utils;
 
 use crate::task::TaskHandler;
 use arrow::{array::RecordBatch, datatypes::Schema};
