@@ -12,6 +12,7 @@ use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 use higgins_shared::PartitionName;
+
 macro_rules! get_sub {
     ($broker: ident, $left: ident, $sub: ident) => {
         $broker
@@ -61,18 +62,10 @@ pub async fn create_join_operator(
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
-    let (derivative_channel_tx, mut derivative_channel_rx) = tokio::sync::mpsc::channel(100);
+    let mut derivative_channel_rx =
+        start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
 
-    // For each stream in the definition, we create a separate task to iterate over them.
-    for (i, join_stream) in definition.joins.iter().enumerate() {
-        start_join_subscription_task(
-            broker,
-            broker_ref.clone(),
-            join_stream.clone(),
-            derivative_channel_tx.clone(),
-            i,
-        );
-    }
+    while let Some(index) = derivative_channel_rx.recv().await {}
 
     // This task awaits all of the given derivative partitions and accumulates them into the
     // new joined stream.
@@ -291,8 +284,6 @@ pub async fn create_join_operator(
                                     tracing::trace!(
                                         "[JOIN COMPLETION] Successfully retrieved the offset."
                                     );
-
-
 
                                     tracing::trace!("[FOURTH HANDLE] We are attempting to retrieve the lock on the broker. ");
 
