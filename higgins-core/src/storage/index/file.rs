@@ -61,6 +61,31 @@ impl IndexFile {
         Ok(())
     }
 
+    // Put the index at a specific offset.
+    pub fn range_put_at(
+        &mut self,
+        offset: std::ops::Range<usize>,
+        bytes: &mut [u8],
+    ) -> Result<usize, IndexError> {
+        // length check to avoid panic.
+        if bytes.len() != self.element_size {
+            return Err(IndexError::IndexSwapSizeError);
+        }
+
+        if bytes.len() != (offset.end - offset.start) / self.element_size {
+            return Err(IndexError::PutIndexOutOfRange);
+        }
+
+        self.file_handle
+            .seek(SeekFrom::Start((offset.start * self.element_size) as u64))?;
+
+        let written_size = self.file_handle.write(bytes)?;
+
+        self.file_handle.seek(SeekFrom::Start(0))?;
+
+        Ok(written_size)
+    }
+
     pub fn as_view(&self) -> IndexesView<'_> {
         IndexesView {
             buffer: self.as_slice(),
