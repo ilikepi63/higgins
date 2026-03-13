@@ -107,8 +107,6 @@ impl IndexFile {
         while low <= high {
             let mid = low + (high - low) / 2;
 
-            println!("LOW {low}. MID: {mid}. HIGH: {high}");
-
             match self.read_at(mid, &mut buffer) {
                 Ok(_) => {
                     let (first, second) = {
@@ -148,6 +146,48 @@ impl IndexFile {
         }
 
         None
+    }
+
+    pub fn shard(&mut self, range: std::ops::Range<usize>) -> IndexFileShard<'_> {
+        IndexFileShard(range, self)
+    }
+}
+
+pub struct IndexFileShard<'a>(std::ops::Range<usize>, &'a mut IndexFile);
+
+impl<'a> IndexFileShard<'a> {
+    /// Take the next set of indexes from this shard.
+    ///
+    /// Adds the set range to the buffer, filling it from the front. Once filled, adjusts
+    /// the start to be done again.
+    pub fn next(&mut self, buffer: &mut [u8]) -> Option<std::ops::Range<usize>> {
+        let buffer_len_in_offsets = buffer.len() / self.1.element_size;
+
+        println!("Buf length in elements: {buffer_len_in_offsets}");
+
+        if self.0.start == self.0.end {
+            return None;
+        }
+
+        let start = self.0.start;
+        let end = std::cmp::min(self.0.end, self.0.start + buffer_len_in_offsets);
+
+        dbg!(&self.0);
+
+        dbg!(end);
+        dbg!(start);
+
+        self.1
+            .read_at(start, &mut buffer[0..(end - start) * self.1.element_size])
+            .inspect_err(|err| {
+                tracing::error!("Error reading: {:#?}", err);
+                eprintln!("{:#?}", err);
+            })
+            .ok()?;
+
+        self.0.start = end;
+
+        Some(std::ops::Range { start, end })
     }
 }
 
@@ -376,8 +416,21 @@ mod tests {
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
-        let shard = file.shard(0..2, &buffer);
+        let mut shard = file.shard(0..50);
 
-        // shard.fold(|acc, curr| acc);
+        while let Some(range) = shard.next(&mut buffer) {
+            let mut i = 0;
+            for val in range {
+                let index = i * DefaultIndex::size_of();
+
+                let end = index + DefaultIndex::size_of();
+
+                let index = DefaultIndex::of(&buffer[index..end]);
+
+                i += 1;
+
+                assert_eq!(val as u64, index.offset());
+            }
+        }
     }
 }
