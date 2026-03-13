@@ -1,6 +1,8 @@
 use super::IndexType;
+use super::JoinedIndex;
 use super::{IndexError, IndexesView};
-use std::io::Write as _;
+use std::io::{Read, Seek, SeekFrom, Write as _};
+use std::os::unix::fs::MetadataExt;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
@@ -66,7 +68,87 @@ impl IndexFile {
             index_type: self.index_type.clone(),
         }
     }
+
+    /// Retrieves the length of this index file in indexes.
+    pub fn len(&self) -> Result<usize, IndexError> {
+        Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
+    }
+
+    /// Reads indexes at the given offset until the buffer has been filled.
+    ///
+    /// Note: offsets are the offsets of the indexes themselves, not the byte offset.
+    pub fn read_at(&mut self, offset: usize, buffer: &mut [u8]) -> Result<(), IndexError> {
+        // Adjust the cursor to read from the specific offset.
+        self.file_handle
+            .seek(SeekFrom::Start((offset * self.element_size) as u64))?;
+
+        self.file_handle.read_exact(buffer)?;
+
+        // Reset cursor.
+        self.file_handle.seek(SeekFrom::Start(0))?;
+
+        Ok(())
+    }
+
+    /// Binary searches through this index file for the boundary where the index
+    /// is completed and non-completed.
+    ///
+    /// Note: this only works on indexes that are completed.
+    pub fn binary_search_completed(&mut self) -> Option<usize> {
+        let mut buffer = vec![0_u8; self.element_size * 2];
+
+        let file_size = self.len().unwrap();
+
+        let mut low = 0;
+        let mut high = file_size - 1;
+
+        while low <= high {
+            let mid = low + (high - low) / 2;
+
+            println!("LOW {low}. MID: {mid}. HIGH: {high}");
+
+            match self.read_at(mid, &mut buffer) {
+                Ok(_) => {
+                    let (first, second) = {
+                        let mut chunks = buffer.chunks(self.element_size);
+                        (
+                            chunks.next().map(JoinedIndex::of),
+                            chunks.next().map(JoinedIndex::of),
+                        )
+                    };
+
+                    match (first, second) {
+                        (Some(first), Some(second)) => {
+                            match (first.completed(), second.completed()) {
+                                (true, false) => return Some(mid),
+                                (false, false) => {
+                                    if mid == low {
+                                        return None;
+                                    }
+                                    high = mid - 1
+                                }
+                                (true, true) => {
+                                    if mid == high - 1 {
+                                        return None;
+                                    }
+                                    low = mid + 1
+                                }
+                                _ => panic!(), // illegal state
+                            }
+                        }
+                        _ => return None,
+                    }
+                }
+                Err(err) => {
+                    dbg!(err);
+                }
+            };
+        }
+
+        None
+    }
 }
+
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
@@ -74,6 +156,7 @@ mod tests {
     use super::*;
     use crate::storage::index::IndexType;
     use crate::storage::index::default::DefaultIndex;
+    use crate::storage::index::joined_index::JoinedIndex;
     use std::fs;
     use std::path::PathBuf;
 
@@ -135,5 +218,164 @@ mod tests {
         assert_eq!(file.as_view().get(2).unwrap(), val);
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn read_at_works_correctly() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..100 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(40, &mut buffer).unwrap();
+
+        const DEFAULT_INDEX_SIZE: usize = DefaultIndex::size_of();
+
+        for (i, buf) in buffer
+            .as_chunks::<DEFAULT_INDEX_SIZE>()
+            .0
+            .iter()
+            .enumerate()
+        {
+            let index = DefaultIndex::of(buf);
+
+            assert_eq!((i + 40) as u64, index.offset());
+        }
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_and_not() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            if i < 50 {
+                JoinedIndex::set_completed(&mut val);
+            }
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed().unwrap();
+
+        assert_eq!(index, 49);
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_none_completed() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, None));
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_all_completed() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            JoinedIndex::set_completed(&mut val);
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, None));
+    }
+
+    #[test]
+    fn can_fold_from_specified_index() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..100 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        // let shard = file.shard(0..2, &buffer);
+
+        // shard.fold(|acc, curr| acc);
     }
 }
