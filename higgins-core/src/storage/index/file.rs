@@ -93,7 +93,9 @@ impl IndexFile {
     /// Binary searches through this index file for the boundary where the index
     /// is completed and non-completed.
     ///
-    /// Note: this only works on indexes that are completed.
+    /// Note: this only works on indexes that are completed ie JoinIndexes.
+    /// Unsafe: Ideally this should only be available to JoinIndex/completed value
+    /// type indexes. Perhaps a refactor will do to make this a little better.
     pub fn binary_search_completed(&mut self) -> Option<usize> {
         let mut buffer = vec![0_u8; self.element_size * 2];
 
@@ -374,7 +376,7 @@ mod tests {
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
-        // let shard = file.shard(0..2, &buffer);
+        let shard = file.shard(0..2, &buffer);
 
         // shard.fold(|acc, curr| acc);
     }
