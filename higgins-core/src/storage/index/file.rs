@@ -1,10 +1,14 @@
 use super::IndexType;
+use super::JoinedIndex;
 use super::{IndexError, IndexesView};
-use std::io::Write as _;
+use std::io::{Read, Seek, SeekFrom, Write as _};
+use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
 pub struct IndexFile {
+    path: PathBuf,
     file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
     element_size: usize,
@@ -18,16 +22,19 @@ impl IndexFile {
         element_size: usize,
         index_type: IndexType,
     ) -> Result<Self, IndexError> {
+        let path = PathBuf::from(path.as_ref());
+
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
             .create(true)
-            .open(path)?;
+            .open(&path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
         let mmap = unsafe { memmap2::MmapMut::map_mut(&file_handle)? };
 
         Ok(Self {
+            path,
             file_handle,
             mmap,
             element_size,
@@ -59,6 +66,33 @@ impl IndexFile {
         Ok(())
     }
 
+    // Put the index at a specific offset.
+    pub fn range_put_at(
+        &mut self,
+        offset: std::ops::Range<usize>,
+        bytes: &mut [u8],
+    ) -> Result<(), IndexError> {
+        if bytes.len() != (offset.end - offset.start) * self.element_size {
+            return Err(IndexError::PutIndexOutOfRange);
+        }
+
+        println!("DOING THIS");
+
+        let mut file_handle = std::fs::OpenOptions::new().write(true).open(&self.path)?;
+
+        let offset = offset.start * self.element_size;
+
+        dbg!(offset);
+
+        file_handle.seek(SeekFrom::Start(offset as u64))?;
+
+        file_handle.write_all(bytes)?;
+
+        file_handle.flush()?;
+
+        Ok(())
+    }
+
     pub fn as_view(&self) -> IndexesView<'_> {
         IndexesView {
             buffer: self.as_slice(),
@@ -66,7 +100,129 @@ impl IndexFile {
             index_type: self.index_type.clone(),
         }
     }
+
+    /// Retrieves the length of this index file in indexes.
+    pub fn len(&self) -> Result<usize, IndexError> {
+        Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
+    }
+
+    /// Reads indexes at the given offset until the buffer has been filled.
+    ///
+    /// Note: offsets are the offsets of the indexes themselves, not the byte offset.
+    pub fn read_at(&mut self, offset: usize, buffer: &mut [u8]) -> Result<(), IndexError> {
+        // Adjust the cursor to read from the specific offset.
+        self.file_handle
+            .seek(SeekFrom::Start((offset * self.element_size) as u64))?;
+
+        self.file_handle.read_exact(buffer)?;
+
+        // Reset cursor.
+        self.file_handle.seek(SeekFrom::Start(0))?;
+
+        Ok(())
+    }
+
+    /// Binary searches through this index file for the boundary where the index
+    /// is completed and non-completed.
+    ///
+    /// Note: this only works on indexes that are completed ie JoinIndexes.
+    /// Unsafe: Ideally this should only be available to JoinIndex/completed value
+    /// type indexes. Perhaps a refactor will do to make this a little better.
+    pub fn binary_search_completed(&mut self) -> Option<usize> {
+        let mut buffer = vec![0_u8; self.element_size * 2];
+
+        let file_size = self.len().unwrap();
+
+        let mut low = 0;
+        let mut high = file_size - 1;
+
+        while low <= high {
+            let mid = low + (high - low) / 2;
+
+            match self.read_at(mid, &mut buffer) {
+                Ok(_) => {
+                    let (first, second) = {
+                        let mut chunks = buffer.chunks(self.element_size);
+                        (
+                            chunks.next().map(JoinedIndex::of),
+                            chunks.next().map(JoinedIndex::of),
+                        )
+                    };
+
+                    match (first, second) {
+                        (Some(first), Some(second)) => {
+                            match (first.completed(), second.completed()) {
+                                (true, false) => return Some(mid),
+                                (false, false) => {
+                                    if mid == low {
+                                        return None;
+                                    }
+                                    high = mid - 1
+                                }
+                                (true, true) => {
+                                    if mid == high - 1 {
+                                        return None;
+                                    }
+                                    low = mid + 1
+                                }
+                                _ => panic!(), // illegal state
+                            }
+                        }
+                        _ => return None,
+                    }
+                }
+                Err(err) => {
+                    dbg!(err);
+                }
+            };
+        }
+
+        None
+    }
+
+    pub fn shard(&mut self, range: std::ops::Range<usize>) -> IndexFileShard<'_> {
+        IndexFileShard(range, self)
+    }
 }
+
+pub struct IndexFileShard<'a>(std::ops::Range<usize>, &'a mut IndexFile);
+
+impl<'a> IndexFileShard<'a> {
+    /// Take the next set of indexes from this shard.
+    ///
+    /// Adds the set range to the buffer, filling it from the front. Once filled, adjusts
+    /// the start to be done again.
+    pub fn next(&mut self, buffer: &mut [u8]) -> Option<std::ops::Range<usize>> {
+        let buffer_len_in_offsets = buffer.len() / self.1.element_size;
+
+        println!("Buf length in elements: {buffer_len_in_offsets}");
+
+        if self.0.start == self.0.end {
+            return None;
+        }
+
+        let start = self.0.start;
+        let end = std::cmp::min(self.0.end, self.0.start + buffer_len_in_offsets);
+
+        dbg!(&self.0);
+
+        dbg!(end);
+        dbg!(start);
+
+        self.1
+            .read_at(start, &mut buffer[0..(end - start) * self.1.element_size])
+            .inspect_err(|err| {
+                tracing::error!("Error reading: {:#?}", err);
+                eprintln!("{:#?}", err);
+            })
+            .ok()?;
+
+        self.0.start = end;
+
+        Some(std::ops::Range { start, end })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use uuid::Uuid;
@@ -74,6 +230,7 @@ mod tests {
     use super::*;
     use crate::storage::index::IndexType;
     use crate::storage::index::default::DefaultIndex;
+    use crate::storage::index::joined_index::JoinedIndex;
     use std::fs;
     use std::path::PathBuf;
 
@@ -135,5 +292,248 @@ mod tests {
         assert_eq!(file.as_view().get(2).unwrap(), val);
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn put_at_works_correctly() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..10 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        // for chunk in buffer.chunks(DefaultIndex::size_of()) {
+        //     dbg!(DefaultIndex::of(chunk));
+        // }
+
+        let mut val = vec![0; DefaultIndex::size_of() * 3];
+
+        for i in 0..3 {
+            let start = i * DefaultIndex::size_of();
+            let end = start + DefaultIndex::size_of();
+
+            DefaultIndex::put(
+                6,
+                crate::storage::dereference::Reference::Null,
+                12,
+                12,
+                142,
+                &mut val[start..end],
+            )
+            .unwrap();
+        }
+
+        let length = file.len().unwrap();
+
+        let _ = file
+            .range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
+            .unwrap();
+
+        assert_eq!(file.len().unwrap(), length);
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        let start = 1 * DefaultIndex::size_of();
+        let end = 4 * DefaultIndex::size_of();
+
+        for chunk in buffer[start..end].chunks(DefaultIndex::size_of()) {
+            let index = DefaultIndex::of(chunk);
+            assert_eq!(index.offset(), 6);
+            assert_eq!(index.position(), 12);
+            assert_eq!(index.timestamp(), 12);
+            assert_eq!(index.size(), 142);
+        }
+    }
+
+    #[test]
+    fn read_at_works_correctly() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..100 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(40, &mut buffer).unwrap();
+
+        const DEFAULT_INDEX_SIZE: usize = DefaultIndex::size_of();
+
+        for (i, buf) in buffer
+            .as_chunks::<DEFAULT_INDEX_SIZE>()
+            .0
+            .iter()
+            .enumerate()
+        {
+            let index = DefaultIndex::of(buf);
+
+            assert_eq!((i + 40) as u64, index.offset());
+        }
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_and_not() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            if i < 50 {
+                JoinedIndex::set_completed(&mut val);
+            }
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed().unwrap();
+
+        assert_eq!(index, 49);
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_none_completed() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, None));
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_all_completed() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for i in 0..100 {
+            JoinedIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                &[Some(1), Some(1)],
+                &mut val,
+            )
+            .unwrap();
+
+            JoinedIndex::set_completed(&mut val);
+
+            file.append(&val).unwrap();
+        }
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, None));
+    }
+
+    #[test]
+    fn can_fold_from_specified_index() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..100 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        let mut shard = file.shard(0..50);
+
+        while let Some(range) = shard.next(&mut buffer) {
+            let mut i = 0;
+            for val in range {
+                let index = i * DefaultIndex::size_of();
+
+                let end = index + DefaultIndex::size_of();
+
+                let index = DefaultIndex::of(&buffer[index..end]);
+
+                i += 1;
+
+                assert_eq!(val as u64, index.offset());
+            }
+        }
     }
 }
