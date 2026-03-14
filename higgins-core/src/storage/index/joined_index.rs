@@ -11,6 +11,8 @@ const COMPLETED_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
 const OBJECT_KEY_INDEX: usize = COMPLETED_INDEX + size_of::<bool>();
 const INDEXES_INDEX: usize = OBJECT_KEY_INDEX + Reference::size_of();
 
+const COMPLETED_RANGE: std::ops::Range<usize> = COMPLETED_INDEX..COMPLETED_INDEX + size_of::<u8>();
+
 impl<'a> JoinedIndex<'a> {
     // Properties.
     /// Offset
@@ -24,11 +26,7 @@ impl<'a> JoinedIndex<'a> {
 
     /// Retrieve whether or not this join is completed.
     pub fn completed(&self) -> bool {
-        u8::from_be_bytes(
-            self.0[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<u8>()]
-                .try_into()
-                .unwrap(),
-        ) == 1
+        u8::from_be_bytes(self.0[COMPLETED_RANGE].try_into().unwrap()) == 1
     }
 
     // Constructors
@@ -66,8 +64,6 @@ impl<'a> JoinedIndex<'a> {
             .copy_from_slice(offset.to_be_bytes().as_slice());
         data[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
             .copy_from_slice(timestamp.to_be_bytes().as_slice());
-        data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
-            .copy_from_slice(0_u8.to_be_bytes().as_slice());
         data[COMPLETED_INDEX..COMPLETED_INDEX + size_of::<bool>()]
             .copy_from_slice(0_u8.to_be_bytes().as_slice());
 
