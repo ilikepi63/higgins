@@ -1,7 +1,10 @@
 use super::Broker;
 use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
 use higgins_shared::PartitionName;
-use std::sync::Arc;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 pub struct BrokerIndexFile {
     index_file: IndexFile,
@@ -45,15 +48,21 @@ pub struct BrokerIndexFileLock<'a> {
     lock_guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
-impl<'a> BrokerIndexFileLock<'a> {
-    /// Append a new T to this index file.
-    pub async fn append(&mut self, val: &[u8]) -> Result<(), IndexError> {
-        // Append this data to the underlying file.
-        self.index_file.append(val)?;
+impl Deref for BrokerIndexFileLock {
+    type Target = IndexFile;
 
-        Ok(())
+    fn deref(&self) -> &Self::Target {
+        &self.index_file
     }
+}
 
+impl DerefMut for BrokerIndexFileLock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.index_file
+    }
+}
+
+impl<'a> BrokerIndexFileLock<'a> {
     pub fn as_indexes_mut(&'a self) -> IndexesView<'a> {
         self.index_file.as_view()
     }
