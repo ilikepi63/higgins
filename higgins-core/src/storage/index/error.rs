@@ -18,6 +18,8 @@ pub enum IndexError {
     IndexInJoinedIndexNotFound,
     #[error("Index out of bounds for the JoinedIndex.")]
     IndexGivenOutOfBoundsForJoinedIndex,
+    #[error("Put index out of range")]
+    PutIndexOutOfRange,
     #[error("Unknown Index Error")]
     Unknown,
 }
