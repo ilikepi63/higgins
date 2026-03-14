@@ -3,10 +3,12 @@ use super::JoinedIndex;
 use super::{IndexError, IndexesView};
 use std::io::{Read, Seek, SeekFrom, Write as _};
 use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
 pub struct IndexFile {
+    path: PathBuf,
     file_handle: std::fs::File,
     mmap: memmap2::MmapMut,
     element_size: usize,
@@ -20,16 +22,19 @@ impl IndexFile {
         element_size: usize,
         index_type: IndexType,
     ) -> Result<Self, IndexError> {
+        let path = PathBuf::from(path.as_ref());
+
         let file_handle = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
             .create(true)
-            .open(path)?;
+            .open(&path)?;
 
         // SAFETY: This file needs to be protected from outside mutations/mutations from multiple concurrent executions.
         let mmap = unsafe { memmap2::MmapMut::map_mut(&file_handle)? };
 
         Ok(Self {
+            path,
             file_handle,
             mmap,
             element_size,
@@ -66,24 +71,26 @@ impl IndexFile {
         &mut self,
         offset: std::ops::Range<usize>,
         bytes: &mut [u8],
-    ) -> Result<usize, IndexError> {
-        // length check to avoid panic.
-        if bytes.len() != self.element_size {
-            return Err(IndexError::IndexSwapSizeError);
-        }
-
-        if bytes.len() != (offset.end - offset.start) / self.element_size {
+    ) -> Result<(), IndexError> {
+        if bytes.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
         }
 
-        self.file_handle
-            .seek(SeekFrom::Start((offset.start * self.element_size) as u64))?;
+        println!("DOING THIS");
 
-        let written_size = self.file_handle.write(bytes)?;
+        let mut file_handle = std::fs::OpenOptions::new().write(true).open(&self.path)?;
 
-        self.file_handle.seek(SeekFrom::Start(0))?;
+        let offset = offset.start * self.element_size;
 
-        Ok(written_size)
+        dbg!(offset);
+
+        file_handle.seek(SeekFrom::Start(offset as u64))?;
+
+        file_handle.write_all(bytes)?;
+
+        file_handle.flush()?;
+
+        Ok(())
     }
 
     pub fn as_view(&self) -> IndexesView<'_> {
@@ -285,6 +292,77 @@ mod tests {
         assert_eq!(file.as_view().get(2).unwrap(), val);
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn put_at_works_correctly() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..10 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                100,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        // for chunk in buffer.chunks(DefaultIndex::size_of()) {
+        //     dbg!(DefaultIndex::of(chunk));
+        // }
+
+        let mut val = vec![0; DefaultIndex::size_of() * 3];
+
+        for i in 0..3 {
+            let start = i * DefaultIndex::size_of();
+            let end = start + DefaultIndex::size_of();
+
+            DefaultIndex::put(
+                6,
+                crate::storage::dereference::Reference::Null,
+                12,
+                12,
+                142,
+                &mut val[start..end],
+            )
+            .unwrap();
+        }
+
+        let length = file.len().unwrap();
+
+        let _ = file
+            .range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
+            .unwrap();
+
+        assert_eq!(file.len().unwrap(), length);
+
+        let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        let start = 1 * DefaultIndex::size_of();
+        let end = 4 * DefaultIndex::size_of();
+
+        for chunk in buffer[start..end].chunks(DefaultIndex::size_of()) {
+            let index = DefaultIndex::of(chunk);
+            assert_eq!(index.offset(), 6);
+            assert_eq!(index.position(), 12);
+            assert_eq!(index.timestamp(), 12);
+            assert_eq!(index.size(), 142);
+        }
     }
 
     #[test]
