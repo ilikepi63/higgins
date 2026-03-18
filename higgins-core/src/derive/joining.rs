@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
+mod completion;
 pub mod join;
 pub mod mapping;
 mod opts;

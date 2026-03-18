@@ -48,7 +48,7 @@ pub struct BrokerIndexFileLock<'a> {
     lock_guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
-impl Deref for BrokerIndexFileLock {
+impl<'a> Deref for BrokerIndexFileLock<'a> {
     type Target = IndexFile;
 
     fn deref(&self) -> &Self::Target {
@@ -56,7 +56,7 @@ impl Deref for BrokerIndexFileLock {
     }
 }
 
-impl DerefMut for BrokerIndexFileLock {
+impl<'a> DerefMut for BrokerIndexFileLock<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.index_file
     }

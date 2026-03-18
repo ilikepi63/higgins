@@ -10,7 +10,7 @@ mod file;
 pub mod joined_index;
 pub use error::IndexError;
 
-pub use file::IndexFile;
+pub use file::{CompletedBinarySearchResult, IndexFile};
 
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
