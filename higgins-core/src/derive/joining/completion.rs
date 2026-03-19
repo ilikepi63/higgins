@@ -25,9 +25,13 @@ pub async fn complete_joined_index_file(index_file: &mut BrokerIndexFile, n_offs
 
         // Iterate, updating the ranges.
         while let Some(range) = shard.next(&mut buffer) {
-            for index_buf in buffer[range.start * element_size..range.end * element_size]
-                .chunks_mut(element_size)
+            for index_buf in
+                buffer[0..(range.end - range.start) * element_size].chunks_mut(element_size)
             {
+                {
+                    dbg!(JoinedIndex::of(index_buf));
+                }
+
                 for i in 0..n_offsets {
                     let offset = JoinedIndex::get_offset_buf(index_buf, i);
 
@@ -81,8 +85,38 @@ mod tests {
         [None, None, None, None, Some(0)],
     ];
 
+    const SECOND_COMPLETION_MATRX: &[[Option<u64>; NUMBER_OF_INDEXES]] = &[
+        [Some(2), None, None, None, None],
+        [None, None, None, Some(1), None],
+        [None, Some(1), None, None, None],
+        [Some(3), None, None, None, None],
+        [None, None, Some(2), None, None],
+        [None, None, Some(3), None, None],
+        [None, None, None, None, Some(1)],
+    ];
+
+    const COMPLETION_MATRIX_LARGE: &[[Option<u64>; NUMBER_OF_INDEXES]] = &[
+        [Some(0), None, None, None, None],
+        [None, None, None, Some(0), None],
+        [None, Some(0), None, None, None],
+        [Some(1), None, None, None, None],
+        [None, None, Some(0), None, None],
+        [None, None, Some(1), None, None],
+        [None, None, None, None, Some(0)],
+        [Some(2), None, None, None, None],
+        [None, None, None, Some(1), None],
+        [None, Some(1), None, None, None],
+        [Some(3), None, None, None, None],
+        [None, None, Some(2), None, None],
+        [None, None, Some(3), None, None],
+        [None, None, None, None, Some(1)],
+    ];
+
     const COMPLETED_RESULT: [Option<u64>; NUMBER_OF_INDEXES] =
         [Some(1), Some(0), Some(1), Some(0), Some(0)];
+
+    const COMPLETED_RESULT_LARGE: [Option<u64>; NUMBER_OF_INDEXES] =
+        [Some(3), Some(1), Some(3), Some(1), Some(1)];
 
     #[tokio::test]
     async fn completion_works_on_partial_completed_index() {
@@ -130,6 +164,143 @@ mod tests {
             let offset = index.get_offset(i);
 
             assert_eq!(COMPLETED_RESULT[i], offset);
+        }
+    }
+
+    #[tokio::test]
+    async fn completion_works_on_partial_completed_index_with_smaller_buffer() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(NUMBER_OF_INDEXES);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for (i, v) in COMPLETION_MATRIX_LARGE.iter().enumerate() {
+            JoinedIndex::put(
+                i as u64,
+                crate::storage::dereference::Reference::Null,
+                1,
+                v,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let index_file =
+            &mut BrokerIndexFile::new(file, std::sync::Arc::new(tokio::sync::Mutex::new(())));
+
+        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+
+        let mut file = index_file.lock().await;
+
+        let mut buffer =
+            vec![0_u8; COMPLETION_MATRIX_LARGE.len() * JoinedIndex::size_of(NUMBER_OF_INDEXES)];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        let last = buffer
+            .chunks(JoinedIndex::size_of(NUMBER_OF_INDEXES))
+            .nth(13)
+            .unwrap();
+
+        let index = JoinedIndex::of(last);
+
+        for i in 0..index.offset_len() - 1 {
+            dbg!(i);
+            let offset = index.get_offset(i);
+
+            assert_eq!(COMPLETED_RESULT_LARGE[i], offset);
+        }
+    }
+
+    #[tokio::test]
+    async fn completion_works_one_after_another() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(NUMBER_OF_INDEXES);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let mut val = vec![0; index_size];
+
+        for (i, v) in COMPLETION_MATRIX.iter().enumerate() {
+            JoinedIndex::put(
+                i as u64,
+                crate::storage::dereference::Reference::Null,
+                1,
+                v,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let index_file =
+            &mut BrokerIndexFile::new(file, std::sync::Arc::new(tokio::sync::Mutex::new(())));
+
+        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+
+        let mut file = index_file.lock().await;
+
+        let mut buffer =
+            vec![0_u8; COMPLETION_MATRIX.len() * JoinedIndex::size_of(NUMBER_OF_INDEXES)];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        let last = buffer
+            .chunks(JoinedIndex::size_of(NUMBER_OF_INDEXES))
+            .nth(6)
+            .unwrap();
+
+        let index = JoinedIndex::of(last);
+
+        for i in 0..index.offset_len() - 1 {
+            let offset = index.get_offset(i);
+
+            assert_eq!(COMPLETED_RESULT[i], offset);
+        }
+
+        for (i, v) in SECOND_COMPLETION_MATRX.iter().enumerate() {
+            JoinedIndex::put(
+                i as u64,
+                crate::storage::dereference::Reference::Null,
+                1,
+                v,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        drop(file);
+
+        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+
+        let mut file = index_file.lock().await;
+
+        let mut buffer =
+            vec![0_u8; COMPLETION_MATRIX_LARGE.len() * JoinedIndex::size_of(NUMBER_OF_INDEXES)];
+
+        file.read_at(0, &mut buffer).unwrap();
+
+        let last = buffer
+            .chunks(JoinedIndex::size_of(NUMBER_OF_INDEXES))
+            .nth(13)
+            .unwrap();
+
+        let index = JoinedIndex::of(last);
+
+        for i in 0..index.offset_len() - 1 {
+            dbg!(i);
+            let offset = index.get_offset(i);
+
+            assert_eq!(COMPLETED_RESULT_LARGE[i], offset);
         }
     }
 }
