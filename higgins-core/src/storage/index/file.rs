@@ -129,9 +129,25 @@ impl IndexFile {
     /// Unsafe: Ideally this should only be available to JoinIndex/completed value
     /// type indexes. Perhaps a refactor will do to make this a little better.
     pub fn binary_search_completed(&mut self) -> CompletedBinarySearchResult {
-        let mut buffer = vec![0_u8; self.element_size * 2];
-
         let file_size = self.len().unwrap();
+
+        // Logic to handle 0..1 indexes.
+        match file_size {
+            0 => return CompletedBinarySearchResult::All,
+            1 => {
+                let mut buffer = vec![0_u8; self.element_size * 1];
+                self.read_at(0, &mut buffer).unwrap();
+                let index = JoinedIndex::of(&mut buffer);
+                if index.completed() {
+                    return CompletedBinarySearchResult::All;
+                } else {
+                    return CompletedBinarySearchResult::None;
+                }
+            }
+            _ => {}
+        }
+
+        let mut buffer = vec![0_u8; self.element_size * 2];
 
         let mut low = 0;
         let mut high = file_size - 1;
@@ -172,7 +188,7 @@ impl IndexFile {
                     }
                 }
                 Err(err) => {
-                    dbg!(err);
+                    tracing::error!("Error occurred with reading buffer. File size: {file_size}");
                 }
             };
         }
@@ -548,5 +564,43 @@ mod tests {
                 assert_eq!(val as u64, index.offset());
             }
         }
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_one_index() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::All));
+
+        let mut val = vec![0; index_size];
+
+        JoinedIndex::put(
+            0,
+            crate::storage::dereference::Reference::Null,
+            1,
+            &[Some(1), Some(1)],
+            &mut val,
+        )
+        .unwrap();
+
+        file.append(&val).unwrap();
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::None));
+
+        JoinedIndex::set_completed(&mut val);
+
+        file.put_at(0, &mut val);
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::All));
     }
 }
