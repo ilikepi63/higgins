@@ -102,7 +102,7 @@ pub async fn create_join_operator(
                     // Read before write operation to append a joined index to the index file.
                     append_index_to_stream(&mut index_file, n_offsets, index, offset).await;
 
-                    complete_joined_index_file(&mut index_file, n_offsets);
+                    complete_joined_index_file(&mut index_file, n_offsets).await;
                 }
             }
         },

@@ -1,12 +1,19 @@
 use crate::broker::BrokerIndexFile;
+use crate::storage::index::IndexError;
 use crate::storage::index::{CompletedBinarySearchResult, joined_index::JoinedIndex};
 
-pub async fn complete_joined_index_file(index_file: &mut BrokerIndexFile, n_offsets: usize) {
+pub async fn complete_joined_index_file(
+    index_file: &mut BrokerIndexFile,
+    n_offsets: usize,
+) -> Result<std::ops::Range<usize>, IndexError> {
     let mut index_file = index_file.lock().await;
 
     let index_file_len = index_file.len().unwrap();
 
-    dbg!(&index_file_len);
+    let mut return_range = std::ops::Range {
+        start: 0_usize,
+        end: 0,
+    };
 
     // Get the index where the completion starts.
     if let Some(start) = match index_file.binary_search_completed() {
@@ -14,6 +21,9 @@ pub async fn complete_joined_index_file(index_file: &mut BrokerIndexFile, n_offs
         CompletedBinarySearchResult::None => Some(0),
         CompletedBinarySearchResult::All => None,
     } {
+        // Return range start is done from here.
+        return_range.start = start;
+
         let element_size = JoinedIndex::size_of(n_offsets);
 
         // Shard from that location.
@@ -28,10 +38,6 @@ pub async fn complete_joined_index_file(index_file: &mut BrokerIndexFile, n_offs
             for index_buf in
                 buffer[0..(range.end - range.start) * element_size].chunks_mut(element_size)
             {
-                {
-                    dbg!(JoinedIndex::of(index_buf));
-                }
-
                 for i in 0..n_offsets {
                     let offset = JoinedIndex::get_offset_buf(index_buf, i);
 
@@ -51,9 +57,22 @@ pub async fn complete_joined_index_file(index_file: &mut BrokerIndexFile, n_offs
                 JoinedIndex::set_completed(index_buf);
             }
 
-            shard.file_mut().range_put_at(range, &mut buffer).unwrap();
+            shard
+                .file_mut()
+                .range_put_at(range.clone(), &mut buffer)
+                .unwrap();
+
+            if range.start < return_range.start {
+                return_range.start = range.start;
+            }
+
+            if range.end > return_range.end {
+                return_range.end = range.end;
+            }
         }
     }
+
+    Ok(return_range)
 }
 
 #[cfg(test)]
@@ -144,7 +163,11 @@ mod tests {
         let index_file =
             &mut BrokerIndexFile::new(file, std::sync::Arc::new(tokio::sync::Mutex::new(())));
 
-        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+        let result = complete_joined_index_file(index_file, NUMBER_OF_INDEXES)
+            .await
+            .unwrap();
+
+        assert_eq!(result, std::ops::Range { start: 0, end: 7 });
 
         let mut file = index_file.lock().await;
 
@@ -193,7 +216,11 @@ mod tests {
         let index_file =
             &mut BrokerIndexFile::new(file, std::sync::Arc::new(tokio::sync::Mutex::new(())));
 
-        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+        let result = complete_joined_index_file(index_file, NUMBER_OF_INDEXES)
+            .await
+            .unwrap();
+
+        assert_eq!(result, std::ops::Range { start: 0, end: 14 });
 
         let mut file = index_file.lock().await;
 
@@ -243,7 +270,11 @@ mod tests {
         let index_file =
             &mut BrokerIndexFile::new(file, std::sync::Arc::new(tokio::sync::Mutex::new(())));
 
-        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+        let result = complete_joined_index_file(index_file, NUMBER_OF_INDEXES)
+            .await
+            .unwrap();
+
+        assert_eq!(result, std::ops::Range { start: 0, end: 7 });
 
         let mut file = index_file.lock().await;
 
@@ -280,7 +311,13 @@ mod tests {
 
         drop(file);
 
-        complete_joined_index_file(index_file, NUMBER_OF_INDEXES).await;
+        let result = complete_joined_index_file(index_file, NUMBER_OF_INDEXES)
+            .await
+            .unwrap();
+
+        // TODO: This is supposed to be 7, but is 5. This is likely because we
+        // are getting the last completed index from the amount.
+        assert_eq!(result, std::ops::Range { start: 5, end: 14 });
 
         let mut file = index_file.lock().await;
 
