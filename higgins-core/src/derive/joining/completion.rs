@@ -17,7 +17,7 @@ pub async fn complete_joined_index_file(
 
     // Get the index where the completion starts.
     if let Some(start) = match index_file.binary_search_completed() {
-        CompletedBinarySearchResult::Found(i) => Some(i - 1),
+        CompletedBinarySearchResult::Found(i) => Some(if i > 0 { i - 1 } else { i }),
         CompletedBinarySearchResult::None => Some(0),
         CompletedBinarySearchResult::All => None,
     } {

@@ -222,8 +222,6 @@ impl<'a> IndexFileShard<'a> {
     pub fn next(&mut self, buffer: &mut [u8]) -> Option<std::ops::Range<usize>> {
         let buffer_len_in_offsets = buffer.len() / self.1.element_size;
 
-        println!("Buf length in elements: {buffer_len_in_offsets}");
-
         if self.0.start == self.0.end {
             return None;
         }
@@ -235,7 +233,6 @@ impl<'a> IndexFileShard<'a> {
             .read_at(start, &mut buffer[0..(end - start) * self.1.element_size])
             .inspect_err(|err| {
                 tracing::error!("Error reading: {:#?}", err);
-                eprintln!("{:#?}", err);
             })
             .ok()?;
 
