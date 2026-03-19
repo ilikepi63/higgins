@@ -350,19 +350,25 @@ pub async fn amalgamate_indexes(
     index_file: &mut BrokerIndexFile,
     broker: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    tracing::trace!("[JOIN COMPLETION] Retrieved completed indexes, starting the join mapping. ");
+    tracing::trace!("[JOIN AMALGAMATION] Retrieved completed indexes, starting the join mapping. ");
 
     let element_size = JoinedIndex::size_of(definition.joins.len());
 
     // Get the actual mapping.
     let join_mapping = definition.clone().mapping;
 
+    tracing::trace!("[JOIN AMALGAMATION] Awaiting the lock..");
+
     let mut file = index_file.lock().await;
 
+    tracing::trace!("[JOIN AMALGAMATION] Retrieved the lock..");
+
     let mut buffer =
-        vec![0_u8; (indexes.start - indexes.end) * JoinedIndex::size_of(definition.joins.len())];
+        vec![0_u8; (indexes.end - indexes.start) * JoinedIndex::size_of(definition.joins.len())];
 
     file.read_at(indexes.start, &mut buffer).unwrap();
+
+    tracing::trace!("[JOIN AMALGAMATION] Received the indexes");
 
     for (index, i) in buffer
         .chunks(element_size)
