@@ -69,7 +69,7 @@ impl Broker {
             .indexes
             .get_by_timestamp(
                 stream,
-                &partition,
+                partition,
                 timestamp,
                 IndexType::try_from(stream_def).unwrap(),
             )
@@ -101,7 +101,7 @@ impl Broker {
             .indexes
             .get_latest_offset(
                 stream,
-                &partition,
+                partition,
                 &IndexType::try_from(stream_def).unwrap(),
                 stream_def,
             )
@@ -129,7 +129,7 @@ impl Broker {
             .indexes
             .get_by_offset(
                 stream,
-                &partition,
+                partition,
                 offset,
                 IndexType::try_from(stream_def).unwrap(),
                 stream_def,

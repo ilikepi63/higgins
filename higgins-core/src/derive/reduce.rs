@@ -122,9 +122,9 @@ pub async fn create_reduced_stream_from_definition(
                                              tracing::trace!("bytes: {:#?}", arrow_bytes);
                                             let mut batches = read_arrow(&arrow_bytes);
                                             tracing::trace!("batches: {:#?}", batches);
-                                            batches.nth(0).inspect(|val| {
+                                            batches.next().inspect(|val| {
                                                 tracing::trace!("Correctly retrieved a value from the batches: {:#?}", val);
-                                            }).map(|result| result.ok()).flatten()
+                                            }).and_then(|result| result.ok())
                                         }),
                                 }
                                 .flatten();

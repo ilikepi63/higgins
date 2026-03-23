@@ -81,16 +81,21 @@ impl<'a> JoinedIndex<'a> {
 
     /// Gets the offset at the specified index.
     pub fn get_offset(&self, index: usize) -> Option<u64> {
-        match Self::within_bounds(self.0, index) {
+        Self::get_offset_buf(self.0, index)
+    }
+
+    /// Gets the offset at the specified index.
+    pub fn get_offset_buf(buf: &[u8], index: usize) -> Option<u64> {
+        match Self::within_bounds(buf, index) {
             true => {
-                let indexes = &self.0[INDEXES_INDEX..];
+                let indexes = &buf[INDEXES_INDEX..];
 
                 tracing::trace!("Indexes: {:#?}", indexes);
 
                 let relative_index = (index * (size_of::<u8>() + size_of::<u64>())) + INDEXES_INDEX;
 
                 let offset =
-                    &self.0[relative_index..relative_index + (size_of::<u8>() + size_of::<u64>())];
+                    &buf[relative_index..relative_index + (size_of::<u8>() + size_of::<u64>())];
 
                 let (optional, offset) = offset.split_at(1);
 

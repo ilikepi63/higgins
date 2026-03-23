@@ -10,7 +10,7 @@ mod file;
 pub mod joined_index;
 pub use error::IndexError;
 
-pub use file::IndexFile;
+pub use file::{CompletedBinarySearchResult, IndexFile};
 
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
@@ -44,6 +44,15 @@ impl TryFrom<&StreamDefinition> for IndexType {
 pub struct Index<'a> {
     index_type: IndexType,
     data: &'a [u8],
+}
+
+impl<'a> std::fmt::Debug for Index<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Index")
+            .field("reference", &self.reference())
+            .field("timestamp", &self.timestamp())
+            .finish()
+    }
 }
 
 impl<'a> Index<'a> {
@@ -216,5 +225,44 @@ impl<'a> Deref for IndexesView<'a> {
 
     fn deref(&self) -> &Self::Target {
         self.buffer
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::storage::index::{IndexType, joined_index::JoinedIndex};
+
+    use crate::storage::{
+        dereference::{Reference, S3Reference},
+        index::Index,
+    };
+
+    #[test]
+    pub fn can_put_reference_correctly_in_join_index() {
+        let bytes = &vec![0_u8; JoinedIndex::size_of(2)];
+
+        let mut index = Index::of(bytes, IndexType::Join);
+
+        let object_key = [0_u8; 16];
+        let position = 0;
+        let size = 100;
+
+        let reference = Reference::S3(S3Reference {
+            object_key,
+            position,
+            size,
+        });
+
+        let mut reference_bytes = [0_u8; Reference::size_of()];
+
+        reference.to_bytes(&mut reference_bytes).unwrap();
+
+        tracing::trace!("Reference: {:#?}", reference_bytes);
+
+        let index = index.put_reference(reference);
+
+        let index = Index::of(&index, IndexType::Join);
+
+        assert!(matches!(index.reference(), Reference::S3(_)));
     }
 }

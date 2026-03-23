@@ -6,6 +6,7 @@ mod instantiate;
 mod produce;
 mod streams;
 mod subscriptions;
+pub mod utils;
 
 use crate::task::TaskHandler;
 use arrow::{array::RecordBatch, datatypes::Schema};
@@ -82,11 +83,10 @@ impl Broker {
 
                 tracing::trace!("[CREATE_PARTITION] Creating: {:#?}", sub);
 
-                if sub
+                if !sub
                     .partitions
                     .iter()
-                    .find(|sub_key| sub_key.partition_id == *key)
-                    .is_none()
+                    .any(|sub_key| sub_key.partition_id == *key)
                 {
                     sub.add_partition(key, None, None)?;
                 };

@@ -72,21 +72,21 @@ impl IndexFile {
         offset: std::ops::Range<usize>,
         bytes: &mut [u8],
     ) -> Result<(), IndexError> {
-        if bytes.len() != (offset.end - offset.start) * self.element_size {
+        // Normalize the buffer, so that you can write the entirety of it.
+        let buffer_to_put =
+            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+
+        if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
         }
-
-        println!("DOING THIS");
 
         let mut file_handle = std::fs::OpenOptions::new().write(true).open(&self.path)?;
 
         let offset = offset.start * self.element_size;
 
-        dbg!(offset);
-
         file_handle.seek(SeekFrom::Start(offset as u64))?;
 
-        file_handle.write_all(bytes)?;
+        file_handle.write_all(buffer_to_put)?;
 
         file_handle.flush()?;
 
@@ -128,10 +128,26 @@ impl IndexFile {
     /// Note: this only works on indexes that are completed ie JoinIndexes.
     /// Unsafe: Ideally this should only be available to JoinIndex/completed value
     /// type indexes. Perhaps a refactor will do to make this a little better.
-    pub fn binary_search_completed(&mut self) -> Option<usize> {
-        let mut buffer = vec![0_u8; self.element_size * 2];
-
+    pub fn binary_search_completed(&mut self) -> CompletedBinarySearchResult {
         let file_size = self.len().unwrap();
+
+        // Logic to handle 0..1 indexes.
+        match file_size {
+            0 => return CompletedBinarySearchResult::All,
+            1 => {
+                let mut buffer = vec![0_u8; self.element_size];
+                self.read_at(0, &mut buffer).unwrap();
+                let index = JoinedIndex::of(&mut buffer);
+                if index.completed() {
+                    return CompletedBinarySearchResult::All;
+                } else {
+                    return CompletedBinarySearchResult::None;
+                }
+            }
+            _ => {}
+        }
+
+        let mut buffer = vec![0_u8; self.element_size * 2];
 
         let mut low = 0;
         let mut high = file_size - 1;
@@ -152,37 +168,48 @@ impl IndexFile {
                     match (first, second) {
                         (Some(first), Some(second)) => {
                             match (first.completed(), second.completed()) {
-                                (true, false) => return Some(mid),
+                                (true, false) => return CompletedBinarySearchResult::Found(mid),
                                 (false, false) => {
                                     if mid == low {
-                                        return None;
+                                        return CompletedBinarySearchResult::None;
                                     }
                                     high = mid - 1
                                 }
                                 (true, true) => {
                                     if mid == high - 1 {
-                                        return None;
+                                        return CompletedBinarySearchResult::All;
                                     }
                                     low = mid + 1
                                 }
                                 _ => panic!(), // illegal state
                             }
                         }
-                        _ => return None,
+                        _ => return CompletedBinarySearchResult::None,
                     }
                 }
-                Err(err) => {
-                    dbg!(err);
+                Err(_) => {
+                    tracing::error!("Error occurred with reading buffer. File size: {file_size}");
                 }
             };
         }
 
-        None
+        CompletedBinarySearchResult::None
     }
 
     pub fn shard(&mut self, range: std::ops::Range<usize>) -> IndexFileShard<'_> {
         IndexFileShard(range, self)
     }
+}
+
+/// An enumeration that encapsulates the semantics of how a
+/// Binary Search for completion status resulted.
+pub enum CompletedBinarySearchResult {
+    /// Found, with the index.
+    Found(usize),
+    /// No indexes in this file are completed.
+    None,
+    /// All indexes in this file are completed.
+    All,
 }
 
 pub struct IndexFileShard<'a>(std::ops::Range<usize>, &'a mut IndexFile);
@@ -195,8 +222,6 @@ impl<'a> IndexFileShard<'a> {
     pub fn next(&mut self, buffer: &mut [u8]) -> Option<std::ops::Range<usize>> {
         let buffer_len_in_offsets = buffer.len() / self.1.element_size;
 
-        println!("Buf length in elements: {buffer_len_in_offsets}");
-
         if self.0.start == self.0.end {
             return None;
         }
@@ -204,22 +229,23 @@ impl<'a> IndexFileShard<'a> {
         let start = self.0.start;
         let end = std::cmp::min(self.0.end, self.0.start + buffer_len_in_offsets);
 
-        dbg!(&self.0);
-
-        dbg!(end);
-        dbg!(start);
-
         self.1
             .read_at(start, &mut buffer[0..(end - start) * self.1.element_size])
             .inspect_err(|err| {
                 tracing::error!("Error reading: {:#?}", err);
-                eprintln!("{:#?}", err);
             })
             .ok()?;
 
         self.0.start = end;
 
         Some(std::ops::Range { start, end })
+    }
+
+    /// Get a reference back to the file for this shard.
+    ///
+    /// This is required to be able to mutate this file whilst holding the reference to this section.
+    pub fn file_mut(&mut self) -> &mut IndexFile {
+        self.1
     }
 }
 
@@ -432,9 +458,9 @@ mod tests {
             file.append(&val).unwrap();
         }
 
-        let index = file.binary_search_completed().unwrap();
+        let index = file.binary_search_completed();
 
-        assert_eq!(index, 49);
+        assert!(matches!(index, CompletedBinarySearchResult::Found(49)));
     }
 
     #[test]
@@ -462,7 +488,7 @@ mod tests {
 
         let index = file.binary_search_completed();
 
-        assert!(matches!(index, None));
+        assert!(matches!(index, CompletedBinarySearchResult::None));
     }
 
     #[test]
@@ -492,7 +518,7 @@ mod tests {
 
         let index = file.binary_search_completed();
 
-        assert!(matches!(index, None));
+        assert!(matches!(index, CompletedBinarySearchResult::All));
     }
 
     #[test]
@@ -535,5 +561,43 @@ mod tests {
                 assert_eq!(val as u64, index.offset());
             }
         }
+    }
+
+    #[test]
+    fn can_find_intersection_of_completed_with_one_index() {
+        let path = new_file();
+
+        let index_size = JoinedIndex::size_of(2);
+
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::All));
+
+        let mut val = vec![0; index_size];
+
+        JoinedIndex::put(
+            0,
+            crate::storage::dereference::Reference::Null,
+            1,
+            &[Some(1), Some(1)],
+            &mut val,
+        )
+        .unwrap();
+
+        file.append(&val).unwrap();
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::None));
+
+        JoinedIndex::set_completed(&mut val);
+
+        file.put_at(0, &mut val).unwrap();
+
+        let index = file.binary_search_completed();
+
+        assert!(matches!(index, CompletedBinarySearchResult::All));
     }
 }

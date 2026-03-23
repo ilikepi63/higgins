@@ -8,9 +8,9 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionName(pub [u8; 32]);
 
-impl Into<Vec<u8>> for PartitionName {
-    fn into(self) -> Vec<u8> {
-        self.0.to_vec()
+impl From<PartitionName> for Vec<u8> {
+    fn from(val: PartitionName) -> Self {
+        val.0.to_vec()
     }
 }
 

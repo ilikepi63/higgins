@@ -66,7 +66,7 @@ impl Broker {
             .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
-                &partition,
+                partition,
                 reference,
                 response,
                 &index_type,
@@ -82,26 +82,22 @@ impl Broker {
         if let Some(subscriptions) = subscription {
             tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
 
-            for (subscription_id, (notify, subscription)) in subscriptions {
+            for (_, (notify, subscription)) in subscriptions {
                 let mut subscription = subscription.write().await;
 
-                tracing::trace!("[PRODUCE] Notifying the subscrition.");
+                tracing::trace!(
+                    "[PRODUCE] Notifying the subscription. Subscription end: {}",
+                    offset + 1
+                );
 
                 // Set the max offset of the subscription.
-                subscription.set_max_offset(&partition, offset)?;
+                subscription.set_end(partition, offset + 1)?;
+
+                tracing::info!("{:#?}", subscription);
 
                 // Notify the tasks awaiting this subscription.
                 notify.notify_waiters();
-                tracing::trace!("[PRODUCE] Notified the subscrition.");
-
-                tracing::info!(
-                    "Updated Max offset for subscription: {}, watermark: {}",
-                    subscription_id
-                        .iter()
-                        .map(u8::to_string)
-                        .collect::<String>(),
-                    offset
-                );
+                tracing::trace!("[PRODUCE] Notified the subscription.");
             }
         }
 
@@ -139,13 +135,28 @@ impl Broker {
 
         let response = response.recv().await.unwrap();
 
+        let reference = Reference::S3(S3Reference {
+            object_key: response.object_key,
+            position: response.offset,
+            size: response.size.into(),
+        });
+
+        let mut reference_bytes = [0_u8; Reference::size_of()];
+
+        reference.to_bytes(&mut reference_bytes).unwrap();
+
+        tracing::trace!("Reference: {:#?}", reference_bytes);
+
         let index = index.put_reference(Reference::S3(S3Reference {
             object_key: response.object_key,
             position: response.offset,
             size: response.size.into(),
         }));
 
-        tracing::trace!("Successfully written to the index: {:#?}", index);
+        tracing::trace!(
+            "Successfully written to the index: {:#?}",
+            Index::of(&index, IndexType::Join)
+        );
 
         Ok(index)
     }

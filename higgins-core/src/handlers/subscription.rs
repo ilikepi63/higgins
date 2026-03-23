@@ -24,48 +24,45 @@ pub async fn handle_get_subscription(
         subscription_id,
         stream,
     }) = message.get_subscription_request
-    {
-        if let Some((_, subscription_data)) =
+        && let Some((_, subscription_data)) =
             broker.get_subscription_by_key(stream.as_bytes(), &subscription_id)
-        {
-            let subscription_data = subscription_data.read().await;
+    {
+        let subscription_data = subscription_data.read().await;
 
-            let mut result = BytesMut::new();
+        let mut result = BytesMut::new();
 
-            Message {
-                correlation_id: message.correlation_id,
-                r#type: Type::Getsubscriptionresponse as i32,
-                get_subscription_response: Some(GetSubscriptionResponse {
-                    errors: vec![],
-                    stream: Some(stream),
-                    subscription_id: Some(subscription_id),
-                    offsets: subscription_data
-                        .partitions
-                        .iter()
-                        .map(|key| KeyOffset {
-                            key: key.partition_id.0.as_bytes().to_owned(),
-                            max_offset: key.max_offset,
-                            last_completed_offset: key.last_completed_offset,
-                            amount_to_take: key.amount_to_take,
-                        })
-                        .collect(),
-                    client_counts: subscription_data
-                        .client_counts
-                        .iter()
-                        .map(|client_count| ClientCount {
-                            client_id: client_count.0,
-                            count: client_count.1.load(std::sync::atomic::Ordering::Relaxed),
-                        })
-                        .collect(),
-                }),
-                ..Default::default()
-            }
-            .encode(&mut result)
-            .unwrap();
+        Message {
+            correlation_id: message.correlation_id,
+            r#type: Type::Getsubscriptionresponse as i32,
+            get_subscription_response: Some(GetSubscriptionResponse {
+                errors: vec![],
+                stream: Some(stream),
+                subscription_id: Some(subscription_id),
+                offsets: subscription_data
+                    .partitions
+                    .iter()
+                    .map(|key| KeyOffset {
+                        key: key.partition_id.0.as_bytes().to_owned(),
+                        max_offset: key.end,
+                        last_completed_offset: key.start,
+                    })
+                    .collect(),
+                client_counts: subscription_data
+                    .client_counts
+                    .iter()
+                    .map(|client_count| ClientCount {
+                        client_id: client_count.0,
+                        count: client_count.1.load(std::sync::atomic::Ordering::Relaxed),
+                    })
+                    .collect(),
+            }),
+            ..Default::default()
+        }
+        .encode(&mut result)
+        .unwrap();
 
-            writer_tx.send(result).await.unwrap();
-        };
-    }
+        writer_tx.send(result).await.unwrap();
+    };
 }
 
 pub async fn handle_acknowledge(

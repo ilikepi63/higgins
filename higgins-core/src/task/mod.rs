@@ -14,17 +14,21 @@ pub struct TaskHandler {
     root: TaskPtr,
 }
 
+impl Default for TaskHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskHandler {
     pub fn new() -> Self {
-        let task_handler = Self {
+        Self {
             root: TaskPtr {
                 name: "root".to_string(),
                 handle: None,
                 tasks: Some(vec![]),
             },
-        };
-
-        task_handler
+        }
     }
 
     /// Spawn a future inside of this task handle.
@@ -46,9 +50,10 @@ impl TaskHandler {
                 Some(next_layer) => {
                     let exist = {
                         let vec_exists = current_task_ptr.tasks.is_some();
-                        let task_exists = current_task_ptr.tasks.as_ref().is_some_and(|vec| {
-                            vec.iter().find(|task| task.name == next_layer).is_some()
-                        });
+                        let task_exists = current_task_ptr
+                            .tasks
+                            .as_ref()
+                            .is_some_and(|vec| vec.iter().any(|task| task.name == next_layer));
 
                         (vec_exists, task_exists)
                     };
@@ -184,8 +189,7 @@ impl TaskHandler {
                     let existing_task = current_task_ptr
                         .tasks
                         .as_mut()
-                        .map(|v| v.iter_mut().find(|task| task.name == next_layer))
-                        .flatten();
+                        .and_then(|v| v.iter_mut().find(|task| task.name == next_layer));
 
                     match existing_task {
                         Some(task) => {
@@ -216,20 +220,18 @@ impl TaskHandler {
                     let existing_task = current_task_ptr
                         .tasks
                         .as_mut()
-                        .map(|v| v.iter_mut().find(|task| task.name == next_layer))
-                        .flatten()
+                        .and_then(|v| v.iter_mut().find(|task| task.name == next_layer))
                         .is_some();
 
                     match existing_task {
                         true => {
-                            if description_layers.len() < 1 {
+                            if description_layers.is_empty() {
                                 return Ok(current_task_ptr);
                             } else {
                                 current_task_ptr = current_task_ptr
                                     .tasks
                                     .as_mut()
-                                    .map(|v| v.iter_mut().find(|task| task.name == next_layer))
-                                    .flatten()
+                                    .and_then(|v| v.iter_mut().find(|task| task.name == next_layer))
                                     .unwrap();
                             }
                         }
@@ -245,14 +247,14 @@ impl TaskHandler {
     /// recursively aborting every task that is it's subordinate.
     pub fn abort(&mut self, task_description: &TaskDescription) -> Result<(), HigginsTaskError> {
         let aborted_task_name = {
-            let task = self.get_task_handle_vec(&task_description)?;
+            let task = self.get_task_handle_vec(task_description)?;
 
             Self::abort_recursive(task);
 
             task.name.clone()
         };
 
-        let container_task = self.get_container_task(&task_description).unwrap();
+        let container_task = self.get_container_task(task_description).unwrap();
 
         if let Some(sub_tasks) = container_task.tasks.as_mut() {
             let index = sub_tasks
