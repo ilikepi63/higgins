@@ -160,7 +160,6 @@ fn subscription_works_with_multiple_clients() {
                 ],
                 last_completed_offset: 1,
                 max_offset: 1,
-                amount_to_take: 0
             }],
             client_counts: vec![
                 ClientCount {
@@ -216,7 +215,6 @@ fn subscription_works_with_multiple_clients() {
             ],
             last_completed_offset: 2,
             max_offset: 2,
-            amount_to_take: 0,
         }],
         client_counts: vec![
             ClientCount {

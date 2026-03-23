@@ -53,7 +53,6 @@ message KeyOffset {
   bytes key = 1;
   uint64 last_completed_offset = 2;
   uint64 max_offset = 3;
-  uint64 amount_to_take = 4;
 }
 
 message ClientCount {

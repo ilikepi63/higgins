@@ -86,7 +86,7 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    tracing::debug!("{}", "TAKE".red());
+    tracing::debug!("{}", "######## TAKE ########");
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
 
@@ -106,7 +106,7 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    tracing::debug!("{}", "FIRST PRODUCE".red());
+    tracing::debug!("##### {} #####", "FIRST PRODUCE");
 
     produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
@@ -132,7 +132,11 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    tracing::debug!("{}", "FIRST TAKE".red());
+    let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
+
+    tracing::debug!("{:#?}", &subscription);
+
+    tracing::debug!("{}", "##### FIRST TAKE #####");
 
     let acknowledge_response = acknowledge(
         STREAM_NAME,
@@ -145,7 +149,7 @@ fn can_update_subscription_with_multiple_values() {
                     PartitionName::try_from(record.partition.as_bytes()).unwrap(),
                     std::ops::Range {
                         start: record.offset,
-                        end: record.offset + 1,
+                        end: record.offset,
                     },
                 )
             })
@@ -163,9 +167,11 @@ fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    tracing::debug!("{}", "FIRST ACKNOWLEDGE".red());
+    tracing::debug!("{}", "###### FIRST ACKNOWLEDGE #######");
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
+
+    tracing::debug!("{:#?}", &subscription);
 
     assert_eq!(
         subscription,
@@ -180,7 +186,6 @@ fn can_update_subscription_with_multiple_values() {
                 ],
                 last_completed_offset: 1,
                 max_offset: 1,
-                amount_to_take: 0,
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,
@@ -191,9 +196,7 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "SECOND PRODUCE".red());
 
-    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
-
-    println!("Produce Response: {:#?}", produce_response);
+    let _ = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
 
     let response = recv_until_take(&mut consume_client);
 
@@ -219,7 +222,7 @@ fn can_update_subscription_with_multiple_values() {
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
-    dbg!(&subscription);
+    tracing::debug!("{:#?}", &subscription);
 
     assert_eq!(
         subscription,
@@ -234,7 +237,6 @@ fn can_update_subscription_with_multiple_values() {
                 ],
                 last_completed_offset: 2,
                 max_offset: 2,
-                amount_to_take: 0
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,
@@ -242,6 +244,10 @@ fn can_update_subscription_with_multiple_values() {
             },],
         }
     );
+
+    let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
+
+    tracing::debug!("{:#?}", &subscription);
 
     let acknowledge_response = acknowledge(
         STREAM_NAME,

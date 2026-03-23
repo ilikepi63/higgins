@@ -172,6 +172,8 @@ impl Broker {
 
                     let offsets = lock.take(n);
 
+                    tracing::trace!("{:#?}", &offsets);
+
                     if let Ok(offsets) = offsets.as_ref() {
                         lock.remove_client_count(&client_id, offsets.len() as u64);
                     }

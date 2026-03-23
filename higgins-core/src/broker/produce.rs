@@ -85,23 +85,19 @@ impl Broker {
             for (subscription_id, (notify, subscription)) in subscriptions {
                 let mut subscription = subscription.write().await;
 
-                tracing::trace!("[PRODUCE] Notifying the subscrition.");
+                tracing::trace!(
+                    "[PRODUCE] Notifying the subscription. Subscription end: {}",
+                    offset + 1
+                );
 
                 // Set the max offset of the subscription.
-                subscription.set_max_offset(&partition, offset)?;
+                subscription.set_end(&partition, offset + 1)?;
+
+                tracing::info!("{:#?}", subscription);
 
                 // Notify the tasks awaiting this subscription.
                 notify.notify_waiters();
-                tracing::trace!("[PRODUCE] Notified the subscrition.");
-
-                tracing::info!(
-                    "Updated Max offset for subscription: {}, watermark: {}",
-                    subscription_id
-                        .iter()
-                        .map(u8::to_string)
-                        .collect::<String>(),
-                    offset
-                );
+                tracing::trace!("[PRODUCE] Notified the subscription.");
             }
         }
 

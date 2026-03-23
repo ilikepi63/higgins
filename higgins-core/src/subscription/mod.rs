@@ -19,19 +19,16 @@ pub struct PartitionOffsets {
     /// The ID for this specific partition.
     pub partition_id: PartitionName,
     /// The current watermark or offset that has been acknowledged for this offset.
-    pub last_completed_offset: u64,
+    pub start: u64,
     /// The max offset, or the largest offset that exists within this partition.
-    pub max_offset: u64,
-    /// The amount of offsets that can be taken from this partition, this is effectively = `max_offfset - last_completed_offset`.
-    pub amount_to_take: u64,
+    pub end: u64,
 }
 
 impl PartialEq for PartitionOffsets {
     fn eq(&self, other: &Self) -> bool {
         self.partition_id == other.partition_id
-            && self.amount_to_take == other.amount_to_take
-            && self.last_completed_offset == other.last_completed_offset
-            && self.max_offset == other.max_offset
+            && self.start == other.start
+            && self.end == other.end
     }
 }
 
@@ -39,42 +36,42 @@ impl Eq for PartitionOffsets {}
 
 impl PartialOrd for PartitionOffsets {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.amount_to_take.cmp(&other.amount_to_take))
+        Some(self.amount_to_take().cmp(&other.amount_to_take()))
     }
 }
 
 impl Ord for PartitionOffsets {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.amount_to_take.cmp(&other.amount_to_take)
+        self.amount_to_take().cmp(&other.amount_to_take())
     }
 }
 
 impl PartitionOffsets {
     // Create this given a partition_id and optional defaults.
     fn of(key: &PartitionName, offset: Option<u64>, max_offset: Option<u64>) -> Self {
-        let last_completed_offset = offset.unwrap_or(0);
-        let max_offset = max_offset.unwrap_or(0);
+        let start = offset.unwrap_or(0);
+        let end = max_offset.unwrap_or(0);
         let mut new_partition = PartitionOffsets {
             partition_id: key.to_owned(),
-            last_completed_offset,
-            max_offset,
-            amount_to_take: 0,
+            start,
+            end,
         };
-
-        new_partition.recalculate_amount_to_take();
 
         new_partition
     }
 
     // helper method for calculating the amount_to_take.
-    fn recalculate_amount_to_take(&mut self) {
-        self.amount_to_take = self.max_offset - self.last_completed_offset;
+    pub fn amount_to_take(&self) -> u64 {
+        self.end.checked_sub(self.start).unwrap_or(0)
     }
 
     // Set the last_completed_offset.
-    fn set_last_completed_offset(&mut self, offset: u64) {
-        self.last_completed_offset = offset;
-        self.recalculate_amount_to_take();
+    fn set_start(&mut self, offset: u64) {
+        self.start = offset;
+    }
+
+    fn set_end(&mut self, offset: u64) {
+        self.end = offset;
     }
 }
 
@@ -106,6 +103,7 @@ impl std::fmt::Debug for Subscription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Subscription")
             .field("last_index", &self.last_index)
+            .field("partitions", &self.partitions)
             .finish()
     }
 }
@@ -122,18 +120,13 @@ impl Subscription {
             .iter()
             .map(|partition_offsets| {
                 let partition_id = partition_offsets.get_partition_name()?;
-                let last_completed_offset = partition_offsets.get_last_completed_offset()?;
-                let max_offset = partition_offsets.get_max_offset()?;
-
-                tracing::trace!("Read max offset: {max_offset}");
-
-                let amount_to_take = max_offset - last_completed_offset;
+                let start = partition_offsets.get_last_completed_offset()?;
+                let end = partition_offsets.get_max_offset()?;
 
                 Ok(PartitionOffsets {
                     partition_id,
-                    last_completed_offset,
-                    max_offset,
-                    amount_to_take,
+                    start,
+                    end,
                 })
             })
             .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()
@@ -220,7 +213,11 @@ impl Subscription {
                 // }
 
                 // then bump the partition
-                partition.set_last_completed_offset(offsets.end);
+                // We set this to offsets.end + 1, so that if you acknowledge 0..0, your sub should be at 0..1, which means you'd have 1..1 and nothing
+                // to pull here.
+                partition.set_start(offsets.end + 1);
+
+                tracing::trace!("Partition after acknowledgement: {:#?}", partition);
 
                 // Acknowledge the file backed partition here.
                 self.file.acknowledge(key, offsets)?;
@@ -256,15 +253,13 @@ impl Subscription {
 
             match current_partition {
                 Some(partition_offset) => {
-                    for i in partition_offset.last_completed_offset.clone()
-                        ..partition_offset.max_offset.clone()
-                    {
-                        tracing::debug!(
+                    for i in partition_offset.start.clone()..partition_offset.end.clone() {
+                        tracing::trace!(
                             "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
                             partition_offset
                         );
 
-                        tracing::debug!(
+                        tracing::trace!(
                             "[SUBSCRIPTION TAKE] Setting last completed offset: {:#?}",
                             i
                         );
@@ -272,7 +267,7 @@ impl Subscription {
                         // Push the offset on the resultant vec.
                         results.push((partition_offset.partition_id.clone(), i));
                         // Update the current last_completed_offset.
-                        partition_offset.set_last_completed_offset(i + 1);
+                        partition_offset.set_start(i + 1);
 
                         // If the offset count has gotten to zero, we break here and continue with the while loop.
                         offset_count -= 1;
@@ -304,12 +299,8 @@ impl Subscription {
 
     /// Sets the maximum offset for a partition.
     /// Incrementing this effectively adds indexes to the subscription -> How do we then notify the underlying awaiter?
-    pub fn set_max_offset(
-        &mut self,
-        key: &PartitionName,
-        offset: u64,
-    ) -> Result<(), SubscriptionError> {
-        // How do we make this idempotent?
+    pub fn set_end(&mut self, key: &PartitionName, offset: u64) -> Result<(), SubscriptionError> {
+        tracing::trace!("Setting max offset: {}", offset);
 
         self.file.set_max_offset(key, &offset)?;
 
@@ -320,7 +311,7 @@ impl Subscription {
 
         match partition {
             Some(partition) => {
-                partition.max_offset = offset;
+                partition.end = offset;
                 Ok(())
             }
             None => Err(SubscriptionError::PartitionDoesNotExists),
@@ -353,6 +344,7 @@ impl Subscription {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::panic::catch_unwind;
 
     #[test]
     fn test_add_partition_success() {
@@ -366,14 +358,14 @@ mod tests {
         // Verify the partition was added by checking stored metadata
         let PartitionOffsets {
             partition_id,
-            last_completed_offset,
-            max_offset,
+            start,
+            end,
             ..
         } = sub.get_partition(&key).unwrap();
 
         assert_eq!(partition_id, key);
-        assert_eq!(max_offset, 100);
-        assert_eq!(last_completed_offset, 10);
+        assert_eq!(end, 100);
+        assert_eq!(start, 10);
 
         sub.delete().unwrap();
     }
@@ -396,24 +388,28 @@ mod tests {
 
     #[test]
     fn test_acknowledge_existing_partition() {
-        let mut sub = Subscription::new("acknowledge_existing_partition");
-        let key = PartitionName::try_from("partition1").unwrap();
+        let sub_name = "acknowledge_existing_partition";
 
-        // Add partition
-        assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
+        let result = catch_unwind(|| {
+            let mut sub = Subscription::new(sub_name);
+            let key = PartitionName::try_from("partition1").unwrap();
 
-        // Acknowledge offset 6 (adjacent to range 0..5)
-        let acknowledge_result = sub.acknowledge(&key, &Range { start: 5, end: 6 });
-        assert!(acknowledge_result.is_ok());
+            // Add partition
+            assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
 
-        // Verify the range is updated
-        let PartitionOffsets {
-            last_completed_offset,
-            ..
-        } = sub.get_partition(&key).unwrap();
+            // Acknowledge offset 6 (adjacent to range 0..5)
+            let acknowledge_result = sub.acknowledge(&key, &Range { start: 5, end: 6 });
+            assert!(acknowledge_result.is_ok());
 
-        assert_eq!(last_completed_offset, 6);
-        sub.delete().unwrap();
+            // Verify the range is updated
+            let PartitionOffsets { start, .. } = sub.get_partition(&key).unwrap();
+
+            assert_eq!(start, 7);
+        });
+
+        std::fs::remove_file(sub_name).unwrap();
+
+        result.unwrap();
     }
 
     #[test]
@@ -478,12 +474,12 @@ mod tests {
         assert!(sub.add_partition(&key, None, Some(50)).is_ok());
 
         // Set new max_offset
-        assert!(sub.set_max_offset(&key, 100).is_ok());
+        assert!(sub.set_end(&key, 100).is_ok());
 
         // Verify the max_offset was updated
-        let PartitionOffsets { max_offset, .. } = sub.get_partition(&key).unwrap();
+        let PartitionOffsets { end, .. } = sub.get_partition(&key).unwrap();
 
-        assert_eq!(max_offset, 100);
+        assert_eq!(end, 100);
         sub.delete().unwrap();
     }
 
@@ -493,7 +489,7 @@ mod tests {
         let key = PartitionName::try_from("nonexistent").unwrap();
 
         // Try setting max_offset for a non-existent partition
-        let max_offset_result = sub.set_max_offset(&key, 100);
+        let max_offset_result = sub.set_end(&key, 100);
         dbg!(&max_offset_result);
         assert!(matches!(
             max_offset_result,
@@ -504,22 +500,30 @@ mod tests {
 
     #[test]
     fn test_acknowledge_and_take_combination() {
-        let mut sub = Subscription::new("test_acknowledge_and_take_combination");
-        let key = PartitionName::try_from("partition1").unwrap();
+        let sub_name = "test_acknowledge_and_take_combination";
 
-        // Add partition with max_offset 10
-        assert!(sub.add_partition(&key, None, Some(10)).is_ok());
+        let result = catch_unwind(|| {
+            let mut sub = Subscription::new(sub_name);
 
-        // Acknowledge some offsets
-        assert!(sub.acknowledge(&key, &Range { start: 0, end: 1 }).is_ok());
-        assert!(sub.acknowledge(&key, &Range { start: 1, end: 2 }).is_ok());
+            let key = PartitionName::try_from("partition1").unwrap();
 
-        // Take 3 offsets (should skip acknowledged offsets 2 and 4)
-        let offsets = sub.take(2).expect("Failed to take offsets");
+            // Add partition with max_offset 10
+            assert!(sub.add_partition(&key, None, Some(10)).is_ok());
 
-        assert_eq!(offsets.len(), 2);
-        assert_eq!(offsets, vec![(key.clone(), 2), (key.clone(), 3)]);
-        sub.delete().unwrap();
+            // Acknowledge some offsets
+            assert!(sub.acknowledge(&key, &Range { start: 0, end: 1 }).is_ok());
+            assert!(sub.acknowledge(&key, &Range { start: 1, end: 2 }).is_ok());
+
+            // Take 3 offsets (should skip acknowledged offsets 2 and 4)
+            let offsets = sub.take(2).expect("Failed to take offsets");
+
+            assert_eq!(offsets.len(), 2);
+            assert_eq!(offsets, vec![(key.clone(), 3), (key.clone(), 4)]);
+        });
+
+        std::fs::remove_file(sub_name).unwrap();
+
+        result.unwrap();
     }
 
     #[test]
@@ -545,35 +549,73 @@ mod tests {
     fn test_can_read_subscription_from_file() {
         let sub_name = "test_can_read_subscription_from_file";
 
-        let mut sub = Subscription::new(sub_name);
+        let result = catch_unwind(|| {
+            let mut sub = Subscription::new(sub_name);
 
-        [
-            "partition_one",
-            "partition_two",
-            "partition_three",
-            "partition_four",
-        ]
-        .iter()
-        .enumerate()
-        .for_each(|(i, partition_name)| {
-            let partition_name = PartitionName::try_from(*partition_name).unwrap();
-            sub.add_partition(&partition_name, Some(i as u64 * 2), Some(i as u64 * 10))
-                .unwrap();
+            [
+                "partition_one",
+                "partition_two",
+                "partition_three",
+                "partition_four",
+            ]
+            .iter()
+            .enumerate()
+            .for_each(|(i, partition_name)| {
+                let partition_name = PartitionName::try_from(*partition_name).unwrap();
+                sub.add_partition(&partition_name, Some(i as u64 * 2), Some(i as u64 * 10))
+                    .unwrap();
+            });
+
+            // Drop the sub.
+            drop(sub);
+
+            let sub = Subscription::new(sub_name);
+
+            assert_eq!(sub.client_counts.len(), 0);
+            assert_eq!(sub.partitions.len(), 4);
+
+            for (i, partition) in sub.partitions.iter().enumerate() {
+                assert_eq!(partition.start, (i as u64 * 2) + 1);
+                assert_eq!(partition.end, i as u64 * 10);
+            }
+
+            sub
         });
+        std::fs::remove_file(sub_name).unwrap();
 
-        // Drop the sub.
-        drop(sub);
+        result.unwrap();
+    }
 
-        let sub = Subscription::new(sub_name);
+    #[test]
+    fn subscription_file_acknowledgement_works() {
+        let sub_name = "subscription_file_acknowledgement_works";
+
+        let result = catch_unwind(|| {
+            let mut sub = Subscription::new(sub_name);
+
+            let partition_name = PartitionName::try_from("1").unwrap();
+
+            // There is nothing in this subscription at this point.
+            sub.add_partition(&partition_name, Some(0), Some(0))
+                .unwrap();
+
+            let partitions = sub.take(10).unwrap();
+
+            assert_eq!(partitions.len(), 0);
+
+            sub.set_end(&partition_name, 1).unwrap();
+
+            assert_eq!(sub.take(10).unwrap().len(), 1);
+
+            assert_eq!(sub.take(10).unwrap().len(), 0);
+
+            sub.acknowledge(&partition_name, &(0..1)).unwrap();
+
+            assert_eq!(sub.take(10).unwrap().len(), 0);
+        });
 
         std::fs::remove_file(sub_name).unwrap();
 
-        assert_eq!(sub.client_counts.len(), 0);
-        assert_eq!(sub.partitions.len(), 4);
-
-        for (i, partition) in sub.partitions.iter().enumerate() {
-            assert_eq!(partition.last_completed_offset, i as u64 * 2);
-            assert_eq!(partition.max_offset, i as u64 * 10);
-        }
+        result.unwrap();
     }
 }

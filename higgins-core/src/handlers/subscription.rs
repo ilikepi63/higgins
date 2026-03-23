@@ -44,9 +44,8 @@ pub async fn handle_get_subscription(
                         .iter()
                         .map(|key| KeyOffset {
                             key: key.partition_id.0.as_bytes().to_owned(),
-                            max_offset: key.max_offset,
-                            last_completed_offset: key.last_completed_offset,
-                            amount_to_take: key.amount_to_take,
+                            max_offset: key.end,
+                            last_completed_offset: key.start,
                         })
                         .collect(),
                     client_counts: subscription_data

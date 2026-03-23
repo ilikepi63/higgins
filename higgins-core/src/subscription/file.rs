@@ -75,7 +75,7 @@ impl PartitionOffsetsOwned {
         );
 
         // Handle if the start of this range does not equal the given offset.
-        if current != range.start {
+        if current < range.start {
             tracing::error!(
                 "Couldn't update the acknowledged outputs. Current: {current}. Range start: {}",
                 range.start
@@ -89,7 +89,7 @@ impl PartitionOffsetsOwned {
         }
 
         self.0[LAST_COMPLETED_OFFSET..LAST_COMPLETED_OFFSET + size_of::<u64>()]
-            .copy_from_slice(&range.end.to_be_bytes());
+            .copy_from_slice(&(range.end + 1).to_be_bytes());
 
         Ok(())
     }
@@ -334,6 +334,7 @@ static ITER_SIZE: usize = PARTITION_OFFSET_SERDE_LEN * PARTITION_COUNT_PER_BUFFE
 
 #[cfg(test)]
 mod test {
+    use std::panic::catch_unwind;
     use std::{io::Read, ops::Range, path::PathBuf, str::FromStr};
 
     use higgins_shared::PartitionName;
@@ -620,28 +621,32 @@ mod test {
     fn can_successfully_acknowledge_partition() {
         let path = PathBuf::from_str("acknowledge_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+        let result = catch_unwind(|| {
+            let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
-        ["test_one", "test_two", "test_three", "test_four"]
-            .iter()
-            .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name).unwrap();
+            ["test_one", "test_two", "test_three", "test_four"]
+                .iter()
+                .for_each(|name| {
+                    let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name).unwrap();
-            });
+                    sub_file.add_partition(&partition_name).unwrap();
+                });
 
-        sub_file
-            .acknowledge(
-                &PartitionName::try_from("test_three").unwrap(),
-                &Range { start: 0, end: 3 },
-            )
-            .unwrap();
+            sub_file
+                .acknowledge(
+                    &PartitionName::try_from("test_three").unwrap(),
+                    &Range { start: 0, end: 3 },
+                )
+                .unwrap();
 
-        let partition = sub_file.get_at(2).unwrap();
+            let partition = sub_file.get_at(2).unwrap();
 
-        assert_eq!(partition.get_last_completed_offset().unwrap(), 3);
+            assert_eq!(partition.get_last_completed_offset().unwrap(), 4);
+        });
 
         std::fs::remove_file(&path).unwrap();
+
+        result.unwrap();
     }
 
     #[test]
@@ -721,40 +726,49 @@ mod test {
         let path =
             PathBuf::from_str("can_read_partitions_to_memory_with_correctly_placed_data").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path).unwrap();
+        let result = catch_unwind(|| {
+            let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
-        print_file_contents(&path);
+            print_file_contents(&path);
 
-        ["test_one", "test_two", "test_three", "test_four"]
-            .iter()
-            .enumerate()
-            .for_each(|(i, name)| {
-                let partition_name = PartitionName::try_from(*name).unwrap();
+            ["test_one", "test_two", "test_three", "test_four"]
+                .iter()
+                .enumerate()
+                .for_each(|(i, name)| {
+                    let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name).unwrap();
-                sub_file
-                    .acknowledge(
-                        &partition_name,
-                        &Range {
-                            start: 0,
-                            end: (i as u64 * 2),
-                        },
-                    )
-                    .unwrap();
-                sub_file
-                    .set_max_offset(&partition_name, &(i as u64 * 10))
-                    .unwrap();
-            });
+                    sub_file.add_partition(&partition_name).unwrap();
+                    sub_file
+                        .acknowledge(
+                            &partition_name,
+                            &Range {
+                                start: 0,
+                                end: (i as u64 * 2),
+                            },
+                        )
+                        .unwrap();
+                    sub_file
+                        .set_max_offset(&partition_name, &(i as u64 * 10))
+                        .unwrap();
+                });
 
-        let partitions = sub_file.get_partition_indexes().unwrap();
+            let partitions = sub_file.get_partition_indexes().unwrap();
+
+            partitions
+        });
 
         std::fs::remove_file(&path).unwrap();
+
+        let partitions = result.unwrap();
 
         for (i, partition) in partitions.iter().enumerate() {
             debug_subscription_bytes(&partition.0);
 
-            assert_eq!(partition.get_last_completed_offset().unwrap(), i as u64 * 2);
-            assert_eq!(partition.get_max_offset().unwrap(), i as u64 * 10);
+            assert_eq!(
+                partition.get_last_completed_offset().unwrap(),
+                ((i as u64) * 2) + 1
+            );
+            assert_eq!(partition.get_max_offset().unwrap(), (i as u64 * 10));
         }
     }
 }
