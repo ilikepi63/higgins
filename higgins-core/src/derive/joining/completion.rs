@@ -44,7 +44,7 @@ pub async fn complete_joined_index_file(
                     match (offset, unsafe { values.get_unchecked_mut(i) }) {
                         (None, Some(value)) => {
                             // Update the offset with the value from the above vec.
-                            JoinedIndex::put_offset(index_buf, i, value.clone()).unwrap();
+                            JoinedIndex::put_offset(index_buf, i, *value).unwrap();
                         }
                         (Some(offset), val) => {
                             // Update the value inside of the vec.

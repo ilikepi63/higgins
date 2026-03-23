@@ -261,7 +261,7 @@ impl SubscriptionFile {
 
         file.read(&mut buffer)?;
 
-        Ok(PartitionOffsetsOwned::of(&buffer)?)
+        PartitionOffsetsOwned::of(&buffer)
     }
 
     /// Write the given buffer at the provided index.

@@ -14,14 +14,6 @@ use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
 use higgins_shared::PartitionName;
 
-macro_rules! get_sub {
-    ($broker: ident, $left: ident, $sub: ident) => {
-        $broker
-            .get_subscription_by_key($left.0.as_bytes(), &$sub)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)
-    };
-}
-
 /// This structure represents the core asynchronous functionality that is done when a
 /// join operation is applied to an underlying stream.
 #[allow(unused)]
@@ -54,7 +46,7 @@ pub async fn create_join_operator(
         let schema = broker.get_schema(&join_definition_schema_key).unwrap();
 
         // Create the actual derived stream.
-        broker.create_stream(&definition.base.0.as_bytes(), schema.clone());
+        broker.create_stream(definition.base.0.as_bytes(), schema.clone());
 
         tracing::trace!("[JOIN] Successfully created the stream definition inside of the broker.");
     };

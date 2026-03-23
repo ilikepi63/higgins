@@ -231,17 +231,10 @@ impl<'a> Deref for IndexesView<'a> {
 #[cfg(test)]
 mod test {
     use crate::storage::index::{IndexType, joined_index::JoinedIndex};
-    use arrow::array::RecordBatch;
-    use higgins_shared::PartitionName;
-    use riskless::messages::ProduceRequest;
 
-    use crate::{
-        error::HigginsError,
-        storage::{
-            arrow_ipc::write_arrow,
-            dereference::{Reference, S3Reference},
-            index::Index,
-        },
+    use crate::storage::{
+        dereference::{Reference, S3Reference},
+        index::Index,
     };
 
     #[test]

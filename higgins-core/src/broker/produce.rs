@@ -66,7 +66,7 @@ impl Broker {
             .indexes
             .put_default_index(
                 String::from_utf8(stream_name.to_owned()).unwrap(),
-                &partition,
+                partition,
                 reference,
                 response,
                 &index_type,
@@ -82,7 +82,7 @@ impl Broker {
         if let Some(subscriptions) = subscription {
             tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
 
-            for (subscription_id, (notify, subscription)) in subscriptions {
+            for (_, (notify, subscription)) in subscriptions {
                 let mut subscription = subscription.write().await;
 
                 tracing::trace!(
@@ -91,7 +91,7 @@ impl Broker {
                 );
 
                 // Set the max offset of the subscription.
-                subscription.set_end(&partition, offset + 1)?;
+                subscription.set_end(partition, offset + 1)?;
 
                 tracing::info!("{:#?}", subscription);
 

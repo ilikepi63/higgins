@@ -3,7 +3,6 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::JoinDefinition;
-use super::join::JoinWithStream;
 use super::opts::eager_take_from_subscription_or_wait;
 use crate::broker::Broker;
 use crate::error::HigginsError;

@@ -51,18 +51,17 @@ impl PartitionOffsets {
     fn of(key: &PartitionName, offset: Option<u64>, max_offset: Option<u64>) -> Self {
         let start = offset.unwrap_or(0);
         let end = max_offset.unwrap_or(0);
-        let mut new_partition = PartitionOffsets {
+
+        PartitionOffsets {
             partition_id: key.to_owned(),
             start,
             end,
-        };
-
-        new_partition
+        }
     }
 
     // helper method for calculating the amount_to_take.
     pub fn amount_to_take(&self) -> u64 {
-        self.end.checked_sub(self.start).unwrap_or(0)
+        self.end.saturating_sub(self.start)
     }
 
     // Set the last_completed_offset.
@@ -70,6 +69,7 @@ impl PartitionOffsets {
         self.start = offset;
     }
 
+    #[allow(unused)]
     fn set_end(&mut self, offset: u64) {
         self.end = offset;
     }
@@ -138,7 +138,7 @@ impl Subscription {
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
-            partitions: partitions,
+            partitions,
             file: subscription_file,
         }
     }
@@ -186,7 +186,7 @@ impl Subscription {
         self.partitions
             .iter()
             .find(|PartitionOffsets { partition_id, .. }| partition_id == key)
-            .map(|p| p.clone())
+            .cloned()
     }
 
     /// Acknowledges the offset, adjusting the ranges that appear inside of this given
@@ -251,32 +251,29 @@ impl Subscription {
         while offset_count > 0 && partition_offset_index < self.partitions.len() {
             let current_partition = self.partitions.get_mut(partition_offset_index);
 
-            match current_partition {
-                Some(partition_offset) => {
-                    for i in partition_offset.start.clone()..partition_offset.end.clone() {
-                        tracing::trace!(
-                            "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
-                            partition_offset
-                        );
+            if let Some(partition_offset) = current_partition {
+                for i in partition_offset.start..partition_offset.end {
+                    tracing::trace!(
+                        "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
+                        partition_offset
+                    );
 
-                        tracing::trace!(
-                            "[SUBSCRIPTION TAKE] Setting last completed offset: {:#?}",
-                            i
-                        );
+                    tracing::trace!(
+                        "[SUBSCRIPTION TAKE] Setting last completed offset: {:#?}",
+                        i
+                    );
 
-                        // Push the offset on the resultant vec.
-                        results.push((partition_offset.partition_id.clone(), i));
-                        // Update the current last_completed_offset.
-                        partition_offset.set_start(i + 1);
+                    // Push the offset on the resultant vec.
+                    results.push((partition_offset.partition_id.clone(), i));
+                    // Update the current last_completed_offset.
+                    partition_offset.set_start(i + 1);
 
-                        // If the offset count has gotten to zero, we break here and continue with the while loop.
-                        offset_count -= 1;
-                        if offset_count == 0 {
-                            break;
-                        }
+                    // If the offset count has gotten to zero, we break here and continue with the while loop.
+                    offset_count -= 1;
+                    if offset_count == 0 {
+                        break;
                     }
                 }
-                None => {}
             }
 
             tracing::debug!(

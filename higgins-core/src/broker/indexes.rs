@@ -52,7 +52,7 @@ impl<'a> Deref for BrokerIndexFileLock<'a> {
     type Target = IndexFile;
 
     fn deref(&self) -> &Self::Target {
-        &self.index_file
+        self.index_file
     }
 }
 

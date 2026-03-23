@@ -1,6 +1,3 @@
-use crate::common::{
-    configuration::upload_configuration, data::query_latest_arrow, ping::ping_sync, produce_sync,
-};
 use common::get_random_port;
 use higgins::run_server;
 use higgins::storage::arrow_ipc::read_arrow;
@@ -8,7 +5,7 @@ use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
 use higgins_shared::PartitionName;
 use std::panic::catch_unwind;
-use std::{net::TcpStream, time::Duration};
+use std::time::Duration;
 
 mod common;
 

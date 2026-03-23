@@ -53,7 +53,7 @@ pub async fn handle_produce(
     let array = batch.column(
         batch
             .schema()
-            .index_of(&String::from_utf8(key.as_bytes().to_vec()).unwrap())
+            .index_of(core::str::from_utf8(key.as_bytes()).unwrap())
             .unwrap(),
     );
 

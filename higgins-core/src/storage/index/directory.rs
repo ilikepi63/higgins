@@ -223,7 +223,7 @@ impl IndexDirectory {
 
             for i in 0..indexes.count() {
                 let index = indexes.get(i).unwrap();
-                tracing::trace!("{:#?}", Index::of(&index, index_type.clone()));
+                tracing::trace!("{:#?}", Index::of(index, index_type.clone()));
             }
             tracing::trace!("COMPLETED ITERATING INDEXES");
         }

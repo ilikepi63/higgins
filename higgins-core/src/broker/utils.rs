@@ -38,7 +38,6 @@ pub async fn get_arrow_data_at(
     );
 
     // Retrieve the first record, as there should be only one record.
-    let arrow_data = read_arrow(&data).next().and_then(|r| r.ok()).unwrap();
 
-    arrow_data
+    read_arrow(&data).next().and_then(|r| r.ok()).unwrap()
 }

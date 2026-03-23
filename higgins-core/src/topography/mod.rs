@@ -55,26 +55,26 @@ impl From<&String> for Key {
     }
 }
 
-impl Into<String> for Key {
-    fn into(self) -> String {
-        self.0
+impl From<Key> for String {
+    fn from(val: Key) -> Self {
+        val.0
     }
 }
 
-impl Into<String> for &Key {
-    fn into(self) -> String {
-        self.0.to_owned()
+impl From<&Key> for String {
+    fn from(val: &Key) -> Self {
+        val.0.to_owned()
     }
 }
 
-impl Into<Vec<u8>> for Key {
-    fn into(self) -> Vec<u8> {
-        self.0.into_bytes()
+impl From<Key> for Vec<u8> {
+    fn from(val: Key) -> Self {
+        val.0.into_bytes()
     }
 }
-impl Into<Vec<u8>> for &Key {
-    fn into(self) -> Vec<u8> {
-        self.0.clone().into_bytes()
+impl From<&Key> for Vec<u8> {
+    fn from(val: &Key) -> Self {
+        val.0.clone().into_bytes()
     }
 }
 
@@ -156,7 +156,7 @@ impl Topography {
 
     /// Converts this Topography into a configuration.
     pub fn to_config(&self) -> Configuration {
-        let streams = if self.streams.len() > 0 {
+        let streams = if !self.streams.is_empty() {
             Some(
                 self.streams
                     .iter()
@@ -172,7 +172,7 @@ impl Topography {
             None
         };
 
-        let schema = if self.schema.len() > 0 {
+        let schema = if !self.schema.is_empty() {
             Some(
                 self.schema
                     .iter()
@@ -293,10 +293,10 @@ impl Topography {
         );
 
         // Apply the Storage configuration..
-        if let Some(storage) = configuration.storage.as_ref() {
-            if let Some((name, storage)) = storage.first_key_value() {
-                self.add_storage(&(name.clone(), storage.clone()))?;
-            }
+        if let Some(storage) = configuration.storage.as_ref()
+            && let Some((name, storage)) = storage.first_key_value()
+        {
+            self.add_storage(&(name.clone(), storage.clone()))?;
         }
 
         if let Some(schema) = configuration.schema.as_ref() {
@@ -447,9 +447,9 @@ impl From<&str> for FunctionType {
     }
 }
 
-impl Into<String> for FunctionType {
-    fn into(self) -> String {
-        match self {
+impl From<FunctionType> for String {
+    fn from(val: FunctionType) -> Self {
+        match val {
             FunctionType::Reduce => "reduce".to_string(),
             FunctionType::Map => "map".to_string(),
             FunctionType::Aggregate => "aggregate".to_string(),

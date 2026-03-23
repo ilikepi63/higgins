@@ -11,7 +11,7 @@ impl<T> UniqueCollection<T> {
     fn get_smallest_unused(&self) -> Option<u64> {
         let mut expected = 0;
 
-        for (&id, _) in &self.0 {
+        for &id in self.0.keys() {
             if id > expected {
                 return Some(expected);
             }

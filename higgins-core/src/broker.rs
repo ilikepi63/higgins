@@ -83,11 +83,10 @@ impl Broker {
 
                 tracing::trace!("[CREATE_PARTITION] Creating: {:#?}", sub);
 
-                if sub
+                if !sub
                     .partitions
                     .iter()
-                    .find(|sub_key| sub_key.partition_id == *key)
-                    .is_none()
+                    .any(|sub_key| sub_key.partition_id == *key)
                 {
                     sub.add_partition(key, None, None)?;
                 };

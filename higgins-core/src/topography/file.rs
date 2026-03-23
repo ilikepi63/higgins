@@ -77,10 +77,7 @@ impl TopographyFile {
 
         let values: Vec<T> = data_string
             .split("\\n")
-            .map(|t_string| {
-                let t = serde_json::from_str(&t_string);
-                t
-            })
+            .map(|t_string| serde_json::from_str(t_string))
             .collect::<Result<Vec<T>, serde_json::error::Error>>()?;
 
         Ok(values)

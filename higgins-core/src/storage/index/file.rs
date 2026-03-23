@@ -135,7 +135,7 @@ impl IndexFile {
         match file_size {
             0 => return CompletedBinarySearchResult::All,
             1 => {
-                let mut buffer = vec![0_u8; self.element_size * 1];
+                let mut buffer = vec![0_u8; self.element_size];
                 self.read_at(0, &mut buffer).unwrap();
                 let index = JoinedIndex::of(&mut buffer);
                 if index.completed() {
@@ -187,7 +187,7 @@ impl IndexFile {
                         _ => return CompletedBinarySearchResult::None,
                     }
                 }
-                Err(err) => {
+                Err(_) => {
                     tracing::error!("Error occurred with reading buffer. File size: {file_size}");
                 }
             };
@@ -594,7 +594,7 @@ mod tests {
 
         JoinedIndex::set_completed(&mut val);
 
-        file.put_at(0, &mut val);
+        file.put_at(0, &mut val).unwrap();
 
         let index = file.binary_search_completed();
 

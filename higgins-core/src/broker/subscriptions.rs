@@ -52,7 +52,7 @@ impl Broker {
             |mut failed_offsets, (key, range)| {
                 tracing::info!("Acknowledging key {:#?} with range {:#?}", key, range);
 
-                if let Err(e) = subscription.acknowledge(&key, &range) {
+                if let Err(e) = subscription.acknowledge(key, range) {
                     failed_offsets.0 = e.to_string();
                     failed_offsets.1.push((key.to_owned(), range.clone()));
                 }
@@ -259,13 +259,13 @@ impl OffsetPayload {
     }
 }
 
-impl Into<Record> for OffsetPayload {
-    fn into(self) -> Record {
+impl From<OffsetPayload> for Record {
+    fn from(val: OffsetPayload) -> Self {
         Record {
-            data: self.bytes,
-            stream: self.stream.as_bytes().to_vec(),
-            partition: self.key.0.to_vec(),
-            offset: self.offset,
+            data: val.bytes,
+            stream: val.stream.as_bytes().to_vec(),
+            partition: val.key.0.to_vec(),
+            offset: val.offset,
         }
     }
 }
