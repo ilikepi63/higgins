@@ -71,15 +71,13 @@ feature-depth = 1
 # output a note when they are encountered.
 ignore = [
     { id = "RUSTSEC-2025-0118", reason = "Requires further investigation." },
-    { id = "RUSTSEC-2025-0046", reason = "Requires further investigation." },
-    { id = "RUSTSEC-2025-0055", reason = "Requires further investigation." },
-    { id = "RUSTSEC-2026-0001", reason = "Requires further investigation." },
     { id = "RUSTSEC-2025-0057", reason = "Requires further investigation." },
     { id = "RUSTSEC-2025-0134", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0006", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0007", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0020", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0021", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0049", reason = "Requires further investigation." },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
