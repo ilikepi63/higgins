@@ -86,8 +86,8 @@ use std::str::FromStr;
 //     .map(DataType::FixedSizeBinary)
 //     .parse(input)
 // }
-
-fn parse(input: &str) -> IResult<&str, DataType> {
+//
+fn parse_simple(input: &str) -> IResult<&str, DataType> {
     alt((
         value(DataType::Utf8, tag("string")),
         value(DataType::LargeUtf8, tag("large_string")),
@@ -115,6 +115,26 @@ fn parse(input: &str) -> IResult<&str, DataType> {
         value(DataType::Date64, tag("date64")),
     ))
     .parse(input.trim())
+}
+
+fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
+    let (_, (_, _, digits, _)) = (
+        tag("fixed_bytes"),
+        tag("["),
+        take_while1(|n: char| n.is_numeric()),
+        tag("]"),
+    )
+        .parse(input)?;
+
+    let size = digits
+        .parse::<i32>()
+        .map_err(|_| nom::Err::Error(nom::error::Error::new(input, ErrorKind::IsNot)))?;
+
+    IResult::Ok((input, DataType::FixedSizeBinary(size)))
+}
+
+fn parse(input: &str) -> IResult<&str, DataType> {
+    alt((parse_simple, parse_fixed_size_binary)).parse(input)
 }
 
 #[cfg(test)]
@@ -155,6 +175,7 @@ mod test {
         // ("string", DataType::Utf8),
         // ("string", DataType::Utf8),
         // ("string", DataType::Utf8),
+        ("fixed_bytes[5]", DataType::FixedSizeBinary(5)),
     ];
 
     #[test]
