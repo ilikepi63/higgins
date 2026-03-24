@@ -32,6 +32,7 @@ rand = "0.9.2"
 futures = "0.3.31"
 higgins-shared = { path = "../higgins-shared" }
 serde_json = "1.0.140"
+nom = "8.0.0"
 
 [dev-dependencies]
 higgins-client = { path = "../higgins-client" }

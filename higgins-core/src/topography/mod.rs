@@ -21,6 +21,7 @@ use crate::topography::{
 };
 
 pub mod config;
+mod data_type_parser;
 pub mod errors;
 mod file;
 
