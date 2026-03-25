@@ -158,6 +158,28 @@ fn parse_decimal(input: &str) -> IResult<&str, DataType> {
     IResult::Ok((input, data_type))
 }
 
+fn parse_time(input: &str) -> IResult<&str, DataType> {
+    let (_, (_, _, timeunit, _)) = (
+        tag("time"),
+        tag("["),
+        alt((
+            value(TimeUnit::Second, tag("s")),
+            value(TimeUnit::Nanosecond, tag("ns")),
+            value(TimeUnit::Microsecond, tag("us")),
+            value(TimeUnit::Millisecond, tag("ms")),
+        )),
+        tag("]"),
+    )
+        .parse(input)?;
+
+    let data_type = match timeunit {
+        TimeUnit::Second | TimeUnit::Millisecond => DataType::Time32(timeunit),
+        TimeUnit::Nanosecond | TimeUnit::Microsecond => DataType::Time64(timeunit),
+    };
+
+    IResult::Ok((input, data_type))
+}
+
 fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
     let (_, (_, _, digits, _)) = (
         tag("fixed_bytes"),
@@ -175,7 +197,13 @@ fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
 }
 
 fn parse(input: &str) -> IResult<&str, DataType> {
-    alt((parse_simple, parse_fixed_size_binary, parse_decimal)).parse(input)
+    alt((
+        parse_simple,
+        parse_fixed_size_binary,
+        parse_decimal,
+        parse_time,
+    ))
+    .parse(input)
 }
 
 #[cfg(test)]
@@ -190,6 +218,7 @@ mod test {
         ("large_string", DataType::LargeUtf8),
         ("bytes", DataType::Binary),
         ("large_bytes", DataType::LargeBinary),
+        ("fixed_bytes[5]", DataType::FixedSizeBinary(5)),
         // signed integer types
         ("int8", DataType::Int8),
         ("int16", DataType::Int16),
@@ -209,17 +238,26 @@ mod test {
         // dates
         ("date32", DataType::Date32),
         ("date64", DataType::Date64),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        // ("string", DataType::Utf8),
-        ("fixed_bytes[5]", DataType::FixedSizeBinary(5)),
+        // decimal
         ("decimal[1,3]", DataType::Decimal128(1, 3)),
         ("decimal[7,8,256]", DataType::Decimal256(7, 8)),
         ("decimal[5,6,128]", DataType::Decimal128(5, 6)),
+        // time
+        ("time[ns]", DataType::Time64(TimeUnit::Nanosecond)),
+        ("time[s]", DataType::Time32(TimeUnit::Second)),
+        ("time[us]", DataType::Time64(TimeUnit::Microsecond)),
+        // ("timestamp[s]", DataType::Timestamp(TimeUnit::Second, None)),
+        // (
+        //     "timestamp[s, America/New_York]",
+        //     DataType::Timestamp(
+        //         TimeUnit::Second,
+        //         Some(String::from("America/New_York").into()),
+        //     ),
+        // ),
+        // (
+        //     "timestamp[s, +07:30]",
+        //     DataType::Timestamp(TimeUnit::Second, Some("+07:30".into())),
+        // ),
     ];
 
     #[test]
