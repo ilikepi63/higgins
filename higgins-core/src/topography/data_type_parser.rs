@@ -4,95 +4,15 @@ use nom::{
     branch::alt,
     bytes::{
         complete::{tag, take_while1},
-        take_until, take_while,
+        take_until,
     },
-    character::{
-        char,
-        complete::{digit1, multispace0, multispace1},
-    },
-    combinator::{cut, map, map_res, opt, recognize, value},
-    error::{ErrorKind, context},
-    multi::{separated_list0, separated_list1},
-    sequence::{delimited, preceded, separated_pair, tuple},
+    character::{char, complete::multispace0},
+    combinator::{opt, value},
+    error::ErrorKind,
+    multi::separated_list0,
+    sequence::{delimited, preceded},
 };
-use std::str::FromStr;
 
-// // Helper: parse usize from digits
-// fn parse_usize(input: &str) -> IResult<&str, usize> {
-//     map_res(digit1, usize::from_str)(input)
-// }
-
-// // Helper: parse quoted string (very naive – no escapes)
-// fn quoted_string(input: &str) -> IResult<&str, &str> {
-//     delimited(char('"'), take_while1(|c: char| c != '"'), char('"'))(input)
-// }
-
-// // Helper: parse optional timezone after comma
-// fn maybe_timezone(input: &str) -> IResult<&str, Option<String>> {
-//     opt(preceded(
-//         multispace0,
-//         preceded(char(','), preceded(multispace0, quoted_string)),
-//     ))
-//     .map(|s| s.map(ToString::to_string))(input)
-// }
-
-// // timestamp[unit]  or  timestamp[unit, "tz"]
-// fn parse_timestamp(input: &str) -> IResult<&str, DataType> {
-//     preceded(
-//         tag_no_case("timestamp"),
-//         delimited(
-//             char('['),
-//             cut(tuple((
-//                 alt((
-//                     value(TimeUnit::Second, tag_no_case("s")),
-//                     value(TimeUnit::Millisecond, tag_no_case("ms")),
-//                     value(TimeUnit::Microsecond, tag_no_case("us")),
-//                     value(TimeUnit::Nanosecond, tag_no_case("ns")),
-//                 )),
-//                 maybe_timezone,
-//             ))),
-//             char(']'),
-//         ),
-//     )
-//     .map(|(unit, tz)| DataType::Timestamp(unit, tz.map(|s| s.into())))
-//     .parse(input)
-// }
-
-// // decimal(precision, scale)  – we produce Decimal128 for now (most common)
-// fn parse_decimal(input: &str) -> IResult<&str, DataType> {
-//     preceded(
-//         alt((
-//             tag_no_case("decimal"),
-//             tag_no_case("decimal128"),
-//             tag_no_case("decimal256"), // we can add logic later
-//         )),
-//         delimited(
-//             char('('),
-//             cut(tuple((
-//                 parse_usize,
-//                 preceded(tuple((multispace0, char(','), multispace0)), parse_usize),
-//             ))),
-//             char(')'),
-//         ),
-//     )
-//     .map(|(precision, scale)| {
-//         // In real code you might choose Decimal128 vs 256 depending on precision
-//         // For simplicity → always Decimal128 here
-//         DataType::Decimal128(precision as i8, scale as i8)
-//     })
-//     .parse(input)
-// }
-
-// fixed_size_binary(<len>)
-// fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
-//     preceded(
-//         tag_no_case("fixed_size_binary"),
-//         delimited(char('('), cut(parse_usize), char(')')),
-//     )
-//     .map(DataType::FixedSizeBinary)
-//     .parse(input)
-// }
-//
 fn parse_simple(input: &str) -> IResult<&str, DataType> {
     alt((
         value(DataType::Utf8, tag("string")),
@@ -183,13 +103,6 @@ fn parse_time(input: &str) -> IResult<&str, DataType> {
     IResult::Ok((input, data_type))
 }
 
-// alt((
-//     nom::character::complete::alphanumeric1,
-//     nom::character::multispace0(),
-//     tag("_"),
-//     tag("/"),
-// ))
-
 fn parse_timezone(input: &str) -> IResult<&str, &str> {
     take_until("]").parse(input)
 }
@@ -217,23 +130,8 @@ fn parse_timestamp(input: &str) -> IResult<&str, DataType> {
         "us" => TimeUnit::Microsecond,
         _ => TimeUnit::Second,
     };
-    // ..config_vec
-    // .get(0)
-    // //.map(|v| v.get(0))
-    // //.flatten()
-    // .map(|s| match *s {
-    //     "ns" => TimeUnit::Nanosecond,
-    //     "ms" => TimeUnit::Millisecond,
-    //     "us" => TimeUnit::Microsecond,
-    //     _ => TimeUnit::Second,
-    // })
-    // .unwrap_or(TimeUnit::Second);
 
-    let timezone: Option<std::sync::Arc<str>> = timezone
-        // config_vec
-        // .get(1)
-        // .map(|v| v.iter().map(|s| *s).collect::<String>())
-        .map(|s| (*s).into());
+    let timezone: Option<std::sync::Arc<str>> = timezone.map(|s| (*s).into());
 
     IResult::Ok((input, DataType::Timestamp(time_unit, timezone)))
 }
@@ -271,7 +169,7 @@ mod test {
     use super::*;
     use arrow_schema::DataType;
 
-    const values: &[(&str, DataType)] = &[
+    const VALUES: &[(&str, DataType)] = &[
         // byte array types.
         ("string", DataType::Utf8),
         ("large_string", DataType::LargeUtf8),
@@ -309,7 +207,7 @@ mod test {
 
     #[test]
     fn can_parse() {
-        for (input, output) in values {
+        for (input, output) in VALUES {
             assert_eq!(parse(input).unwrap().1, *output)
         }
     }
@@ -332,22 +230,10 @@ mod test {
             tag("/"),
         ))),))
         .parse(input)
-
-        // separated_list1(nom::character::char(','), take_while(|_| true)).parse(input)
-    }
-
-    fn test_parser(input: &str) -> IResult<&str, Vec<Vec<&str>>> {
-        separated_list1(nom::character::char(','), test_parser_any).parse(input)
     }
 
     #[test]
     fn can_parse_timestamp() {
-        //dbg!(parse_timezone(" America/New_York").unwrap());
-
-        let result = test_parser("ms, America/New_York").unwrap();
-
-        dbg!(result);
-
         let (_, result) = parse_timestamp("timestamp[s]").unwrap();
 
         assert_eq!(result, DataType::Timestamp(TimeUnit::Second, None));
