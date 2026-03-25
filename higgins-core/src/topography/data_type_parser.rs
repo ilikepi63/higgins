@@ -3,11 +3,14 @@ use nom::{
     IResult, Parser,
     branch::alt,
     bytes::complete::{tag, take_while1},
-    character::complete::{char, digit1, multispace0, multispace1},
+    character::{
+        char,
+        complete::{digit1, multispace0, multispace1},
+    },
     combinator::{cut, map, map_res, opt, recognize, value},
     error::{ErrorKind, context},
     multi::separated_list0,
-    sequence::{delimited, preceded, tuple},
+    sequence::{delimited, preceded, separated_pair, tuple},
 };
 use std::str::FromStr;
 
@@ -117,6 +120,44 @@ fn parse_simple(input: &str) -> IResult<&str, DataType> {
     .parse(input.trim())
 }
 
+fn parse_decimal(input: &str) -> IResult<&str, DataType> {
+    let (_, (_, _, config_vector, _)) = (
+        tag("decimal"),
+        tag("["),
+        separated_list0(char(','), take_while1(|n: char| n.is_numeric())),
+        tag("]"),
+    )
+        .parse(input)?;
+
+    let precision = config_vector
+        .get(0)
+        .and_then(|v| v.parse::<u8>().ok())
+        .ok_or(nom::Err::Error(nom::error::Error::new(
+            input,
+            ErrorKind::IsNot,
+        )))?;
+
+    let scale = config_vector
+        .get(1)
+        .and_then(|v| v.parse::<i8>().ok())
+        .ok_or(nom::Err::Error(nom::error::Error::new(
+            input,
+            ErrorKind::IsNot,
+        )))?;
+
+    let data_type = match config_vector.get(2) {
+        Some(v) if *v == "256" => Ok(DataType::Decimal256(precision, scale)),
+        Some(v) if *v == "128" => Ok(DataType::Decimal128(precision, scale)),
+        None => Ok(DataType::Decimal128(precision, scale)),
+        _ => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            ErrorKind::IsNot,
+        ))),
+    }?;
+
+    IResult::Ok((input, data_type))
+}
+
 fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
     let (_, (_, _, digits, _)) = (
         tag("fixed_bytes"),
@@ -134,7 +175,7 @@ fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
 }
 
 fn parse(input: &str) -> IResult<&str, DataType> {
-    alt((parse_simple, parse_fixed_size_binary)).parse(input)
+    alt((parse_simple, parse_fixed_size_binary, parse_decimal)).parse(input)
 }
 
 #[cfg(test)]
@@ -176,6 +217,9 @@ mod test {
         // ("string", DataType::Utf8),
         // ("string", DataType::Utf8),
         ("fixed_bytes[5]", DataType::FixedSizeBinary(5)),
+        ("decimal[1,3]", DataType::Decimal128(1, 3)),
+        ("decimal[7,8,256]", DataType::Decimal256(7, 8)),
+        ("decimal[5,6,128]", DataType::Decimal128(5, 6)),
     ];
 
     #[test]
@@ -183,5 +227,16 @@ mod test {
         for (input, output) in values {
             assert_eq!(parse(input).unwrap().1, *output)
         }
+    }
+
+    #[test]
+    fn can_parse_decimal() {
+        let (_, result) = parse_decimal("decimal[1,3]")
+            .inspect_err(|err| {
+                dbg!(err);
+            })
+            .unwrap();
+
+        assert_eq!(result, DataType::Decimal128(1, 3));
     }
 }
