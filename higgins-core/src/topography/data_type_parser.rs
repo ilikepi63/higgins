@@ -223,15 +223,6 @@ mod test {
         assert_eq!(result, DataType::Decimal128(1, 3));
     }
 
-    fn test_parser_any(input: &str) -> IResult<&str, Vec<&str>> {
-        alt((nom::multi::many0(alt((
-            nom::character::complete::alphanumeric1,
-            tag("_"),
-            tag("/"),
-        ))),))
-        .parse(input)
-    }
-
     #[test]
     fn can_parse_timestamp() {
         let (_, result) = parse_timestamp("timestamp[s]").unwrap();
