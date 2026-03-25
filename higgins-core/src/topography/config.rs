@@ -58,18 +58,7 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
     let fields = schema
         .iter()
         .map(|(key, value)| {
-            let data_type = match value.as_ref() {
-                "string" => DataType::Utf8,
-                "uint8" => DataType::UInt8,
-                "uint16" => DataType::UInt16,
-                "uint32" => DataType::UInt32,
-                "uint64" => DataType::UInt64,
-                "int8" => DataType::Int8,
-                "int16" => DataType::Int16,
-                "int32" => DataType::Int32,
-                "int64" => DataType::Int64,
-                _ => unimplemented!(),
-            };
+            let (_, data_type) = super::data_type_parser::parse(value).unwrap();
 
             Field::new(key, data_type, true) // TODO: how do we handle nullable here? OR how do we actually determine them?
         })

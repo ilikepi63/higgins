@@ -152,7 +152,7 @@ fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
     IResult::Ok((input, DataType::FixedSizeBinary(size)))
 }
 
-fn parse(input: &str) -> IResult<&str, DataType> {
+pub fn parse(input: &str) -> IResult<&str, DataType> {
     alt((
         parse_simple,
         parse_fixed_size_binary,
