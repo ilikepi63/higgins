@@ -2,14 +2,17 @@ use arrow::datatypes::{DataType, TimeUnit};
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::{
+        complete::{tag, take_while1},
+        take_until, take_while,
+    },
     character::{
         char,
         complete::{digit1, multispace0, multispace1},
     },
     combinator::{cut, map, map_res, opt, recognize, value},
     error::{ErrorKind, context},
-    multi::separated_list0,
+    multi::{separated_list0, separated_list1},
     sequence::{delimited, preceded, separated_pair, tuple},
 };
 use std::str::FromStr;
@@ -180,6 +183,61 @@ fn parse_time(input: &str) -> IResult<&str, DataType> {
     IResult::Ok((input, data_type))
 }
 
+// alt((
+//     nom::character::complete::alphanumeric1,
+//     nom::character::multispace0(),
+//     tag("_"),
+//     tag("/"),
+// ))
+
+fn parse_timezone(input: &str) -> IResult<&str, &str> {
+    take_until("]").parse(input)
+}
+
+fn parse_timestamp(input: &str) -> IResult<&str, DataType> {
+    let (_, (_, (time_unit, timezone))) = (
+        tag("timestamp"),
+        delimited(
+            char('['),
+            nom::sequence::pair(
+                alt((tag("ms"), tag("us"), tag("s"), tag("ns"))),
+                opt(preceded(
+                    preceded(multispace0, tag(",")),
+                    preceded(multispace0, parse_timezone),
+                )),
+            ),
+            char(']'),
+        ),
+    )
+        .parse(input)?;
+
+    let time_unit = match time_unit {
+        "ns" => TimeUnit::Nanosecond,
+        "ms" => TimeUnit::Millisecond,
+        "us" => TimeUnit::Microsecond,
+        _ => TimeUnit::Second,
+    };
+    // ..config_vec
+    // .get(0)
+    // //.map(|v| v.get(0))
+    // //.flatten()
+    // .map(|s| match *s {
+    //     "ns" => TimeUnit::Nanosecond,
+    //     "ms" => TimeUnit::Millisecond,
+    //     "us" => TimeUnit::Microsecond,
+    //     _ => TimeUnit::Second,
+    // })
+    // .unwrap_or(TimeUnit::Second);
+
+    let timezone: Option<std::sync::Arc<str>> = timezone
+        // config_vec
+        // .get(1)
+        // .map(|v| v.iter().map(|s| *s).collect::<String>())
+        .map(|s| (*s).into());
+
+    IResult::Ok((input, DataType::Timestamp(time_unit, timezone)))
+}
+
 fn parse_fixed_size_binary(input: &str) -> IResult<&str, DataType> {
     let (_, (_, _, digits, _)) = (
         tag("fixed_bytes"),
@@ -202,6 +260,7 @@ fn parse(input: &str) -> IResult<&str, DataType> {
         parse_fixed_size_binary,
         parse_decimal,
         parse_time,
+        parse_timestamp,
     ))
     .parse(input)
 }
@@ -246,18 +305,6 @@ mod test {
         ("time[ns]", DataType::Time64(TimeUnit::Nanosecond)),
         ("time[s]", DataType::Time32(TimeUnit::Second)),
         ("time[us]", DataType::Time64(TimeUnit::Microsecond)),
-        // ("timestamp[s]", DataType::Timestamp(TimeUnit::Second, None)),
-        // (
-        //     "timestamp[s, America/New_York]",
-        //     DataType::Timestamp(
-        //         TimeUnit::Second,
-        //         Some(String::from("America/New_York").into()),
-        //     ),
-        // ),
-        // (
-        //     "timestamp[s, +07:30]",
-        //     DataType::Timestamp(TimeUnit::Second, Some("+07:30".into())),
-        // ),
     ];
 
     #[test]
@@ -276,5 +323,47 @@ mod test {
             .unwrap();
 
         assert_eq!(result, DataType::Decimal128(1, 3));
+    }
+
+    fn test_parser_any(input: &str) -> IResult<&str, Vec<&str>> {
+        alt((nom::multi::many0(alt((
+            nom::character::complete::alphanumeric1,
+            tag("_"),
+            tag("/"),
+        ))),))
+        .parse(input)
+
+        // separated_list1(nom::character::char(','), take_while(|_| true)).parse(input)
+    }
+
+    fn test_parser(input: &str) -> IResult<&str, Vec<Vec<&str>>> {
+        separated_list1(nom::character::char(','), test_parser_any).parse(input)
+    }
+
+    #[test]
+    fn can_parse_timestamp() {
+        //dbg!(parse_timezone(" America/New_York").unwrap());
+
+        let result = test_parser("ms, America/New_York").unwrap();
+
+        dbg!(result);
+
+        let (_, result) = parse_timestamp("timestamp[s]").unwrap();
+
+        assert_eq!(result, DataType::Timestamp(TimeUnit::Second, None));
+
+        let (_, result) = parse_timestamp("timestamp[ms, America/New_York]").unwrap();
+
+        assert_eq!(
+            result,
+            DataType::Timestamp(TimeUnit::Millisecond, Some("America/New_York".into()))
+        );
+
+        let (_, result) = parse_timestamp("timestamp[ms, +07:30]").unwrap();
+
+        assert_eq!(
+            result,
+            DataType::Timestamp(TimeUnit::Millisecond, Some("+07:30".into()))
+        );
     }
 }
