@@ -2,12 +2,14 @@ use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use colored::Colorize;
+use common::schema::customer_schema;
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_codec::{
     AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
     Record, TakeRecordsResponse,
 };
+
 use higgins_shared::PartitionName;
 use zerocopy::IntoBytes;
 
@@ -108,7 +110,12 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("##### {} #####", "FIRST PRODUCE");
 
-    produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     let response = recv_until_take(&mut consume_client);
 
@@ -196,7 +203,12 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "SECOND PRODUCE".red());
 
-    let _ = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    let _ = produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     let response = recv_until_take(&mut consume_client);
 

@@ -1,3 +1,4 @@
+use common::schema::customer_schema;
 use std::{
     env::temp_dir,
     sync::{Arc, Mutex},
@@ -120,7 +121,11 @@ fn can_update_subscription_after_created() {
 
     for _ in 0..NUMBER_OF_MESSAGES {
         produce_client
-            .produce("update_customer", payload.as_bytes())
+            .produce_json(
+                "update_customer",
+                payload.as_bytes(),
+                std::sync::Arc::new(customer_schema()),
+            )
             .unwrap();
     }
 

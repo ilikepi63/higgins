@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use arrow_schema::SchemaRef;
 use higgins_client::{Response, ResponseBody};
 use higgins_codec::{GetSubscriptionResponse, Record, TakeRecordsResponse};
 use higgins_shared::PartitionName;
@@ -63,8 +64,9 @@ pub fn produce(
     client: &mut higgins_client::blocking::Client,
     stream: &str,
     payload: &[u8],
+    schema: SchemaRef,
 ) -> higgins_codec::ProduceResponse {
-    client.produce(stream, payload).unwrap();
+    client.produce_json(stream, payload, schema).unwrap();
 
     match client.recv(None).unwrap().body {
         ResponseBody::Produce(response) => {

@@ -1,6 +1,6 @@
 use std::{env::temp_dir, time::Duration};
 
-use crate::common::get_random_port;
+use crate::common::{get_random_port, schema::customer_schema};
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_codec::{
@@ -119,7 +119,12 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    let produce_response = produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
@@ -174,7 +179,12 @@ fn subscription_works_with_multiple_clients() {
         }
     );
 
-    let produce_response = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    let produce_response = produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 

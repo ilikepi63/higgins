@@ -11,6 +11,7 @@ pub mod functions;
 pub mod ping;
 mod port;
 pub mod query;
+pub mod schema;
 pub mod subscription;
 
 pub use port::get_random_port;

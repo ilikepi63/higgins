@@ -1,10 +1,10 @@
 mod common;
 
-use std::{path::PathBuf, time::Duration};
-
+use common::schema::customer_schema;
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
+use std::{path::PathBuf, time::Duration};
 
 use common::get_random_port;
 
@@ -63,7 +63,13 @@ fn can_achieve_basic_broker_functionality() {
     // Produce to the stream.
     let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-    client.produce(STREAM, payload.as_bytes()).unwrap();
+    client
+        .produce_json(
+            STREAM,
+            payload.as_bytes(),
+            std::sync::Arc::new(customer_schema()),
+        )
+        .unwrap();
 
     match client.recv(Some(Duration::from_secs(1))).unwrap().body {
         ResponseBody::Produce(_) => {
@@ -89,7 +95,13 @@ fn can_achieve_basic_broker_functionality() {
 
     let arrow_data = result.unwrap().into_iter().next().unwrap();
 
-    let arrow = read_arrow(&arrow_data.data).next().unwrap().unwrap();
+    let arrow = read_arrow(&arrow_data.data)
+        .next()
+        .unwrap()
+        .inspect_err(|err| {
+            dbg!(err);
+        })
+        .unwrap();
 
     tracing::trace!("Data: {:#?}", arrow);
 

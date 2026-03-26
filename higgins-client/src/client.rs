@@ -70,12 +70,12 @@ impl Client {
 
         let batch = reader.next().unwrap().unwrap();
 
-        // let payload = write_
+        let payload = higgins_shared::write_arrow(&batch);
 
         timeout!(
             produce(
                 stream.as_bytes(),
-                payload,
+                &payload,
                 self.2
                     .insert(0)
                     .ok_or(HigginsClientError::TooManyConcurrentRequests)?,

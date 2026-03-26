@@ -5,6 +5,8 @@ use higgins_client::{ResponseBody, blocking::Client};
 use higgins_shared::{PartitionName, read_arrow};
 use std::{env::temp_dir, time::Duration};
 
+use crate::common::schema::amount_schema;
+
 mod common;
 
 #[test]
@@ -51,7 +53,7 @@ fn can_implement_basic_map() {
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
     client
-        .produce(
+        .produce_json(
             "amount",
             r#"
 {
@@ -60,6 +62,7 @@ fn can_implement_basic_map() {
 }
 "#
             .as_bytes(),
+            std::sync::Arc::new(amount_schema()),
         )
         .unwrap();
 
