@@ -1,8 +1,8 @@
-use std::{io::Cursor, sync::Arc};
+use std::sync::Arc;
 
 use crate::broker::Broker;
+use crate::storage::arrow_ipc::read_arrow;
 use crate::topography::Key;
-use arrow_json::ReaderBuilder;
 use arrow_schema::DataType;
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, ProduceResponse, message::Type};
@@ -32,9 +32,7 @@ pub async fn handle_produce(
         .get_stream(&stream_name)
         .expect("Could not find stream for stream_name.");
 
-    let cursor = Cursor::new(payload);
-    let mut reader = ReaderBuilder::new(schema.clone()).build(cursor).unwrap();
-    let batch = reader.next().unwrap().unwrap();
+    let batch = read_arrow(&payload).next().unwrap().unwrap();
 
     tracing::info!("[PRODUCE] Retrieved the broker lock.");
 

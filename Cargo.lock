@@ -1301,6 +1301,8 @@ dependencies = [
 name = "higgins-client"
 version = "0.1.0"
 dependencies = [
+ "arrow-json",
+ "arrow-schema",
  "bytes",
  "futures",
  "higgins-codec",
