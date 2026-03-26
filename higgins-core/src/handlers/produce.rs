@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use crate::broker::Broker;
-use crate::storage::arrow_ipc::read_arrow;
 use crate::topography::Key;
 use arrow_schema::DataType;
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, ProduceResponse, message::Type};
 use higgins_shared::PartitionName;
+use higgins_shared::read_arrow;
 use prost::Message as _;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::Sender;

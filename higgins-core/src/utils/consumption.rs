@@ -1,9 +1,9 @@
 use higgins_codec::GetIndexResponse;
 use higgins_codec::Record;
+use higgins_shared::read_arrow;
 use riskless::messages::ConsumeResponse;
 use tokio::sync::mpsc::Receiver;
 
-use crate::storage::arrow_ipc::read_arrow;
 pub async fn collect_consume_responses(
     mut consumption: Receiver<ConsumeResponse>,
 ) -> Vec<GetIndexResponse> {

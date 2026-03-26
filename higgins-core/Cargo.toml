@@ -5,9 +5,9 @@ edition = "2024"
 license-file = "../LICENSE.md"
 
 [dependencies]
-arrow = { version = "55", features = ["ffi"] }
-arrow-schema = { version = "55", features = ["serde"] }
-arrow-json = "55.1.0"
+arrow = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-json = { workspace = true }
 async-trait = "0.1.88"
 bytes = "1.10.1"
 clap = {workspace = true}

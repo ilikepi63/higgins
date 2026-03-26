@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use crate::storage::arrow_ipc::read_arrow;
 use bytes::BytesMut;
 use higgins_codec::{GetIndexResponse, Message, Record, message::Type};
+use higgins_shared::read_arrow;
 use prost::Message as _;
 use tokio::sync::RwLock;
 

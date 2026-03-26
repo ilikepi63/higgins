@@ -1339,6 +1339,7 @@ dependencies = [
 name = "higgins-shared"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "thiserror 2.0.17",
 ]
 

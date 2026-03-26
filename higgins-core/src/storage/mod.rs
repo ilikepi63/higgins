@@ -1,4 +1,3 @@
-pub mod arrow_ipc;
 pub mod backing_store;
 pub mod batch_coordinate;
 pub mod dereference;

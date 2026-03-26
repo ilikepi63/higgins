@@ -1,9 +1,8 @@
 use common::get_random_port;
 use higgins::run_server;
-use higgins::storage::arrow_ipc::read_arrow;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 use std::panic::catch_unwind;
 use std::time::Duration;
 

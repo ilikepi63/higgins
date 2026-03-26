@@ -1,9 +1,9 @@
 //! Arbitrary utilities for doing specific tasks given the broker reference.
 
 use crate::broker::Broker;
-use crate::storage::arrow_ipc::read_arrow;
 use arrow::record_batch::RecordBatch;
 use higgins_shared::PartitionName;
+use higgins_shared::read_arrow;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

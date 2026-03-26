@@ -13,9 +13,9 @@ use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
-    storage::arrow_ipc::read_arrow,
     subscription::{Subscription, error::SubscriptionError},
 };
+use higgins_shared::read_arrow;
 
 impl Broker {
     /// Retrieves the subscription for this specific key.
@@ -300,10 +300,10 @@ pub async fn write_offsets_to_client(
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::arrow_ipc::write_arrow;
 
     use super::*;
     use bytes::BytesMut;
+    use higgins_shared::write_arrow;
     use prost::Message as ProstMessage;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::Sender;

@@ -7,11 +7,11 @@ use riskless::messages::ProduceRequest;
 use crate::{
     error::HigginsError,
     storage::{
-        arrow_ipc::write_arrow,
         dereference::{Reference, S3Reference},
         index::Index,
     },
 };
+use higgins_shared::write_arrow;
 
 impl Broker {
     /// Produce a data set onto the named stream.

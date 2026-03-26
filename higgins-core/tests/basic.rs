@@ -2,9 +2,9 @@ mod common;
 
 use std::{path::PathBuf, time::Duration};
 
-use higgins::{run_server, storage::arrow_ipc::read_arrow};
+use higgins::run_server;
 use higgins_client::ResponseBody;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 
 use common::get_random_port;
 
