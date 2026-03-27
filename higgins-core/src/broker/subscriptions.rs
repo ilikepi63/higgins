@@ -15,7 +15,6 @@ use crate::{
     error::HigginsError,
     subscription::{Subscription, error::SubscriptionError},
 };
-use higgins_shared::read_arrow;
 
 impl Broker {
     /// Retrieves the subscription for this specific key.
@@ -241,29 +240,6 @@ pub struct OffsetPayload {
     pub bytes: Vec<u8>,
 }
 
-impl OffsetPayload {
-    /// Not sure why this logic was implemented in the first place, might just have been a quick one, but
-    /// adding into this for now. TODO: Try remove it?
-    pub fn infer(&mut self) {
-        // let stream_reader = read_arrow(&self.bytes);
-
-        // let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
-
-        // let batch_refs = batches.iter().collect::<Vec<_>>();
-
-        // // Infer the batches
-        // let buf = Vec::new();
-        // let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-        // writer.write_batches(&batch_refs).unwrap();
-        // writer.finish().unwrap();
-
-        // // Get the underlying buffer back,
-        // let buf = writer.into_inner();
-
-        // self.bytes = buf;
-    }
-}
-
 impl From<OffsetPayload> for Record {
     fn from(val: OffsetPayload) -> Self {
         Record {
@@ -279,12 +255,9 @@ pub async fn write_offsets_to_client(
     consumption: Vec<OffsetPayload>,
     client_ref: tokio::sync::mpsc::Sender<BytesMut>,
 ) {
-    for mut val in consumption {
+    for val in consumption {
         let resp = TakeRecordsResponse {
-            records: vec![{
-                val.infer();
-                val.into()
-            }],
+            records: vec![{ val.into() }],
         };
 
         let mut result = BytesMut::new();

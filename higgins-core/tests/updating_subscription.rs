@@ -92,7 +92,7 @@ fn can_update_subscription_after_created() {
                 ResponseBody::TakeRecords(response) => {
                     //let mut result_vec = result_vec.lock().unwrap();
 
-                    for record in response.records.iter() {
+                    for _ in response.records.iter() {
                         //result_vec.push(String::from_utf8(record.data.clone()).unwrap());
                         count += 1;
 
