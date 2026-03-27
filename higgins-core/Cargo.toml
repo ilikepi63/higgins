@@ -7,7 +7,6 @@ license-file = "../LICENSE.md"
 [dependencies]
 arrow = { workspace = true }
 arrow-schema = { workspace = true }
-arrow-json = { workspace = true }
 async-trait = "0.1.88"
 bytes = "1.10.1"
 clap = {workspace = true}

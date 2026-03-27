@@ -48,19 +48,12 @@ pub async fn handle_get_index(
                             let batches =
                                 stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            let batch_refs = batches.iter().collect::<Vec<_>>();
+                            let batch_refs = batches.iter().next().unwrap();
 
-                            // Infer the batches
-                            let buf = Vec::new();
-                            let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-                            writer.write_batches(&batch_refs).unwrap();
-                            writer.finish().unwrap();
-
-                            // Get the underlying buffer back,
-                            let buf = writer.into_inner();
+                            let data = higgins_shared::write_arrow(batch_refs);
 
                             Record {
-                                data: buf,
+                                data,
                                 stream: batch.topic.as_bytes().to_vec(),
                                 offset: batch.offset,
                                 partition: batch.partition.clone(),
