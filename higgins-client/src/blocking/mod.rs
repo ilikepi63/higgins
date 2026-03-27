@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::{error::HigginsClientError, recv::Response};
+use arrow_schema::SchemaRef;
 use higgins_shared::PartitionName;
 use tokio::net::ToSocketAddrs;
 pub struct Client(crate::Client, tokio::runtime::Runtime);
@@ -19,6 +20,16 @@ impl Client {
 
     pub fn produce(&mut self, stream: &str, payload: &[u8]) -> Result<(), HigginsClientError> {
         self.1.block_on(self.0.produce(stream, payload))
+    }
+
+    pub fn produce_json(
+        &mut self,
+        stream: &str,
+        payload: &[u8],
+        schema: SchemaRef,
+    ) -> Result<(), HigginsClientError> {
+        self.1
+            .block_on(self.0.produce_json(stream, payload, schema))
     }
 
     pub fn take(

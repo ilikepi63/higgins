@@ -7,6 +7,7 @@ use crate::{
     query::{query_at, query_by_timestamp, query_latest},
     subscription::{acknowledge, create_subscription, get_subscription, take},
 };
+use arrow_schema::SchemaRef;
 use higgins_shared::{PartitionName, UniqueCollection};
 use std::time::Duration;
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -52,6 +53,38 @@ impl Client {
             self.1
         )
         .await?;
+        Ok(())
+    }
+
+    pub async fn produce_json(
+        &mut self,
+        stream: &str,
+        payload: &[u8],
+        schema: SchemaRef,
+    ) -> Result<(), HigginsClientError> {
+        let cursor = std::io::Cursor::new(payload);
+
+        let mut reader = arrow_json::ReaderBuilder::new(schema.clone())
+            .build(cursor)
+            .unwrap();
+
+        let batch = reader.next().unwrap().unwrap();
+
+        let payload = higgins_shared::write_arrow(&batch);
+
+        timeout!(
+            produce(
+                stream.as_bytes(),
+                &payload,
+                self.2
+                    .insert(0)
+                    .ok_or(HigginsClientError::TooManyConcurrentRequests)?,
+                &mut self.0
+            ),
+            self.1
+        )
+        .await?;
+
         Ok(())
     }
 

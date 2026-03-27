@@ -1,11 +1,11 @@
 use arrow::array::AsArray;
 use arrow::datatypes::Int32Type;
 use common::get_random_port;
+use common::schema::amount_schema;
 use higgins::run_server;
-use higgins::storage::arrow_ipc::read_arrow;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 use std::{env::temp_dir, time::Duration};
 
 mod common;
@@ -62,7 +62,7 @@ fn can_implement_basic_reduce() {
     client.recv(Some(Duration::from_secs(5))).unwrap();
 
     client
-        .produce(
+        .produce_json(
             "amount",
             r#"
                 {
@@ -71,6 +71,7 @@ fn can_implement_basic_reduce() {
                 }
             "#
             .as_bytes(),
+            std::sync::Arc::new(amount_schema()),
         )
         .unwrap();
 
@@ -109,7 +110,7 @@ fn can_implement_basic_reduce() {
     );
 
     client
-        .produce(
+        .produce_json(
             "amount",
             r#"
                 {
@@ -118,6 +119,7 @@ fn can_implement_basic_reduce() {
                 }
             "#
             .as_bytes(),
+            std::sync::Arc::new(amount_schema()),
         )
         .unwrap();
 
@@ -158,7 +160,7 @@ fn can_implement_basic_reduce() {
     );
 
     // client
-    //     .produce(
+    //     .produce_json(
     //         "amount",
     //         r#"
     //             {

@@ -1,9 +1,9 @@
 use higgins_codec::GetIndexResponse;
 use higgins_codec::Record;
+use higgins_shared::read_arrow;
 use riskless::messages::ConsumeResponse;
 use tokio::sync::mpsc::Receiver;
 
-use crate::storage::arrow_ipc::read_arrow;
 pub async fn collect_consume_responses(
     mut consumption: Receiver<ConsumeResponse>,
 ) -> Vec<GetIndexResponse> {
@@ -19,19 +19,10 @@ pub async fn collect_consume_responses(
 
                     let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                    let batch_refs = batches.iter().collect::<Vec<_>>();
-
-                    // Infer the batches
-                    let buf = Vec::new();
-                    let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-                    writer.write_batches(&batch_refs).unwrap();
-                    writer.finish().unwrap();
-
-                    // Get the underlying buffer back,
-                    let buf = writer.into_inner();
+                    let data = higgins_shared::write_arrow(batches.iter().next().unwrap());
 
                     Record {
-                        data: buf,
+                        data,
                         stream: batch.topic.as_bytes().to_vec(),
                         offset: batch.offset,
                         partition: batch.partition.clone(),

@@ -1,9 +1,9 @@
 use common::get_random_port;
+use common::schema::customer_schema;
 use higgins::run_server;
-use higgins::storage::arrow_ipc::read_arrow;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 use std::panic::catch_unwind;
 use std::time::Duration;
 
@@ -105,7 +105,7 @@ fn can_implement_a_basic_stream_join() {
         client.recv(None).unwrap();
 
         client
-            .produce(
+            .produce_json(
                 "customer",
                 r#"
             {
@@ -116,6 +116,7 @@ fn can_implement_a_basic_stream_join() {
             }
         "#
                 .as_bytes(),
+                std::sync::Arc::new(customer_schema()),
             )
             .unwrap();
 
@@ -139,7 +140,7 @@ fn can_implement_a_basic_stream_join() {
         assert_eq!(record_batch, create_batch_with_nulled_values_in_address());
 
         client
-            .produce(
+            .produce_json(
                 "address",
                 r#"
             {
@@ -151,6 +152,7 @@ fn can_implement_a_basic_stream_join() {
             }
         "#
                 .as_bytes(),
+                std::sync::Arc::new(address_schema()),
             )
             .unwrap();
 
@@ -181,6 +183,8 @@ use arrow::array::RecordBatch;
 use arrow::array::{Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use std::sync::Arc;
+
+use crate::common::schema::address_schema;
 
 pub fn create_test_customer_address_data() -> RecordBatch {
     // Define the schema

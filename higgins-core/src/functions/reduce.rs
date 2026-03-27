@@ -5,7 +5,7 @@ use higgins_functions::{
     wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
 };
 
-use crate::storage::arrow_ipc::{read_arrow, write_arrow};
+use higgins_shared::{read_arrow, write_arrow};
 
 /// Wrapper around the reduce functions.
 pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u8>) -> RecordBatch {

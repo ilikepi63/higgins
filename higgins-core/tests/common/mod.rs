@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
@@ -11,6 +13,7 @@ pub mod functions;
 pub mod ping;
 mod port;
 pub mod query;
+pub mod schema;
 pub mod subscription;
 
 pub use port::get_random_port;

@@ -13,7 +13,6 @@ use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
-    storage::arrow_ipc::read_arrow,
     subscription::{Subscription, error::SubscriptionError},
 };
 
@@ -194,6 +193,11 @@ impl Broker {
                                 {
                                     let result = future.await;
 
+                                    tracing::trace!(
+                                        "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
+                                        result
+                                    );
+
                                     results.push(OffsetPayload {
                                         stream: String::from_utf8(task_stream_name.clone())
                                             .unwrap(),
@@ -236,29 +240,6 @@ pub struct OffsetPayload {
     pub bytes: Vec<u8>,
 }
 
-impl OffsetPayload {
-    /// Not sure why this logic was implemented in the first place, might just have been a quick one, but
-    /// adding into this for now. TODO: Try remove it?
-    pub fn infer(&mut self) {
-        let stream_reader = read_arrow(&self.bytes);
-
-        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
-
-        let batch_refs = batches.iter().collect::<Vec<_>>();
-
-        // Infer the batches
-        let buf = Vec::new();
-        let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-        writer.write_batches(&batch_refs).unwrap();
-        writer.finish().unwrap();
-
-        // Get the underlying buffer back,
-        let buf = writer.into_inner();
-
-        self.bytes = buf;
-    }
-}
-
 impl From<OffsetPayload> for Record {
     fn from(val: OffsetPayload) -> Self {
         Record {
@@ -274,12 +255,9 @@ pub async fn write_offsets_to_client(
     consumption: Vec<OffsetPayload>,
     client_ref: tokio::sync::mpsc::Sender<BytesMut>,
 ) {
-    for mut val in consumption {
+    for val in consumption {
         let resp = TakeRecordsResponse {
-            records: vec![{
-                val.infer();
-                val.into()
-            }],
+            records: vec![{ val.into() }],
         };
 
         let mut result = BytesMut::new();
@@ -300,10 +278,10 @@ pub async fn write_offsets_to_client(
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::arrow_ipc::write_arrow;
 
     use super::*;
     use bytes::BytesMut;
+    use higgins_shared::write_arrow;
     use prost::Message as ProstMessage;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::Sender;

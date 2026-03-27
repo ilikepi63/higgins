@@ -6,3 +6,4 @@ license-file = "../LICENSE.md"
 
 [dependencies]
 thiserror = {workspace = true}
+arrow = {workspace = true}

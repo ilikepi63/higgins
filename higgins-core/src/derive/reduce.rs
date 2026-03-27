@@ -6,10 +6,9 @@ use crate::{
     derive::utils::get_partition_key_from_record_batch,
     error::HigginsError,
     functions::reduce::run_reduce_function,
-    storage::arrow_ipc::read_arrow,
     topography::{Key, StreamDefinition},
 };
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,

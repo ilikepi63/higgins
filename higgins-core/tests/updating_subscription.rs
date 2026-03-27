@@ -1,8 +1,5 @@
-use std::{
-    env::temp_dir,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use common::schema::customer_schema;
+use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;
@@ -69,7 +66,7 @@ fn can_update_subscription_after_created() {
 
     tracing::trace!("Successfully created subscription!");
 
-    let result_vec = Arc::new(Mutex::new(vec![]));
+    //let result_vec = Arc::new(Mutex::new(vec![]));
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
@@ -89,10 +86,10 @@ fn can_update_subscription_after_created() {
 
             match response.body {
                 ResponseBody::TakeRecords(response) => {
-                    let mut result_vec = result_vec.lock().unwrap();
+                    //let mut result_vec = result_vec.lock().unwrap();
 
-                    for record in response.records.iter() {
-                        result_vec.push(String::from_utf8(record.data.clone()).unwrap());
+                    for _ in response.records.iter() {
+                        //result_vec.push(String::from_utf8(record.data.clone()).unwrap());
                         count += 1;
 
                         if count >= NUMBER_OF_MESSAGES {
@@ -120,7 +117,11 @@ fn can_update_subscription_after_created() {
 
     for _ in 0..NUMBER_OF_MESSAGES {
         produce_client
-            .produce("update_customer", payload.as_bytes())
+            .produce_json(
+                "update_customer",
+                payload.as_bytes(),
+                std::sync::Arc::new(customer_schema()),
+            )
             .unwrap();
     }
 

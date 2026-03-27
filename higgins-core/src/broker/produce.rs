@@ -7,11 +7,11 @@ use riskless::messages::ProduceRequest;
 use crate::{
     error::HigginsError,
     storage::{
-        arrow_ipc::write_arrow,
         dereference::{Reference, S3Reference},
         index::Index,
     },
 };
+use higgins_shared::write_arrow;
 
 impl Broker {
     /// Produce a data set onto the named stream.
@@ -22,8 +22,9 @@ impl Broker {
         record_batch: RecordBatch,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
-            "[PRODUCE] Producing to stream: {}",
-            String::from_utf8(stream_name.to_vec()).unwrap()
+            "[PRODUCE] Producing to stream: {}, data: {:#?}",
+            String::from_utf8(stream_name.to_vec()).unwrap(),
+            record_batch
         );
 
         let data = write_arrow(&record_batch);

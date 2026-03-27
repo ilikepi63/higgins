@@ -1249,7 +1249,6 @@ name = "higgins"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "arrow-json",
  "arrow-schema",
  "async-trait",
  "bytes",
@@ -1301,6 +1300,8 @@ dependencies = [
 name = "higgins-client"
 version = "0.1.0"
 dependencies = [
+ "arrow-json",
+ "arrow-schema",
  "bytes",
  "futures",
  "higgins-codec",
@@ -1337,6 +1338,7 @@ dependencies = [
 name = "higgins-shared"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "thiserror 2.0.17",
 ]
 

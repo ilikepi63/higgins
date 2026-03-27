@@ -5,7 +5,7 @@ use higgins_functions::{
     wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
 };
 
-use crate::storage::arrow_ipc::{read_arrow, write_arrow};
+use higgins_shared::{read_arrow, write_arrow};
 
 /// Wrapper around the mapping functions.
 pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {

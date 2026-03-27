@@ -2,12 +2,13 @@ use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use colored::Colorize;
+use common::schema::customer_schema;
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_codec::{
     AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
-    Record, TakeRecordsResponse,
 };
+
 use higgins_shared::PartitionName;
 use zerocopy::IntoBytes;
 
@@ -108,29 +109,53 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("##### {} #####", "FIRST PRODUCE");
 
-    produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     let response = recv_until_take(&mut consume_client);
 
+    let record = response.records.get(0).unwrap();
+
+    assert_eq!(record.offset, 0);
+    assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
     assert_eq!(
-        response,
-        TakeRecordsResponse {
-            records: vec![Record {
-                data: vec![
-                    123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
-                    110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
-                    34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
-                    111, 101, 34, 125, 10,
-                ],
-                stream: STREAM_NAME.as_bytes().to_owned(),
-                partition: vec![
-                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0
-                ],
-                offset: 0
-            }]
-        }
+        record.partition,
+        vec![
+            49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0
+        ],
     );
+
+    let data = higgins_shared::read_arrow(&record.data)
+        .next()
+        .unwrap()
+        .unwrap();
+
+    common::data::assert_customer_data(data);
+
+    // assert_eq!(
+    //     response,
+    //     TakeRecordsResponse {
+    //         records: vec![Record {
+    //             data: vec![
+    //                 123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
+    //                 110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
+    //                 34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
+    //                 111, 101, 34, 125, 10,
+    //             ],
+    //             stream: STREAM_NAME.as_bytes().to_owned(),
+    //             partition: vec![
+    //                 49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    //                 0, 0, 0, 0, 0, 0
+    //             ],
+    //             offset: 0
+    //         }]
+    //     }
+    // );
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
@@ -196,29 +221,31 @@ fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "SECOND PRODUCE".red());
 
-    let _ = produce(&mut produce_client, STREAM_NAME, PAYLOAD.as_bytes());
+    let _ = produce(
+        &mut produce_client,
+        STREAM_NAME,
+        PAYLOAD.as_bytes(),
+        std::sync::Arc::new(customer_schema()),
+    );
 
     let response = recv_until_take(&mut consume_client);
 
+    assert_eq!(record.offset, 0);
+    assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
     assert_eq!(
-        response,
-        TakeRecordsResponse {
-            records: vec![Record {
-                data: vec![
-                    123, 34, 97, 103, 101, 34, 58, 50, 49, 44, 34, 102, 105, 114, 115, 116, 95,
-                    110, 97, 109, 101, 34, 58, 34, 74, 111, 104, 110, 34, 44, 34, 105, 100, 34, 58,
-                    34, 49, 34, 44, 34, 108, 97, 115, 116, 95, 110, 97, 109, 101, 34, 58, 34, 68,
-                    111, 101, 34, 125, 10,
-                ],
-                stream: STREAM_NAME.as_bytes().to_owned(),
-                partition: vec![
-                    49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0
-                ],
-                offset: 1
-            }]
-        }
+        record.partition,
+        vec![
+            49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0
+        ],
     );
+
+    let data = higgins_shared::read_arrow(&record.data)
+        .next()
+        .unwrap()
+        .unwrap();
+
+    common::data::assert_customer_data(data);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
