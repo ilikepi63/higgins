@@ -7,7 +7,6 @@ use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_codec::{
     AcknowledgeSubscriptionOffsetsResponse, ClientCount, GetSubscriptionResponse, KeyOffset,
-    Record, TakeRecordsResponse,
 };
 
 use higgins_shared::PartitionName;

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use bytes::BytesMut;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};

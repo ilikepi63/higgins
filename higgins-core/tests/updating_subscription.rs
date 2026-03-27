@@ -1,9 +1,5 @@
 use common::schema::customer_schema;
-use std::{
-    env::temp_dir,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{env::temp_dir, time::Duration};
 
 use crate::common::get_random_port;
 use higgins::run_server;

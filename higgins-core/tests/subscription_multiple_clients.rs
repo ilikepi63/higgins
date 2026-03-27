@@ -3,9 +3,7 @@ use std::{env::temp_dir, time::Duration};
 use crate::common::{get_random_port, schema::customer_schema};
 use higgins::run_server;
 use higgins_client::ResponseBody;
-use higgins_codec::{
-    ClientCount, GetSubscriptionResponse, KeyOffset, ProduceResponse, Record, TakeRecordsResponse,
-};
+use higgins_codec::{ClientCount, GetSubscriptionResponse, KeyOffset, ProduceResponse};
 
 mod common;
 
