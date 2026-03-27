@@ -66,6 +66,8 @@ pub fn produce(
     payload: &[u8],
     schema: SchemaRef,
 ) -> higgins_codec::ProduceResponse {
+    println!("Producing! {:#?}", payload);
+
     client.produce_json(stream, payload, schema).unwrap();
 
     match client.recv(None).unwrap().body {

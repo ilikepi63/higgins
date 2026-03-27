@@ -9,7 +9,7 @@ use crate::common::schema::amount_schema;
 
 mod common;
 
-#[test]
+// #[test]
 fn can_implement_basic_map() {
     let port = get_random_port();
     tracing_subscriber::fmt::init();

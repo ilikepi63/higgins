@@ -70,7 +70,7 @@ fn can_update_subscription_after_created() {
 
     tracing::trace!("Successfully created subscription!");
 
-    let result_vec = Arc::new(Mutex::new(vec![]));
+    //let result_vec = Arc::new(Mutex::new(vec![]));
 
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
@@ -90,10 +90,10 @@ fn can_update_subscription_after_created() {
 
             match response.body {
                 ResponseBody::TakeRecords(response) => {
-                    let mut result_vec = result_vec.lock().unwrap();
+                    //let mut result_vec = result_vec.lock().unwrap();
 
                     for record in response.records.iter() {
-                        result_vec.push(String::from_utf8(record.data.clone()).unwrap());
+                        //result_vec.push(String::from_utf8(record.data.clone()).unwrap());
                         count += 1;
 
                         if count >= NUMBER_OF_MESSAGES {

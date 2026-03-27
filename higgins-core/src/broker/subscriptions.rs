@@ -194,6 +194,11 @@ impl Broker {
                                 {
                                     let result = future.await;
 
+                                    tracing::trace!(
+                                        "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
+                                        result
+                                    );
+
                                     results.push(OffsetPayload {
                                         stream: String::from_utf8(task_stream_name.clone())
                                             .unwrap(),
@@ -240,22 +245,22 @@ impl OffsetPayload {
     /// Not sure why this logic was implemented in the first place, might just have been a quick one, but
     /// adding into this for now. TODO: Try remove it?
     pub fn infer(&mut self) {
-        let stream_reader = read_arrow(&self.bytes);
+        // let stream_reader = read_arrow(&self.bytes);
 
-        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+        // let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-        let batch_refs = batches.iter().collect::<Vec<_>>();
+        // let batch_refs = batches.iter().collect::<Vec<_>>();
 
-        // Infer the batches
-        let buf = Vec::new();
-        let mut writer = arrow_json::LineDelimitedWriter::new(buf);
-        writer.write_batches(&batch_refs).unwrap();
-        writer.finish().unwrap();
+        // // Infer the batches
+        // let buf = Vec::new();
+        // let mut writer = arrow_json::LineDelimitedWriter::new(buf);
+        // writer.write_batches(&batch_refs).unwrap();
+        // writer.finish().unwrap();
 
-        // Get the underlying buffer back,
-        let buf = writer.into_inner();
+        // // Get the underlying buffer back,
+        // let buf = writer.into_inner();
 
-        self.bytes = buf;
+        // self.bytes = buf;
     }
 }
 
