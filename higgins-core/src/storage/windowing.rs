@@ -1,62 +1,49 @@
-use std::cmp;
+use std::ops::Range;
 
-/// Represents a time window [start, end)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TimeWindow {
-    pub start: i64,
-    pub end: i64,
-}
-
-impl TimeWindow {
-    pub fn new(start: i64, end: i64) -> Self {
-        TimeWindow { start, end }
+fn get_window_start_with_offset(timestamp: u64, offset: u64, slide: u64) -> u64 {
+    // If the slide is zero, then the window start is always the timestamp.
+    // Not sure why this doesn't have logic to snap it to the
+    if slide == 0 {
+        return timestamp;
     }
+
+    let remainder = if offset > timestamp {
+        slide - ((offset - timestamp) % slide)
+    } else {
+        (timestamp - offset) % slide
+    };
+
+    timestamp - remainder
 }
 
-/// Assigns an event timestamp to all sliding windows it belongs to.
-///
-/// This is the core logic used in stream processing engines like Apache Flink
-/// for sliding event-time windows.
 pub fn assign_sliding_windows(
-    timestamp: i64,
-    window_size: i64, // W
-    slide: i64,       // S
-    offset: i64,      // alignment offset (can be 0)
-) -> Vec<TimeWindow> {
-    if window_size <= 0 || slide <= 0 {
-        panic!("Window size and slide must be positive");
-    }
-
+    timestamp: u64,
+    size: u64,
+    slide: u64,
+    offset: u64,
+) -> Vec<Range<u64>> {
     let mut windows = Vec::new();
 
-    // Step 1: Compute the largest window start <= timestamp that respects the offset and slide
-    // This is the rightmost (most recent) window that could contain the timestamp
-    let adjusted = timestamp - offset;
-    let mut current_start = (adjusted / slide) * slide + offset;
+    let mut start = get_window_start_with_offset(timestamp as u64, offset as u64, slide as u64);
 
-    // If we overshot due to negative numbers or edge cases, step back one slide
-    if current_start > timestamp {
-        current_start -= slide;
-    }
+    let bound = timestamp.checked_sub(size).unwrap_or(0);
 
-    // Lower bound: any window start smaller than this cannot contain the timestamp
-    let lower_bound = timestamp - window_size + 1;
-
-    // Step 2: Walk backwards by slide until we go below the lower bound
-    while current_start >= lower_bound {
-        let window_end = current_start + window_size;
-
-        // Only add if the window actually contains the timestamp
-        // (this check handles edge cases with offset and negative timestamps safely)
-        if current_start <= timestamp && timestamp < window_end {
-            windows.push(TimeWindow::new(current_start, window_end));
+    while start >= bound {
+        if u64::MAX - size < start {
+            break;
         }
 
-        current_start -= slide;
-    }
+        windows.push(Range {
+            start,
+            end: start + size,
+        });
 
-    // Optional: sort from oldest to newest window (most engines prefer this order)
-    windows.sort_by_key(|w| w.start);
+        if 0 + slide > start {
+            break;
+        }
+
+        start = start - slide;
+    }
 
     windows
 }
@@ -66,36 +53,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_basic_sliding_window() {
-        // W=5, S=2, offset=0, t=4
-        let windows = assign_sliding_windows(4, 5, 2, 0);
-        assert_eq!(windows.len(), 3);
-        assert_eq!(windows[0], TimeWindow::new(0, 5));
-        assert_eq!(windows[1], TimeWindow::new(2, 7));
-        assert_eq!(windows[2], TimeWindow::new(4, 9));
+    pub fn basic_sliding_windows() {
+        assert_eq!(assign_sliding_windows(0, 5, 1, 0), &[0..5]);
+
+        assert_eq!(assign_sliding_windows(1, 5, 1, 0), &[1..6, 0..5]);
+
+        assert_eq!(assign_sliding_windows(2, 5, 1, 0), &[2..7, 1..6, 0..5]);
+
+        assert_eq!(
+            assign_sliding_windows(6, 5, 1, 0),
+            &[6..11, 5..10, 4..9, 3..8, 2..7, 1..6,]
+        );
     }
 
     #[test]
-    fn test_with_offset() {
-        // Align windows to start at multiples of 10 + 3 (e.g. ..., -7, 3, 13, 23, ...)
-        let windows = assign_sliding_windows(10, 6, 3, 3);
+    pub fn test_window_start_with_offset() {
+        assert_eq!(get_window_start_with_offset(5, 0, 0), 5);
 
-        // Expected windows that contain t=10: [7,13), [10,16) ? Let's verify
-        println!("{:?}", windows);
-        // You can add more assertions based on your expected behavior
-    }
+        assert_eq!(get_window_start_with_offset(5, 10, 0), 5);
 
-    #[test]
-    fn test_edge_case_exact_boundary() {
-        // t exactly equals a window start
-        let windows = assign_sliding_windows(10, 5, 2, 0);
-        assert!(windows.iter().any(|w| w.start == 10));
-    }
+        assert_eq!(get_window_start_with_offset(5, 10, 2), 4);
 
-    #[test]
-    fn test_small_slide_larger_than_window() {
-        // S > W → at most one window
-        let windows = assign_sliding_windows(7, 3, 5, 0);
-        assert!(windows.len() <= 1);
+        assert_eq!(get_window_start_with_offset(5, 10, 3), 4);
     }
 }
