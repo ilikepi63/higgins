@@ -4,6 +4,7 @@ use super::{IndexError, IndexesView};
 use std::io::{Read, Seek, SeekFrom, Write as _};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
+mod windowed_index_file;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.

@@ -16,6 +16,10 @@ impl<'a> WindowedIndex<'a> {
         Self(val)
     }
 
+    pub const fn size_of() -> usize {
+        RANGE + (size_of::<u64>() * 2)
+    }
+
     /// Puts the data into the mutable slice, returning this struct as a reference over it.
     pub fn put(
         reference: Reference,
