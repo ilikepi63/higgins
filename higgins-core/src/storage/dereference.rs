@@ -68,7 +68,7 @@ pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8
 ///
 /// 1. Embedded into an Index and
 /// 2. Read to allow for the dereferencing of a byte vector from the underlying storage implementation.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Reference {
     Null,
     S3(S3Reference),
@@ -124,7 +124,7 @@ impl Reference {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct S3Reference {
     pub object_key: [u8; 16],
     pub position: u64,

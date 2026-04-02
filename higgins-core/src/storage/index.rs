@@ -8,6 +8,7 @@ pub mod directory;
 mod error;
 mod file;
 pub mod joined_index;
+pub mod windowed_index;
 pub use error::IndexError;
 
 pub use file::{CompletedBinarySearchResult, IndexFile};
