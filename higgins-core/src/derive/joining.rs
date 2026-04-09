@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 mod completion;
 pub mod join;
 pub mod mapping;
-mod opts;
+pub mod opts;
 mod subscription;
 
 use crate::{
