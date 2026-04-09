@@ -35,7 +35,7 @@ impl WindowedIndexFile {
 
         // load the buffer into memory
 
-        buf
+        buf;
 
         todo!();
     }
