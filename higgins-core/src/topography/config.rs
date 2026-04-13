@@ -123,7 +123,15 @@ pub struct AwsS3Storage {
 
 /// Deserializes the given byte array into a configuration.
 pub fn from_toml(config: &[u8]) -> Configuration {
-    let config: Configuration = toml::from_slice(config).unwrap();
+    tracing::trace!("{:#?}", config);
+
+    let config: Configuration = toml::from_slice(config)
+        .inspect(|val| {
+            tracing::info!("{:#?}", val);
+        })
+        .unwrap();
+
+    tracing::trace!("Deserialized toml: {:#?}", config);
 
     config
 }
@@ -470,6 +478,88 @@ mod test {
     }
 
     #[test]
+    fn can_deserialize_window_from_bytes() {
+        let data = &[
+            91, 115, 116, 111, 114, 97, 103, 101, 46, 109, 101, 109, 111, 114, 121, 93, 10, 116,
+            121, 112, 101, 61, 34, 109, 101, 109, 111, 114, 121, 34, 10, 10, 91, 115, 99, 104, 101,
+            109, 97, 46, 118, 97, 108, 117, 101, 93, 10, 105, 100, 32, 61, 32, 34, 115, 116, 114,
+            105, 110, 103, 34, 10, 115, 111, 109, 101, 95, 100, 97, 116, 97, 32, 61, 32, 34, 115,
+            116, 114, 105, 110, 103, 34, 10, 111, 116, 104, 101, 114, 95, 100, 97, 116, 97, 32, 61,
+            32, 34, 115, 116, 114, 105, 110, 103, 34, 10, 105, 32, 61, 32, 34, 105, 110, 116, 51,
+            50, 34, 10, 10, 91, 115, 116, 114, 101, 97, 109, 115, 46, 118, 97, 108, 117, 101, 93,
+            10, 115, 99, 104, 101, 109, 97, 32, 61, 32, 34, 118, 97, 108, 117, 101, 34, 10, 112,
+            97, 114, 116, 105, 116, 105, 111, 110, 95, 107, 101, 121, 32, 61, 32, 34, 105, 100, 34,
+            10, 10, 91, 115, 116, 114, 101, 97, 109, 115, 46, 118, 97, 108, 117, 101, 95, 119, 105,
+            110, 100, 111, 119, 101, 100, 93, 10, 98, 97, 115, 101, 32, 61, 32, 34, 118, 97, 108,
+            117, 101, 34, 10, 116, 121, 112, 101, 32, 61, 32, 34, 119, 105, 110, 100, 111, 119, 34,
+            10, 119, 105, 110, 100, 111, 119, 32, 61, 32, 123, 10, 32, 32, 32, 32, 116, 121, 112,
+            101, 32, 61, 32, 34, 116, 105, 109, 101, 34, 32, 35, 32, 111, 114, 32, 99, 111, 117,
+            110, 116, 10, 32, 32, 32, 32, 105, 110, 116, 101, 114, 118, 97, 108, 32, 61, 32, 34,
+            53, 109, 34, 32, 35, 32, 111, 114, 32, 115, 105, 109, 112, 108, 121, 32, 53, 32, 105,
+            102, 32, 99, 111, 117, 110, 116, 10, 125, 10,
+        ];
+
+        println!("{:#?}", String::from_utf8(data.to_vec()));
+
+        let config = from_toml(data);
+
+        // Define the expected Configuration struct
+        let expected = Configuration {
+            schema: Some(BTreeMap::from([(
+                "value".to_string(),
+                BTreeMap::from([
+                    ("i".to_string(), "int32".to_string()),
+                    ("id".to_string(), "string".to_string()),
+                    ("other_data".to_string(), "string".to_string()),
+                    ("some_data".to_string(), "string".to_string()),
+                ]),
+            )])),
+            streams: Some(BTreeMap::from([
+                (
+                    "value".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: None,
+                        stream_type: None,
+                        partition_key: "id".to_string(),
+                        schema: "value".to_string(),
+                        join: None,
+                        map: None,
+                        function_name: None,
+                    },
+                ),
+                (
+                    "value_windowed".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: Some("value".to_string()),
+                        stream_type: Some("window".to_string()),
+                        partition_key: "id".to_string(),
+                        schema: "value".to_string(),
+                        join: None,
+                        map: None,
+                        function_name: None,
+                    },
+                ),
+            ])),
+            storage: Some(BTreeMap::from([(
+                "memory".to_string(),
+                Storage {
+                    storage_type: StorageType::Memory,
+                    aws_s3_config: AwsS3Storage {
+                        aws_access_key_id: None,
+                        aws_secret_access_key: None,
+                        aws_region: None,
+                        aws_endpoint: None,
+                        aws_token: None,
+                        aws_container_credentials_relative_uri: None,
+                        aws_allow_http: None,
+                        bucket_name: None,
+                    },
+                },
+            )])),
+        };
+    }
+
+    #[test]
     fn can_deserialize_window_toml() {
         let example_config = r#"
             [storage.memory]
@@ -553,13 +643,8 @@ mod test {
             )])),
         };
         // Assert that the deserialized configuration matches the expected one
-        dbg!(&config);
-        dbg!(&expected);
 
-        assert_eq!(
-            config, expected,
-            "Deserialized configuration does not match expected"
-        );
+        assert_eq!(config, expected,);
 
         assert_eq!(config.schema, expected.schema);
         let config_streams = config.streams.unwrap();

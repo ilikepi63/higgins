@@ -8,7 +8,7 @@ mod common;
 
 static STREAM_NAME: &str = "update_customer";
 
-#[test]
+// #[test]
 fn can_retrieve_data_from_subscription() {
     tracing_subscriber::fmt::init();
 

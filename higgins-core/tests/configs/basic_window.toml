@@ -14,7 +14,9 @@ partition_key = "id"
 [streams.value_windowed]
 base = "value"
 type = "window"
+partition_key = "id"
+schema = "value"
 window = {
-    type = "time" # or count
+    type = "time", # or count
     interval = "5m" # or simply 5 if count
 }

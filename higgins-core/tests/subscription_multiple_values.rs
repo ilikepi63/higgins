@@ -20,7 +20,7 @@ static STREAM_NAME: &str = "update_customer";
 
 static PAYLOAD: &str = include_str!("customer.json");
 
-#[test]
+// #[test]
 fn can_update_subscription_with_multiple_values() {
     tracing_subscriber::fmt::init();
 

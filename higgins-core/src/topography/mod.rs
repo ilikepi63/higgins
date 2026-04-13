@@ -318,7 +318,9 @@ impl Topography {
             .filter(|(_, def)| def.base.is_none())
         {
             match &topic_defintion.base {
-                Some(_derived_from) => unreachable!(),
+                Some(_derived_from) => {
+                    unreachable!()
+                }
                 None => {
                     tracing::trace!("Applying stream {}", stream_name);
                     let result =
@@ -329,50 +331,44 @@ impl Topography {
             }
         }
 
-        for (stream_name, topic_defintion) in configuration
+        for (stream_name, stream_definition) in configuration
             .streams
             .as_ref()
             .unwrap()
             .iter()
             .filter(|(_, def)| def.base.is_some())
         {
-            match &topic_defintion.base {
+            match &stream_definition.base {
                 Some(_derived_from) => {
                     tracing::trace!("Applying a derived stream: {stream_name}..");
 
-                    // Create just normal schema.
-                    let _schema = self
-                        .schema
-                        .get(&Key::from(topic_defintion.schema.as_str()))
-                        .unwrap_or_else(|| {
-                            panic!("No Schema defined for key {}", topic_defintion.schema)
-                        });
+                    // // Create just normal schema.
+                    // let _schema = self
+                    //     .schema
+                    //     .get(&Key::from(topic_defintion.schema.as_str()))
+                    //     .unwrap_or_else(|| {
+                    //         panic!("No Schema defined for key {}", topic_defintion.schema)
+                    //     });
 
-                    let _topic_type = FunctionType::from(
-                        topic_defintion
-                            .stream_type
-                            .as_ref()
-                            .expect("Derived stream without a function type.")
-                            .as_str(),
-                    );
+                    // let _topic_type = FunctionType::from(
+                    //     topic_defintion
+                    //         .stream_type
+                    //         .as_ref()
+                    //         .expect("Derived stream without a function type.")
+                    //         .as_str(),
+                    // );
 
                     let _ = self.add_stream(
                         Key::from(stream_name.as_str()),
-                        StreamDefinition::from(topic_defintion),
+                        StreamDefinition::from(stream_definition),
                     ); // TODO: This should likely be a warning.
                 }
-                None => unreachable!(),
+                None => {
+                    tracing::error!("Unreachable code.");
+                    unreachable!()
+                }
             }
         }
-
-        // Removing these configurations because yeap, not needed.
-        // let config_id = uuid::Uuid::new_v4();
-
-        // let config_id = Key(config_id.as_bytes().to_vec());
-
-        // self
-        //     .configurations
-        //     .insert(config_id.clone(), configuration);
 
         Ok(())
     }
@@ -432,6 +428,7 @@ pub enum FunctionType {
     Map,
     Aggregate,
     Join,
+    Window,
 }
 
 impl From<&str> for FunctionType {
@@ -441,7 +438,9 @@ impl From<&str> for FunctionType {
             "map" => FunctionType::Map,
             "aggregate" => FunctionType::Aggregate,
             "join" => FunctionType::Join,
+            "window" => FunctionType::Window,
             _ => {
+                tracing::error!("Panicked on unimplemented type.");
                 panic!("Unmplemented function type {value}. Options are reduce, map and aggregate.")
             }
         }
@@ -455,6 +454,7 @@ impl From<FunctionType> for String {
             FunctionType::Map => "map".to_string(),
             FunctionType::Aggregate => "aggregate".to_string(),
             FunctionType::Join => "join".to_string(),
+            FunctionType::Window => "window".to_string(),
         }
     }
 }

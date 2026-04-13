@@ -3,6 +3,7 @@ use higgins_codec::{
     CreateConfigurationRequest, CreateConfigurationResponse, Message, frame::Frame, message::Type,
 };
 use prost::Message as _;
+use std::time::Duration;
 
 #[allow(unused)]
 pub fn upload_configuration(
@@ -40,4 +41,16 @@ pub fn upload_configuration(
     };
 
     result.unwrap()
+}
+
+pub fn upload_configuration_sync(config: &str, client: &mut higgins_client::blocking::Client) {
+    // Upload a basic configuration with one stream.
+    client.upload_configuration(config.as_bytes()).unwrap();
+
+    match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+        higgins_client::ResponseBody::CreateConfiguration(_) => {
+            tracing::info!("Retrieved create configuration!");
+        } //create_subscription_response.subscription_id.unwrap(),
+        _ => panic!("Retrieved unexpected result."),
+    };
 }
