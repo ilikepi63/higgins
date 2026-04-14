@@ -287,6 +287,53 @@ impl Subscription {
         Ok(results)
     }
 
+    /// Similar to `take`, but returns a range of offsets as opposed to a partition name/offset pair.
+    pub fn take_range(
+        &mut self,
+        count: u64,
+    ) -> Result<Vec<(PartitionName, Range<u64>)>, SubscriptionError> {
+        tracing::debug!(
+            "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+            self.partitions
+        );
+
+        let mut partition_offset_index = 0;
+        let mut offset_count = count;
+
+        let mut results = vec![];
+
+        while offset_count > 0 && partition_offset_index < self.partitions.len() {
+            let current_partition = self.partitions.get_mut(partition_offset_index);
+
+            if let Some(partition_offset) = current_partition {
+                let end = if offset_count < (partition_offset.end - partition_offset.end) {
+                    partition_offset.start + offset_count
+                } else {
+                    partition_offset.end
+                };
+
+                results.push((
+                    partition_offset.partition_id.clone(),
+                    Range {
+                        start: partition_offset.start,
+                        end,
+                    },
+                ));
+
+                offset_count = offset_count - (partition_offset.start - end);
+            }
+
+            tracing::debug!(
+                "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+                self.partitions
+            );
+
+            partition_offset_index += 1;
+        }
+
+        Ok(results)
+    }
+
     /// Removes the client count for a specific set.
     pub fn remove_client_count(&self, client: &u64, count: u64) {
         if let Some((_, value)) = self.client_counts.iter().find(|(c, _)| c == client) {
