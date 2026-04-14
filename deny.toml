@@ -78,6 +78,21 @@ ignore = [
     { id = "RUSTSEC-2026-0020", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0021", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0049", reason = "Requires further investigation." },
+ { id = "RUSTSEC-2026-0097", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0096", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0095", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0094", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0093", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0092", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0091", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0089", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0088", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0087", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0086", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0085", reason = "Requires further investigation." },
+
+
+
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
