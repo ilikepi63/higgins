@@ -26,6 +26,8 @@ mod file;
 
 use file::TopographyFile;
 
+pub use data_type_parser::parse_time_unit;
+
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]
