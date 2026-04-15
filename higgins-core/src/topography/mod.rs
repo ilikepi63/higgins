@@ -3,14 +3,13 @@
 //! This includes the metadata of which topics exist, what schema they have
 //! and how they are partitioned.
 
+use arrow::datatypes::Schema;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     fmt::Debug,
     sync::Arc,
 };
-
-use arrow::datatypes::Schema;
-use serde::{Deserialize, Serialize};
 
 use crate::topography::{
     config::{
@@ -374,6 +373,8 @@ impl Topography {
     }
 }
 
+use config::WindowDefinition;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StreamDefinition {
     /// From which this topic is derived.
@@ -392,6 +393,8 @@ pub struct StreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+    /// Windowing configuration
+    pub window: Option<WindowDefinition>,
 }
 
 impl Debug for StreamDefinition {
@@ -418,6 +421,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
             join: value.join.clone(),
             map: value.map.clone(),
             function_name: value.function_name.clone(),
+            window: value.window.clone(),
         }
     }
 }

@@ -6,6 +6,8 @@ use crate::{broker::Broker, topography::StreamDefinition};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+pub mod definition;
+
 pub async fn create_windowed_stream_from_definition(
     definition: StreamDefinition,
     broker: &mut Broker,

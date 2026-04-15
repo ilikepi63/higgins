@@ -36,6 +36,16 @@ pub struct ConfigurationStreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+
+    /// Windowing configuration
+    pub window: Option<WindowDefinition>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct WindowDefinition {
+    #[serde(rename = "type")]
+    window_type: String,
+    interval: String,
 }
 
 impl From<StreamDefinition> for ConfigurationStreamDefinition {
@@ -48,6 +58,7 @@ impl From<StreamDefinition> for ConfigurationStreamDefinition {
             join: value.join,
             map: value.map,
             function_name: value.function_name,
+            window: value.window,
         }
     }
 }
@@ -186,6 +197,7 @@ mod test {
                             join: None,
                             map: None,
                             function_name: None,
+                            window: None,
                         },
                     );
                     streams.insert(
@@ -198,6 +210,7 @@ mod test {
                             join: None,
                             map: None,
                             function_name: None,
+                            window: None,
                         },
                     );
                     Some(streams)
@@ -358,6 +371,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -370,6 +384,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -403,6 +418,7 @@ mod test {
                             ("province".to_string(), "address.province".to_string()),
                         ])),
                         function_name: None,
+                        window: None,
                     },
                 ),
             ])),
@@ -525,6 +541,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -537,6 +554,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
             ])),
@@ -610,6 +628,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -622,6 +641,10 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: Some(WindowDefinition {
+                            window_type: "time".to_string(),
+                            interval: "5m".to_string(),
+                        }),
                     },
                 ),
             ])),
