@@ -262,6 +262,50 @@ pub async fn eager_take_from_subscription_or_wait(
     }
 }
 
+pub async fn eager_range_take_or_wait(
+    subscription: Arc<RwLock<Subscription>>,
+    notify: Arc<tokio::sync::Notify>,
+    client_id: u64,
+) -> Result<Vec<(PartitionName, std::ops::Range<u64>)>, HigginsError> {
+    let mut offsets = {
+        tracing::trace!("[EAGER TAKE] Querying this again, taking {N} items.");
+        let mut lock = subscription.write().await;
+        lock.take_range(N)?
+    };
+
+    // If there are no given offsts, await the wakener then.
+    match offsets.len() {
+        0 => {
+            tracing::trace!("[EAGER TAKE] Awaiting to be notified for produce..");
+            notify.notified().await;
+            tracing::trace!("[EAGER TAKE] We've been notified!");
+
+            offsets = {
+                tracing::trace!("[EAGER TAKE] Acquiring the lock.!");
+                let mut lock = subscription.write().await;
+                tracing::trace!(
+                    "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
+                );
+                let taken = lock.take_range(N)?;
+                tracing::trace!("[EAGER TAKE] Retrieved {:#?}", taken);
+
+                // TODO: this likely should be removed and added once the join stream has been implemented.
+                // Because we don't have shadow acknowledgements, we can't really support this right now.
+                for (key, range) in taken.iter() {
+                    if let Err(err) = lock.acknowledge(key, range) {
+                        tracing::error!("{:#?} when trying to acknowledge the partition.", err);
+                    };
+                }
+
+                taken
+            };
+
+            Ok(offsets)
+        }
+        _ => Ok(offsets),
+    }
+}
+
 pub async fn append_index_to_stream(
     index_file: &mut BrokerIndexFile,
     n_offsets: usize,
