@@ -1,9 +1,10 @@
 //! All liveness work on the windowed specific derived streams
 
 use super::joining::opts::eager_take_from_subscription_or_wait;
-use crate::SpawnTaskConfig;
-use crate::broker::Broker;
+use crate::broker::{Broker, BrokerIndexFile};
 use crate::error::HigginsError;
+use crate::storage::index::windowed_index::WindowedIndex;
+use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -44,6 +45,21 @@ pub async fn create_windowed_stream_from_definition(
             )
             .await
             .unwrap();
+
+            // Retrieve the Index file, given the stream name and partition key.
+            // let mut index_file = {
+            //     let mut broker = broker_ref.write().await;
+            //     let index_file: BrokerIndexFile = broker
+            //         .get_index_file(
+            //             String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
+            //             &partition,
+            //             WindowedIndex::size_of(),
+            //         )
+            //         .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+            //     tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
+            //     drop(broker);
+            //     index_file
+            // };
 
             // Once we have the offsets, we just need to add it to the derivative stream
         })
