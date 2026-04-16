@@ -1,6 +1,7 @@
 use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
 use crate::derive::windowed::create_windowed_stream_from_definition;
+use crate::derive::windowed::definition::WindowedStreamDefinition;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
 use object_store::aws::AmazonS3Builder;
@@ -144,9 +145,15 @@ impl Broker {
                 }
                 Some(FunctionType::Window) => {
                     tracing::trace!("Creating Windowed stream from stream definition.");
+                    let b: &Broker = self;
 
                     create_windowed_stream_from_definition(
-                        derived_stream_definition,
+                        WindowedStreamDefinition::try_from((
+                            derived_stream_key,
+                            derived_stream_definition,
+                            b,
+                        ))
+                        .unwrap(),
                         self,
                         broker.clone(),
                     )

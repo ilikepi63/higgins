@@ -10,18 +10,22 @@ use crate::{
 };
 
 pub struct WindowedStreamDefinition {
-    base_stream: StreamDefinition,
-    window_type: WindowedStreamType,
+    pub base_stream: StreamDefinition,
+    pub window_type: WindowedStreamType,
 }
 
 pub enum WindowedStreamType {
     Count(u64),
-    Timed(WindowedTimeUnit),
+    Timed((u64, WindowedTimeUnit)),
 }
 
-impl From<&WindowDefinition> for WindowedStreamType {
-    fn from(value: &WindowDefinition) -> Self {
-        WindowedStreamType::Count(5)
+impl TryFrom<&WindowDefinition> for WindowedStreamType {
+    type Error = HigginsError;
+
+    fn try_from(value: &WindowDefinition) -> Result<Self, Self::Error> {
+        window_interval_parser(&value.interval)
+            .inspect_err(|err| tracing::error!("{:#?}", err))
+            .map_err(|_err| HigginsError::Unknown)
     }
 }
 
@@ -68,7 +72,7 @@ pub fn window_interval_parser(input: &str) -> Result<WindowedStreamType, Higgins
     })?;
 
     Ok(match time {
-        Some(val) => WindowedStreamType::Timed(val),
+        Some(val) => WindowedStreamType::Timed((n, val)),
         None => WindowedStreamType::Count(n),
     })
 }
@@ -106,7 +110,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
 
         Ok(Self {
             base_stream,
-            window_type: WindowedStreamType::from(&window.unwrap()),
+            window_type: WindowedStreamType::try_from(&window.unwrap())?,
         })
     }
 }
@@ -214,7 +218,7 @@ mod tests {
         let result = window_interval_parser("30s").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Sec)
+            WindowedStreamType::Timed((30, WindowedTimeUnit::Sec))
         ));
     }
 
@@ -223,7 +227,7 @@ mod tests {
         let result = window_interval_parser("500ms").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Ms)
+            WindowedStreamType::Timed((500, WindowedTimeUnit::Ms))
         ));
     }
 
@@ -232,7 +236,7 @@ mod tests {
         let result = window_interval_parser("200us").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Us)
+            WindowedStreamType::Timed((200, WindowedTimeUnit::Us))
         ));
     }
 
@@ -240,7 +244,7 @@ mod tests {
     fn interval_parser_timed_minutes_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("5m"),
-            Ok(WindowedStreamType::Timed(WindowedTimeUnit::Min))
+            Ok(WindowedStreamType::Timed((5, WindowedTimeUnit::Min)))
         ));
     }
 
@@ -249,7 +253,7 @@ mod tests {
         let result = window_interval_parser("2h").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Hour)
+            WindowedStreamType::Timed((2, WindowedTimeUnit::Hour))
         ));
     }
 
@@ -258,7 +262,7 @@ mod tests {
         let result = window_interval_parser("7d").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Day)
+            WindowedStreamType::Timed((7, WindowedTimeUnit::Day))
         ));
     }
 
@@ -275,7 +279,7 @@ mod tests {
         let result = window_interval_parser("86400s").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed(WindowedTimeUnit::Sec)
+            WindowedStreamType::Timed((86400, WindowedTimeUnit::Sec))
         ));
     }
 
@@ -299,7 +303,10 @@ mod tests {
         let wd: WindowDefinition =
             serde_json::from_str(r#"{"type": "tumbling", "interval": "10s"}"#).unwrap();
         // Current implementation always returns Count(5)
-        let wst = WindowedStreamType::from(&wd);
-        assert!(matches!(wst, WindowedStreamType::Count(5)));
+        let wst = WindowedStreamType::try_from(&wd).unwrap();
+        assert!(matches!(
+            wst,
+            WindowedStreamType::Timed((10, WindowedTimeUnit::Sec))
+        ));
     }
 }

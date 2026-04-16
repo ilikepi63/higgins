@@ -44,8 +44,8 @@ pub struct ConfigurationStreamDefinition {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct WindowDefinition {
     #[serde(rename = "type")]
-    window_type: String,
-    interval: String,
+    pub window_type: String,
+    pub interval: String,
 }
 
 impl From<StreamDefinition> for ConfigurationStreamDefinition {
