@@ -11,6 +11,7 @@ use crate::{
 
 pub struct WindowedStreamDefinition {
     pub base_stream: StreamDefinition,
+    pub base_key: String,
     pub window_type: WindowedStreamType,
 }
 
@@ -97,10 +98,13 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
             broker,
         ): (Key, StreamDefinition, &Broker),
     ) -> Result<Self, Self::Error> {
+        let base_key = &base.ok_or(TopographyError::IncorrectStreamDefinition(format!(
+            "Base value non-present for windowed stream: {:#?}",
+            key
+        )))?;
+
         let base_stream = broker
-            .get_topography_stream(&base.ok_or(TopographyError::IncorrectStreamDefinition(
-                format!("Base value non-present for windowed stream: {:#?}", key),
-            ))?)
+            .get_topography_stream(base_key)
             .ok_or(TopographyError::DerivativeNotFound(format!(
                 "Derivative stream not found.",
                 // base.clone()
@@ -110,6 +114,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
 
         Ok(Self {
             base_stream,
+            base_key: String::from_utf8(base_key.as_bytes().to_vec()).unwrap(),
             window_type: WindowedStreamType::try_from(&window.unwrap())?,
         })
     }
