@@ -70,14 +70,20 @@ pub async fn create_windowed_stream_from_definition(
                                 _ => view.get(len - 1).map(|data| data.to_vec()),
                             };
 
-                            let mut ranges_to_save: Vec<u8> = vec![];
-
-                            if let Some(data) = index_bytes {
+                            if let Some(mut data) = index_bytes {
                                 let index = WindowedIndex::of(&data);
 
                                 let range_size = index.range().end - index.range().end;
 
-                                if range_size < count {}
+                                if range_size < count {
+                                    // Update the range with the new indexes.
+                                    let mut new_range = index.range();
+
+                                    new_range.end += (count - range_size);
+
+                                    // Write it to the index.
+                                    WindowedIndex::put_range(new_range, &mut data);
+                                }
                             }
                         };
 
@@ -109,4 +115,52 @@ async fn get_index_file_handle(
     broker
         .get_index_file(stream.to_owned(), key, WindowedIndex::size_of())
         .unwrap()
+}
+
+use std::ops::Range;
+
+pub struct MutableRange<T>(Range<T>);
+
+impl<T> From<Range<T>> for MutableRange<T> {
+    fn from(value: Range<T>) -> Self {
+        Self(value)
+    }
+}
+
+impl MutableRange<u64> {
+    /// Takes from the front of this range, update the amount
+    /// and returning how many were taken from the front of this range.
+    pub fn take_front(&mut self, v: u64) -> u64 {
+        let start = self.0.start + v;
+
+        if start > self.0.end {
+            self.0.start = self.0.end;
+            start - self.0.end
+        } else {
+            self.0.start = start;
+            0
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::derive::windowed::MutableRange;
+
+    #[test]
+    fn test_mutable_range() {
+        let mut range: MutableRange<u64> = MutableRange::from(0..7);
+
+        let result = range.take_front(5);
+
+        assert_eq!(range.0.start, 5);
+        assert_eq!(range.0.end, 7);
+        assert_eq!(result, 0);
+
+        let result = range.take_front(5);
+
+        assert_eq!(range.0.start, 7);
+        assert_eq!(range.0.end, 7);
+        assert_eq!(result, 3);
+    }
 }

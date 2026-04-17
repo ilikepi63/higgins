@@ -76,6 +76,12 @@ impl<'a> WindowedIndex<'a> {
         );
         start..end
     }
+
+    pub fn put_range(range: Range<u64>, val: &mut [u8]) {
+        val[RANGE..RANGE + size_of::<u64>()].copy_from_slice(&range.start.to_be_bytes());
+        val[RANGE + size_of::<u64>()..RANGE + size_of::<u64>() * 2]
+            .copy_from_slice(&range.start.to_be_bytes());
+    }
 }
 
 #[cfg(test)]

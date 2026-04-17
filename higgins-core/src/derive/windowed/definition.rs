@@ -124,8 +124,6 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
 mod tests {
     use super::*;
 
-    // ── parse_window_time_unit ──────────────────────────────────────────
-
     #[test]
     fn parse_time_unit_seconds() {
         let (rest, unit) = parse_window_time_unit("s").unwrap();
