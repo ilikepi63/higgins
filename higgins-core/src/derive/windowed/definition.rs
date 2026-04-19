@@ -32,6 +32,26 @@ impl TryFrom<&str> for WindowValue {
     }
 }
 
+const HOURS_IN_DAY: u64 = 24;
+const MINUTES_IN_HOUR: u64 = 60;
+const SECONDS_IN_MINUTE: u64 = 60;
+
+impl WindowValue {
+    /// Normalize this value into a nominal u64 value.
+    pub fn normalize(&self) -> u64 {
+        match self {
+            Self::Count(c) => c.clone(),
+            Self::Timed((t, u)) => match u {
+                WindowedTimeUnit::Sec => t.clone(),
+                WindowedTimeUnit::Min => t * SECONDS_IN_MINUTE,
+                WindowedTimeUnit::Hour => t * SECONDS_IN_MINUTE * MINUTES_IN_HOUR,
+                WindowedTimeUnit::Day => t * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY,
+                _ => todo!(),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum WindowedTimeUnit {
     Min,

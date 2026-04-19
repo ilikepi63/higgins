@@ -7,6 +7,7 @@ use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
 use crate::storage::index::windowed_index::WindowedIndex;
 use crate::storage::index::{Index, IndexType, index_size_from_index_type_and_definition};
+use crate::storage::windowing::assign_sliding_windows;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
 use higgins_shared::PartitionName;
@@ -59,7 +60,7 @@ pub async fn create_windowed_stream_from_definition(
 
                 match definition.window_type {
                     WindowValue::Count(count) => {
-                        // let windows = assign_sliding_windows();
+                        let windows = assign_sliding_windows();
 
                         //  -> fill the index, then continue
                         //  -> chunk the range into {count} sized chunks and create indexes for each, append the indexes in one swoop.
