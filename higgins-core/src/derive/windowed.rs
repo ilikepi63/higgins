@@ -60,7 +60,13 @@ pub async fn create_windowed_stream_from_definition(
 
                 match definition.window_type {
                     WindowValue::Count(count) => {
-                        let windows = assign_sliding_windows();
+                        // We need to y
+                        // let windows = assign_sliding_windows(
+                        //     offset, // TODO
+                        //     definition.window_type.normalize(),
+                        //     definition.slide.normalize(),
+                        //     0, // TODO
+                        // );
 
                         //  -> fill the index, then continue
                         //  -> chunk the range into {count} sized chunks and create indexes for each, append the indexes in one swoop.

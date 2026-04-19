@@ -16,17 +16,19 @@ fn get_window_start_with_offset(timestamp: u64, offset: u64, slide: u64) -> u64 
     timestamp - remainder
 }
 
+//
+
 pub fn assign_sliding_windows(
-    timestamp: u64, // can be reused as an index right?
+    value: u64, // can be reused as an index right?
     size: u64,
     slide: u64,
     offset: u64,
 ) -> Vec<Range<u64>> {
     let mut windows = Vec::new();
 
-    let mut start = get_window_start_with_offset(timestamp as u64, offset as u64, slide as u64);
+    let mut start = get_window_start_with_offset(value as u64, offset as u64, slide as u64);
 
-    let bound = timestamp.checked_sub(size).unwrap_or(0);
+    let bound = value.checked_sub(size).unwrap_or(0);
 
     while start >= bound {
         if u64::MAX - size < start {
@@ -47,6 +49,52 @@ pub fn assign_sliding_windows(
 
     windows
 }
+
+/// Completely naive implementation of this algorithm.
+///
+/// Maps the ranges directly to the values that have been queried for. For instance, given a range of:
+///
+/// 1..5, with offset 0, size 5 and slide 1, you will get something like:
+///
+/// 0..5 : 1..5,
+/// 1..6 : 1..5
+/// 2..7 : 2..5
+/// 3..8 : 3..5
+///
+/// and so forth. This is to give us the values that we need to recreate for the underlying index of the windowed stream.
+///
+/// TODO: there is probably much that can be
+/// done to reuse the buffers and all, but this can be done later.
+pub fn assign_sliding_windows_range(
+    values: Range<u64>, // can be reused as an index right?
+    size: u64,
+    slide: u64,
+    offset: u64,
+) -> Vec<(Range<u64>, Range<u64>)> {
+    let mut result: Vec<(Range<u64>, Range<u64>)> =
+        Vec::with_capacity((values.end - values.start) as usize);
+
+    for value in values.start..=values.end {
+        dbg!(value);
+
+        let range_for_value = assign_sliding_windows(value, size, slide, offset);
+
+        dbg!(&range_for_value);
+
+        for range in range_for_value {
+            // find the range that matches this, then append this
+            if let Some((_, range)) = result.iter_mut().find(|(r, _)| *r == range) {
+                range.end = if value > range.end { value } else { range.end };
+            } else {
+                result.push((range, value..value));
+            };
+        }
+    }
+
+    result
+}
+
+pub fn merge_ranges() {}
 
 #[cfg(test)]
 mod tests {
@@ -75,5 +123,20 @@ mod tests {
         assert_eq!(get_window_start_with_offset(5, 10, 2), 4);
 
         assert_eq!(get_window_start_with_offset(5, 10, 3), 4);
+    }
+
+    #[test]
+    pub fn test_assign_sliding_windows_range() {
+        assert_eq!(
+            assign_sliding_windows_range(0..5, 5, 1, 0),
+            vec![
+                (0..5, 0..5),
+                (1..6, 1..5),
+                (2..7, 2..5),
+                (3..8, 3..5),
+                (4..9, 4..5),
+                (5..10, 5..5)
+            ]
+        );
     }
 }
