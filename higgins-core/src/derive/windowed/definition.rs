@@ -12,25 +12,27 @@ use crate::{
 pub struct WindowedStreamDefinition {
     pub base_stream: StreamDefinition,
     pub base_key: String,
-    pub window_type: WindowedStreamType,
+    pub slide: WindowValue,
+    pub window_type: WindowValue,
 }
 
-pub enum WindowedStreamType {
+#[derive(Clone, Debug)]
+pub enum WindowValue {
     Count(u64),
     Timed((u64, WindowedTimeUnit)),
 }
 
-impl TryFrom<&WindowDefinition> for WindowedStreamType {
+impl TryFrom<&str> for WindowValue {
     type Error = HigginsError;
 
-    fn try_from(value: &WindowDefinition) -> Result<Self, Self::Error> {
-        window_interval_parser(&value.interval)
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        window_interval_parser(value)
             .inspect_err(|err| tracing::error!("{:#?}", err))
             .map_err(|_err| HigginsError::Unknown)
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum WindowedTimeUnit {
     Min,
     Hour,
@@ -56,7 +58,7 @@ pub fn parse_window_time_unit(input: &str) -> IResult<&str, WindowedTimeUnit> {
     .parse(input)
 }
 
-pub fn window_interval_parser(input: &str) -> Result<WindowedStreamType, HigginsError> {
+pub fn window_interval_parser(input: &str) -> Result<WindowValue, HigginsError> {
     let (_, (n, time)) = (
         nom::bytes::complete::take_while1(|n: char| n.is_numeric()),
         nom::combinator::opt(parse_window_time_unit),
@@ -73,8 +75,8 @@ pub fn window_interval_parser(input: &str) -> Result<WindowedStreamType, Higgins
     })?;
 
     Ok(match time {
-        Some(val) => WindowedStreamType::Timed((n, val)),
-        None => WindowedStreamType::Count(n),
+        Some(val) => WindowValue::Timed((n, val)),
+        None => WindowValue::Count(n),
     })
 }
 
@@ -112,10 +114,17 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
             .1
             .clone();
 
+        let window = window.unwrap();
+        let window_value = WindowValue::try_from(window.interval.as_str())?;
+
         Ok(Self {
             base_stream,
             base_key: String::from_utf8(base_key.as_bytes().to_vec()).unwrap(),
-            window_type: WindowedStreamType::try_from(&window.unwrap())?,
+            window_type: window_value.clone(),
+            slide: window
+                .slide
+                .map(|val| WindowValue::try_from(val.as_str()).unwrap())
+                .unwrap_or(window_value),
         })
     }
 }
@@ -196,7 +205,7 @@ mod tests {
     fn interval_parser_count_only_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("100"),
-            Ok(WindowedStreamType::Count(100))
+            Ok(WindowValue::Count(100))
         ));
     }
 
@@ -204,7 +213,7 @@ mod tests {
     fn interval_parser_count_one_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("1"),
-            Ok(WindowedStreamType::Count(1))
+            Ok(WindowValue::Count(1))
         ));
     }
 
@@ -212,7 +221,7 @@ mod tests {
     fn interval_parser_count_zero_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("0"),
-            Ok(WindowedStreamType::Count(0))
+            Ok(WindowValue::Count(0))
         ));
     }
 
@@ -221,7 +230,7 @@ mod tests {
         let result = window_interval_parser("30s").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((30, WindowedTimeUnit::Sec))
+            WindowValue::Timed((30, WindowedTimeUnit::Sec))
         ));
     }
 
@@ -230,7 +239,7 @@ mod tests {
         let result = window_interval_parser("500ms").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((500, WindowedTimeUnit::Ms))
+            WindowValue::Timed((500, WindowedTimeUnit::Ms))
         ));
     }
 
@@ -239,7 +248,7 @@ mod tests {
         let result = window_interval_parser("200us").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((200, WindowedTimeUnit::Us))
+            WindowValue::Timed((200, WindowedTimeUnit::Us))
         ));
     }
 
@@ -247,7 +256,7 @@ mod tests {
     fn interval_parser_timed_minutes_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("5m"),
-            Ok(WindowedStreamType::Timed((5, WindowedTimeUnit::Min)))
+            Ok(WindowValue::Timed((5, WindowedTimeUnit::Min)))
         ));
     }
 
@@ -256,7 +265,7 @@ mod tests {
         let result = window_interval_parser("2h").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((2, WindowedTimeUnit::Hour))
+            WindowValue::Timed((2, WindowedTimeUnit::Hour))
         ));
     }
 
@@ -265,7 +274,7 @@ mod tests {
         let result = window_interval_parser("7d").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((7, WindowedTimeUnit::Day))
+            WindowValue::Timed((7, WindowedTimeUnit::Day))
         ));
     }
 
@@ -273,7 +282,7 @@ mod tests {
     fn interval_parser_large_count_errors_due_to_streaming() {
         assert!(matches!(
             window_interval_parser("999999"),
-            Ok(WindowedStreamType::Count(999999))
+            Ok(WindowValue::Count(999999))
         ));
     }
 
@@ -282,7 +291,7 @@ mod tests {
         let result = window_interval_parser("86400s").unwrap();
         assert!(matches!(
             result,
-            WindowedStreamType::Timed((86400, WindowedTimeUnit::Sec))
+            WindowValue::Timed((86400, WindowedTimeUnit::Sec))
         ));
     }
 
@@ -306,10 +315,10 @@ mod tests {
         let wd: WindowDefinition =
             serde_json::from_str(r#"{"type": "tumbling", "interval": "10s"}"#).unwrap();
         // Current implementation always returns Count(5)
-        let wst = WindowedStreamType::try_from(&wd).unwrap();
+        let wst = WindowValue::try_from(wd.interval.as_str()).unwrap();
         assert!(matches!(
             wst,
-            WindowedStreamType::Timed((10, WindowedTimeUnit::Sec))
+            WindowValue::Timed((10, WindowedTimeUnit::Sec))
         ));
     }
 }

@@ -46,6 +46,7 @@ pub struct WindowDefinition {
     #[serde(rename = "type")]
     pub window_type: String,
     pub interval: String,
+    pub slide: Option<String>, // defaults to interval if no available.
 }
 
 impl From<StreamDefinition> for ConfigurationStreamDefinition {
@@ -560,6 +561,7 @@ mod test {
                         window: Some(WindowDefinition {
                             window_type: "time".to_string(),
                             interval: "5m".to_string(),
+                            slide: None,
                         }),
                     },
                 ),

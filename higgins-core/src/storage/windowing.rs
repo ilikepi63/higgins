@@ -17,7 +17,7 @@ fn get_window_start_with_offset(timestamp: u64, offset: u64, slide: u64) -> u64 
 }
 
 pub fn assign_sliding_windows(
-    timestamp: u64,
+    timestamp: u64, // can be reused as an index right?
     size: u64,
     slide: u64,
     offset: u64,

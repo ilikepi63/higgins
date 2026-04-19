@@ -3,7 +3,7 @@
 use super::joining::opts::eager_take_from_subscription_or_wait;
 use crate::broker::{Broker, BrokerIndexFile};
 use crate::derive::joining::opts::eager_range_take_or_wait;
-use crate::derive::windowed::definition::WindowedStreamType;
+use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
 use crate::storage::index::windowed_index::WindowedIndex;
 use crate::storage::index::{Index, IndexType, index_size_from_index_type_and_definition};
@@ -58,40 +58,14 @@ pub async fn create_windowed_stream_from_definition(
                         .await;
 
                 match definition.window_type {
-                    WindowedStreamType::Count(count) => {
-                        let last_resultant_index = {
-                            let mut guard = resultant_index_file.lock().await;
-
-                            let view = guard.as_indexes_mut();
-                            let len = view.len();
-
-                            let index_bytes = match len {
-                                0 => None,
-                                _ => view.get(len - 1).map(|data| data.to_vec()),
-                            };
-
-                            if let Some(mut data) = index_bytes {
-                                let index = WindowedIndex::of(&data);
-
-                                let range_size = index.range().end - index.range().end;
-
-                                if range_size < count {
-                                    // Update the range with the new indexes.
-                                    let mut new_range = index.range();
-
-                                    new_range.end += (count - range_size);
-
-                                    // Write it to the index.
-                                    WindowedIndex::put_range(new_range, &mut data);
-                                }
-                            }
-                        };
+                    WindowValue::Count(count) => {
+                        // let windows = assign_sliding_windows();
 
                         //  -> fill the index, then continue
                         //  -> chunk the range into {count} sized chunks and create indexes for each, append the indexes in one swoop.
                         //
                     }
-                    WindowedStreamType::Timed((count, time_unit)) => {
+                    WindowValue::Timed((count, time_unit)) => {
                         // ON timestamp type
                         //
                         //  -> We'd need to check the resultant offset's timestamp.
@@ -126,6 +100,10 @@ impl<T> From<Range<T>> for MutableRange<T> {
         Self(value)
     }
 }
+
+// We have a range x..y that is non-zero in length.
+//
+// where there is another range
 
 impl MutableRange<u64> {
     /// Takes from the front of this range, update the amount
