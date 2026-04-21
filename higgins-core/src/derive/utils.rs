@@ -49,3 +49,15 @@ pub fn get_partition_key_from_record_batch(
 
     value.unwrap().as_bytes().to_vec()
 }
+
+use std::ops::Range;
+
+pub struct BufferIterator {}
+
+pub fn iter_buffer(
+    range: Range<usize>,
+    element_size_in_bytes: usize,
+    buffer: &[u8],
+) -> std::slice::Chunks<'_, u8> {
+    buffer[0..(range.end - range.start) * element_size_in_bytes].chunks(element_size_in_bytes)
+}

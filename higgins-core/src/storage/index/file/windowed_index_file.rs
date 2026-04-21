@@ -1,7 +1,7 @@
 //! Serves the purpose of giving more opinionated algorithms on
 //! certain index types and how to extract/work with them.
 
-use crate::storage::index::{IndexFile, windowed_index::WindowedIndex};
+use crate::{derive::utils::iter_buffer, storage::index::{IndexFile, windowed_index::WindowedIndex}};
 use std::ops::Range;
 
 pub struct WindowedIndexFileOffset(u64);
@@ -41,7 +41,27 @@ impl<'a> WindowedIndexFile<'a> {
     ///
     /// This will begin from the back so effectively O(n) but general time would be O(1) as
     /// these indexes are generally appended to the back.
-    fn find_by_range_start(&self) -> WindowedIndexFileOffset {
+    fn find_by_range_start(&mut self) -> Option<WindowedIndexFileOffset> {
+
+        let start = 0; // we are always beginning from the start
+        let end = self.0.len().ok()?.checked_sub(1)?; // Get the last index
+
+        let mut shard = self.0.shard(start..end);
+
+        let mut buffer = vec![0_u8; WindowedIndex::size_of() * 10]; // 10 just being the amount of indexes we want to pull at this point.
+
+        while let Some(values) = shard.next(&mut buffer) {
+
+            for index in iter_buffer(values, WindowedIndex::size_of(), &buffer).map(WindowedIndex::of).rev() {
+                // we can use the index here. But how do we reverse this logic?
+            };
+
+
+
+        }
+
+
+        None
 
     }
 
