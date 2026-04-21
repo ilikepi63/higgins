@@ -265,6 +265,45 @@ impl<'a> IndexFileShard<'a> {
     pub fn file_mut(&mut self) -> &mut IndexFile {
         self.1
     }
+
+    pub fn reverse(self) -> ReverseIndexFileShard<'a> {
+        ReverseIndexFileShard(self)
+    }
+}
+
+/// implements
+pub struct ReverseIndexFileShard<'a>(IndexFileShard<'a>);
+
+impl<'a> ReverseIndexFileShard<'a> {
+    /// Take the next set of indexes from this shard.
+    ///
+    /// Adds the set range to the buffer, filling it from the front. Once filled, adjusts
+    /// the start to be done again.
+    pub fn next(&mut self, buffer: &mut [u8]) -> Option<std::ops::Range<usize>> {
+        let Self(shard) = self;
+
+        let buffer_len_in_offsets = buffer.len() / shard.1.element_size;
+
+        if shard.0.start == shard.0.end {
+            return None;
+        }
+
+        let start = shard.0.end.saturating_sub(buffer_len_in_offsets);
+        let end = shard.0.end;
+
+        shard
+            .1
+            .read_at(start, &mut buffer[0..(end - start) * shard.1.element_size])
+            .inspect_err(|err| {
+                tracing::error!("Error reading: {:#?}", err);
+            })
+            .ok()?;
+
+        // Update the shard, so that you can pull next.
+        shard.0.end = start;
+
+        Some(std::ops::Range { start, end })
+    }
 }
 
 #[cfg(test)]
@@ -272,6 +311,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+    use crate::derive::utils::iter_buffer;
     use crate::storage::index::IndexType;
     use crate::storage::index::default::DefaultIndex;
     use crate::storage::index::joined_index::JoinedIndex;
@@ -363,10 +403,6 @@ mod tests {
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
         file.read_at(0, &mut buffer).unwrap();
-
-        // for chunk in buffer.chunks(DefaultIndex::size_of()) {
-        //     dbg!(DefaultIndex::of(chunk));
-        // }
 
         let mut val = vec![0; DefaultIndex::size_of() * 3];
 
@@ -617,5 +653,55 @@ mod tests {
         let index = file.binary_search_completed();
 
         assert!(matches!(index, CompletedBinarySearchResult::All));
+    }
+
+    #[test]
+    fn test_file_sharding_works() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut val = vec![0; DefaultIndex::size_of()];
+
+        for i in 0..10 {
+            DefaultIndex::put(
+                i,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                i * 2,
+                &mut val,
+            )
+            .unwrap();
+
+            file.append(&val).unwrap();
+        }
+
+        let mut val = vec![0; DefaultIndex::size_of() * 3];
+
+        let mut shard = file.shard(0..10);
+
+        let mut i = 0;
+
+        while let Some(value) = shard.next(&mut val) {
+            for value in iter_buffer(value, DefaultIndex::size_of(), &val).map(DefaultIndex::of) {
+                assert_eq!(i, value.offset());
+                i += 1;
+            }
+        }
+
+        let mut i = 9;
+        let shard = file.shard(0..10);
+        let mut reverse_shard = shard.reverse();
+
+        while let Some(value) = reverse_shard.next(&mut val) {
+            for value in iter_buffer(value, DefaultIndex::size_of(), &val)
+                .rev()
+                .map(DefaultIndex::of)
+            {
+                assert_eq!(i, value.offset());
+                i = i.saturating_sub(1);
+            }
+        }
     }
 }
