@@ -6,7 +6,7 @@ use bytes::BufMut as _;
 mod default;
 pub mod directory;
 mod error;
-mod file;
+pub mod file;
 pub mod joined_index;
 pub mod windowed_index;
 pub use error::IndexError;
@@ -16,6 +16,7 @@ pub use file::{CompletedBinarySearchResult, IndexFile};
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::windowed_index::WindowedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
 
 /// The high-level type of index that all indexes could possibly be.
@@ -27,6 +28,7 @@ pub enum IndexType {
     #[default]
     Default,
     Join,
+    Window,
 }
 
 /// Retrieve an IndexType from a given StreamDefinition.
@@ -67,6 +69,7 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).timestamp(),
             IndexType::Join => JoinedIndex::of(self.data).timestamp(),
+            IndexType::Window => WindowedIndex::of(self.data).timestamp(),
         }
     }
 
@@ -75,6 +78,7 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).reference(),
             IndexType::Join => JoinedIndex::of(self.data).reference(),
+            IndexType::Window => WindowedIndex::of(self.data).reference(),
         }
     }
 
@@ -84,6 +88,7 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
             IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
+            IndexType::Window => WindowedIndex::of(self.data).put_reference(r),
         }
     }
 }
@@ -95,6 +100,7 @@ pub fn index_size_from_index_type_and_definition(
     match index_type {
         IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref().unwrap().len()),
         IndexType::Default => DefaultIndex::size_of(),
+        IndexType::Window => WindowedIndex::size_of(),
     }
 }
 

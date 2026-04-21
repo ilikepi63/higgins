@@ -1,13 +1,12 @@
 //! All liveness work on the windowed specific derived streams
 
-use super::joining::opts::eager_take_from_subscription_or_wait;
 use crate::broker::{Broker, BrokerIndexFile};
 use crate::derive::joining::opts::eager_range_take_or_wait;
 use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
-use crate::storage::index::windowed_index::WindowedIndex;
-use crate::storage::index::{Index, IndexType, index_size_from_index_type_and_definition};
-use crate::storage::windowing::assign_sliding_windows;
+use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
+use crate::storage::index::windowed_index::{self, WindowedIndex};
+use crate::storage::windowing::assign_sliding_windows_range;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
 use higgins_shared::PartitionName;
@@ -60,6 +59,18 @@ pub async fn create_windowed_stream_from_definition(
 
                 match definition.window_type {
                     WindowValue::Count(count) => {
+                        let new_ranges = assign_sliding_windows_range(
+                            offsets.clone(),
+                            count,
+                            definition.slide.normalize(),
+                            0,
+                        );
+
+                        let windowed_index_file =
+                            WindowedIndexFile::of(resultant_index_file.lock().await.as_index());
+
+                        //windowed_index_file.get_ranges_binary(ranges);
+
                         // We need to y
                         // let windows = assign_sliding_windows(
                         //     offset, // TODO

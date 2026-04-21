@@ -4,7 +4,7 @@ use super::{IndexError, IndexesView};
 use std::io::{Read, Seek, SeekFrom, Write as _};
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
-mod windowed_index_file;
+pub mod windowed_index_file;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
 /// the memory-mapped implementation of this file.
@@ -199,6 +199,14 @@ impl IndexFile {
 
     pub fn shard(&mut self, range: std::ops::Range<usize>) -> IndexFileShard<'_> {
         IndexFileShard(range, self)
+    }
+
+    /// Test function for retrieving this index files complete contents.
+    #[cfg(test)]
+    pub fn read_contents(&mut self) -> Vec<u8> {
+        let mut result = vec![];
+        self.file_handle.read_to_end(&mut result).unwrap();
+        result
     }
 }
 

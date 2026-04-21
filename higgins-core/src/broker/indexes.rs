@@ -66,6 +66,10 @@ impl<'a> BrokerIndexFileLock<'a> {
     pub fn as_indexes_mut(&'a self) -> IndexesView<'a> {
         self.index_file.as_view()
     }
+
+    pub fn as_index(&mut self) -> &mut IndexFile {
+        self.index_file
+    }
 }
 
 impl Broker {
