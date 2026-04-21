@@ -4,6 +4,8 @@
 use crate::storage::index::{IndexFile, windowed_index::WindowedIndex};
 use std::ops::Range;
 
+pub struct WindowedIndexFileOffset(u64);
+
 pub struct WindowedIndexFile<'a>(&'a mut IndexFile);
 
 impl<'a> WindowedIndexFile<'a> {
@@ -35,15 +37,27 @@ impl<'a> WindowedIndexFile<'a> {
         // and have the above `index` present in those offset values.
     }
 
+    /// Finds the index at which the range start begins.
+    ///
+    /// This will begin from the back so effectively O(n) but general time would be O(1) as
+    /// these indexes are generally appended to the back.
+    fn find_by_range_start(&self) -> WindowedIndexFileOffset {
+
+    }
+
     /// Gets the range give a specific start and end position range.
     ///
     /// uses binary sort as ranges are expected to always be in incrementing order.
-    pub fn get_ranges_binary_search(&'a self, ranges: &[Range<u64>]) -> &'a [u8] {
+    pub fn get_ranges_binary_search(&'a self, ranges: &[Range<u64>]) -> Vec<u8> {
         // We are expecting that if we are putting onto ranges, it will start from the end.
         let start = ranges.first().unwrap().start;
         let end = ranges.first().unwrap().end;
 
         let mut buf = vec![0_u8; WindowedIndex::size_of() * ranges.len()];
+
+        let offset = self.find_by
+
+        self.0.read_at(offset, &mut buf);
 
         // load the buffer into memory
 
@@ -76,7 +90,9 @@ mod test {
 
         let windowed_index_file = WindowedIndexFile::of(&mut index_file);
 
-        // We get the ranges.
+        // We get the ranges. It's important to note that these ranges must always be contiguous
         let ranges = assign_sliding_windows_range(1..5, 5, 1, 0);
+
+        //let ranges /*: Buf<WindowedIndex> of ranges.lowest - ranges.highest */ = windowed_index_file.get_ranges_binary_search(ranges.iter().map(|(range, _)| range));
     }
 }

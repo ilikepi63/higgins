@@ -197,6 +197,10 @@ impl IndexFile {
         CompletedBinarySearchResult::None
     }
 
+    // Shards the file into indexes that are of range size.
+    //
+    // For instance, given 0..5, this will return a shard that will actively iterate over that
+    // range.
     pub fn shard(&mut self, range: std::ops::Range<usize>) -> IndexFileShard<'_> {
         IndexFileShard(range, self)
     }
