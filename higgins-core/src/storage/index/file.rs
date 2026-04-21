@@ -225,6 +225,11 @@ pub enum CompletedBinarySearchResult {
     All,
 }
 
+/// A "Shard" of a range of a file. This is so that we can have a view into
+/// the file at a certain range, load the contents of the file at that range into a sized
+/// buffer one at a time.
+///
+/// TODO: Perhaps we need to generalize this to be a general file shard?
 pub struct IndexFileShard<'a>(std::ops::Range<usize>, &'a mut IndexFile);
 
 impl<'a> IndexFileShard<'a> {
