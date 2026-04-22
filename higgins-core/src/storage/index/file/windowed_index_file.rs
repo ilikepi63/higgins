@@ -4,8 +4,9 @@
 use crate::{
     derive::utils::iter_buffer,
     storage::index::{IndexFile, windowed_index::WindowedIndex},
+    utils::epoch,
 };
-use std::ops::Range;
+use std::ops::{Range, Sub};
 
 pub struct WindowedIndexFileOffset(u64);
 
@@ -17,12 +18,12 @@ impl<'a> WindowedIndexFile<'a> {
         Self(index_file)
     }
 
-    /// Returns a mutable value that represents this offset in the index file.
-    /// Each range will have an index, or currently what is the required index for the
-    /// given range.
-    pub fn shard(&mut self, ranges: &[(Range<u64>, Range<u64>)]) {
-        self.0.shard(0..1);
-    }
+    // /// Returns a mutable value that represents this offset in the index file.
+    // /// Each range will have an index, or currently what is the required index for the
+    // /// given range.
+    // pub fn shard(&mut self, ranges: &[(Range<u64>, Range<u64>)]) {
+    //     self.0.shard(0..1);
+    // }
 
     /// Given a list of ranges, we will need to add this
     /// offset/index to the given ranges and ensure that they are not
@@ -32,12 +33,31 @@ impl<'a> WindowedIndexFile<'a> {
     ///
     /// `index` refers to the underlying offset from the derivative stream, whilst the ranges are the identifiers for which ranges need to be
     /// added.
-    pub fn add_ranges(&mut self, ranges: &[Range<u64>], index: u64) {
-        // Ranges will likely always be sequential, is it not better to design this API around that then?
-        // ie get range by start and end, iterate through each and boom we have it.
+    pub fn put_ranges(&mut self, range: Range<u64>, ranges: &[Range<u64>]) {
+        let mut buf =
+            vec![0_u8; usize::try_from(size_of_range(&range)).unwrap() * WindowedIndex::size_of()]; //create buffer to pull.
 
-        // For each of the given ranges, the index file should have a corresponding offset value for it
-        // and have the above `index` present in those offset values.
+        let put_range = Range {
+            start: range.start.clone() as usize,
+            end: range.end.clone() as usize,
+        };
+
+        for (index, range) in range.zip(ranges) {
+            let normalized_index = index as usize * WindowedIndex::size_of();
+            let end = normalized_index as usize + WindowedIndex::size_of();
+
+            let mut buf = &mut buf[normalized_index..end];
+
+            WindowedIndex::put(
+                crate::storage::dereference::Reference::Null,
+                epoch(),
+                range.clone(),
+                &mut buf,
+            )
+            .unwrap();
+        }
+
+        self.0.range_put_at(put_range, &mut buf).unwrap();
     }
 
     /// Finds the index at which the range start begins.
@@ -65,29 +85,44 @@ impl<'a> WindowedIndexFile<'a> {
     }
 
     /// Gets the range give a specific start and end position range.
-    ///
-    /// uses binary sort as ranges are expected to always be in incrementing order.
-    pub fn get_ranges_binary_search(&'a self, ranges: &[Range<u64>]) -> Vec<u8> {
-        // We are expecting that if we are putting onto ranges, it will start from the end.
-        let start = ranges.first().unwrap().start;
-        let end = ranges.first().unwrap().end;
+    pub fn get_ranges(&'a mut self, ranges: &[Range<u64>]) -> Range<u64> {
+        // We want to use the size of this range. perhaps it
+        let mut buf = vec![0_u8; WindowedIndex::size_of() * 10];
 
-        let mut buf = vec![0_u8; WindowedIndex::size_of() * ranges.len()];
+        let end = self.0.len().unwrap_or(0).saturating_sub(1);
 
-        // let offset = self.find_by
+        let mut shard = self.0.shard(0..end).reverse();
 
-        // self.0.read_at(offset, &mut buf);
+        let mut start = end;
 
-        // load the buffer into memory
+        while let Some(value) = shard.next(&mut buf) {
+            start = value.end;
 
-        // buf;
+            for value in iter_buffer(value, WindowedIndex::size_of(), &mut buf)
+                .rev()
+                .map(WindowedIndex::of)
+            {
+                // If we value is contained in the given list of ranges, we
+                // need to reduce the starting index.
+                if ranges.contains(&value.range()) {
+                    start -= 1;
+                } else {
+                    // if not, we break, as this is the last one here.
+                    break;
+                };
+            }
+        }
 
-        todo!();
+        Range {
+            start: start as u64,
+            end: (start + ranges.len()) as u64,
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::storage::index::file::windowed_index_file::size_of_range;
     use crate::storage::index::{
         IndexFile, IndexType, file::windowed_index_file::WindowedIndexFile,
         windowed_index::WindowedIndex,
@@ -107,11 +142,25 @@ mod test {
         )
         .unwrap();
 
-        let windowed_index_file = WindowedIndexFile::of(&mut index_file);
+        let mut windowed_index_file = WindowedIndexFile::of(&mut index_file);
 
         // We get the ranges. It's important to note that these ranges must always be contiguous
         let ranges = assign_sliding_windows_range(1..5, 5, 1, 0);
 
-        //let ranges /*: Buf<WindowedIndex> of ranges.lowest - ranges.highest */ = windowed_index_file.get_ranges_binary_search(ranges.iter().map(|(range, _)| range));
+        let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
+        let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
+
+        let put_at_range = windowed_index_file.get_ranges(&index_file_range);
+
+        let cloned = put_at_range.clone();
+
+        // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
+        windowed_index_file.put_ranges(cloned, &underlying_file_range);
     }
+}
+
+fn print_windowed_index_file() {}
+
+pub fn size_of_range<T: Sub<T> + Copy>(range: &Range<T>) -> T::Output {
+    range.end - range.start
 }
