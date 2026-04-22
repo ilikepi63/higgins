@@ -1,5 +1,5 @@
 use crate::storage::dereference::Reference;
-use std::ops::Range;
+use std::{fmt::Debug, ops::Range};
 
 /// WindowedIndex represents an index that holds the derivative values
 /// of an underlying windowed stream. Each Index would keep a list of ranges of the underlying stream
@@ -81,6 +81,16 @@ impl<'a> WindowedIndex<'a> {
         val[RANGE..RANGE + size_of::<u64>()].copy_from_slice(&range.start.to_be_bytes());
         val[RANGE + size_of::<u64>()..RANGE + size_of::<u64>() * 2]
             .copy_from_slice(&range.start.to_be_bytes());
+    }
+}
+
+impl<'a> Debug for WindowedIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WindowedIndex")
+            .field("range", &self.range())
+            .field("reference", &self.reference())
+            .field("timestamp", &self.timestamp())
+            .finish()
     }
 }
 

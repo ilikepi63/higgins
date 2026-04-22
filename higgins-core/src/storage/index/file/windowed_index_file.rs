@@ -6,7 +6,10 @@ use crate::{
     storage::index::{IndexFile, windowed_index::WindowedIndex},
     utils::epoch,
 };
-use std::ops::{Range, Sub};
+use std::{
+    io::Read,
+    ops::{Range, Sub},
+};
 
 pub struct WindowedIndexFileOffset(u64);
 
@@ -85,7 +88,7 @@ impl<'a> WindowedIndexFile<'a> {
     }
 
     /// Gets the range give a specific start and end position range.
-    pub fn get_ranges(&'a mut self, ranges: &[Range<u64>]) -> Range<u64> {
+    pub fn get_ranges(&mut self, ranges: &[Range<u64>]) -> Range<u64> {
         // We want to use the size of this range. perhaps it
         let mut buf = vec![0_u8; WindowedIndex::size_of() * 10];
 
@@ -122,7 +125,9 @@ impl<'a> WindowedIndexFile<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::storage::index::file::windowed_index_file::size_of_range;
+    use crate::storage::index::file::windowed_index_file::{
+        print_windowed_index_file, size_of_range,
+    };
     use crate::storage::index::{
         IndexFile, IndexType, file::windowed_index_file::WindowedIndexFile,
         windowed_index::WindowedIndex,
@@ -135,31 +140,75 @@ mod test {
 
     #[test]
     fn windowed_index_file_base_test() {
-        let mut index_file = IndexFile::new(
-            uuid::Uuid::new_v4().to_string(),
-            WindowedIndex::size_of(),
-            IndexType::Window,
-        )
-        .unwrap();
+        let path = uuid::Uuid::new_v4().to_string();
 
-        let mut windowed_index_file = WindowedIndexFile::of(&mut index_file);
+        let remove_path = path.clone();
 
-        // We get the ranges. It's important to note that these ranges must always be contiguous
-        let ranges = assign_sliding_windows_range(1..5, 5, 1, 0);
+        let result = std::panic::catch_unwind(|| {
+            let mut index_file =
+                IndexFile::new(path.clone(), WindowedIndex::size_of(), IndexType::Window).unwrap();
 
-        let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
-        let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
+            let mut windowed_index_file = WindowedIndexFile::of(&mut index_file);
 
-        let put_at_range = windowed_index_file.get_ranges(&index_file_range);
+            // We get the ranges. It's important to note that these ranges must always be contiguous
+            let ranges = assign_sliding_windows_range(1..5, 5, 1, 0);
 
-        let cloned = put_at_range.clone();
+            dbg!(&ranges);
 
-        // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
-        windowed_index_file.put_ranges(cloned, &underlying_file_range);
+            let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
+
+            let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
+
+            let put_at_range = windowed_index_file.get_ranges(&index_file_range);
+
+            dbg!(&put_at_range);
+
+            let cloned = put_at_range.clone();
+
+            // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
+            windowed_index_file.put_ranges(cloned, &underlying_file_range);
+
+            print_windowed_index_file(path);
+
+            let ranges = assign_sliding_windows_range(6..10, 5, 1, 0);
+
+            // dbg!(&ranges);
+
+            let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
+
+            let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
+
+            let put_at_range = windowed_index_file.get_ranges(&index_file_range);
+
+            dbg!(&put_at_range);
+
+            let cloned = put_at_range.clone();
+
+            // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
+            windowed_index_file.put_ranges(cloned, &underlying_file_range);
+
+            print_windowed_index_file(index_file.path);
+
+            panic!();
+        });
+
+        std::fs::remove_file(remove_path).unwrap();
+
+        result.unwrap();
     }
 }
 
-fn print_windowed_index_file() {}
+fn print_windowed_index_file<F: AsRef<std::path::Path>>(file: F) {
+    let mut fd = std::fs::File::open(file).unwrap();
+
+    let mut buf = Vec::new();
+
+    let _ = fd.read_to_end(&mut buf).unwrap();
+
+    for index in buf.chunks(WindowedIndex::size_of()).map(WindowedIndex::of) {
+        dbg!(index);
+    }
+}
 
 pub fn size_of_range<T: Sub<T> + Copy>(range: &Range<T>) -> T::Output {
     range.end - range.start

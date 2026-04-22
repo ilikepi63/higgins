@@ -50,6 +50,31 @@ pub fn assign_sliding_windows(
     windows
 }
 
+#[derive(PartialEq, Eq)]
+pub struct InclusiveRanges((Range<u64>, Range<u64>));
+
+impl InclusiveRanges {
+    pub fn as_tuple(&self) -> &(Range<u64>, Range<u64>) {
+        &self.0
+    }
+
+    pub fn as_mut_tuple(&mut self) -> &mut (Range<u64>, Range<u64>) {
+        &mut self.0
+    }
+}
+
+impl Ord for InclusiveRanges {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.0.start.cmp(&other.0.0.start)
+    }
+}
+
+impl PartialOrd for InclusiveRanges {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Completely naive implementation of this algorithm.
 ///
 /// Maps the ranges directly to the values that have been queried for. For instance, given a range of:
@@ -71,8 +96,7 @@ pub fn assign_sliding_windows_range(
     slide: u64,
     offset: u64,
 ) -> Vec<(Range<u64>, Range<u64>)> {
-    let mut result: Vec<(Range<u64>, Range<u64>)> =
-        Vec::with_capacity((values.end - values.start) as usize);
+    let mut result: Vec<InclusiveRanges> = Vec::with_capacity((values.end - values.start) as usize);
 
     for value in values.start..=values.end {
         dbg!(value);
@@ -83,15 +107,24 @@ pub fn assign_sliding_windows_range(
 
         for range in range_for_value {
             // find the range that matches this, then append this
-            if let Some((_, range)) = result.iter_mut().find(|(r, _)| *r == range) {
+            if let Some((_, range)) = result
+                .iter_mut()
+                .find(|ranges| ranges.0.0 == range)
+                .map(|v| v.as_mut_tuple())
+            {
                 range.end = if value > range.end { value } else { range.end };
             } else {
-                result.push((range, value..value));
+                result.push(InclusiveRanges((range, value..value)));
             };
         }
     }
 
+    result.sort();
+
     result
+        .iter()
+        .map(|range| range.0.clone())
+        .collect::<Vec<_>>()
 }
 
 pub fn merge_ranges() {}
