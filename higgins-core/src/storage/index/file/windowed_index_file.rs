@@ -45,7 +45,13 @@ impl<'a> WindowedIndexFile<'a> {
             end: range.end.clone() as usize,
         };
 
-        for (index, range) in range.zip(ranges) {
+        // We need a normalized range for the buf putting.
+        let normalized_range = Range {
+            start: range.start - (range.start),
+            end: range.end - (range.start),
+        };
+
+        for (index, range) in normalized_range.zip(ranges) {
             let normalized_index = index as usize * WindowedIndex::size_of();
             let end = normalized_index as usize + WindowedIndex::size_of();
 
@@ -125,6 +131,7 @@ impl<'a> WindowedIndexFile<'a> {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::storage::index::file::windowed_index_file::{
         print_windowed_index_file, size_of_range,
     };
@@ -153,41 +160,48 @@ mod test {
             // We get the ranges. It's important to note that these ranges must always be contiguous
             let ranges = assign_sliding_windows_range(1..5, 5, 1, 0);
 
-            dbg!(&ranges);
-
             let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
 
             let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
 
             let put_at_range = windowed_index_file.get_ranges(&index_file_range);
 
-            dbg!(&put_at_range);
-
             let cloned = put_at_range.clone();
 
             // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
             windowed_index_file.put_ranges(cloned, &underlying_file_range);
 
-            print_windowed_index_file(path);
+            assert_file_holds_ranges(&path, &[1..5, 1..5, 2..5, 3..5, 4..5, 5..5]);
 
             let ranges = assign_sliding_windows_range(6..10, 5, 1, 0);
 
-            // dbg!(&ranges);
-
             let index_file_range = &ranges.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>();
 
             let underlying_file_range = &ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
 
             let put_at_range = windowed_index_file.get_ranges(&index_file_range);
 
-            dbg!(&put_at_range);
-
             let cloned = put_at_range.clone();
 
             // read the values in from the index file, keeping track of which are actual WindowedIndexes and which are not.
             windowed_index_file.put_ranges(cloned, &underlying_file_range);
 
-            print_windowed_index_file(index_file.path);
+            assert_file_holds_ranges(
+                path,
+                &[
+                    /*0 */ 1..5,
+                    /*1 */ 1..6,
+                    /*2 */ 2..7,
+                    /*3 */ 3..8,
+                    /*4 */ 4..9,
+                    /*5 */ 5..10,
+                    /*6 */ 6..10,
+                    /*7 */ 7..10,
+                    /*8 */ 8..10,
+                    /*9 */ 9..10,
+                    /*10 */ 0..10,
+                ],
+            );
 
             panic!();
         });
@@ -207,6 +221,26 @@ fn print_windowed_index_file<F: AsRef<std::path::Path>>(file: F) {
 
     for index in buf.chunks(WindowedIndex::size_of()).map(WindowedIndex::of) {
         dbg!(index);
+    }
+}
+
+fn assert_file_holds_ranges<F: AsRef<std::path::Path>>(file: F, ranges: &[Range<u64>]) {
+    let mut fd = std::fs::File::open(file).unwrap();
+
+    let mut buf = Vec::new();
+
+    let _ = fd.read_to_end(&mut buf).unwrap();
+
+    let buf_iter = buf.chunks(WindowedIndex::size_of()).map(WindowedIndex::of);
+
+    assert_eq!(buf_iter.len(), ranges.len());
+
+    for (index, range) in buf
+        .chunks(WindowedIndex::size_of())
+        .map(WindowedIndex::of)
+        .zip(ranges)
+    {
+        assert_eq!(index.range(), *range);
     }
 }
 
