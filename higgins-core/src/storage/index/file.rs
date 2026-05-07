@@ -1,8 +1,8 @@
 use super::IndexType;
 use super::JoinedIndex;
 use super::{IndexError, IndexesView};
+use std::fs::metadata;
 use std::io::{Read, Seek, SeekFrom, Write as _};
-use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
 /// Represents a file that holds an index. These indexes can be retrieved directly through
@@ -103,7 +103,8 @@ impl IndexFile {
 
     /// Retrieves the length of this index file in indexes.
     pub fn len(&self) -> Result<usize, IndexError> {
-        Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
+        Ok(metadata(&self.path).unwrap().len() as usize)
+        // Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
     }
 
     /// Reads indexes at the given offset until the buffer has been filled.
