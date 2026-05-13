@@ -1,6 +1,6 @@
 use std::{
-    fs::metadata,
     io::{Read, Write},
+    os::unix::fs::MetadataExt,
     path::PathBuf,
 };
 
@@ -42,11 +42,11 @@ impl FunctionCollection {
 
         tracing::info!("Reading function: {:#?}", path);
 
-        let mut file = std::fs::OpenOptions::new().read(true).open(&path).unwrap();
+        let mut file = std::fs::OpenOptions::new().read(true).open(path).unwrap();
 
-        let file_size = metadata(&path).unwrap().len();
+        tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
 
-        let mut buffer = vec![0; file_size.try_into().unwrap()];
+        let mut buffer = vec![0; file.metadata().unwrap().size().try_into().unwrap()];
 
         file.read_exact(&mut buffer).unwrap();
 
