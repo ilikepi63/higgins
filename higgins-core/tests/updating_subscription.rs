@@ -7,7 +7,7 @@ use higgins_client::ResponseBody;
 
 mod common;
 
-// #[test]
+#[test]
 fn can_update_subscription_after_created() {
     tracing_subscriber::fmt::init();
 

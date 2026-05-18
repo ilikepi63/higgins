@@ -64,7 +64,7 @@ city = "address.city"
 province = "address.province"
 "#;
 
-// #[test]
+#[test]
 fn can_implement_a_basic_stream_join() {
     let port = get_random_port();
     tracing_subscriber::fmt::init();

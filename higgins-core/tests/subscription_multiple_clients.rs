@@ -17,7 +17,7 @@ static PAYLOAD: &str = include_str!("customer.json");
 static CONSUME_CLIENT_ONE_COUNT: u64 = 1;
 static CONSUME_CLIENT_TWO_COUNT: u64 = 1;
 
-// #[test]
+#[test]
 fn subscription_works_with_multiple_clients() {
     tracing_subscriber::fmt::init();
 

@@ -18,7 +18,7 @@ fn get_dir() -> PathBuf {
 static STREAM: &str = "update_customer";
 static PARTITION: &[u8] = "1".as_bytes();
 
-// #[test]
+#[test]
 fn can_achieve_basic_broker_functionality() {
     tracing_subscriber::fmt::init();
 

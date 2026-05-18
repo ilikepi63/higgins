@@ -27,7 +27,7 @@ pub fn setup_server(
     (server_handle, client)
 }
 
-// #[test]
+#[test]
 fn can_achieve_basic_topography_retrieval() {
     tracing_subscriber::fmt::init();
 

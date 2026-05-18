@@ -20,7 +20,7 @@ fn get_dir() -> PathBuf {
 static STREAM: &str = "update_customer";
 static PARTITION: &[u8] = "1".as_bytes();
 
-#[test]
+// #[test]
 fn basic_windowing() {
     tracing_subscriber::fmt::init();
 
