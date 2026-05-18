@@ -14,7 +14,7 @@ const REFERENCE_INDEX: usize = TIMESTAMP_INDEX + size_of::<u64>();
 const INCLUSIVE_RANGE_OFFSET: usize = REFERENCE_INDEX + Reference::size_of();
 /// The derivative range is the values from the derivative stream that form part of this index. This
 /// holds the actual references to the derivative stream.
-const DERIVATIVE_RANGE_OFFSET: usize = REFERENCE_INDEX + Reference::size_of();
+const DERIVATIVE_RANGE_OFFSET: usize = INCLUSIVE_RANGE_OFFSET + Reference::size_of();
 
 impl<'a> WindowedIndex<'a> {
     /// Creates a instance of this, wrapping the given bytes.
@@ -145,14 +145,13 @@ mod tests {
     use crate::storage::dereference::S3Reference;
 
     use super::*;
-    use std::ops::Range;
 
     #[test]
     fn test_put_and_read_all_fields() {
         let mut buffer = vec![0u8; 200];
         let timestamp = 1_694_000_000_123u64;
         let reference = Reference::Null;
-        let inclusive_range = 500..1500u64;
+        let inclusive_range = 100..1100u64;
         let derivative_range = 500..1500u64;
 
         WindowedIndex::put(
