@@ -178,8 +178,6 @@ mod test {
                     (20..25, 20..22),
                 ],
             );
-
-            println!("#### PUT THIRD ####");
         });
 
         std::fs::remove_file(remove_path).unwrap();
