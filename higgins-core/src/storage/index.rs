@@ -49,6 +49,11 @@ pub struct Index<'a> {
     data: &'a [u8],
 }
 
+pub struct OwnedIndex {
+    index_type: IndexType,
+    data: Vec<u8>,
+}
+
 impl<'a> std::fmt::Debug for Index<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Index")
@@ -89,6 +94,44 @@ impl<'a> Index<'a> {
             IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
             IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
             IndexType::Window => WindowedIndex::of(self.data).put_reference(r),
+        }
+    }
+}
+
+impl OwnedIndex {
+    // Constructors
+    pub fn from(index: Index<'_>) -> Self {
+        Self {
+            index_type: index.index_type,
+            data: index.data.to_vec(),
+        }
+    }
+
+    /// Query for the timestamp of this given
+    pub fn timestamp(&self) -> u64 {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).timestamp(),
+            IndexType::Join => JoinedIndex::of(&self.data).timestamp(),
+            IndexType::Window => WindowedIndex::of(&self.data).timestamp(),
+        }
+    }
+
+    /// Retrieve the underlying Reference data of this index.
+    pub fn reference(&self) -> Reference {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).reference(),
+            IndexType::Join => JoinedIndex::of(&self.data).reference(),
+            IndexType::Window => WindowedIndex::of(&self.data).reference(),
+        }
+    }
+
+    /// Returns a new byte array representing a reference that is encoded to a
+    /// vector of bytes.
+    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).put_reference(r),
+            IndexType::Join => JoinedIndex::of(&self.data).put_reference(r),
+            IndexType::Window => WindowedIndex::of(&self.data).put_reference(r),
         }
     }
 }

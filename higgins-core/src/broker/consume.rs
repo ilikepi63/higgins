@@ -125,7 +125,7 @@ impl Broker {
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
             .unwrap();
 
-        let reference = self
+        let index = self
             .indexes
             .get_by_offset(
                 stream,
@@ -137,9 +137,9 @@ impl Broker {
             .await
             .ok();
 
-        if let Some(reference) = reference {
+        if let Some(index) = index {
             tracing::debug!("Dereferencing the reference..");
-            dereference(reference, self)
+            dereference(index, self)
                 .await
                 .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
                 .map(Some)

@@ -2,7 +2,11 @@
 
 use std::io::Write;
 
-use crate::{broker::Broker, error::HigginsError};
+use crate::{
+    broker::Broker,
+    error::HigginsError,
+    storage::index::{Index, OwnedIndex},
+};
 
 use riskless::object_store::path::Path;
 
@@ -10,8 +14,8 @@ static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
 
 /// Dereference a given reference into the underlying data.
-pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8>, HigginsError> {
-    match reference {
+pub async fn dereference(index: OwnedIndex, broker: &Broker) -> Result<Vec<u8>, HigginsError> {
+    match index.reference() {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
             let object_store = {
