@@ -99,6 +99,10 @@ impl<'a> Index<'a> {
 }
 
 impl OwnedIndex {
+    /// Return a reference to the inner bytes of this index.
+    pub fn inner(&self) -> &[u8] {
+        &self.data
+    }
     // Constructors
     pub fn from(index: Index<'_>) -> Self {
         Self {

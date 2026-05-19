@@ -5,16 +5,22 @@ use std::io::Write;
 use crate::{
     broker::Broker,
     error::HigginsError,
-    storage::index::{Index, OwnedIndex},
+    storage::index::{Index, OwnedIndex, windowed_index::WindowedIndex},
+    topography::{FunctionType, StreamDefinition},
 };
 
+use futures::stream;
 use riskless::object_store::path::Path;
 
 static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
 
 /// Dereference a given reference into the underlying data.
-pub async fn dereference(index: OwnedIndex, broker: &Broker) -> Result<Vec<u8>, HigginsError> {
+pub async fn dereference(
+    index: OwnedIndex,
+    stream_def: StreamDefinition,
+    broker: &Broker,
+) -> Result<Vec<u8>, HigginsError> {
     match index.reference() {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
@@ -64,7 +70,24 @@ pub async fn dereference(index: OwnedIndex, broker: &Broker) -> Result<Vec<u8>, 
                 }
             }
         }
-        Reference::Null => Err(HigginsError::NullDereferenceError),
+        Reference::Null => {
+            // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
+            // This can also be applied to function types etc.
+            match stream_def.stream_type.unwrap() {
+                FunctionType::Window => {
+                    let index = WindowedIndex::of(index.inner());
+
+                    let range = index.derivative_range();
+
+                    let windowed_definition = stream_def.base;
+
+                    let derivative_indexes =
+                        broker.get_index_file(stream_def.window, partition, element_size);
+                }
+                _ => todo!(),
+            }
+            todo!();
+        }
     }
 }
 

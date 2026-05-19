@@ -11,12 +11,15 @@ use std::{
     sync::Arc,
 };
 
-use crate::topography::{
-    config::{
-        Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
-        schema_to_arrow_schema,
+use crate::{
+    storage::index::{IndexType, index_size_from_index_type_and_definition},
+    topography::{
+        config::{
+            Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
+            schema_to_arrow_schema,
+        },
+        errors::TopographyError,
     },
-    errors::TopographyError,
 };
 
 pub mod config;
@@ -397,6 +400,25 @@ pub struct StreamDefinition {
     pub function_name: Option<String>,
     /// Windowing configuration
     pub window: Option<WindowDefinition>,
+}
+
+impl StreamDefinition {
+    /// Returns the index size specified from this stream definition.
+    ///
+    /// The index size should always be able to be calculated from the definition given
+    /// the dynamic properties of some of the stream values.
+    pub fn index_size(&self) -> usize {
+        let index_type = match self.stream_type {
+            Some(FunctionType::Join) => IndexType::Join,
+            Some(FunctionType::Window) => IndexType::Window,
+            Some(FunctionType::Aggregate)
+            | Some(FunctionType::Map)
+            | Some(FunctionType::Reduce)
+            | None => IndexType::Default,
+        };
+
+        index_size_from_index_type_and_definition(&index_type, self)
+    }
 }
 
 impl Debug for StreamDefinition {
