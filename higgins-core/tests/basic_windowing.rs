@@ -74,6 +74,8 @@ fn basic_windowing() {
             ResponseBody::Produce(_)
         ));
 
+        std::thread::sleep(Duration::from_secs(1));
+
         client
             .query_at(
                 WINDOWED_STREAM.as_bytes(),

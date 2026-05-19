@@ -305,12 +305,16 @@ impl Subscription {
         while offset_count > 0 && partition_offset_index < self.partitions.len() {
             let current_partition = self.partitions.get_mut(partition_offset_index);
 
+            tracing::info!("Retrieving current partition: {:#?}", current_partition);
+
             if let Some(partition_offset) = current_partition {
                 let end = if offset_count < (partition_offset.end - partition_offset.end) {
                     partition_offset.start + offset_count
                 } else {
                     partition_offset.end
                 };
+
+                tracing::info!("{}", end);
 
                 results.push((
                     partition_offset.partition_id.clone(),
@@ -319,8 +323,11 @@ impl Subscription {
                         end,
                     },
                 ));
+                tracing::info!("Pushed result.");
 
-                offset_count = offset_count - (partition_offset.start - end);
+                tracing::info!("{offset_count}, {} {end}", partition_offset.start);
+
+                offset_count = offset_count - (end - partition_offset.start);
             }
 
             tracing::debug!(

@@ -60,6 +60,8 @@ pub async fn create_windowed_stream_from_definition(
                         .await
                         .unwrap();
 
+                tracing::info!("Retrieved some offsets: {:#?}", offsets);
+
                 for (partition, offsets) in offsets.iter() {
                     let resultant_stream = String::from_utf8(stream.as_bytes().to_vec()).unwrap();
 
@@ -76,29 +78,26 @@ pub async fn create_windowed_stream_from_definition(
                         WindowValue::Count(count) => {
                             tracing::error!("RECEIVED COUNT FROM UNDERLYING STREAM: {count}");
 
-                            let new_ranges = assign_sliding_windows_range(
+                            let mut new_ranges = assign_sliding_windows_range(
                                 offsets.clone(),
                                 count,
                                 definition.slide.normalize(),
                                 0,
                             );
 
-                            let windowed_index_file =
-                                WindowedIndexFile::of(resultant_index_file.lock().await.as_index());
+                            let mut guard = resultant_index_file.lock().await;
+                            let index_file = guard.as_index();
 
-                            //windowed_index_file.get_ranges_binary(ranges);
+                            let mut windowed_index_file = WindowedIndexFile::of(index_file);
 
-                            // We need to y
-                            // let windows = assign_sliding_windows(
-                            //     offset, // TODO
-                            //     definition.window_type.normalize(),
-                            //     definition.slide.normalize(),
-                            //     0, // TODO
-                            // );
+                            tracing::info!(
+                                "Applying ranges {:#?} to windowed index file.",
+                                new_ranges
+                            );
 
-                            //  -> fill the index, then continue
-                            //  -> chunk the range into {count} sized chunks and create indexes for each, append the indexes in one swoop.
-                            //
+                            windowed_index_file.put_ranges(&mut new_ranges).unwrap();
+
+                            tracing::info!("Successfully applied ranges to windowed function.");
                         }
                         WindowValue::Timed((count, time_unit)) => {
                             // ON timestamp type
