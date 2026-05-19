@@ -17,6 +17,6 @@ type = "window"
 partition_key = "id"
 schema = "value"
 window = {
-    type = "time", # or count
-    interval = "5m" # or simply 5 if count
+    type = "count", # or count
+    interval = "5" # or simply 5 if count
 }

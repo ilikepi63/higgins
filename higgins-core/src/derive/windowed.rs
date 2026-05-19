@@ -65,18 +65,21 @@ pub async fn create_windowed_stream_from_definition(
                 for (partition, offsets) in offsets.iter() {
                     let resultant_stream = String::from_utf8(stream.as_bytes().to_vec()).unwrap();
 
-                    // TODO: maybe paralellize these?
-                    let mut resultant_index_file =
-                        get_index_file_handle(&resultant_stream, partition, broker_ref.clone())
-                            .await;
+                    tracing::info!("Retrieving index file..");
 
-                    let derived_index_file =
+                    // TODO: maybe paralellize these?
+                    // let mut resultant_index_file =
+                    //     get_index_file_handle(&resultant_stream, partition, broker_ref.clone())
+                    //         .await;
+
+                    let mut derived_index_file =
                         get_index_file_handle(&definition.base_key, partition, broker_ref.clone())
                             .await;
+                    tracing::info!("Retrieved index file..");
 
                     match definition.window_type {
                         WindowValue::Count(count) => {
-                            tracing::error!("RECEIVED COUNT FROM UNDERLYING STREAM: {count}");
+                            tracing::info!("RECEIVED COUNT FROM UNDERLYING STREAM: {count}");
 
                             let mut new_ranges = assign_sliding_windows_range(
                                 offsets.clone(),
@@ -85,7 +88,7 @@ pub async fn create_windowed_stream_from_definition(
                                 0,
                             );
 
-                            let mut guard = resultant_index_file.lock().await;
+                            let mut guard = derived_index_file.lock().await;
                             let index_file = guard.as_index();
 
                             let mut windowed_index_file = WindowedIndexFile::of(index_file);
@@ -100,6 +103,8 @@ pub async fn create_windowed_stream_from_definition(
                             tracing::info!("Successfully applied ranges to windowed function.");
                         }
                         WindowValue::Timed((count, time_unit)) => {
+                            tracing::error!("TIMED STREAM IS NOT AVAILABLE");
+
                             // ON timestamp type
                             //
                             //  -> We'd need to check the resultant offset's timestamp.
