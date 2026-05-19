@@ -138,7 +138,11 @@ impl Broker {
             .ok();
 
         if let Some(reference) = reference {
-            dereference(reference, self).await.map(Some)
+            tracing::debug!("Dereferencing the reference..");
+            dereference(reference, self)
+                .await
+                .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
+                .map(Some)
         } else {
             Ok(None)
         }

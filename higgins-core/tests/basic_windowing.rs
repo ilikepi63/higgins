@@ -74,7 +74,7 @@ fn basic_windowing() {
             ResponseBody::Produce(_)
         ));
 
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(2));
 
         client
             .query_at(

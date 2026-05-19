@@ -111,7 +111,7 @@ pub async fn create_windowed_stream_from_definition(
                                     .chunks(WindowedIndex::size_of())
                                     .map(WindowedIndex::of)
                                 {
-                                    dbg!(index);
+                                    tracing::debug!("{:#?}", index);
                                 }
                             }
 

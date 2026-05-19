@@ -254,6 +254,8 @@ impl IndexDirectory {
         index_type: IndexType,
         stream_definition: &StreamDefinition,
     ) -> Result<Reference, Box<dyn std::error::Error>> {
+        tracing::debug!("Reading index {:#?}", index_type);
+
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
@@ -266,6 +268,8 @@ impl IndexDirectory {
                 index_type.clone(),
             )
             .unwrap();
+
+        tracing::info!("Retrieved the index_file correctly.");
 
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
@@ -280,7 +284,7 @@ impl IndexDirectory {
         match index {
             Some(index) => {
                 let reference = index.reference();
-
+                tracing::info!("Returning the reference..");
                 Ok(reference)
             }
             None => {
