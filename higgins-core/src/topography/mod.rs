@@ -408,16 +408,18 @@ impl StreamDefinition {
     /// The index size should always be able to be calculated from the definition given
     /// the dynamic properties of some of the stream values.
     pub fn index_size(&self) -> usize {
-        let index_type = match self.stream_type {
+        index_size_from_index_type_and_definition(&self.index_type(), self)
+    }
+
+    pub fn index_type(&self) -> IndexType {
+        match self.stream_type {
             Some(FunctionType::Join) => IndexType::Join,
             Some(FunctionType::Window) => IndexType::Window,
             Some(FunctionType::Aggregate)
             | Some(FunctionType::Map)
             | Some(FunctionType::Reduce)
             | None => IndexType::Default,
-        };
-
-        index_size_from_index_type_and_definition(&index_type, self)
+        }
     }
 }
 

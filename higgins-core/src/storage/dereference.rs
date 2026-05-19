@@ -10,6 +10,7 @@ use crate::{
 };
 
 use futures::stream;
+use higgins_shared::PartitionName;
 use riskless::object_store::path::Path;
 
 static NULL_DISCRIMINATOR: u16 = 0;
@@ -19,7 +20,8 @@ static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
 pub async fn dereference(
     index: OwnedIndex,
     stream_def: StreamDefinition,
-    broker: &Broker,
+    partition: PartitionName,
+    broker: &mut Broker,
 ) -> Result<Vec<u8>, HigginsError> {
     match index.reference() {
         Reference::S3(reference_object_store) => {
@@ -77,16 +79,42 @@ pub async fn dereference(
                 FunctionType::Window => {
                     let index = WindowedIndex::of(index.inner());
 
-                    let range = index.derivative_range();
+                    // Retrieve the base stream - the stream that this windowed stream is based off of.
+                    let base_stream_def = broker
+                        .get_topography_stream(&stream_def.base.unwrap())
+                        .map(|(_, stream_def)| stream_def.clone())
+                        .unwrap();
 
-                    let windowed_definition = stream_def.base;
+                    // get the derived index file.
+                    let mut derivative_index_file = broker
+                        .get_index_file(
+                            String::from_utf8(
+                                stream_def.base.as_ref().unwrap().as_bytes().to_vec(),
+                            )
+                            .unwrap(),
+                            &partition,
+                        )
+                        .unwrap();
 
-                    let derivative_indexes =
-                        broker.get_index_file(stream_def.window, partition, element_size);
+                    let mut guard = derivative_index_file.lock().await;
+
+                    let buffer_size =
+                        (index.derivative_range().end - index.derivative_range().start) as usize;
+
+                    let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
+
+                    // Read all of the indexes.
+                    guard.read_at(index.derivative_range().start as usize, &mut buffer);
+
+                    for index in buffer
+                        .chunks(base_stream_def.index_size())
+                        .map(|data| Index::of(data, index_type))
+                    {}
+
+                    todo!();
                 }
                 _ => todo!(),
             }
-            todo!();
         }
     }
 }
