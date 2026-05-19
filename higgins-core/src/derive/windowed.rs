@@ -10,6 +10,7 @@ use crate::storage::windowing::assign_sliding_windows_range;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
 use higgins_shared::PartitionName;
+use rkyv::collections::swiss_table::index_map;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -22,7 +23,8 @@ pub async fn create_windowed_stream_from_definition(
 ) {
     tracing::trace!("Calling create_windowed_stream_from_definition.");
     tracing::trace!("{:#?}", definition.base_key);
-    let stream = definition.base_key.clone();
+    let base_stream = definition.base_key.clone();
+    let stream = definition.resultant_key;
 
     let (client_id, condvar, subscription) = {
         tracing::trace!("Attempting to input client_id.");
@@ -33,12 +35,12 @@ pub async fn create_windowed_stream_from_definition(
             .unwrap();
 
         tracing::trace!("Retrieved client_id.");
-        let subscription = broker.create_subscription(stream.as_bytes());
+        let subscription = broker.create_subscription(base_stream.as_bytes());
 
         tracing::trace!("Successfully created the subscription.");
 
         let (notify, subscription) = broker
-            .get_subscription_by_key(stream.as_bytes(), &subscription)
+            .get_subscription_by_key(base_stream.as_bytes(), &subscription)
             .ok_or(HigginsError::SubscriptionRetrievalFailed)
             .unwrap();
 
@@ -65,16 +67,17 @@ pub async fn create_windowed_stream_from_definition(
                 for (partition, offsets) in offsets.iter() {
                     let resultant_stream = String::from_utf8(stream.as_bytes().to_vec()).unwrap();
 
-                    tracing::info!("Retrieving index file..");
+                    tracing::info!("Retrieving index file for stream {resultant_stream}");
 
                     // TODO: maybe paralellize these?
-                    // let mut resultant_index_file =
-                    //     get_index_file_handle(&resultant_stream, partition, broker_ref.clone())
+                    let mut resultant_index_file =
+                        get_index_file_handle(&resultant_stream, partition, broker_ref.clone())
+                            .await;
+
+                    // let mut derived_index_file =
+                    //     get_index_file_handle(&definition.base_key, partition, broker_ref.clone())
                     //         .await;
 
-                    let mut derived_index_file =
-                        get_index_file_handle(&definition.base_key, partition, broker_ref.clone())
-                            .await;
                     tracing::info!("Retrieved index file..");
 
                     match definition.window_type {
@@ -88,7 +91,7 @@ pub async fn create_windowed_stream_from_definition(
                                 0,
                             );
 
-                            let mut guard = derived_index_file.lock().await;
+                            let mut guard = resultant_index_file.lock().await;
                             let index_file = guard.as_index();
 
                             let mut windowed_index_file = WindowedIndexFile::of(index_file);
@@ -99,6 +102,18 @@ pub async fn create_windowed_stream_from_definition(
                             );
 
                             windowed_index_file.put_ranges(&mut new_ranges).unwrap();
+
+                            // debug only, remove after
+                            {
+                                let mut bytes = [0u8; WindowedIndex::size_of()];
+                                index_file.read_at(0, &mut bytes).unwrap();
+                                for index in bytes
+                                    .chunks(WindowedIndex::size_of())
+                                    .map(WindowedIndex::of)
+                                {
+                                    dbg!(index);
+                                }
+                            }
 
                             tracing::info!("Successfully applied ranges to windowed function.");
                         }

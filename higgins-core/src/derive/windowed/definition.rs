@@ -14,6 +14,7 @@ pub struct WindowedStreamDefinition {
     pub base_key: String,
     pub slide: WindowValue,
     pub window_type: WindowValue,
+    pub resultant_key: String,
 }
 
 #[derive(Clone, Debug)]
@@ -145,6 +146,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
                 .slide
                 .map(|val| WindowValue::try_from(val.as_str()).unwrap())
                 .unwrap_or(window_value),
+            resultant_key: String::from_utf8(key.as_bytes().to_vec()).unwrap(),
         })
     }
 }
