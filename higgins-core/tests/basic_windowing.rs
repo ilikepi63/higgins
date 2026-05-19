@@ -20,7 +20,7 @@ fn get_dir() -> PathBuf {
 static STREAM: &str = "update_customer";
 static PARTITION: &[u8] = "1".as_bytes();
 
-// #[test]
+#[test]
 fn basic_windowing() {
     tracing_subscriber::fmt::init();
 
@@ -44,10 +44,13 @@ fn basic_windowing() {
 
         client_sync_ping_test(&mut client);
 
+        tracing::info!("Uploading the config..");
+
         upload_configuration_sync(
             &std::fs::read_to_string("tests/configs/basic_window.toml").unwrap(),
             &mut client,
         );
+        tracing::info!("Uploaded the config..");
     });
 
     std::fs::remove_dir_all(dir_remove).unwrap();
