@@ -8,10 +8,13 @@ use crate::{
     storage::index::{Index, OwnedIndex, windowed_index::WindowedIndex},
     topography::{FunctionType, StreamDefinition},
 };
+use arrow::compute::concat_batches;
 
+use arrow::array::RecordBatch;
 use futures::stream;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, read_arrow};
 use riskless::object_store::path::Path;
+use tracing::span::Record;
 
 static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
@@ -81,35 +84,62 @@ pub async fn dereference(
 
                     // Retrieve the base stream - the stream that this windowed stream is based off of.
                     let base_stream_def = broker
-                        .get_topography_stream(&stream_def.base.unwrap())
+                        .get_topography_stream(&stream_def.base.as_ref().unwrap())
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
-                    // get the derived index file.
-                    let mut derivative_index_file = broker
-                        .get_index_file(
-                            String::from_utf8(
-                                stream_def.base.as_ref().unwrap().as_bytes().to_vec(),
-                            )
-                            .unwrap(),
-                            &partition,
-                        )
+                    let base_stream_schema = broker
+                        .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
+                        .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
-                    let mut guard = derivative_index_file.lock().await;
+                    let buffer = {
+                        // get the derived index file.
+                        let mut derivative_index_file = broker
+                            .get_index_file(
+                                String::from_utf8(
+                                    stream_def.base.as_ref().unwrap().as_bytes().to_vec(),
+                                )
+                                .unwrap(),
+                                &partition,
+                            )
+                            .unwrap();
 
-                    let buffer_size =
-                        (index.derivative_range().end - index.derivative_range().start) as usize;
+                        let mut guard = derivative_index_file.lock().await;
 
-                    let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
+                        let buffer_size = (index.derivative_range().end
+                            - index.derivative_range().start)
+                            as usize;
 
-                    // Read all of the indexes.
-                    guard.read_at(index.derivative_range().start as usize, &mut buffer);
+                        let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
+
+                        // Read all of the indexes.
+                        guard.read_at(index.derivative_range().start as usize, &mut buffer);
+                        buffer
+                    };
+
+                    let mut combined = RecordBatch::new_empty(base_stream_schema.clone());
 
                     for index in buffer
                         .chunks(base_stream_def.index_size())
-                        .map(|data| Index::of(data, index_type))
-                    {}
+                        .map(|data| OwnedIndex::from(Index::of(data, base_stream_def.index_type())))
+                    {
+                        let data =
+                            dereference(index, base_stream_def.clone(), partition.clone(), broker)
+                                .await
+                                .unwrap();
+
+                        for rb in read_arrow(&data) {
+                            if let Ok(rb) = rb {
+                                combined =
+                                    concat_batches(&base_stream_schema, &[combined, rb]).unwrap();
+                            } else {
+                                tracing::error!(
+                                    "Failed to read the record batch from the stream reader."
+                                );
+                            }
+                        }
+                    }
 
                     todo!();
                 }
