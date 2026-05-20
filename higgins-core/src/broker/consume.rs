@@ -126,6 +126,12 @@ impl Broker {
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
             .unwrap();
 
+        tracing::debug!("Stream def: {:#?}", stream_def);
+        tracing::debug!(
+            "index type: {:#?}",
+            IndexType::try_from(stream_def).unwrap(),
+        );
+
         let index = self
             .indexes
             .get_by_offset(
@@ -137,6 +143,8 @@ impl Broker {
             )
             .await
             .ok();
+
+        tracing::debug!("Index: {:#?}", index);
 
         if let Some(index) = index {
             tracing::debug!("Dereferencing the reference..");

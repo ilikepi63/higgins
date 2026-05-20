@@ -327,7 +327,8 @@ impl Subscription {
 
                 tracing::info!("{offset_count}, {} {end}", partition_offset.start);
 
-                offset_count = offset_count - (end - partition_offset.start);
+                offset_count =
+                    offset_count.saturating_sub(end.saturating_sub(partition_offset.start));
             }
 
             tracing::debug!(

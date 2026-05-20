@@ -26,6 +26,9 @@ pub async fn dereference(
     partition: PartitionName,
     broker: &mut Broker,
 ) -> Result<Vec<u8>, HigginsError> {
+    tracing::debug!("Index type: {:#?}", index);
+
+    assert_eq!(index.inner().len(), WindowedIndex::size_of()); // TODO: remove after debugging
     match index.reference() {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
@@ -76,6 +79,8 @@ pub async fn dereference(
             }
         }
         Reference::Null => {
+            tracing::debug!("Stream def: {:#?}", stream_def);
+
             // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
             // This can also be applied to function types etc.
             match stream_def.stream_type.unwrap() {
@@ -88,13 +93,20 @@ pub async fn dereference(
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
+                    tracing::debug!("Base Stream def: {:#?}", base_stream_def);
+
                     let base_stream_schema = broker
                         .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
                         .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
+                    tracing::debug!("Base Stream Schema: {:#?}", base_stream_schema);
                     let buffer = {
                         // get the derived index file.
+                        tracing::trace!(
+                            "[DEREFERENCE] Attempting to retrieve derivative index file."
+                        );
+
                         let mut derivative_index_file = broker
                             .get_index_file(
                                 String::from_utf8(
@@ -105,16 +117,29 @@ pub async fn dereference(
                             )
                             .unwrap();
 
+                        tracing::trace!("[DEREFERENCE] Retrieved the derivative index_file");
+
                         let mut guard = derivative_index_file.lock().await;
 
-                        let buffer_size = (index.derivative_range().end
-                            - index.derivative_range().start)
+                        tracing::trace!("[DEREFERENCE] Locked the file.");
+
+                        let buffer_size = (index
+                            .derivative_range()
+                            .end
+                            .saturating_sub(index.derivative_range().start))
                             as usize;
+
+                        tracing::trace!("[DEREFERENCE] Created the buffer size");
 
                         let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
 
+                        tracing::trace!("reading into buffer. Size: {}", buffer.len());
+
                         // Read all of the indexes.
-                        guard.read_at(index.derivative_range().start as usize, &mut buffer);
+                        guard
+                            .read_at(index.derivative_range().start as usize, &mut buffer)
+                            .unwrap();
+
                         buffer
                     };
 
@@ -124,6 +149,7 @@ pub async fn dereference(
                         .chunks(base_stream_def.index_size())
                         .map(|data| OwnedIndex::from(Index::of(data, base_stream_def.index_type())))
                     {
+                        tracing::debug!("Dereferencing index: {:#?}", index);
                         let data = Box::pin(dereference(
                             index,
                             base_stream_def.clone(),

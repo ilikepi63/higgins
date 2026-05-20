@@ -37,8 +37,12 @@ impl TryFrom<&StreamDefinition> for IndexType {
 
     fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
         Ok(match value.stream_type.as_ref() {
-            Some(t) if matches!(t, FunctionType::Join) => IndexType::Join,
-            _ => IndexType::Default,
+            Some(FunctionType::Join) => IndexType::Join,
+            Some(FunctionType::Window) => IndexType::Window,
+            Some(FunctionType::Aggregate)
+            | Some(FunctionType::Map)
+            | Some(FunctionType::Reduce)
+            | None => IndexType::Default,
         })
     }
 }
@@ -49,6 +53,7 @@ pub struct Index<'a> {
     data: &'a [u8],
 }
 
+#[derive(Debug)]
 pub struct OwnedIndex {
     index_type: IndexType,
     data: Vec<u8>,
