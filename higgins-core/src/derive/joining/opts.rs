@@ -81,7 +81,6 @@ pub async fn create_join_operator(
                             .get_index_file(
                                 String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
                                 &partition,
-                                JoinedIndex::size_of(n_offsets),
                             )
                             .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
                         tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");

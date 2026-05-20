@@ -61,7 +61,7 @@ pub async fn create_reduced_stream_from_definition(
 
                 //Get payloads from offsets.
                 for (partition, offset) in offsets {
-                    let broker_lock = left_broker.read().await;
+                    let mut broker_lock = left_broker.write().await;
 
                     let consumption = broker_lock
                         .consume(&left_stream_name, &partition, offset, 50_000)
@@ -70,7 +70,7 @@ pub async fn create_reduced_stream_from_definition(
                     let mut records = vec![];
 
                     for val in consumption {
-                        let val = val.await.unwrap();
+                        let val = val.unwrap();
                         records.push(val);
                     }
 

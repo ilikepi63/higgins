@@ -197,9 +197,7 @@ impl IndexDirectory {
         partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<OwnedIndex> {
-        let mut responses = vec![];
-
+    ) -> OwnedIndex {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_file = self
@@ -235,18 +233,13 @@ impl IndexDirectory {
         let index = index
             .map(|index_bytes| Index::of(index_bytes, index_type.clone()))
             .map(OwnedIndex::from);
-        // tracing::trace!("Index: {:#?}", index);
         match index {
-            Some(index) => {
-                responses.push(index);
-            }
+            Some(index) => return index,
             None => {
                 tracing::error!("No Index found at offset {}", 0);
                 todo!()
             }
         }
-
-        responses
     }
 
     /// Retrieves the offset by its offset number.

@@ -81,35 +81,33 @@ pub async fn handle_get_index(
 
                 let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
 
-                let responses = broker_lock.get_latest(&index.stream, partition).await;
+                let response = broker_lock.get_latest(&index.stream, partition).await;
 
-                for response in responses {
-                    let response = response.await.unwrap();
+                let response = response.await.unwrap();
 
-                    tracing::trace!("Response for GetIndexRequest: {:#?}", response);
+                tracing::trace!("Response for GetIndexRequest: {:#?}", response);
 
-                    let index_response = GetIndexResponse {
-                        records: vec![Record {
-                            data: response,
-                            stream: vec![],
-                            partition: vec![],
-                            offset: 0,
-                        }],
-                    };
+                let index_response = GetIndexResponse {
+                    records: vec![Record {
+                        data: response,
+                        stream: vec![],
+                        partition: vec![],
+                        offset: 0,
+                    }],
+                };
 
-                    let mut result = BytesMut::new();
+                let mut result = BytesMut::new();
 
-                    Message {
-                        correlation_id: message.correlation_id,
-                        r#type: Type::Getindexresponse as i32,
-                        get_index_response: Some(index_response),
-                        ..Default::default()
-                    }
-                    .encode(&mut result)
-                    .unwrap();
-
-                    writer_tx.send(result).await.unwrap();
+                Message {
+                    correlation_id: message.correlation_id,
+                    r#type: Type::Getindexresponse as i32,
+                    get_index_response: Some(index_response),
+                    ..Default::default()
                 }
+                .encode(&mut result)
+                .unwrap();
+
+                writer_tx.send(result).await.unwrap();
             }
             higgins_codec::index::Type::Offset => {
                 tracing::trace!("Retrieved a At Offset GetIndexRequest",);

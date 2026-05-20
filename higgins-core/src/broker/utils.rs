@@ -14,7 +14,7 @@ pub async fn get_arrow_data_at(
     offset: u64,
     broker: Arc<RwLock<Broker>>,
 ) -> RecordBatch {
-    let broker_lock = broker.write().await;
+    let mut broker_lock = broker.write().await;
     tracing::trace!("[FOURTH HANDLE] We have successfully locked the broker. ");
 
     let data = broker_lock

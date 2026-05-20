@@ -124,10 +124,14 @@ pub async fn dereference(
                         .chunks(base_stream_def.index_size())
                         .map(|data| OwnedIndex::from(Index::of(data, base_stream_def.index_type())))
                     {
-                        let data =
-                            dereference(index, base_stream_def.clone(), partition.clone(), broker)
-                                .await
-                                .unwrap();
+                        let data = Box::pin(dereference(
+                            index,
+                            base_stream_def.clone(),
+                            partition.clone(),
+                            broker,
+                        ))
+                        .await
+                        .unwrap();
 
                         for rb in read_arrow(&data) {
                             if let Ok(rb) = rb {

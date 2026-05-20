@@ -183,16 +183,14 @@ impl Broker {
                         //Get payloads from offsets.
                         for (partition, offset) in offsets {
                             let consumption = {
-                                let broker_lock = broker.read().await;
+                                let mut broker_lock = broker.write().await;
 
                                 let mut results = vec![];
 
-                                for future in broker_lock
+                                for result in broker_lock
                                     .consume(&task_stream_name, &partition, offset, 50_000)
                                     .await
                                 {
-                                    let result = future.await;
-
                                     tracing::trace!(
                                         "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
                                         result

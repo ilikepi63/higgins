@@ -10,7 +10,6 @@ use crate::storage::windowing::assign_sliding_windows_range;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
 use higgins_shared::PartitionName;
-use rkyv::collections::swiss_table::index_map;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -141,9 +140,7 @@ async fn get_index_file_handle(
     broker_ref: Arc<RwLock<Broker>>,
 ) -> BrokerIndexFile {
     let mut broker = broker_ref.write().await;
-    broker
-        .get_index_file(stream.to_owned(), key, WindowedIndex::size_of())
-        .unwrap()
+    broker.get_index_file(stream.to_owned(), key).unwrap()
 }
 
 use std::ops::Range;
