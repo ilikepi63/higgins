@@ -52,8 +52,6 @@ pub fn get_partition_key_from_record_batch(
 
 use std::ops::Range;
 
-pub struct BufferIterator {}
-
 pub fn iter_buffer(
     range: Range<usize>,
     element_size_in_bytes: usize,

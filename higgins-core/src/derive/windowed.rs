@@ -5,7 +5,7 @@ use crate::derive::joining::opts::eager_range_take_or_wait;
 use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
-use crate::storage::index::windowed_index::{self, WindowedIndex};
+use crate::storage::index::windowed_index::WindowedIndex;
 use crate::storage::windowing::assign_sliding_windows_range;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;
@@ -116,7 +116,7 @@ pub async fn create_windowed_stream_from_definition(
 
                             tracing::info!("Successfully applied ranges to windowed function.");
                         }
-                        WindowValue::Timed((count, time_unit)) => {
+                        WindowValue::Timed((_count, _time_unit)) => {
                             tracing::error!("TIMED STREAM IS NOT AVAILABLE");
 
                             // ON timestamp type
@@ -145,6 +145,7 @@ async fn get_index_file_handle(
 
 use std::ops::Range;
 
+#[allow(unused)] // TODO: we might use this later at some point
 pub struct MutableRange<T>(Range<T>);
 
 impl<T> From<Range<T>> for MutableRange<T> {
@@ -157,6 +158,7 @@ impl<T> From<Range<T>> for MutableRange<T> {
 //
 // where there is another range
 
+#[allow(unused)]
 impl MutableRange<u64> {
     /// Takes from the front of this range, update the amount
     /// and returning how many were taken from the front of this range.

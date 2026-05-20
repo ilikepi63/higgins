@@ -1,16 +1,12 @@
-use std::time::Duration;
-
-use arrow_schema::TimeUnit;
 use nom::{IResult, Parser};
 
 use crate::{
     broker::Broker,
     error::HigginsError,
-    topography::{Key, StreamDefinition, config::WindowDefinition, errors::TopographyError},
+    topography::{Key, StreamDefinition, errors::TopographyError},
 };
 
 pub struct WindowedStreamDefinition {
-    pub base_stream: StreamDefinition,
     pub base_key: String,
     pub slide: WindowValue,
     pub window_type: WindowValue,
@@ -105,41 +101,17 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
     type Error = HigginsError;
 
     fn try_from(
-        (
-            key,
-            StreamDefinition {
-                base,
-                // stream_type,
-                // partition_key,
-                // schema,
-                // join,
-                // map,
-                // function_name,
-                window,
-                ..
-            },
-            broker,
-        ): (Key, StreamDefinition, &Broker),
+        (key, StreamDefinition { base, window, .. }, _): (Key, StreamDefinition, &Broker),
     ) -> Result<Self, Self::Error> {
         let base_key = &base.ok_or(TopographyError::IncorrectStreamDefinition(format!(
             "Base value non-present for windowed stream: {:#?}",
             key
         )))?;
 
-        let base_stream = broker
-            .get_topography_stream(base_key)
-            .ok_or(TopographyError::DerivativeNotFound(format!(
-                "Derivative stream not found.",
-                // base.clone()
-            )))?
-            .1
-            .clone();
-
         let window = window.unwrap();
         let window_value = WindowValue::try_from(window.interval.as_str())?;
 
         Ok(Self {
-            base_stream,
             base_key: String::from_utf8(base_key.as_bytes().to_vec()).unwrap(),
             window_type: window_value.clone(),
             slide: window
@@ -154,6 +126,7 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::topography::config::WindowDefinition;
 
     #[test]
     fn parse_time_unit_seconds() {

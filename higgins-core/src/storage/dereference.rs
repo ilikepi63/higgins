@@ -11,10 +11,8 @@ use crate::{
 use arrow::compute::concat_batches;
 
 use arrow::array::RecordBatch;
-use futures::stream;
 use higgins_shared::{PartitionName, read_arrow, write_arrow};
 use riskless::object_store::path::Path;
-use tracing::span::Record;
 
 static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;

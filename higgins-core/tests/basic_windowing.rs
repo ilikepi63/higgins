@@ -1,10 +1,8 @@
 mod common;
 
-use common::{
-    configuration::upload_configuration_sync, ping::client_sync_ping_test, schema::customer_schema,
-};
+use common::{configuration::upload_configuration_sync, ping::client_sync_ping_test};
 use higgins::run_server;
-use higgins_client::{Response, ResponseBody};
+use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
 use std::{panic::catch_unwind, path::PathBuf, time::Duration};
 
@@ -58,6 +56,54 @@ fn basic_windowing() {
             &mut client,
         );
         tracing::info!("Uploaded the config..");
+
+        client
+            .produce_json(
+                STREAM,
+                PAYLOAD.as_bytes(),
+                std::sync::Arc::new(value_schema()),
+            )
+            .unwrap();
+
+        let produce_result = client.recv(Some(Duration::from_secs(1)));
+
+        assert!(matches!(
+            produce_result.unwrap().body,
+            ResponseBody::Produce(_)
+        ));
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        client
+            .query_at(
+                WINDOWED_STREAM.as_bytes(),
+                &PartitionName::try_from("1").unwrap(),
+                0,
+            )
+            .unwrap();
+
+        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+
+        match response.body {
+            ResponseBody::GetIndex(index_data) => {
+                let record = index_data.records.first().unwrap();
+
+                // assert_eq!(record.offset, 0);
+                // assert_eq!(record.partition, "1".as_bytes());
+                // assert_eq!(record.stream, WINDOWED_STREAM.as_bytes());
+
+                let arrow = read_arrow(&record.data)
+                    .next()
+                    .unwrap()
+                    .inspect_err(|err| {
+                        dbg!(err);
+                    })
+                    .unwrap();
+
+                tracing::debug!("{:#?}", arrow);
+            }
+            _ => panic!("Retreved incorrect response for produce query."),
+        }
 
         client
             .produce_json(

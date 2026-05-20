@@ -4,7 +4,6 @@ use crate::broker::Broker;
 use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
-use crate::storage::index;
 use crate::storage::index::Index;
 use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
