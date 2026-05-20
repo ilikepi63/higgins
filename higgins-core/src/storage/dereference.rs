@@ -12,7 +12,7 @@ use arrow::compute::concat_batches;
 
 use arrow::array::RecordBatch;
 use futures::stream;
-use higgins_shared::{PartitionName, read_arrow};
+use higgins_shared::{PartitionName, read_arrow, write_arrow};
 use riskless::object_store::path::Path;
 use tracing::span::Record;
 
@@ -26,9 +26,6 @@ pub async fn dereference(
     partition: PartitionName,
     broker: &mut Broker,
 ) -> Result<Vec<u8>, HigginsError> {
-    tracing::debug!("Index type: {:#?}", index);
-
-    assert_eq!(index.inner().len(), WindowedIndex::size_of()); // TODO: remove after debugging
     match index.reference() {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
@@ -161,8 +158,28 @@ pub async fn dereference(
 
                         for rb in read_arrow(&data) {
                             if let Ok(rb) = rb {
+                                tracing::debug!(
+                                    "BATCHES: schema: {:#?} combined: {:#?}, rb: {:#?}",
+                                    &base_stream_schema,
+                                    combined,
+                                    rb
+                                );
+
+                                let reordered_rb = RecordBatch::try_new(
+                                    base_stream_schema.clone(),
+                                    base_stream_schema
+                                        .fields
+                                        .iter()
+                                        .map(|field| {
+                                            rb.column_by_name(field.name()).unwrap().clone() // TODO: this unwrap should actually be unchecked, considering these schema should always match.
+                                        })
+                                        .collect::<Vec<_>>(),
+                                )
+                                .unwrap();
+
                                 combined =
-                                    concat_batches(&base_stream_schema, &[combined, rb]).unwrap();
+                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])
+                                        .unwrap();
                             } else {
                                 tracing::error!(
                                     "Failed to read the record batch from the stream reader."
@@ -171,7 +188,7 @@ pub async fn dereference(
                         }
                     }
 
-                    todo!();
+                    Ok(write_arrow(&combined))
                 }
                 _ => todo!(),
             }
