@@ -57,6 +57,7 @@ fn basic_windowing() {
         );
         tracing::info!("Uploaded the config..");
 
+        // first produce
         client
             .produce_json(
                 STREAM,
@@ -105,6 +106,7 @@ fn basic_windowing() {
             _ => panic!("Retreved incorrect response for produce query."),
         }
 
+        // second produce
         client
             .produce_json(
                 STREAM,

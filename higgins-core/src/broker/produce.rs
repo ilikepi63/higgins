@@ -94,7 +94,7 @@ impl Broker {
                 // Set the max offset of the subscription.
                 subscription.set_end(partition, offset + 1)?;
 
-                tracing::info!("{:#?}", subscription);
+                tracing::info!("SUBSCRIPTION{:#?}", subscription);
 
                 // Notify the tasks awaiting this subscription.
                 notify.notify_waiters();

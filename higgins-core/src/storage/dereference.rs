@@ -88,20 +88,12 @@ pub async fn dereference(
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
-                    tracing::debug!("Base Stream def: {:#?}", base_stream_def);
-
                     let base_stream_schema = broker
                         .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
                         .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
-                    tracing::debug!("Base Stream Schema: {:#?}", base_stream_schema);
                     let buffer = {
-                        // get the derived index file.
-                        tracing::trace!(
-                            "[DEREFERENCE] Attempting to retrieve derivative index file."
-                        );
-
                         let mut derivative_index_file = broker
                             .get_index_file(
                                 String::from_utf8(
@@ -112,11 +104,9 @@ pub async fn dereference(
                             )
                             .unwrap();
 
-                        tracing::trace!("[DEREFERENCE] Retrieved the derivative index_file");
-
                         let mut guard = derivative_index_file.lock().await;
 
-                        tracing::trace!("[DEREFERENCE] Locked the file.");
+                        tracing::debug!("Derivative range: {:#?}", index.derivative_range());
 
                         let buffer_size = (index
                             .derivative_range()
@@ -124,11 +114,7 @@ pub async fn dereference(
                             .saturating_sub(index.derivative_range().start))
                             as usize;
 
-                        tracing::trace!("[DEREFERENCE] Created the buffer size");
-
                         let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
-
-                        tracing::trace!("reading into buffer. Size: {}", buffer.len());
 
                         // Read all of the indexes.
                         guard

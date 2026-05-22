@@ -291,7 +291,15 @@ pub async fn eager_range_take_or_wait(
                 // TODO: this likely should be removed and added once the join stream has been implemented.
                 // Because we don't have shadow acknowledgements, we can't really support this right now.
                 for (key, range) in taken.iter() {
-                    if let Err(err) = lock.acknowledge(key, range) {
+                    if let Err(err) = lock.acknowledge(
+                        key,
+                        // The reason for this is that in acknowledgement, 0..0 represents the value 0, so the
+                        // range itself is inclusive.
+                        &std::ops::Range {
+                            start: range.start,
+                            end: range.end.saturating_sub(1),
+                        },
+                    ) {
                         tracing::error!("{:#?} when trying to acknowledge the partition.", err);
                     };
                 }
@@ -488,36 +496,71 @@ pub async fn amalgamate_indexes(
     Ok(())
 }
 
-//                 while let Some(completed_index) = completed_index_collector_rx.recv().await {
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
 
-//                     // Retrieve a view into the joined index.
-//                     let index_view = index_file.view();
-//                     // Query the offset from this index_file,
-//                     let index = index_view
-//                         .get(completed_index.try_into().unwrap())
-//                         .map(JoinedIndex::of)
-//                         .unwrap();
-//                     tracing::trace!(
-//                         "[JOIN COMPLETION] Retrieved the index for the offset {}.",
-//                         completed_index
-//                     );
+    use crate::subscription;
 
-//HERERERER
+    use super::*;
 
-//                     tracing::info!("We are amalgamating the derivative data now.");
-//                     tracing::trace!("Derived Data: {:#?}", derivative_data);
-//                     let resultant_record_batch =
-//                         join_mapping.map_arrow(derivative_data).unwrap();
+    #[tokio::test]
+    async fn test_eager_range_take() {
+        let sub_path = "sub_take_eager_range";
+        let notify = Arc::new(tokio::sync::Notify::new());
+        let client_id = 1;
+        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
 
-//                     tracing::info!("Resultant Record batch: {:#?}", resultant_record_batch);
+        let val = "";
 
-//                     // How do we write this back to the index now??
+        let (tx, rx) = tokio::sync::broadcast::channel(1);
 
-//                     {
-//                         tracing::trace!(
-//                             "Awaiting a write lock.."
-//                         );
+        let sub_clone = subscription.clone();
+        let notify_clone = notify.clone();
+        let tx_clone = tx.clone();
 
-//                         // Now do the subscription updating..
-//                     }
-//                 }
+        let mut results = Arc::new(RwLock::new(vec![]));
+        let results_ref = results.clone();
+        tokio::spawn(async move {
+            loop {
+                let mut rx = tx_clone.subscribe();
+                tokio::select! {
+                    _ = rx.recv() => {
+                        break;
+                    },
+                    values = eager_range_take_or_wait(sub_clone.clone(), notify_clone.clone(), client_id) => {
+                        dbg!(&values);
+                        let mut guard = results_ref.write().await;
+                        guard.push(values);
+                    }
+                }
+            }
+        });
+
+        {
+            let mut guard = subscription.write().await;
+
+            let partition = &PartitionName::try_from("1").unwrap();
+
+            guard.add_partition(&partition, None, None).unwrap();
+
+            guard.set_end(&partition, 1).unwrap();
+
+            notify.notify_waiters();
+        }
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        tx.send(()).unwrap();
+
+        let guard = results.read().await;
+
+        dbg!(&guard);
+
+        std::fs::remove_file(sub_path).unwrap();
+
+        panic!();
+
+        // result.unwrap();
+    }
+}

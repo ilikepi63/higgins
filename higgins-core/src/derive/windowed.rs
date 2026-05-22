@@ -73,10 +73,6 @@ pub async fn create_windowed_stream_from_definition(
                         get_index_file_handle(&resultant_stream, partition, broker_ref.clone())
                             .await;
 
-                    // let mut derived_index_file =
-                    //     get_index_file_handle(&definition.base_key, partition, broker_ref.clone())
-                    //         .await;
-
                     tracing::info!("Retrieved index file..");
 
                     match definition.window_type {

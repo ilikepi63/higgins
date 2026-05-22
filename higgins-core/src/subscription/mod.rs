@@ -215,6 +215,7 @@ impl Subscription {
                 // then bump the partition
                 // We set this to offsets.end + 1, so that if you acknowledge 0..0, your sub should be at 0..1, which means you'd have 1..1 and nothing
                 // to pull here.
+                tracing::trace!("offsets.end: {}", offsets.end);
                 partition.set_start(offsets.end + 1);
 
                 tracing::trace!("Partition after acknowledgement: {:#?}", partition);
@@ -292,10 +293,10 @@ impl Subscription {
         &mut self,
         count: u64,
     ) -> Result<Vec<(PartitionName, Range<u64>)>, SubscriptionError> {
-        tracing::debug!(
-            "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
-            self.partitions
-        );
+        // tracing::debug!(
+        //     "[SUBSCRIPTION TAKE] Taking {count} from subscription: {:#?}",
+        //     self.partitions
+        // );
 
         let mut partition_offset_index = 0;
         let mut offset_count = count;
@@ -325,10 +326,18 @@ impl Subscription {
                 ));
                 tracing::info!("Pushed result.");
 
-                tracing::info!("{offset_count}, {} {end}", partition_offset.start);
+                tracing::info!(
+                    "Offset count: {offset_count}, Start:{}  End: {end}",
+                    partition_offset.start
+                );
 
                 offset_count =
                     offset_count.saturating_sub(end.saturating_sub(partition_offset.start));
+
+                tracing::info!(
+                    "AFTER: Offset count: {offset_count}, Start:{}  End: {end}",
+                    partition_offset.start
+                );
             }
 
             tracing::debug!(
@@ -352,7 +361,7 @@ impl Subscription {
     /// Sets the maximum offset for a partition.
     /// Incrementing this effectively adds indexes to the subscription -> How do we then notify the underlying awaiter?
     pub fn set_end(&mut self, key: &PartitionName, offset: u64) -> Result<(), SubscriptionError> {
-        tracing::trace!("Setting max offset: {}", offset);
+        tracing::trace!("Setting end: {}", offset);
 
         self.file.set_max_offset(key, &offset)?;
 
