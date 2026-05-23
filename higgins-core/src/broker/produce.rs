@@ -77,6 +77,16 @@ impl Broker {
 
         tracing::trace!("Offset: {:#?}", offset);
 
+        // if let Err(err) = self
+        //     .create_partition(
+        //         &stream_name,
+        //         &PartitionName::try_from(key.as_bytes()).unwrap(),
+        //     )
+        //     .await
+        // {
+        //     tracing::error!("Failed to create partition inside of broker: {:#?}", err);
+        // };
+
         // Watermark the subscription.
         let subscription = self.subscriptions.get(stream_name);
 
@@ -91,8 +101,16 @@ impl Broker {
                     offset + 1
                 );
 
-                // Set the max offset of the subscription.
-                subscription.set_end(partition, offset + 1)?;
+                if subscription
+                    .partitions
+                    .iter()
+                    .find(|sub_key| sub_key.partition_id == *partition)
+                    .is_some()
+                {
+                    subscription.set_end(partition, offset + 1)?;
+                } else {
+                    subscription.add_partition(partition, 0, offset + 1)?;
+                };
 
                 tracing::info!("SUBSCRIPTION{:#?}", subscription);
 

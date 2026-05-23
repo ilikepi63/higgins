@@ -48,9 +48,9 @@ impl Ord for PartitionOffsets {
 
 impl PartitionOffsets {
     // Create this given a partition_id and optional defaults.
-    fn of(key: &PartitionName, offset: Option<u64>, max_offset: Option<u64>) -> Self {
-        let start = offset.unwrap_or(0);
-        let end = max_offset.unwrap_or(0);
+    fn of(key: &PartitionName, offset: u64, max_offset: u64) -> Self {
+        let start = offset;
+        let end = max_offset;
 
         PartitionOffsets {
             partition_id: key.to_owned(),
@@ -147,8 +147,8 @@ impl Subscription {
     pub fn add_partition(
         &mut self,
         key: &PartitionName,
-        offset: Option<u64>,
-        max_offset: Option<u64>,
+        offset: u64,
+        max_offset: u64,
     ) -> Result<(), SubscriptionError> {
         tracing::trace!("Adding partition with max_offset: {:#?}", max_offset);
 
@@ -158,20 +158,20 @@ impl Subscription {
             .map_err(|err| SubscriptionError::SubscriptionFileCreationFailure(err.to_string()))?;
 
         // Set the max_offset and current offset of the partition.
-        if let Some(max_offset) = max_offset {
-            self.file.set_max_offset(key, &max_offset)?;
-        }
-
-        if let Some(offset) = offset {
-            tracing::trace!("Acknowledging offset: {}", offset);
-            self.file.acknowledge(
-                key,
-                &Range {
-                    start: 0,
-                    end: offset,
-                },
-            )?;
-        }
+        // if let Some(max_offset) = max_offset {
+        self.file.set_max_offset(key, &max_offset)?;
+        // }
+        //
+        // if let Some(offset) = offset {
+        tracing::trace!("Acknowledging offset: {}", offset);
+        self.file.acknowledge(
+            key,
+            &Range {
+                start: 0,
+                end: offset,
+            },
+        )?;
+        // }
 
         // Create and add it to this memory model.
         let new_partition = PartitionOffsets::of(key, offset, max_offset);
@@ -414,7 +414,7 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add a partition with offset and max_offset
-        assert!(sub.add_partition(&key, Some(10), Some(100)).is_ok());
+        assert!(sub.add_partition(&key, 10, 100).is_ok());
 
         // Verify the partition was added by checking stored metadata
         let PartitionOffsets {
@@ -437,11 +437,11 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition once
-        assert!(sub.add_partition(&key, None, None).is_ok());
+        assert!(sub.add_partition(&key, 0, 0).is_ok());
 
         // Try adding the same partition again
         matches!(
-            sub.add_partition(&key, None, None),
+            sub.add_partition(&key, 0, 0),
             Err(SubscriptionError::SubscriptionPartitionAlreadyExists)
         );
         sub.delete().unwrap();
@@ -456,7 +456,7 @@ mod tests {
             let key = PartitionName::try_from("partition1").unwrap();
 
             // Add partition
-            assert!(sub.add_partition(&key, Some(5), Some(100)).is_ok());
+            assert!(sub.add_partition(&key, 5, 100).is_ok());
 
             // Acknowledge offset 6 (adjacent to range 0..5)
             let acknowledge_result = sub.acknowledge(&key, &Range { start: 5, end: 6 });
@@ -493,7 +493,7 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with max_offset 10
-        assert!(sub.add_partition(&key, None, Some(10)).is_ok());
+        assert!(sub.add_partition(&key, 0, 10).is_ok());
 
         // Take 5 offsets
         let offsets = sub.take(5).expect("Failed to take offsets");
@@ -518,7 +518,7 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with no unacknowledged offsets (max_offset 0)
-        assert!(sub.add_partition(&key, None, Some(0)).is_ok());
+        assert!(sub.add_partition(&key, 0, 0).is_ok());
 
         // Try to take offsets
         let offsets = sub.take(5).expect("Failed to take offsets");
@@ -532,7 +532,7 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition
-        assert!(sub.add_partition(&key, None, Some(50)).is_ok());
+        assert!(sub.add_partition(&key, 0, (50)).is_ok());
 
         // Set new max_offset
         assert!(sub.set_end(&key, 100).is_ok());
@@ -569,7 +569,7 @@ mod tests {
             let key = PartitionName::try_from("partition1").unwrap();
 
             // Add partition with max_offset 10
-            assert!(sub.add_partition(&key, None, Some(10)).is_ok());
+            assert!(sub.add_partition(&key, 0, 10).is_ok());
 
             // Acknowledge some offsets
             assert!(sub.acknowledge(&key, &Range { start: 0, end: 1 }).is_ok());
@@ -594,8 +594,8 @@ mod tests {
         let key2 = PartitionName::try_from("partition2").unwrap();
 
         // Add two partitions
-        assert!(sub.add_partition(&key1, None, Some(2)).is_ok());
-        assert!(sub.add_partition(&key2, None, Some(2)).is_ok());
+        assert!(sub.add_partition(&key1, 0, 2).is_ok());
+        assert!(sub.add_partition(&key2, 0, 2).is_ok());
 
         // Take 4 offsets (should distribute across partitions)
         let offsets = sub.take(4).expect("Failed to take offsets");
@@ -623,7 +623,7 @@ mod tests {
             .enumerate()
             .for_each(|(i, partition_name)| {
                 let partition_name = PartitionName::try_from(*partition_name).unwrap();
-                sub.add_partition(&partition_name, Some(i as u64 * 2), Some(i as u64 * 10))
+                sub.add_partition(&partition_name, i as u64 * 2, i as u64 * 10)
                     .unwrap();
             });
 
@@ -657,8 +657,7 @@ mod tests {
             let partition_name = PartitionName::try_from("1").unwrap();
 
             // There is nothing in this subscription at this point.
-            sub.add_partition(&partition_name, Some(0), Some(0))
-                .unwrap();
+            sub.add_partition(&partition_name, 0, 0).unwrap();
 
             let partitions = sub.take(10).unwrap();
 

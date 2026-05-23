@@ -542,9 +542,9 @@ mod test {
 
             let partition = &PartitionName::try_from("1").unwrap();
 
-            guard.add_partition(&partition, None, None).unwrap();
+            guard.add_partition(&partition, 0, 1).unwrap();
 
-            guard.set_end(&partition, 1).unwrap();
+            // guard.set_end(&partition, 1).unwrap();
 
             notify.notify_waiters();
         }
