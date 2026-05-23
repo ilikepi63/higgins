@@ -5,6 +5,7 @@ use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
 use crate::storage::index::Index;
+use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
@@ -195,9 +196,7 @@ impl IndexDirectory {
         partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<Reference> {
-        let mut responses = vec![];
-
+    ) -> OwnedIndex {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_file = self
@@ -230,30 +229,29 @@ impl IndexDirectory {
 
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
-        let index = index.map(|index_bytes| Index::of(index_bytes, index_type.clone()));
-        tracing::trace!("Index: {:#?}", index);
+        let index = index
+            .map(|index_bytes| Index::of(index_bytes, index_type.clone()))
+            .map(OwnedIndex::from);
         match index {
-            Some(index) => {
-                responses.push(index.reference());
-            }
+            Some(index) => index,
             None => {
                 tracing::error!("No Index found at offset {}", 0);
                 todo!()
             }
         }
-
-        responses
     }
 
     /// Retrieves the offset by its offset number.
-    pub async fn get_by_offset(
+    pub async fn get_by_offset<'a>(
         &self,
         stream: &[u8],
         partition: &PartitionName,
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Result<Reference, Box<dyn std::error::Error>> {
+    ) -> Result<OwnedIndex, Box<dyn std::error::Error>> {
+        tracing::debug!("Reading index {:#?}", index_type);
+
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
@@ -267,21 +265,22 @@ impl IndexDirectory {
             )
             .unwrap();
 
+        tracing::info!("Retrieved the index_file correctly.");
+
         let indexes = IndexesView {
             buffer: index_file.as_slice(),
             element_size: index_size,
-            index_type,
+            index_type: index_type.clone(),
         };
 
         let index = indexes
             .get(offset.try_into().unwrap())
-            .map(DefaultIndex::of);
+            .map(|data| OwnedIndex::from(Index::of(data, index_type)));
 
         match index {
             Some(index) => {
-                let reference = index.reference();
-
-                Ok(reference)
+                tracing::info!("Returning the index..");
+                Ok(index)
             }
             None => {
                 // TODO: handle error here.
@@ -297,14 +296,13 @@ impl IndexDirectory {
         _size: u32,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<Reference> {
+    ) -> Vec<OwnedIndex> {
         let mut responses = vec![];
 
         for batch_request in batch_requests {
             let FindBatchRequest {
                 topic_id_partition,
                 offset,
-                // max_partition_fetch_bytes,
                 ..
             } = batch_request;
 
@@ -330,15 +328,16 @@ impl IndexDirectory {
 
             tracing::info!("Reading at offset: {}", 0);
 
-            let index: Option<DefaultIndex> = indexes
+            let index = indexes
                 .get(offset.try_into().unwrap())
-                .map(DefaultIndex::of);
+                .map(|data| Index::of(data, index_type.clone()))
+                .map(OwnedIndex::from);
 
             match index {
                 Some(index) => {
-                    let reference = index.reference();
+                    // let reference = index.reference();
 
-                    responses.push(reference);
+                    responses.push(index);
                 }
                 None => {
                     // TODO: Handle errors here?

@@ -1,0 +1,22 @@
+[storage.memory]
+type="memory"
+
+[schema.value]
+id = "string"
+some_data = "string"
+other_data = "string"
+i = "int32"
+
+[streams.value]
+schema = "value"
+partition_key = "id"
+
+[streams.value_windowed]
+base = "value"
+type = "window"
+partition_key = "id"
+schema = "value"
+window = {
+    type = "count", # or count
+    interval = "5" # or simply 5 if count
+}

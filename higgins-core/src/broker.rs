@@ -71,6 +71,8 @@ impl Broker {
         &mut self,
         stream_name: &[u8],
         key: &PartitionName,
+        offset: u64,
+        max_offset: u64,
     ) -> Result<(), HigginsError> {
         tracing::trace!("[CREATE PARTITION] Creating the partition");
         if let Some(subs) = self.subscriptions.get_mut(stream_name) {
@@ -88,7 +90,7 @@ impl Broker {
                     .iter()
                     .any(|sub_key| sub_key.partition_id == *key)
                 {
-                    sub.add_partition(key, None, None)?;
+                    sub.add_partition(key, offset, max_offset)?;
                 };
             }
         }

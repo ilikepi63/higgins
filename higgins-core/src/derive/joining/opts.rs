@@ -81,7 +81,6 @@ pub async fn create_join_operator(
                             .get_index_file(
                                 String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
                                 &partition,
-                                JoinedIndex::size_of(n_offsets),
                             )
                             .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
                         tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
@@ -247,6 +246,58 @@ pub async fn eager_take_from_subscription_or_wait(
                         &std::ops::Range {
                             start: *offset,
                             end: *offset,
+                        },
+                    ) {
+                        tracing::error!("{:#?} when trying to acknowledge the partition.", err);
+                    };
+                }
+
+                taken
+            };
+
+            Ok(offsets)
+        }
+        _ => Ok(offsets),
+    }
+}
+
+pub async fn eager_range_take_or_wait(
+    subscription: Arc<RwLock<Subscription>>,
+    notify: Arc<tokio::sync::Notify>,
+    client_id: u64,
+) -> Result<Vec<(PartitionName, std::ops::Range<u64>)>, HigginsError> {
+    let mut offsets = {
+        tracing::trace!("[EAGER TAKE] Querying this again, taking {N} items.");
+        let mut lock = subscription.write().await;
+        lock.take_range(N)?
+    };
+
+    // If there are no given offsts, await the wakener then.
+    match offsets.len() {
+        0 => {
+            tracing::trace!("[EAGER TAKE] Awaiting to be notified for produce..");
+            notify.notified().await;
+            tracing::trace!("[EAGER TAKE] We've been notified!");
+
+            offsets = {
+                tracing::trace!("[EAGER TAKE] Acquiring the lock.!");
+                let mut lock = subscription.write().await;
+                tracing::trace!(
+                    "[EAGER TAKE] Acquired the lock, attempting to take {N} items from {client_id}!"
+                );
+                let taken = lock.take_range(N)?;
+                tracing::trace!("[EAGER TAKE] Retrieved {:#?}", taken);
+
+                // TODO: this likely should be removed and added once the join stream has been implemented.
+                // Because we don't have shadow acknowledgements, we can't really support this right now.
+                for (key, range) in taken.iter() {
+                    if let Err(err) = lock.acknowledge(
+                        key,
+                        // The reason for this is that in acknowledgement, 0..0 represents the value 0, so the
+                        // range itself is inclusive.
+                        &std::ops::Range {
+                            start: range.start,
+                            end: range.end.saturating_sub(1),
                         },
                     ) {
                         tracing::error!("{:#?} when trying to acknowledge the partition.", err);
@@ -445,36 +496,46 @@ pub async fn amalgamate_indexes(
     Ok(())
 }
 
-//                 while let Some(completed_index) = completed_index_collector_rx.recv().await {
+#[cfg(test)]
+mod test {
+    use std::time::Duration;
 
-//                     // Retrieve a view into the joined index.
-//                     let index_view = index_file.view();
-//                     // Query the offset from this index_file,
-//                     let index = index_view
-//                         .get(completed_index.try_into().unwrap())
-//                         .map(JoinedIndex::of)
-//                         .unwrap();
-//                     tracing::trace!(
-//                         "[JOIN COMPLETION] Retrieved the index for the offset {}.",
-//                         completed_index
-//                     );
+    use super::*;
 
-//HERERERER
+    #[tokio::test]
+    async fn test_eager_range_take_sync() {
+        let sub_path = "sub_take_eager_range";
+        let notify = Arc::new(tokio::sync::Notify::new());
+        let client_id = 1;
+        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
+        let partition = &PartitionName::try_from("1").unwrap();
+        let mut guard = subscription.write().await;
 
-//                     tracing::info!("We are amalgamating the derivative data now.");
-//                     tracing::trace!("Derived Data: {:#?}", derivative_data);
-//                     let resultant_record_batch =
-//                         join_mapping.map_arrow(derivative_data).unwrap();
+        guard.add_partition(&partition, 0, 0).unwrap();
 
-//                     tracing::info!("Resultant Record batch: {:#?}", resultant_record_batch);
+        drop(guard);
 
-//                     // How do we write this back to the index now??
+        let values = eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id)
+            .await
+            .unwrap();
 
-//                     {
-//                         tracing::trace!(
-//                             "Awaiting a write lock.."
-//                         );
+        for value in values {
+            for record in value.1.start..=value.1.end {
+                let mut guard = subscription.write().await;
 
-//                         // Now do the subscription updating..
-//                     }
-//                 }
+                guard.acknowledge(&partition, &(record..record)).unwrap(); // acknowledging the entire range
+
+                dbg!(&guard.partitions);
+            }
+        }
+        let values = tokio::time::timeout(
+            Duration::from_millis(100),
+            eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id),
+        )
+        .await;
+
+        assert!(values.is_err()); // Timeout because there is no value.
+
+        std::fs::remove_file(sub_path).unwrap();
+    }
+}

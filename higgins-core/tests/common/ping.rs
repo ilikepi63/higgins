@@ -1,6 +1,7 @@
 use bytes::BytesMut;
 use higgins_codec::{Message, Ping, frame::Frame, message::Type};
 use prost::Message as _;
+use std::time::Duration;
 
 #[allow(unused)]
 pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
@@ -39,4 +40,15 @@ pub fn ping_sync<S: std::io::Read + std::io::Write>(socket: &mut S) {
         Type::Pong => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }
+}
+
+pub fn client_sync_ping_test(client: &mut higgins_client::blocking::Client) {
+    client.ping().unwrap();
+
+    match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+        higgins_client::ResponseBody::Pong(_) => {
+            tracing::info!("Retrieved Pong!");
+        }
+        _ => panic!("Retrieved unexpected result."),
+    };
 }

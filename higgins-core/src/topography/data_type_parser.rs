@@ -53,7 +53,7 @@ fn parse_decimal(input: &str) -> IResult<&str, DataType> {
         .parse(input)?;
 
     let precision = config_vector
-        .get(0)
+        .first()
         .and_then(|v| v.parse::<u8>().ok())
         .ok_or(nom::Err::Error(nom::error::Error::new(
             input,
@@ -81,19 +81,19 @@ fn parse_decimal(input: &str) -> IResult<&str, DataType> {
     IResult::Ok((input, data_type))
 }
 
+pub fn parse_time_unit(input: &str) -> IResult<&str, TimeUnit> {
+    alt((
+        value(TimeUnit::Second, tag("s")),
+        value(TimeUnit::Nanosecond, tag("ns")),
+        value(TimeUnit::Microsecond, tag("us")),
+        value(TimeUnit::Millisecond, tag("ms")),
+    ))
+    .parse(input)
+}
+
 fn parse_time(input: &str) -> IResult<&str, DataType> {
-    let (_, (_, _, timeunit, _)) = (
-        tag("time"),
-        tag("["),
-        alt((
-            value(TimeUnit::Second, tag("s")),
-            value(TimeUnit::Nanosecond, tag("ns")),
-            value(TimeUnit::Microsecond, tag("us")),
-            value(TimeUnit::Millisecond, tag("ms")),
-        )),
-        tag("]"),
-    )
-        .parse(input)?;
+    let (_, (_, _, timeunit, _)) =
+        (tag("time"), tag("["), parse_time_unit, tag("]")).parse(input)?;
 
     let data_type = match timeunit {
         TimeUnit::Second | TimeUnit::Millisecond => DataType::Time32(timeunit),

@@ -3,21 +3,23 @@
 //! This includes the metadata of which topics exist, what schema they have
 //! and how they are partitioned.
 
+use arrow::datatypes::Schema;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     fmt::Debug,
     sync::Arc,
 };
 
-use arrow::datatypes::Schema;
-use serde::{Deserialize, Serialize};
-
-use crate::topography::{
-    config::{
-        Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
-        schema_to_arrow_schema,
+use crate::{
+    storage::index::{IndexType, index_size_from_index_type_and_definition},
+    topography::{
+        config::{
+            Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
+            schema_to_arrow_schema,
+        },
+        errors::TopographyError,
     },
-    errors::TopographyError,
 };
 
 pub mod config;
@@ -26,6 +28,8 @@ pub mod errors;
 mod file;
 
 use file::TopographyFile;
+
+pub use data_type_parser::parse_time_unit;
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
@@ -318,7 +322,9 @@ impl Topography {
             .filter(|(_, def)| def.base.is_none())
         {
             match &topic_defintion.base {
-                Some(_derived_from) => unreachable!(),
+                Some(_derived_from) => {
+                    unreachable!()
+                }
                 None => {
                     tracing::trace!("Applying stream {}", stream_name);
                     let result =
@@ -329,54 +335,50 @@ impl Topography {
             }
         }
 
-        for (stream_name, topic_defintion) in configuration
+        for (stream_name, stream_definition) in configuration
             .streams
             .as_ref()
             .unwrap()
             .iter()
             .filter(|(_, def)| def.base.is_some())
         {
-            match &topic_defintion.base {
+            match &stream_definition.base {
                 Some(_derived_from) => {
                     tracing::trace!("Applying a derived stream: {stream_name}..");
 
-                    // Create just normal schema.
-                    let _schema = self
-                        .schema
-                        .get(&Key::from(topic_defintion.schema.as_str()))
-                        .unwrap_or_else(|| {
-                            panic!("No Schema defined for key {}", topic_defintion.schema)
-                        });
+                    // // Create just normal schema.
+                    // let _schema = self
+                    //     .schema
+                    //     .get(&Key::from(topic_defintion.schema.as_str()))
+                    //     .unwrap_or_else(|| {
+                    //         panic!("No Schema defined for key {}", topic_defintion.schema)
+                    //     });
 
-                    let _topic_type = FunctionType::from(
-                        topic_defintion
-                            .stream_type
-                            .as_ref()
-                            .expect("Derived stream without a function type.")
-                            .as_str(),
-                    );
+                    // let _topic_type = FunctionType::from(
+                    //     topic_defintion
+                    //         .stream_type
+                    //         .as_ref()
+                    //         .expect("Derived stream without a function type.")
+                    //         .as_str(),
+                    // );
 
                     let _ = self.add_stream(
                         Key::from(stream_name.as_str()),
-                        StreamDefinition::from(topic_defintion),
+                        StreamDefinition::from(stream_definition),
                     ); // TODO: This should likely be a warning.
                 }
-                None => unreachable!(),
+                None => {
+                    tracing::error!("Unreachable code.");
+                    unreachable!()
+                }
             }
         }
-
-        // Removing these configurations because yeap, not needed.
-        // let config_id = uuid::Uuid::new_v4();
-
-        // let config_id = Key(config_id.as_bytes().to_vec());
-
-        // self
-        //     .configurations
-        //     .insert(config_id.clone(), configuration);
 
         Ok(())
     }
 }
+
+use config::WindowDefinition;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct StreamDefinition {
@@ -396,6 +398,29 @@ pub struct StreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+    /// Windowing configuration
+    pub window: Option<WindowDefinition>,
+}
+
+impl StreamDefinition {
+    /// Returns the index size specified from this stream definition.
+    ///
+    /// The index size should always be able to be calculated from the definition given
+    /// the dynamic properties of some of the stream values.
+    pub fn index_size(&self) -> usize {
+        index_size_from_index_type_and_definition(&self.index_type(), self)
+    }
+
+    pub fn index_type(&self) -> IndexType {
+        match self.stream_type {
+            Some(FunctionType::Join) => IndexType::Join,
+            Some(FunctionType::Window) => IndexType::Window,
+            Some(FunctionType::Aggregate)
+            | Some(FunctionType::Map)
+            | Some(FunctionType::Reduce)
+            | None => IndexType::Default,
+        }
+    }
 }
 
 impl Debug for StreamDefinition {
@@ -422,6 +447,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
             join: value.join.clone(),
             map: value.map.clone(),
             function_name: value.function_name.clone(),
+            window: value.window.clone(),
         }
     }
 }
@@ -432,6 +458,7 @@ pub enum FunctionType {
     Map,
     Aggregate,
     Join,
+    Window,
 }
 
 impl From<&str> for FunctionType {
@@ -441,7 +468,9 @@ impl From<&str> for FunctionType {
             "map" => FunctionType::Map,
             "aggregate" => FunctionType::Aggregate,
             "join" => FunctionType::Join,
+            "window" => FunctionType::Window,
             _ => {
+                tracing::error!("Panicked on unimplemented type.");
                 panic!("Unmplemented function type {value}. Options are reduce, map and aggregate.")
             }
         }
@@ -455,6 +484,7 @@ impl From<FunctionType> for String {
             FunctionType::Map => "map".to_string(),
             FunctionType::Aggregate => "aggregate".to_string(),
             FunctionType::Join => "join".to_string(),
+            FunctionType::Window => "window".to_string(),
         }
     }
 }

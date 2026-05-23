@@ -36,6 +36,17 @@ pub struct ConfigurationStreamDefinition {
     /// The name of the function that needs to be applied to this configuration.
     #[serde(rename = "fn")]
     pub function_name: Option<String>,
+
+    /// Windowing configuration
+    pub window: Option<WindowDefinition>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct WindowDefinition {
+    #[serde(rename = "type")]
+    pub window_type: String,
+    pub interval: String,
+    pub slide: Option<String>, // defaults to interval if no available.
 }
 
 impl From<StreamDefinition> for ConfigurationStreamDefinition {
@@ -48,6 +59,7 @@ impl From<StreamDefinition> for ConfigurationStreamDefinition {
             join: value.join,
             map: value.map,
             function_name: value.function_name,
+            window: value.window,
         }
     }
 }
@@ -123,7 +135,15 @@ pub struct AwsS3Storage {
 
 /// Deserializes the given byte array into a configuration.
 pub fn from_toml(config: &[u8]) -> Configuration {
-    let config: Configuration = toml::from_slice(config).unwrap();
+    tracing::trace!("{:#?}", config);
+
+    let config: Configuration = toml::from_slice(config)
+        .inspect(|val| {
+            tracing::info!("{:#?}", val);
+        })
+        .unwrap();
+
+    tracing::trace!("Deserialized toml: {:#?}", config);
 
     config
 }
@@ -178,6 +198,7 @@ mod test {
                             join: None,
                             map: None,
                             function_name: None,
+                            window: None,
                         },
                     );
                     streams.insert(
@@ -190,6 +211,7 @@ mod test {
                             join: None,
                             map: None,
                             function_name: None,
+                            window: None,
                         },
                     );
                     Some(streams)
@@ -350,6 +372,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -362,6 +385,7 @@ mod test {
                         join: None,
                         map: None,
                         function_name: None,
+                        window: None,
                     },
                 ),
                 (
@@ -395,6 +419,7 @@ mod test {
                             ("province".to_string(), "address.province".to_string()),
                         ])),
                         function_name: None,
+                        window: None,
                     },
                 ),
             ])),
@@ -466,6 +491,118 @@ mod test {
                     map
                 })
             }
+        );
+    }
+
+    #[test]
+    fn can_deserialize_window_toml() {
+        let example_config = r#"
+            [storage.memory]
+            type="memory"
+
+            [schema.value]
+            id = "string"
+            some_data = "string"
+            other_data = "string"
+            i = "int32"
+
+            [streams.value]
+            schema = "value"
+            partition_key = "id"
+
+            [streams.value_windowed]
+            base = "value"
+            type = "window"
+            partition_key = "id"
+            schema = "value"
+            window = {
+                type = "time", # or count
+                interval = "5m" # or simply 5 if count
+            }
+            "#;
+
+        let config = from_toml(example_config.as_bytes());
+
+        // Define the expected Configuration struct
+        let expected = Configuration {
+            schema: Some(BTreeMap::from([(
+                "value".to_string(),
+                BTreeMap::from([
+                    ("i".to_string(), "int32".to_string()),
+                    ("id".to_string(), "string".to_string()),
+                    ("other_data".to_string(), "string".to_string()),
+                    ("some_data".to_string(), "string".to_string()),
+                ]),
+            )])),
+            streams: Some(BTreeMap::from([
+                (
+                    "value".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: None,
+                        stream_type: None,
+                        partition_key: "id".to_string(),
+                        schema: "value".to_string(),
+                        join: None,
+                        map: None,
+                        function_name: None,
+                        window: None,
+                    },
+                ),
+                (
+                    "value_windowed".to_string(),
+                    ConfigurationStreamDefinition {
+                        base: Some("value".to_string()),
+                        stream_type: Some("window".to_string()),
+                        partition_key: "id".to_string(),
+                        schema: "value".to_string(),
+                        join: None,
+                        map: None,
+                        function_name: None,
+                        window: Some(WindowDefinition {
+                            window_type: "time".to_string(),
+                            interval: "5m".to_string(),
+                            slide: None,
+                        }),
+                    },
+                ),
+            ])),
+            storage: Some(BTreeMap::from([(
+                "memory".to_string(),
+                Storage {
+                    storage_type: StorageType::Memory,
+                    aws_s3_config: AwsS3Storage {
+                        aws_access_key_id: None,
+                        aws_secret_access_key: None,
+                        aws_region: None,
+                        aws_endpoint: None,
+                        aws_token: None,
+                        aws_container_credentials_relative_uri: None,
+                        aws_allow_http: None,
+                        bucket_name: None,
+                    },
+                },
+            )])),
+        };
+        // Assert that the deserialized configuration matches the expected one
+
+        assert_eq!(config, expected,);
+
+        assert_eq!(config.schema, expected.schema);
+        let config_streams = config.streams.unwrap();
+        let expected_streams = expected.streams.unwrap();
+
+        assert_eq!(
+            config_streams.get("address"),
+            expected_streams.get("address")
+        );
+        assert_eq!(
+            config_streams.get("customer"),
+            expected_streams.get("customer")
+        );
+
+        assert_eq!(
+            config_streams.get("customer_address"),
+            expected_streams.get("customer_address")
         );
     }
 }

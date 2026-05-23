@@ -66,6 +66,10 @@ impl<'a> BrokerIndexFileLock<'a> {
     pub fn as_indexes_mut(&'a self) -> IndexesView<'a> {
         self.index_file.as_view()
     }
+
+    pub fn as_index(&mut self) -> &mut IndexFile {
+        self.index_file
+    }
 }
 
 impl Broker {
@@ -73,12 +77,13 @@ impl Broker {
         &mut self,
         stream: String,
         partition: &PartitionName,
-        element_size: usize,
     ) -> Option<BrokerIndexFile> {
         let stream_def = self
             .topography
             .get_stream_definition_by_key(stream.clone())
             .unwrap();
+
+        let element_size = stream_def.index_size();
 
         let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
             stream.clone(),

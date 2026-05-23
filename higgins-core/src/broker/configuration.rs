@@ -1,5 +1,7 @@
 use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
+use crate::derive::windowed::create_windowed_stream_from_definition;
+use crate::derive::windowed::definition::WindowedStreamDefinition;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
 use object_store::aws::AmazonS3Builder;
@@ -24,17 +26,25 @@ impl Broker {
         config: &[u8],
         broker: Arc<RwLock<Self>>,
     ) -> Result<(), HigginsError> {
-        // Deserialize configuratio from TOML.
+        tracing::trace!("Deserializing the toml.");
+        tracing::trace!("{:#?}", String::from_utf8(config.to_vec()));
+
+        // Deserialize configuration from TOML.
         let config = from_toml(config);
+        tracing::trace!("Retrieved the config: {:#?}.", config);
 
         // Apply the configuration to the topography.
         self.topography.apply_configuration_to_topography(&config)?;
+
+        tracing::trace!("Successfully applied the configuration to the topography.");
 
         // Apply the storages.
         if let Some(storage) = self.topography.get_storage() {
             let backing_store = instantiate_storage_from_configuration(storage);
             self.backing_store = Some(backing_store);
         }
+
+        tracing::trace!("Successfully instantiated the storage.");
 
         // Generate Stream metadata to create.
         let streams_to_create = self
@@ -57,6 +67,8 @@ impl Broker {
                 None
             })
             .collect::<Vec<_>>();
+
+        tracing::trace!("Creating streams...");
 
         for (key, schema) in streams_to_create {
             self.create_stream(Into::<Vec<u8>>::into(key).as_ref(), schema);
@@ -130,6 +142,22 @@ impl Broker {
                     )
                     .await
                     .unwrap();
+                }
+                Some(FunctionType::Window) => {
+                    tracing::trace!("Creating Windowed stream from stream definition.");
+                    let b: &Broker = self;
+
+                    create_windowed_stream_from_definition(
+                        WindowedStreamDefinition::try_from((
+                            derived_stream_key,
+                            derived_stream_definition,
+                            b,
+                        ))
+                        .unwrap(),
+                        self,
+                        broker.clone(),
+                    )
+                    .await;
                 }
                 Some(_) => todo!(),
                 None => {

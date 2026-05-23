@@ -2,16 +2,29 @@
 
 use std::io::Write;
 
-use crate::{broker::Broker, error::HigginsError};
+use crate::{
+    broker::Broker,
+    error::HigginsError,
+    storage::index::{Index, OwnedIndex, windowed_index::WindowedIndex},
+    topography::{FunctionType, StreamDefinition},
+};
+use arrow::compute::concat_batches;
 
+use arrow::array::RecordBatch;
+use higgins_shared::{PartitionName, read_arrow, write_arrow};
 use riskless::object_store::path::Path;
 
 static NULL_DISCRIMINATOR: u16 = 0;
 static OBJECT_STORE_DISCRIMINATOR: u16 = 1;
 
 /// Dereference a given reference into the underlying data.
-pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8>, HigginsError> {
-    match reference {
+pub async fn dereference(
+    index: OwnedIndex,
+    stream_def: StreamDefinition,
+    partition: PartitionName,
+    broker: &mut Broker,
+) -> Result<Vec<u8>, HigginsError> {
+    match index.reference() {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
             let object_store = {
@@ -60,7 +73,110 @@ pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8
                 }
             }
         }
-        Reference::Null => Err(HigginsError::NullDereferenceError),
+        Reference::Null => {
+            tracing::debug!("Stream def: {:#?}", stream_def);
+
+            // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
+            // This can also be applied to function types etc.
+            match stream_def.stream_type.unwrap() {
+                FunctionType::Window => {
+                    let index = WindowedIndex::of(index.inner());
+
+                    // Retrieve the base stream - the stream that this windowed stream is based off of.
+                    let base_stream_def = broker
+                        .get_topography_stream(stream_def.base.as_ref().unwrap())
+                        .map(|(_, stream_def)| stream_def.clone())
+                        .unwrap();
+
+                    let base_stream_schema = broker
+                        .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
+                        .map(|(schema, _, _)| schema.clone())
+                        .unwrap();
+
+                    let buffer = {
+                        let mut derivative_index_file = broker
+                            .get_index_file(
+                                String::from_utf8(
+                                    stream_def.base.as_ref().unwrap().as_bytes().to_vec(),
+                                )
+                                .unwrap(),
+                                &partition,
+                            )
+                            .unwrap();
+
+                        let mut guard = derivative_index_file.lock().await;
+
+                        tracing::debug!("Derivative range: {:#?}", index.derivative_range());
+
+                        let buffer_size = (index
+                            .derivative_range()
+                            .end
+                            .saturating_sub(index.derivative_range().start))
+                            as usize;
+
+                        let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
+
+                        // Read all of the indexes.
+                        guard
+                            .read_at(index.derivative_range().start as usize, &mut buffer)
+                            .unwrap();
+
+                        buffer
+                    };
+
+                    let mut combined = RecordBatch::new_empty(base_stream_schema.clone());
+
+                    for index in buffer
+                        .chunks(base_stream_def.index_size())
+                        .map(|data| OwnedIndex::from(Index::of(data, base_stream_def.index_type())))
+                    {
+                        tracing::debug!("Dereferencing index: {:#?}", index);
+                        let data = Box::pin(dereference(
+                            index,
+                            base_stream_def.clone(),
+                            partition.clone(),
+                            broker,
+                        ))
+                        .await
+                        .unwrap();
+
+                        for rb in read_arrow(&data) {
+                            if let Ok(rb) = rb {
+                                tracing::debug!(
+                                    "BATCHES: schema: {:#?} combined: {:#?}, rb: {:#?}",
+                                    &base_stream_schema,
+                                    combined,
+                                    rb
+                                );
+
+                                let reordered_rb = RecordBatch::try_new(
+                                    base_stream_schema.clone(),
+                                    base_stream_schema
+                                        .fields
+                                        .iter()
+                                        .map(|field| {
+                                            rb.column_by_name(field.name()).unwrap().clone() // TODO: this unwrap should actually be unchecked, considering these schema should always match.
+                                        })
+                                        .collect::<Vec<_>>(),
+                                )
+                                .unwrap();
+
+                                combined =
+                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])
+                                        .unwrap();
+                            } else {
+                                tracing::error!(
+                                    "Failed to read the record batch from the stream reader."
+                                );
+                            }
+                        }
+                    }
+
+                    Ok(write_arrow(&combined))
+                }
+                _ => todo!(),
+            }
+        }
     }
 }
 
@@ -68,7 +184,7 @@ pub async fn dereference(reference: Reference, broker: &Broker) -> Result<Vec<u8
 ///
 /// 1. Embedded into an Index and
 /// 2. Read to allow for the dereferencing of a byte vector from the underlying storage implementation.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Reference {
     Null,
     S3(S3Reference),
@@ -124,7 +240,7 @@ impl Reference {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct S3Reference {
     pub object_key: [u8; 16],
     pub position: u64,

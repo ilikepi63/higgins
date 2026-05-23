@@ -18,20 +18,21 @@ use std::collections::HashSet;
 
 impl Broker {
     pub async fn consume(
-        &self,
+        &mut self,
         topic: &[u8],
         partition: &PartitionName,
         offset: u64,
         _max_partition_fetch_bytes: u32,
-    ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
+    ) -> Vec<Result<Vec<u8>, HigginsError>> {
         let indexes = self.indexes.clone();
 
         let stream_definition = self
             .topography
             .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
+            .cloned()
             .unwrap();
 
-        let index_type = IndexType::try_from(stream_definition).unwrap();
+        let index_type = IndexType::try_from(&stream_definition).unwrap();
 
         let batch_responses = indexes
             .find_batches(
@@ -45,14 +46,17 @@ impl Broker {
                 }],
                 0,
                 &index_type,
-                stream_definition,
+                &stream_definition,
             )
             .await;
 
-        batch_responses
-            .into_iter()
-            .map(|reference| dereference(reference, self))
-            .collect()
+        let mut result = vec![];
+        for index in batch_responses {
+            result
+                .push(dereference(index, stream_definition.clone(), partition.clone(), self).await);
+        }
+
+        result
     }
     pub async fn get_by_timestamp(
         &mut self,
@@ -83,10 +87,10 @@ impl Broker {
     }
 
     pub async fn get_latest(
-        &self,
+        &mut self,
         stream: &[u8],
         partition: &PartitionName,
-    ) -> Vec<impl Future<Output = Result<Vec<u8>, HigginsError>>> {
+    ) -> impl Future<Output = Result<Vec<u8>, HigginsError>> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
             stream,
@@ -97,7 +101,7 @@ impl Broker {
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
             .unwrap();
 
-        let find_batch_responses = self
+        let index = self
             .indexes
             .get_latest_offset(
                 stream,
@@ -107,15 +111,12 @@ impl Broker {
             )
             .await;
 
-        find_batch_responses
-            .into_iter()
-            .map(|reference| dereference(reference, self))
-            .collect()
+        dereference(index, stream_def.clone(), partition.clone(), self)
     }
 
     /// Retrieve the data at the specified offset.
     pub async fn get_at(
-        &self,
+        &mut self,
         stream: &[u8],
         partition: &PartitionName,
         offset: u64,
@@ -125,7 +126,13 @@ impl Broker {
             .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
             .unwrap();
 
-        let reference = self
+        tracing::debug!("Stream def: {:#?}", stream_def);
+        tracing::debug!(
+            "index type: {:#?}",
+            IndexType::try_from(stream_def).unwrap(),
+        );
+
+        let index = self
             .indexes
             .get_by_offset(
                 stream,
@@ -137,8 +144,14 @@ impl Broker {
             .await
             .ok();
 
-        if let Some(reference) = reference {
-            dereference(reference, self).await.map(Some)
+        tracing::debug!("Index: {:#?}", index);
+
+        if let Some(index) = index {
+            tracing::debug!("Dereferencing the reference..");
+            dereference(index, stream_def.clone(), partition.clone(), self)
+                .await
+                .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
+                .map(Some)
         } else {
             Ok(None)
         }

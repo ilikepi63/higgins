@@ -6,6 +6,8 @@ pub enum TopographyError {
     Occupied(String),
     #[error("Derivative stream not found in topography: {0}")]
     DerivativeNotFound(String),
+    #[error("Incorrect Stream definition: {0}")]
+    IncorrectStreamDefinition(String),
     #[error("Schema not found in topography: {0}")]
     SchemaNotFound(String),
     #[error("The given join definition did not describe any joined streams.")]

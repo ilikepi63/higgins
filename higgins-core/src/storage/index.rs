@@ -6,8 +6,9 @@ use bytes::BufMut as _;
 mod default;
 pub mod directory;
 mod error;
-mod file;
+pub mod file;
 pub mod joined_index;
+pub mod windowed_index;
 pub use error::IndexError;
 
 pub use file::{CompletedBinarySearchResult, IndexFile};
@@ -15,6 +16,7 @@ pub use file::{CompletedBinarySearchResult, IndexFile};
 use crate::storage::dereference::Reference;
 use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::storage::index::windowed_index::WindowedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
 
 /// The high-level type of index that all indexes could possibly be.
@@ -26,6 +28,7 @@ pub enum IndexType {
     #[default]
     Default,
     Join,
+    Window,
 }
 
 /// Retrieve an IndexType from a given StreamDefinition.
@@ -34,8 +37,12 @@ impl TryFrom<&StreamDefinition> for IndexType {
 
     fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
         Ok(match value.stream_type.as_ref() {
-            Some(t) if matches!(t, FunctionType::Join) => IndexType::Join,
-            _ => IndexType::Default,
+            Some(FunctionType::Join) => IndexType::Join,
+            Some(FunctionType::Window) => IndexType::Window,
+            Some(FunctionType::Aggregate)
+            | Some(FunctionType::Map)
+            | Some(FunctionType::Reduce)
+            | None => IndexType::Default,
         })
     }
 }
@@ -44,6 +51,12 @@ impl TryFrom<&StreamDefinition> for IndexType {
 pub struct Index<'a> {
     index_type: IndexType,
     data: &'a [u8],
+}
+
+#[derive(Debug)]
+pub struct OwnedIndex {
+    index_type: IndexType,
+    data: Vec<u8>,
 }
 
 impl<'a> std::fmt::Debug for Index<'a> {
@@ -66,6 +79,7 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).timestamp(),
             IndexType::Join => JoinedIndex::of(self.data).timestamp(),
+            IndexType::Window => WindowedIndex::of(self.data).timestamp(),
         }
     }
 
@@ -74,6 +88,7 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).reference(),
             IndexType::Join => JoinedIndex::of(self.data).reference(),
+            IndexType::Window => WindowedIndex::of(self.data).reference(),
         }
     }
 
@@ -83,6 +98,49 @@ impl<'a> Index<'a> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
             IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
+            IndexType::Window => WindowedIndex::of(self.data).put_reference(r),
+        }
+    }
+}
+
+impl OwnedIndex {
+    /// Return a reference to the inner bytes of this index.
+    pub fn inner(&self) -> &[u8] {
+        &self.data
+    }
+    // Constructors
+    pub fn from(index: Index<'_>) -> Self {
+        Self {
+            index_type: index.index_type,
+            data: index.data.to_vec(),
+        }
+    }
+
+    /// Query for the timestamp of this given
+    pub fn timestamp(&self) -> u64 {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).timestamp(),
+            IndexType::Join => JoinedIndex::of(&self.data).timestamp(),
+            IndexType::Window => WindowedIndex::of(&self.data).timestamp(),
+        }
+    }
+
+    /// Retrieve the underlying Reference data of this index.
+    pub fn reference(&self) -> Reference {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).reference(),
+            IndexType::Join => JoinedIndex::of(&self.data).reference(),
+            IndexType::Window => WindowedIndex::of(&self.data).reference(),
+        }
+    }
+
+    /// Returns a new byte array representing a reference that is encoded to a
+    /// vector of bytes.
+    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
+        match self.index_type {
+            IndexType::Default => DefaultIndex::of(&self.data).put_reference(r),
+            IndexType::Join => JoinedIndex::of(&self.data).put_reference(r),
+            IndexType::Window => WindowedIndex::of(&self.data).put_reference(r),
         }
     }
 }
@@ -94,6 +152,7 @@ pub fn index_size_from_index_type_and_definition(
     match index_type {
         IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref().unwrap().len()),
         IndexType::Default => DefaultIndex::size_of(),
+        IndexType::Window => WindowedIndex::size_of(),
     }
 }
 
