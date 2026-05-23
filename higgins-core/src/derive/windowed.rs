@@ -77,8 +77,6 @@ pub async fn create_windowed_stream_from_definition(
 
                     match definition.window_type {
                         WindowValue::Count(count) => {
-                            tracing::info!("RECEIVED COUNT FROM UNDERLYING STREAM: {count}");
-
                             let mut new_ranges = assign_sliding_windows_range(
                                 offsets.clone(),
                                 count,
@@ -98,17 +96,24 @@ pub async fn create_windowed_stream_from_definition(
 
                             windowed_index_file.put_ranges(&mut new_ranges).unwrap();
 
-                            // debug only, remove after
+                            // acknowledge me!
                             {
-                                let mut bytes = [0u8; WindowedIndex::size_of()];
-                                index_file.read_at(0, &mut bytes).unwrap();
-                                for index in bytes
-                                    .chunks(WindowedIndex::size_of())
-                                    .map(WindowedIndex::of)
-                                {
-                                    tracing::debug!("{:#?}", index);
-                                }
+                                let mut guard = subscription.write().await;
+                                tracing::info!("Acknowledging ranges {:#?}.", offsets);
+                                guard.acknowledge(partition, offsets).unwrap();
                             }
+
+                            // debug only, remove after
+                            // {
+                            //     let mut bytes = [0u8; WindowedIndex::size_of()];
+                            //     index_file.read_at(0, &mut bytes).unwrap();
+                            //     for index in bytes
+                            //         .chunks(WindowedIndex::size_of())
+                            //         .map(WindowedIndex::of)
+                            //     {
+                            //         tracing::debug!("{:#?}", index);
+                            //     }
+                            // }
 
                             tracing::info!("Successfully applied ranges to windowed function.");
                         }
