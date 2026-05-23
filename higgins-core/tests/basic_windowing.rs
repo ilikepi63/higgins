@@ -150,7 +150,7 @@ fn basic_windowing() {
                     })
                     .unwrap();
 
-                tracing::debug!("{:#?}", arrow);
+                assert_eq!(arrow.num_rows(), 2);
             }
             _ => panic!("Retreved incorrect response for produce query."),
         }
