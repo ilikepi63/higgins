@@ -71,7 +71,7 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
         .iter()
         .map(|(key, value)| {
             let (_, data_type) = super::data_type_parser::parse(value).unwrap();
-
+            tracing::debug!("Converted input {value} to output {data_type}");
             Field::new(key, data_type, true) // TODO: how do we handle nullable here? OR how do we actually determine them?
         })
         .collect::<Vec<_>>();

@@ -22,7 +22,7 @@ pub fn address_schema() -> Schema {
 pub fn amount_schema() -> Schema {
     Schema::new(vec![
         Field::new("id", DataType::Utf8, false),
-        Field::new("data", DataType::Int8, false),
+        Field::new("data", DataType::Int32, false),
     ])
 }
 
