@@ -505,6 +505,50 @@ mod test {
     use super::*;
 
     #[tokio::test]
+    async fn test_eager_range_take_sync() {
+        let sub_path = "sub_take_eager_range";
+        let notify = Arc::new(tokio::sync::Notify::new());
+        let client_id = 1;
+        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
+        let partition = &PartitionName::try_from("1").unwrap();
+        let mut guard = subscription.write().await;
+
+        guard.add_partition(&partition, 0, 0).unwrap();
+
+        drop(guard);
+
+        let values = eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id)
+            .await
+            .unwrap();
+
+        for value in values {
+            println!("Acknowledging {:#?}", value);
+            for record in value.1.start..=value.1.end {
+                println!("Acknowledging {}", record);
+                let mut guard = subscription.write().await;
+
+                guard.acknowledge(&partition, &(record..record)).unwrap(); // acknowledging the entire range
+
+                dbg!(&guard.partitions);
+            }
+        }
+        // dbg!(values);
+
+        // notify.notify_waiters();
+
+        let values =
+            eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id).await;
+
+        dbg!(values);
+
+        std::fs::remove_file(sub_path).unwrap();
+
+        panic!();
+
+        // result.unwrap();
+    }
+
+    #[tokio::test]
     async fn test_eager_range_take() {
         let sub_path = "sub_take_eager_range";
         let notify = Arc::new(tokio::sync::Notify::new());
@@ -543,8 +587,6 @@ mod test {
             let partition = &PartitionName::try_from("1").unwrap();
 
             guard.add_partition(&partition, 0, 1).unwrap();
-
-            // guard.set_end(&partition, 1).unwrap();
 
             notify.notify_waiters();
         }

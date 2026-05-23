@@ -3,6 +3,19 @@
 //! This is a  file-backed subscription model for effectively keeping track of the watermarks of
 //! subcriptions in higgins. These watermarks are tracked per partition inside of the each
 //! stream.
+//!
+//! The semantics of a Subscription file are as such:
+//!
+//! - For each partition p that has a range of values already published to it, you will have a PartitionOffsets value inside
+//! of the subscription.
+//! - Each PartitionOffsets holds a range, which the `start` of the range denotes the already queried values whilst
+//! the `end` of the range denotes the values that are still to be read.
+//!
+//! An example is as such:
+//!
+//! - 0..0 -> you can read 0 from this PartitionOffsets
+//! - 0..1 -> you can read 0..=1 from this Partition.
+//! - 1..0 -> This partition is `complete`. When a partition gets acknowledged at u64::Max, there should possibly be some form of tomb stoning.
 pub mod error;
 pub mod file;
 
@@ -13,6 +26,7 @@ use tokio::sync::Notify;
 
 use crate::subscription::error::SubscriptionError;
 use higgins_shared::PartitionName;
+
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
 pub struct PartitionOffsets {
@@ -216,7 +230,7 @@ impl Subscription {
                 // We set this to offsets.end + 1, so that if you acknowledge 0..0, your sub should be at 0..1, which means you'd have 1..1 and nothing
                 // to pull here.
                 tracing::trace!("offsets.end: {}", offsets.end);
-                partition.set_start(offsets.end + 1);
+                partition.set_start(offsets.end.saturating_add(1));
 
                 tracing::trace!("Partition after acknowledgement: {:#?}", partition);
 
@@ -309,6 +323,22 @@ impl Subscription {
             tracing::info!("Retrieving current partition: {:#?}", current_partition);
 
             if let Some(partition_offset) = current_partition {
+                println!("{:#?}", partition_offset);
+                println!(
+                    "{} {} {}",
+                    partition_offset.end,
+                    partition_offset.start,
+                    partition_offset.end > partition_offset.start
+                );
+
+                if partition_offset.start > partition_offset.end {
+                    println!("BREAKING, WE HAVE HAD AN END HERE");
+                    // If the end > start, this means by the semantics describe at the top, that this partition has already had everything
+                    // consumed.
+                    partition_offset_index += 1;
+                    continue;
+                }
+
                 let end = if offset_count < (partition_offset.end - partition_offset.end) {
                     partition_offset.start + offset_count
                 } else {
@@ -347,6 +377,8 @@ impl Subscription {
 
             partition_offset_index += 1;
         }
+
+        println!("Returning: {:#?}", results);
 
         Ok(results)
     }
@@ -672,6 +704,47 @@ mod tests {
             sub.acknowledge(&partition_name, &(0..1)).unwrap();
 
             assert_eq!(sub.take(10).unwrap().len(), 0);
+        });
+
+        std::fs::remove_file(sub_name).unwrap();
+
+        result.unwrap();
+    }
+
+    #[test]
+    fn test_acknowledge_and_take_combination_range() {
+        let sub_name = "test_acknowledge_and_take_combination_range";
+
+        let result = catch_unwind(|| {
+            let mut sub = Subscription::new(sub_name);
+
+            let key = PartitionName::try_from("partition1").unwrap();
+
+            // Add partition with max_offset 10
+            assert!(sub.add_partition(&key, 0, 0).is_ok());
+
+            // Take 3 offsets (should skip acknowledged offsets 2 and 4)
+            let offsets = sub.take_range(1).expect("Failed to take offsets");
+
+            assert_eq!(offsets, vec![(key.clone(), 0..0)]);
+
+            // Acknowledge some offsets
+            assert!(sub.acknowledge(&key, &Range { start: 0, end: 0 }).is_ok());
+
+            // Take 3 offsets (should skip acknowledged offsets 2 and 4)
+            let offsets = sub.take_range(1).expect("Failed to take offsets");
+
+            debug_assert_eq!(offsets.len(), 0);
+
+            sub.set_end(&key, 3).unwrap();
+
+            // Take 3 offsets (should skip acknowledged offsets 2 and 4)
+            let offsets = sub.take_range(5).expect("Failed to take offsets");
+
+            dbg!(&offsets);
+
+            assert_eq!(offsets.len(), 1);
+            assert_eq!(offsets, vec![(key.clone(), 1..3)]);
         });
 
         std::fs::remove_file(sub_name).unwrap();
