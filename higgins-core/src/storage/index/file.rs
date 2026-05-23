@@ -138,7 +138,7 @@ impl IndexFile {
             1 => {
                 let mut buffer = vec![0_u8; self.element_size];
                 self.read_at(0, &mut buffer).unwrap();
-                let index = JoinedIndex::of(&mut buffer);
+                let index = JoinedIndex::of(&buffer);
                 if index.completed() {
                     return CompletedBinarySearchResult::All;
                 } else {

@@ -84,7 +84,7 @@ pub async fn dereference(
 
                     // Retrieve the base stream - the stream that this windowed stream is based off of.
                     let base_stream_def = broker
-                        .get_topography_stream(&stream_def.base.as_ref().unwrap())
+                        .get_topography_stream(stream_def.base.as_ref().unwrap())
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 

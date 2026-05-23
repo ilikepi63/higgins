@@ -52,8 +52,7 @@ fn parse_decimal(input: &str) -> IResult<&str, DataType> {
     )
         .parse(input)?;
 
-    let precision = config_vector
-        .get(0)
+    let precision = config_vector.first()
         .and_then(|v| v.parse::<u8>().ok())
         .ok_or(nom::Err::Error(nom::error::Error::new(
             input,

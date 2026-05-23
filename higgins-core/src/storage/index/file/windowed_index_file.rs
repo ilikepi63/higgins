@@ -90,7 +90,7 @@ impl<'a> WindowedIndexFile<'a> {
         let mut index = (end as u64).saturating_sub(1);
 
         while let Some(value) = shard.next(&mut buf) {
-            for value in iter_buffer(value, WindowedIndex::size_of(), &mut buf)
+            for value in iter_buffer(value, WindowedIndex::size_of(), &buf)
                 .rev()
                 .map(WindowedIndex::of)
             {
@@ -105,7 +105,7 @@ impl<'a> WindowedIndexFile<'a> {
             }
         }
 
-        return None;
+        None
     }
 }
 

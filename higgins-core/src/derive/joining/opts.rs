@@ -500,8 +500,6 @@ pub async fn amalgamate_indexes(
 mod test {
     use std::time::Duration;
 
-    use crate::subscription;
-
     use super::*;
 
     #[tokio::test]
@@ -522,9 +520,7 @@ mod test {
             .unwrap();
 
         for value in values {
-            println!("Acknowledging {:#?}", value);
             for record in value.1.start..=value.1.end {
-                println!("Acknowledging {}", record);
                 let mut guard = subscription.write().await;
 
                 guard.acknowledge(&partition, &(record..record)).unwrap(); // acknowledging the entire range
@@ -532,77 +528,14 @@ mod test {
                 dbg!(&guard.partitions);
             }
         }
-        // dbg!(values);
+        let values = tokio::time::timeout(
+            Duration::from_millis(100),
+            eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id),
+        )
+        .await;
 
-        // notify.notify_waiters();
-
-        let values =
-            eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id).await;
-
-        dbg!(values);
-
-        std::fs::remove_file(sub_path).unwrap();
-
-        panic!();
-
-        // result.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_eager_range_take() {
-        let sub_path = "sub_take_eager_range";
-        let notify = Arc::new(tokio::sync::Notify::new());
-        let client_id = 1;
-        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
-
-        let val = "";
-
-        let (tx, rx) = tokio::sync::broadcast::channel(1);
-
-        let sub_clone = subscription.clone();
-        let notify_clone = notify.clone();
-        let tx_clone = tx.clone();
-
-        let mut results = Arc::new(RwLock::new(vec![]));
-        let results_ref = results.clone();
-        tokio::spawn(async move {
-            loop {
-                let mut rx = tx_clone.subscribe();
-                tokio::select! {
-                    _ = rx.recv() => {
-                        break;
-                    },
-                    values = eager_range_take_or_wait(sub_clone.clone(), notify_clone.clone(), client_id) => {
-                        dbg!(&values);
-                        let mut guard = results_ref.write().await;
-                        guard.push(values);
-                    }
-                }
-            }
-        });
-
-        {
-            let mut guard = subscription.write().await;
-
-            let partition = &PartitionName::try_from("1").unwrap();
-
-            guard.add_partition(&partition, 0, 1).unwrap();
-
-            notify.notify_waiters();
-        }
-
-        tokio::time::sleep(Duration::from_millis(1000)).await;
-
-        tx.send(()).unwrap();
-
-        let guard = results.read().await;
-
-        dbg!(&guard);
+        assert!(values.is_err()); // Timeout because there is no value.
 
         std::fs::remove_file(sub_path).unwrap();
-
-        panic!();
-
-        // result.unwrap();
     }
 }

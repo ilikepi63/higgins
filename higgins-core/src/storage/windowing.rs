@@ -26,9 +26,9 @@ pub fn assign_sliding_windows(
 ) -> Vec<Range<u64>> {
     let mut windows = Vec::new();
 
-    let mut start = get_window_start_with_offset(value as u64, offset as u64, slide as u64);
+    let mut start = get_window_start_with_offset(value, offset, slide);
 
-    let bound = value.checked_sub(size).unwrap_or(0);
+    let bound = value.saturating_sub(size);
 
     while start >= bound {
         if u64::MAX - size < start {
@@ -40,11 +40,11 @@ pub fn assign_sliding_windows(
             end: start + size,
         });
 
-        if 0 + slide > start {
+        if slide > start {
             break;
         }
 
-        start = start - slide;
+        start -= slide;
     }
 
     windows

@@ -564,7 +564,7 @@ mod tests {
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition
-        assert!(sub.add_partition(&key, 0, (50)).is_ok());
+        assert!(sub.add_partition(&key, 0, 50).is_ok());
 
         // Set new max_offset
         assert!(sub.set_end(&key, 100).is_ok());

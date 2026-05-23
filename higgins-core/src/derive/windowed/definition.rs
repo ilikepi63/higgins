@@ -37,9 +37,9 @@ impl WindowValue {
     /// Normalize this value into a nominal u64 value.
     pub fn normalize(&self) -> u64 {
         match self {
-            Self::Count(c) => c.clone(),
+            Self::Count(c) => *c,
             Self::Timed((t, u)) => match u {
-                WindowedTimeUnit::Sec => t.clone(),
+                WindowedTimeUnit::Sec => *t,
                 WindowedTimeUnit::Min => t * SECONDS_IN_MINUTE,
                 WindowedTimeUnit::Hour => t * SECONDS_IN_MINUTE * MINUTES_IN_HOUR,
                 WindowedTimeUnit::Day => t * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY,

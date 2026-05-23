@@ -48,7 +48,7 @@ pub async fn handle_get_index(
                             let batches =
                                 stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            let batch_refs = batches.iter().next().unwrap();
+                            let batch_refs = batches.first().unwrap();
 
                             let data = higgins_shared::write_arrow(batch_refs);
 

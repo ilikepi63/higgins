@@ -153,7 +153,7 @@ impl SubscriptionFile {
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
 
-        handle.write(&mut buffer)?;
+        handle.write(&buffer)?;
 
         handle.flush()?;
 

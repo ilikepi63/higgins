@@ -5,7 +5,6 @@ use crate::derive::joining::opts::eager_range_take_or_wait;
 use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
-use crate::storage::index::windowed_index::WindowedIndex;
 use crate::storage::windowing::assign_sliding_windows_range;
 use crate::task::SpawnTaskConfig;
 use definition::WindowedStreamDefinition;

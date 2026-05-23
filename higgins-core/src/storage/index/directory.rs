@@ -233,7 +233,7 @@ impl IndexDirectory {
             .map(|index_bytes| Index::of(index_bytes, index_type.clone()))
             .map(OwnedIndex::from);
         match index {
-            Some(index) => return index,
+            Some(index) => index,
             None => {
                 tracing::error!("No Index found at offset {}", 0);
                 todo!()
