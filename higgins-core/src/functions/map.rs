@@ -9,6 +9,7 @@ use higgins_shared::{read_arrow, write_arrow};
 
 /// Wrapper around the mapping functions.
 pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
+    tracing::debug!("RECORD BATCH: {:#?}", batch);
     let engine = Engine::new(
         Config::new()
             .debug_info(true)

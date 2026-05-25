@@ -1,8 +1,9 @@
-use arrow::array::Array;
 use arrow::array::{ArrayRef, AsArray, Int32Array, StringArray};
 use arrow::datatypes::{DataType, Field, Int32Type, Schema};
 use arrow::record_batch::RecordBatch;
-use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi, ArbitraryLengthBuffer};
+use higgins_functions::{
+    ArbitraryLengthBuffer, FFIRecordBatch, record_batch_from_ffi, record_batch_to_ffi,
+};
 use std::sync::Arc;
 
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi, to_ffi};
@@ -23,7 +24,12 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            log_error(&format!("{} - {}", record.level(), record.args()));
+            log_error(&format!(
+                "Line {}:{} - {}",
+                record.line().unwrap_or(0),
+                record.level(),
+                record.args()
+            ));
         }
     }
 
@@ -68,15 +74,19 @@ pub unsafe fn run(rb_ptr: *const u8) -> *const u8 {
     // Retrieve record batch from FFI ptr.
     let buffer: Vec<u8> = ArbitraryLengthBuffer::from(rb_ptr).into_inner();
 
-    let record_batch = read_arrow(&buffer).nth(0).unwrap().unwrap(); 
+    let record_batch = read_arrow(&buffer).nth(0).unwrap().unwrap();
 
-    // log::info!("Resultant Record Batch: {:#?}", record_batch);
+    log::info!("Resultant Record Batch: {:#?}", record_batch);
 
     // Retrieve the data col name.
     let col = col_name_to_field_and_col(&record_batch, "data");
 
+    log::info!("Column: {:#?}", col);
+
     // Cast to primitive type.
     let col = col.0.as_primitive::<Int32Type>();
+
+    log::info!("Converted Column: {:#?}", col);
 
     let arr = {
         let mut result = vec![];
@@ -88,24 +98,31 @@ pub unsafe fn run(rb_ptr: *const u8) -> *const u8 {
         Int32Array::from(result)
     };
 
+    log::info!("Retrieved the array: {:#?}", col);
+
     let batch = RecordBatch::try_new(
         record_batch.schema(),
         vec![
-            Arc::new(arr),
             col_name_to_field_and_col(&record_batch, "id").0,
+            Arc::new(arr),
         ],
     )
     .inspect_err(|e| log::error!("Error: {:#?}", e))
     .unwrap();
 
+    log::info!("Retrieved the batch: {:#?}", batch);
+
     // let result = record_batch_to_ffi(batch);
     let result = write_arrow(&batch);
+
+    log::info!("Wrote the arrow");
 
     let buffer: Vec<u8> = ArbitraryLengthBuffer::from(result.as_ref()).into_inner();
 
     let ptr = buffer.as_ptr();
 
     buffer.leak();
+    log::info!("Returning");
 
     ptr as *const u8
 }
@@ -117,7 +134,9 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
 
     log::info!("Schema Index: {:#?}", schema_index);
 
-    let schema_index = schema_index.unwrap();
+    let schema_index = schema_index
+        .inspect_err(|err| log::error!("{:#?}", err))
+        .unwrap();
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
@@ -125,9 +144,7 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
     (col.clone(), field.clone())
 }
 
-use arrow::{
-    ipc::{reader::StreamReader, writer::StreamWriter},
-};
+use arrow::ipc::{reader::StreamReader, writer::StreamWriter};
 
 pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
     let mut buf = Vec::new();

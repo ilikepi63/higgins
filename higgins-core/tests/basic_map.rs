@@ -9,8 +9,8 @@ use crate::common::schema::amount_schema;
 
 mod common;
 
-// #[test]
-#[allow(unused)]
+#[test]
+// #[allow(unused)]
 fn can_implement_basic_map() {
     let port = get_random_port();
     tracing_subscriber::fmt::init();
@@ -56,13 +56,7 @@ fn can_implement_basic_map() {
     client
         .produce_json(
             "amount",
-            r#"
-{
-    "id": "1",
-    "data": 1,
-}
-"#
-            .as_bytes(),
+            r#"{"id": "1","data": 1,}"#.as_bytes(),
             std::sync::Arc::new(amount_schema()),
         )
         .unwrap();
