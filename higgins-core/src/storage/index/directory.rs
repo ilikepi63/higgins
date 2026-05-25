@@ -1,6 +1,5 @@
-use std::{path::PathBuf, time::SystemTime};
-
 use crate::broker::Broker;
+use crate::error::HigginsError;
 use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
@@ -10,6 +9,7 @@ use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
 use higgins_shared::PartitionName;
+use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
 use super::IndexFile;
@@ -288,6 +288,39 @@ impl IndexDirectory {
                 unimplemented!();
             }
         }
+    }
+
+    /// Retrieves the offset by its offset number.
+    pub async fn get_by_range<'a>(
+        &self,
+        stream: &[u8],
+        partition: &PartitionName,
+        offset: std::ops::Range<u64>,
+        index_type: IndexType,
+        stream_definition: &StreamDefinition,
+    ) -> Result<Vec<OwnedIndex>, HigginsError> {
+        tracing::debug!("Reading index {:#?}", index_type);
+
+        let stream_str = String::from_utf8_lossy(stream).to_string();
+
+        let index_size = stream_definition.index_size();
+
+        let mut index_file = self.index_file_from_stream_and_partition(
+            stream_str,
+            partition,
+            index_size,
+            index_type.clone(),
+        )?;
+        tracing::info!("Retrieved the index_file correctly.");
+
+        let mut buf = vec![0_u8; (offset.end - offset.start) as usize];
+
+        let n = index_file.read_at_until(offset.start, &mut buf)?;
+
+        Ok((0..n)
+            .zip(buf.chunks(index_size))
+            .map(|(_, data)| OwnedIndex::from(Index::of(data, index_type.clone())))
+            .collect())
     }
 
     pub async fn find_batches(
