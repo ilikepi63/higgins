@@ -1,3 +1,4 @@
+use super::utils::ColumnName;
 use crate::{
     broker::Broker,
     derive::{joining::opts::eager_range_take_or_wait, utils::get_partition_key_from_record_batch},
@@ -8,7 +9,6 @@ use crate::{
 use higgins_shared::{PartitionName, read_arrow};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zerocopy::IntoBytes;
 
 pub async fn create_mapped_stream_from_definition(
     stream_name: Key,
@@ -88,13 +88,10 @@ pub async fn create_mapped_stream_from_definition(
 
                             tracing::trace!("[MAP] We are reading the stream values in..");
 
-                            for index in 0..record_batch.num_rows() {
+                            for _ in 0..record_batch.num_rows() {
                                 let partition_val = get_partition_key_from_record_batch(
                                     &record_batch,
-                                    index,
-                                    String::from_utf8_lossy(stream_def.partition_key.as_bytes())
-                                        .to_string()
-                                        .as_str(),
+                                    &ColumnName::from(&stream_def),
                                 );
 
                                 let module = broker_lock

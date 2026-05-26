@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use super::utils::ColumnName;
 use crate::{
     broker::Broker,
     derive::utils::get_partition_key_from_record_batch,
@@ -26,7 +27,6 @@ pub async fn create_reduced_stream_from_definition(
 
     let left_broker = broker_ref.clone();
     let left_stream_name = left.0.as_bytes().to_owned();
-    let left_stream_partition_key = left.1.partition_key;
 
     // Left join runner for this subscription.
     tokio::task::spawn(async move {
@@ -86,14 +86,11 @@ pub async fn create_reduced_stream_from_definition(
                         for record_batch in batches {
                             let mut broker_lock = left_broker.write().await;
 
-                            for index in 0..record_batch.num_rows() {
+                            for _ in 0..record_batch.num_rows() {
                                 tracing::trace!("[DERIVED TAKE] Getting the partition key",);
                                 let partition_val = get_partition_key_from_record_batch(
                                     &record_batch,
-                                    index,
-                                    String::from_utf8_lossy(left_stream_partition_key.as_bytes())
-                                        .to_string()
-                                        .as_str(),
+                                    &ColumnName::from(&left.1),
                                 );
 
                                 tracing::trace!("[DERIVED TAKE] Getting the previous index..",);

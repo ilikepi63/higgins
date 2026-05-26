@@ -27,14 +27,25 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
     (col.clone(), field.clone())
 }
 
-pub fn get_partition_key_from_record_batch(
-    batch: &RecordBatch,
-    _index: usize,
-    col_name: &str,
-) -> Vec<u8> {
+/// Represents a column name of an apache arrow record batch.
+pub struct ColumnName(String);
+
+impl ColumnName {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&StreamDefinition> for ColumnName {
+    fn from(value: &StreamDefinition) -> Self {
+        Self(String::from_utf8_lossy(value.partition_key.as_bytes()).into_owned()) // TODO: Remove this when we enforce stream keys to be strings.
+    }
+}
+
+pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &ColumnName) -> Vec<u8> {
     let schema_index = batch
         .schema()
-        .index_of(col_name)
+        .index_of(col_name.as_str())
         .inspect_err(|err| {
             tracing::error!(
                 "Unexpected error not being able to retrieve partition key by name: {:#?}",
@@ -51,6 +62,8 @@ pub fn get_partition_key_from_record_batch(
 }
 
 use std::ops::Range;
+
+use crate::topography::StreamDefinition;
 
 pub fn iter_buffer(
     range: Range<usize>,

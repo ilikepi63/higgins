@@ -1,21 +1,10 @@
 use super::config::WindowDefinition;
-use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, btree_map::Entry},
-    fmt::Debug,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, fmt::Debug};
 
 use crate::{
     storage::index::{IndexType, index_size_from_index_type_and_definition},
-    topography::{
-        config::{
-            Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
-            schema_to_arrow_schema,
-        },
-        errors::TopographyError,
-    },
+    topography::config::ConfigurationStreamDefinition,
 };
 
 use super::{FunctionType, Key};
@@ -92,6 +81,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
     }
 }
 
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone)]
 struct JoinStreamDefinition {
     /// The partition key for this topic.
@@ -104,6 +94,7 @@ struct JoinStreamDefinition {
     pub map: BTreeMap<String, String>, // TODO: This needs to reflect the hierarchical nature of this string implementation.
 }
 
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone)]
 struct WindowedStreamDefinition {
     /// From which this topic is derived.
@@ -116,6 +107,7 @@ struct WindowedStreamDefinition {
     pub window: WindowDefinition,
 }
 
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone)]
 struct MapStreamDefinition {
     /// From which this topic is derived.
@@ -129,6 +121,7 @@ struct MapStreamDefinition {
     pub function_name: String,
 }
 
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone)]
 struct ReduceStreamDefinition {
     /// From which this topic is derived.
