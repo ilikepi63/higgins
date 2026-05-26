@@ -140,6 +140,8 @@ impl Broker {
             )
             .await?;
 
+        tracing::debug!("Result from get_by_range: {:#?}", indexes);
+
         let mut result = vec![];
 
         for index in indexes {

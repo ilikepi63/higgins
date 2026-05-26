@@ -313,11 +313,15 @@ impl IndexDirectory {
         )?;
         tracing::info!("Retrieved the index_file correctly.");
 
-        let mut buf = vec![0_u8; (offset.end - offset.start) as usize];
+        let mut buf = vec![0_u8; (offset.end - offset.start) as usize * index_size];
+
+        tracing::debug!("Buffer size in indexes: {}", buf.len() / index_size);
 
         let n = index_file.read_at_until(offset.start, &mut buf)?;
 
-        Ok((0..n)
+        tracing::debug!("Read {} indexes", n / index_size as u64);
+
+        Ok((0..=n)
             .zip(buf.chunks(index_size))
             .map(|(_, data)| OwnedIndex::from(Index::of(data, index_type.clone())))
             .collect())

@@ -8,6 +8,7 @@ use crate::{
 use higgins_shared::{PartitionName, read_arrow};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use zerocopy::IntoBytes;
 
 pub async fn create_mapped_stream_from_definition(
     stream_name: Key,
@@ -16,8 +17,14 @@ pub async fn create_mapped_stream_from_definition(
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    // Subscribe to both streams.
-    // let left_subscription = broker.create_subscription(left.0.as_bytes());
+    tracing::debug!(
+        "Base stream: {}",
+        String::from_utf8_lossy(base_stream.0.as_bytes())
+    );
+    tracing::debug!(
+        "Derivative stream: {}",
+        String::from_utf8_lossy(stream_name.as_bytes())
+    );
 
     let (client_id, condvar, subscription) = {
         tracing::trace!("Attempting to input client_id.");
@@ -25,7 +32,7 @@ pub async fn create_mapped_stream_from_definition(
         let client_id = broker
             .clients
             .insert(crate::client::ClientRef::NoOp)
-            .unwrap();
+            .ok_or(HigginsError::Unknown)?;
 
         tracing::trace!("Retrieved client_id.");
         let subscription = broker.create_subscription(base_stream.0.as_bytes());
@@ -34,118 +41,110 @@ pub async fn create_mapped_stream_from_definition(
 
         let (notify, subscription) = broker
             .get_subscription_by_key(base_stream.0.as_bytes(), &subscription)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)
-            .unwrap();
+            .ok_or(HigginsError::SubscriptionRetrievalFailed)?;
 
         tracing::trace!("Retrieved the notification for said subscription.");
 
         (client_id, notify, subscription)
     };
 
-    // Left join runner for this subscription.
     tokio::task::spawn(async move {
-        tracing::trace!("[DERIVED TAKE] We are being initiated");
+        tracing::trace!("[MAP] We are being initiated");
+        let result: Result<(), HigginsError> = async {
+            loop {
+                let offsets =
+                    eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
+                        .await?;
 
-        loop {
-            let offsets =
-                eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
-                    .await
-                    .unwrap();
+                tracing::info!("[MAP] Retrieved offsets in map {:#?}", offsets);
 
-            let mut lock = subscription.write().await;
-
-            let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
-
-            let offsets_result = lock.take_range(n);
-
-            drop(lock);
-
-            if let Ok(mut offsets) = offsets_result {
-                //Get payloads from offsets.
                 for (partition, offset) in offsets {
-                    let mut broker_lock = broker_ref.write().await;
+                    let records = {
+                        let mut broker_guard = broker_ref.write().await;
 
-                    let mut records = vec![];
+                        broker_guard
+                            .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
+                            .await?
+                            .into_iter()
+                            .filter_map(std::convert::identity)
+                            .collect::<Vec<_>>()
+                    };
 
-                    for offset in (offset.start..=offset.end) {
-                        let val = val.unwrap();
-                        records.push(val);
-                    }
-
-                    drop(broker_lock);
+                    tracing::trace!("[MAP] Retrieved records: {:#?}", records);
 
                     for val in records {
-                        tracing::trace!("[DERIVED TAKE] Received consume Response");
+                        tracing::trace!("[MAP] Received consume Response");
 
                         let stream_reader = read_arrow(&val);
 
                         let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                        tracing::trace!("[DERIVED TAKE] Iterating through batches..");
+                        tracing::trace!("[MAP] Iterating through batches..");
 
                         for record_batch in batches {
-                            tracing::trace!("[DERIVED TAKE] Awaiting the broker lock..");
+                            tracing::trace!("[MAP] Awaiting the broker lock..");
 
-                            let mut broker_lock = left_broker.write().await;
+                            let mut broker_lock = broker_ref.write().await;
 
-                            tracing::trace!("[DERIVED TAKE] We are reading the stream values in..");
+                            tracing::trace!("[MAP] We are reading the stream values in..");
 
                             for index in 0..record_batch.num_rows() {
                                 let partition_val = get_partition_key_from_record_batch(
                                     &record_batch,
                                     index,
-                                    String::from_utf8_lossy(left_stream_partition_key.as_bytes())
+                                    String::from_utf8_lossy(stream_def.partition_key.as_bytes())
                                         .to_string()
                                         .as_str(),
                                 );
 
                                 let module = broker_lock
                                     .functions
-                                    .get_function(stream_def.function_name.as_ref().unwrap())
+                                    .get_function(
+                                        stream_def
+                                            .function_name
+                                            .as_ref()
+                                            .ok_or(HigginsError::Unknown)?, // TODO: Name this error.
+                                    )
                                     .await;
 
-                                tracing::trace!("[DERIVED TAKE] We have fetched the module.");
+                                tracing::trace!("[MAP] We have fetched the module.");
 
                                 let mapped_record_batch = run_map_function(&record_batch, module);
 
                                 tracing::trace!(
-                                    "[DERIVED TAKE] Result from mapping: {:#?}",
+                                    "[MAP] Result from mapping: {:#?}",
                                     mapped_record_batch
                                 );
 
-                                tracing::trace!("[DERIVED TAKE] Producing to the stream..");
+                                tracing::trace!("[MAP] Producing to the stream..");
 
                                 let result = broker_lock
                                     .produce(
                                         stream_name.as_bytes(),
-                                        &PartitionName::try_from(&partition_val[..]).unwrap(),
+                                        &PartitionName::try_from(&partition_val[..])?,
                                         mapped_record_batch,
                                     )
                                     .await;
 
-                                tracing::trace!("Result from producing with a join: {:#?}", result);
+                                tracing::trace!("Result from producing with a map: {:#?}", result);
                             }
 
                             drop(broker_lock);
                         }
                     }
 
-                    let mut lock = left_subscription_ref.write().await;
+                    let mut lock = subscription.write().await;
 
-                    lock.acknowledge(
-                        &partition,
-                        &std::ops::Range {
-                            start: offset,
-                            end: offset + 1,
-                        },
-                    )
-                    .unwrap();
+                    lock.acknowledge(&partition, &offset)?;
 
                     drop(lock);
                 }
-            } else {
-                tracing::info!("Nothing to take, will just continue..");
-            };
+            }
+        }
+        .await;
+
+        if let Err(err) = result {
+            tracing::error!("An error occurred whilst mapping the stream: {:#?}", err);
         }
     });
 
