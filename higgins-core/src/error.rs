@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use crate::storage::index::IndexError;
 use crate::subscription::error::SubscriptionError;
 use crate::topography::errors::TopographyError;
 
@@ -13,8 +14,12 @@ pub enum HigginsError {
 
     #[error("Attempted to retrieve subscription that does not exist.")]
     SubscriptionRetrievalFailed,
+
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
+
+    #[error("Error occurred with Indexing.")]
+    IndexError(#[from] IndexError),
 
     #[error("PartitionNameError")]
     PartitionNameError(#[from] higgins_shared::PartitionNameError),

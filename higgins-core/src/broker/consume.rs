@@ -114,6 +114,45 @@ impl Broker {
         dereference(index, stream_def.clone(), partition.clone(), self)
     }
 
+    /// Given a specified range, retrieve the data at the range or a subset thereof.
+    pub async fn get_range(
+        &mut self,
+        stream: &[u8],
+        partition: &PartitionName,
+        offset: std::ops::Range<u64>,
+    ) -> Result<Vec<Option<Vec<u8>>>, HigginsError> {
+        let stream_def = self
+            .topography
+            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .unwrap()
+            .clone();
+
+        tracing::debug!("Stream def: {:#?}", stream_def);
+
+        let indexes = self
+            .indexes
+            .get_by_range(
+                stream,
+                partition,
+                offset,
+                IndexType::try_from(&stream_def.clone()).unwrap(),
+                &stream_def.clone(),
+            )
+            .await?;
+
+        let mut result = vec![];
+
+        for index in indexes {
+            let deref = dereference(index, stream_def.clone(), partition.clone(), self)
+                .await
+                .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
+                .ok();
+            result.push(deref);
+        }
+
+        Ok(result)
+    }
+
     /// Retrieve the data at the specified offset.
     pub async fn get_at(
         &mut self,

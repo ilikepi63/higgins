@@ -2,6 +2,7 @@ use super::IndexType;
 use super::JoinedIndex;
 use super::{IndexError, IndexesView};
 use std::io::{Read, Seek, SeekFrom, Write as _};
+use std::os::unix::fs::FileExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 pub mod windowed_index_file;
@@ -121,6 +122,13 @@ impl IndexFile {
         self.file_handle.seek(SeekFrom::Start(0))?;
 
         Ok(())
+    }
+
+    /// Reads indexes at the given offset, returning how many indexes were read.
+    ///
+    /// Note: offsets are the offsets of the indexes themselves, not the byte offset.
+    pub fn read_at_until(&mut self, offset: u64, buffer: &mut [u8]) -> Result<u64, IndexError> {
+        Ok((self.file_handle.read_at(buffer, offset as u64)? / self.element_size) as u64)
     }
 
     /// Binary searches through this index file for the boundary where the index
