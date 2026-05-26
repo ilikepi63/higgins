@@ -1,7 +1,4 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
-use super::utils::ColumnName;
+use super::{joining::opts::eager_range_take_or_wait, utils::ColumnName};
 use crate::{
     broker::Broker,
     derive::utils::get_partition_key_from_record_batch,
@@ -10,197 +7,185 @@ use crate::{
     topography::{Key, StreamDefinition},
 };
 use higgins_shared::{PartitionName, read_arrow};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,
     stream_def: StreamDefinition,
-    left: (Key, StreamDefinition),
+    base_stream: (Key, StreamDefinition),
     broker: &mut Broker,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
-    // Subscribe to both streams.
-    let left_subscription = broker.create_subscription(left.0.as_bytes());
+    tracing::debug!(
+        "Base stream: {}",
+        String::from_utf8_lossy(base_stream.0.as_bytes())
+    );
+    tracing::debug!(
+        "Derivative stream: {}",
+        String::from_utf8_lossy(stream_name.as_bytes())
+    );
 
-    let (left_notify, left_subscription_ref) = broker
-        .get_subscription_by_key(left.0.as_bytes(), &left_subscription)
-        .unwrap();
+    let (client_id, condvar, subscription) = {
+        tracing::trace!("Attempting to input client_id.");
 
-    let left_broker = broker_ref.clone();
-    let left_stream_name = left.0.as_bytes().to_owned();
+        let client_id = broker
+            .clients
+            .insert(crate::client::ClientRef::NoOp)
+            .ok_or(HigginsError::Unknown)?;
 
-    // Left join runner for this subscription.
+        tracing::trace!("Retrieved client_id.");
+        let subscription = broker.create_subscription(base_stream.0.as_bytes());
+
+        tracing::trace!("Successfully created the subscription.");
+
+        let (notify, subscription) = broker
+            .get_subscription_by_key(base_stream.0.as_bytes(), &subscription)
+            .ok_or(HigginsError::SubscriptionRetrievalFailed)?;
+
+        tracing::trace!("Retrieved the notification for said subscription.");
+
+        (client_id, notify, subscription)
+    };
+
     tokio::task::spawn(async move {
-        tracing::trace!("[DERIVED TAKE] We are being initiated");
+        tracing::trace!("[MAP] We are being initiated");
+        let result: Result<(), HigginsError> = async {
+            loop {
+                let offsets =
+                    eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
+                        .await?;
 
-        loop {
-            let mut lock = left_subscription_ref.write().await;
+                tracing::info!("[MAP] Retrieved offsets in map {:#?}", offsets);
 
-            let n = 10; // Generally, there is a set amount of n that we are interested in at a point.
-
-            let offsets_result = lock.take(n);
-
-            drop(lock);
-
-            if let Ok(mut offsets) = offsets_result {
-                // If there are no given offsts, await the wakener then.
-                if offsets.is_empty() {
-                    tracing::trace!("[DERIVED TAKE] Awaiting to be notified for produce..");
-                    left_notify.notified().await;
-                    tracing::trace!("[DERIVED TAKE] We've been notified!");
-
-                    offsets = {
-                        let mut lock = left_subscription_ref.write().await;
-                        lock.take(n).unwrap()
-                    };
-                }
-
-                // tracing::trace!(
-                //     "[DERIVED TAKE] Received offsets {:#?}. Initiating Reduce.",
-                //     offsets
-                // );
-
-                //Get payloads from offsets.
                 for (partition, offset) in offsets {
-                    let mut broker_lock = left_broker.write().await;
+                    let records = {
+                        let mut broker_guard = broker_ref.write().await;
 
-                    let consumption = broker_lock
-                        .consume(&left_stream_name, &partition, offset, 50_000)
-                        .await;
+                        broker_guard
+                            .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
+                            .await?
+                            .into_iter()
+                            .filter_map(std::convert::identity)
+                            .collect::<Vec<_>>()
+                    };
 
-                    let mut records = vec![];
+                    tracing::trace!("[MAP] Retrieved records: {:#?}", records);
 
-                    for val in consumption {
-                        let val = val.unwrap();
-                        records.push(val);
+
+                    // In order to begin the reduction for these records, we need to
+                    // retrieve the first record's previous record.
+                    let mut prev_record = match offset.start {
+                        0 => None,
+                        _ => {
+
+                            let mut broker_guard = broker_ref.write().await;
+                            broker_guard
+                            .get_at(
+                                stream_name.as_bytes(),
+                                &partition,
+                                offset.start - 1,
+                            )
+                            .await
+                            .inspect_err(|err| {
+                                tracing::error!(
+                                    "Failed to retrieve offset with error: {:#?}",
+                                    err
+                                )
+                            })
+                            .ok()
+                            .flatten()
+                            .map(|arrow_bytes| {
+                                 tracing::trace!("bytes: {:#?}", arrow_bytes);
+                                let mut batches = read_arrow(&arrow_bytes);
+                                tracing::trace!("batches: {:#?}", batches);
+                                batches.next().inspect(|val| {
+                                    tracing::trace!("Correctly retrieved a value from the batches: {:#?}", val);
+                                }).and_then(|result| result.ok())
+                            })}
                     }
+                    .flatten();
 
-                    drop(broker_lock);
 
-                    for val in records {
-                        tracing::trace!("[DERIVED TAKE] Received consume Response",);
+                    for val in offset.start..=offset.end {
 
-                        let stream_reader = read_arrow(&val);
+                        tracing::trace!("[MAP] Awaiting the broker lock..");
 
-                        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+                        let mut broker_lock = broker_ref.write().await;
 
-                        for record_batch in batches {
-                            let mut broker_lock = left_broker.write().await;
+                        tracing::trace!("[MAP] We are reading the stream values in..");
 
-                            for _ in 0..record_batch.num_rows() {
-                                tracing::trace!("[DERIVED TAKE] Getting the partition key",);
-                                let partition_val = get_partition_key_from_record_batch(
-                                    &record_batch,
-                                    &ColumnName::from(&left.1),
+                        let current_value = broker_lock.get_at(base_stream.0.as_bytes(), &partition, val).await.unwrap().map(|data| {
+                            let mut stream_reader = read_arrow(&data);
+
+                            let batch = stream_reader.next().unwrap().unwrap();
+                             // TODO: We need to ensure that these batches are merged if there are more than one.
+                             batch
+                        }).unwrap();
+
+                        match prev_record.as_ref() {
+                            Some(prev_record) => {
+                                let module = broker_lock
+                                    .functions
+                                    .get_function(
+                                        stream_def.function_name.as_ref().unwrap(),
+                                    )
+                                    .await;
+
+                                tracing::trace!("Applying the function..");
+
+                                let reduced_record_batch = run_reduce_function(
+                                    &current_value,
+                                    &prev_record,
+                                    module,
                                 );
-
-                                tracing::trace!("[DERIVED TAKE] Getting the previous index..",);
-
-                                tracing::trace!("[REDUCE] Check with current offset: {offset}");
-
-                                let prev_record = match offset {
-                                    0 => None,
-                                    _ => broker_lock
-                                        .get_at(
-                                            stream_name.as_bytes(),
-                                            &PartitionName::try_from(&partition_val[..]).unwrap(),
-                                            offset - 1,
-                                        )
-                                        .await
-                                        .inspect_err(|err| {
-                                            tracing::error!(
-                                                "Failed to retrieve offset with error: {:#?}",
-                                                err
-                                            )
-                                        })
-                                        .ok()
-                                        .flatten()
-                                        .map(|arrow_bytes| {
-                                             tracing::trace!("bytes: {:#?}", arrow_bytes);
-                                            let mut batches = read_arrow(&arrow_bytes);
-                                            tracing::trace!("batches: {:#?}", batches);
-                                            batches.next().inspect(|val| {
-                                                tracing::trace!("Correctly retrieved a value from the batches: {:#?}", val);
-                                            }).and_then(|result| result.ok())
-                                        }),
-                                }
-                                .flatten();
 
                                 tracing::trace!(
-                                    "[DERIVED TAKE] Making the change with prev record: {:#?}",
-                                    prev_record
+                                    "Reduced Record batch: {:#?}",
+                                    reduced_record_batch
                                 );
 
-                                match prev_record {
-                                    Some(prev_record) => {
-                                        let module = broker_lock
-                                            .functions
-                                            .get_function(
-                                                stream_def.function_name.as_ref().unwrap(),
-                                            )
-                                            .await;
+                                let result = broker_lock
+                                    .produce(
+                                        stream_name.as_bytes(),
+                                        &partition,
+                                        reduced_record_batch,
+                                    )
+                                    .await;
 
-                                        tracing::trace!("Applying the function..");
-
-                                        let reduced_record_batch = run_reduce_function(
-                                            &record_batch,
-                                            &prev_record,
-                                            module,
-                                        );
-
-                                        tracing::trace!(
-                                            "Reduced Record batch: {:#?}",
-                                            reduced_record_batch
-                                        );
-
-                                        let result = broker_lock
-                                            .produce(
-                                                stream_name.as_bytes(),
-                                                &PartitionName::try_from(&partition_val[..])
-                                                    .unwrap(),
-                                                reduced_record_batch,
-                                            )
-                                            .await;
-
-                                        tracing::trace!(
-                                            "Result from producing with a reduce: {:#?}",
-                                            result
-                                        );
-                                    }
-                                    None => {
-                                        tracing::trace!("No previous index found..");
-
-                                        let _ = broker_lock
-                                            .produce(
-                                                stream_name.as_bytes(),
-                                                &PartitionName::try_from(&partition_val[..])
-                                                    .unwrap(),
-                                                record_batch.clone(),
-                                            )
-                                            .await;
-                                    }
-                                }
+                                tracing::trace!(
+                                    "Result from producing with a reduce: {:#?}",
+                                    result
+                                );
                             }
+                            None => {
+                                tracing::trace!("No previous index found..");
 
-                            drop(broker_lock);
+                                let _ = broker_lock
+                                    .produce(
+                                        stream_name.as_bytes(),
+                                        &partition,
+                                        current_value.clone(),
+                                    )
+                                    .await;
+                            }
                         }
+
+                        prev_record = Some(current_value);
                     }
 
-                    let mut lock = left_subscription_ref.write().await;
+                    let mut lock = subscription.write().await;
 
-                    lock.acknowledge(
-                        &partition,
-                        &std::ops::Range {
-                            start: offset,
-                            end: offset + 1,
-                        },
-                    )
-                    .unwrap();
+                    lock.acknowledge(&partition, &offset)?;
 
                     drop(lock);
                 }
-            } else {
-                tracing::info!("Nothing to take, will just continue..");
-            };
+            }
+        }
+        .await;
+
+        if let Err(err) = result {
+            tracing::error!("An error occurred whilst mapping the stream: {:#?}", err);
         }
     });
 

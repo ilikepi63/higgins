@@ -11,8 +11,7 @@ use std::{env::temp_dir, time::Duration};
 mod common;
 
 #[allow(unused)]
-
-// #[test]
+#[test]
 fn can_implement_basic_reduce() {
     {
         // Delete the current files for this..
