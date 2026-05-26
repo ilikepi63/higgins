@@ -1,12 +1,11 @@
-use super::{joining::opts::eager_range_take_or_wait, utils::ColumnName};
+use super::joining::opts::eager_range_take_or_wait;
 use crate::{
     broker::Broker,
-    derive::utils::get_partition_key_from_record_batch,
     error::HigginsError,
     functions::reduce::run_reduce_function,
     topography::{Key, StreamDefinition},
 };
-use higgins_shared::{PartitionName, read_arrow};
+use higgins_shared::read_arrow;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -49,14 +48,14 @@ pub async fn create_reduced_stream_from_definition(
     };
 
     tokio::task::spawn(async move {
-        tracing::trace!("[MAP] We are being initiated");
+        tracing::trace!("[REDUCE] We are being initiated");
         let result: Result<(), HigginsError> = async {
             loop {
                 let offsets =
                     eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
                         .await?;
 
-                tracing::info!("[MAP] Retrieved offsets in map {:#?}", offsets);
+                tracing::info!("[REDUCE] Retrieved offsets in REDUCE {:#?}", offsets);
 
                 for (partition, offset) in offsets {
                     let records = {
@@ -70,7 +69,7 @@ pub async fn create_reduced_stream_from_definition(
                             .collect::<Vec<_>>()
                     };
 
-                    tracing::trace!("[MAP] Retrieved records: {:#?}", records);
+                    tracing::trace!("[REDUCE] Retrieved records: {:#?}", records);
 
 
                     // In order to begin the reduction for these records, we need to
@@ -109,11 +108,11 @@ pub async fn create_reduced_stream_from_definition(
 
                     for val in offset.start..=offset.end {
 
-                        tracing::trace!("[MAP] Awaiting the broker lock..");
+                        tracing::trace!("[REDUCE] Awaiting the broker lock..");
 
                         let mut broker_lock = broker_ref.write().await;
 
-                        tracing::trace!("[MAP] We are reading the stream values in..");
+                        tracing::trace!("[REDUCE] We are reading the stream values in..");
 
                         let current_value = broker_lock.get_at(base_stream.0.as_bytes(), &partition, val).await.unwrap().map(|data| {
                             let mut stream_reader = read_arrow(&data);
@@ -185,7 +184,7 @@ pub async fn create_reduced_stream_from_definition(
         .await;
 
         if let Err(err) = result {
-            tracing::error!("An error occurred whilst mapping the stream: {:#?}", err);
+            tracing::error!("An error occurred whilst REDUCEping the stream: {:#?}", err);
         }
     });
 
