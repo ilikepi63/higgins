@@ -69,7 +69,7 @@ pub async fn create_reduced_stream_from_definition(
                             .collect::<Vec<_>>()
                     };
 
-                    tracing::trace!("[REDUCE] Retrieved records: {:#?}", records);
+                    // tracing::trace!("[REDUCE] Retrieved records: {:#?}", records);
 
 
                     // In order to begin the reduction for these records, we need to
