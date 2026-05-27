@@ -313,18 +313,25 @@ impl IndexDirectory {
         )?;
         tracing::info!("Retrieved the index_file correctly.");
 
-        let mut buf = vec![0_u8; (offset.end - offset.start) as usize * index_size];
+        let mut buf =
+            vec![0_u8; (offset.end.saturating_add(1) - offset.start) as usize * index_size];
 
+        tracing::debug!("File size in indexes: {}", index_file.len().unwrap());
         tracing::debug!("Buffer size in indexes: {}", buf.len() / index_size);
+        tracing::debug!("Reading from: {}", offset.start);
 
         let n = index_file.read_at_until(offset.start, &mut buf)?;
 
-        tracing::debug!("Read {} indexes", n / index_size as u64);
+        tracing::debug!("Read {} indexes", n);
 
-        Ok((0..=n)
+        let result = (0..=n)
             .zip(buf.chunks(index_size))
             .map(|(_, data)| OwnedIndex::from(Index::of(data, index_type.clone())))
-            .collect())
+            .collect();
+
+        tracing::debug!("Returning {:#?}", result);
+
+        Ok(result)
     }
 
     pub async fn find_batches(

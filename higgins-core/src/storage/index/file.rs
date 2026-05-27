@@ -134,9 +134,12 @@ impl IndexFile {
 
         tracing::debug!("File length: {}", self.file_handle.metadata()?.len());
 
-        let n = self.file_handle.read_at(buffer, offset as u64)?;
+        let n = self
+            .file_handle
+            .read_at(buffer, offset * self.element_size as u64)?;
 
         tracing::debug!("Read {n} bytes from index");
+        tracing::debug!("Read {} indexes from index", n / self.element_size);
 
         Ok((n / self.element_size) as u64)
     }

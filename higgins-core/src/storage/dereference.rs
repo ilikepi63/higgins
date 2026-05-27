@@ -75,6 +75,7 @@ pub async fn dereference(
         }
         Reference::Null => {
             tracing::debug!("Stream def: {:#?}", stream_def);
+            tracing::debug!("No reference");
 
             // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
             // This can also be applied to function types etc.
@@ -210,7 +211,10 @@ impl Reference {
 
     /// Read this struct from bytes.
     pub fn from_bytes(data: &[u8]) -> Self {
+        tracing::debug!("Data: {:#?}", data);
         let t = u16::from_be_bytes(data[0..2].try_into().unwrap());
+        tracing::debug!("u16 data: {:#?}", &data[0..2]);
+        tracing::debug!("u16: {t}",);
 
         match t {
             0 => Self::Null,

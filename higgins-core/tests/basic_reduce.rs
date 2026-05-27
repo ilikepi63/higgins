@@ -74,7 +74,7 @@ fn can_implement_basic_reduce() {
         )
         .unwrap();
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.recv(Some(Duration::from_secs(5))).unwrap(); // await initial produce.
 
     client
         .query_at(b"result", &PartitionName::try_from("1").unwrap(), 0)
@@ -83,7 +83,7 @@ fn can_implement_basic_reduce() {
     let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
         ResponseBody::GetIndex(response) => response,
         _ => panic!("Unexpected response returned."),
-    };
+    }; // Get the result.
 
     let arrow = read_arrow(&result.records.first().unwrap().data.clone())
         .next()
@@ -130,7 +130,7 @@ fn can_implement_basic_reduce() {
         .query_at(b"result", &PartitionName::try_from("1").unwrap(), 1)
         .unwrap();
 
-    let result = match client.recv(Some(Duration::from_secs(60))).unwrap().body {
+    let result = match client.recv(Some(Duration::from_secs(10))).unwrap().body {
         ResponseBody::GetIndex(response) => response,
         _ => panic!("Unexpected response returned."),
     };

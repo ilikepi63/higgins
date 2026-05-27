@@ -323,8 +323,8 @@ impl Subscription {
             tracing::info!("Retrieving current partition: {:#?}", current_partition);
 
             if let Some(partition_offset) = current_partition {
-                println!("{:#?}", partition_offset);
-                println!(
+                tracing::trace!("{:#?}", partition_offset);
+                tracing::trace!(
                     "{} {} {}",
                     partition_offset.end,
                     partition_offset.start,
@@ -332,7 +332,7 @@ impl Subscription {
                 );
 
                 if partition_offset.start > partition_offset.end {
-                    println!("BREAKING, WE HAVE HAD AN END HERE");
+                    tracing::trace!("BREAKING, WE HAVE HAD AN END HERE");
                     // If the end > start, this means by the semantics describe at the top, that this partition has already had everything
                     // consumed.
                     partition_offset_index += 1;
@@ -378,7 +378,7 @@ impl Subscription {
             partition_offset_index += 1;
         }
 
-        println!("Returning: {:#?}", results);
+        tracing::trace!("Returning: {:#?}", results);
 
         Ok(results)
     }

@@ -58,20 +58,27 @@ pub async fn create_reduced_stream_from_definition(
                 tracing::info!("[REDUCE] Retrieved offsets in REDUCE {:#?}", offsets);
 
                 for (partition, offset) in offsets {
+                    tracing::debug!("[REDUCE] Iterating offsets");
                     let records = {
+                        tracing::debug!("[REDUCE] Awaiting broker lock");
+
                         let mut broker_guard = broker_ref.write().await;
 
-                        broker_guard
+                        tracing::debug!("[REDUCE] Acquired broker lock");
+
+                       let range =  broker_guard
                             .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
-                            .await?
-                            .into_iter()
+                            .await.inspect_err(|err| tracing::error!("Retrieved error on try: {:#?}", err))?;
+
+                       tracing::debug!("Retrieved range: {:#?}", range);
+
+                            range.into_iter()
                             .filter_map(std::convert::identity)
+                            .zip(offset.start..=offset.end)
                             .collect::<Vec<_>>()
                     };
 
-                    // tracing::trace!("[REDUCE] Retrieved records: {:#?}", records);
-
-
+                    tracing::debug!("Retrieved {} records for reduction.", records.len());
                     // In order to begin the reduction for these records, we need to
                     // retrieve the first record's previous record.
                     let mut prev_record = match offset.start {
@@ -83,7 +90,7 @@ pub async fn create_reduced_stream_from_definition(
                             .get_at(
                                 stream_name.as_bytes(),
                                 &partition,
-                                offset.start - 1,
+                                offset.start - 1, // TODO: This should be impossible to fail as the invariant forces > 0, perhaps there is a better technique to be used here
                             )
                             .await
                             .inspect_err(|err| {
@@ -95,7 +102,7 @@ pub async fn create_reduced_stream_from_definition(
                             .ok()
                             .flatten()
                             .map(|arrow_bytes| {
-                                 tracing::trace!("bytes: {:#?}", arrow_bytes);
+                                 // tracing::trace!("bytes: {:#?}", arrow_bytes);
                                 let mut batches = read_arrow(&arrow_bytes);
                                 tracing::trace!("batches: {:#?}", batches);
                                 batches.next().inspect(|val| {
@@ -106,7 +113,7 @@ pub async fn create_reduced_stream_from_definition(
                     .flatten();
 
 
-                    for val in offset.start..=offset.end {
+                    for (data, val) in records {
 
                         tracing::trace!("[REDUCE] Awaiting the broker lock..");
 
@@ -114,16 +121,26 @@ pub async fn create_reduced_stream_from_definition(
 
                         tracing::trace!("[REDUCE] We are reading the stream values in..");
 
-                        let current_value = broker_lock.get_at(base_stream.0.as_bytes(), &partition, val).await.unwrap().map(|data| {
+                        let batch = {
                             let mut stream_reader = read_arrow(&data);
 
-                            let batch = stream_reader.next().unwrap().unwrap();
+                            let batch = if let Some(batch) = stream_reader.next() {
+                                batch.inspect_err(|err| tracing::error!("{:#?}",err)).unwrap()
+                            }else {
+                                tracing::error!("No batch returned for current value.   ");
+                                panic!();
+                            };
                              // TODO: We need to ensure that these batches are merged if there are more than one.
                              batch
-                        }).unwrap();
+                        };
+
+                        tracing::debug!("Retrieved current value: {:#?}", batch);
+                        tracing::debug!("Previous value: {:#?}", prev_record    );
 
                         match prev_record.as_ref() {
                             Some(prev_record) => {
+
+                                tracing::info!("Using previous record..");
                                 let module = broker_lock
                                     .functions
                                     .get_function(
@@ -134,7 +151,7 @@ pub async fn create_reduced_stream_from_definition(
                                 tracing::trace!("Applying the function..");
 
                                 let reduced_record_batch = run_reduce_function(
-                                    &current_value,
+                                    &batch,
                                     &prev_record,
                                     module,
                                 );
@@ -156,28 +173,37 @@ pub async fn create_reduced_stream_from_definition(
                                     "Result from producing with a reduce: {:#?}",
                                     result
                                 );
+
+                                let mut lock = subscription.write().await;
+
+                                lock.acknowledge(&partition, &(val..val))?;
+
+                                drop(lock);
                             }
                             None => {
-                                tracing::trace!("No previous index found..");
+                                tracing::trace!("No previous index found. Producing to stream {} key {} ", String::from_utf8_lossy(stream_name.as_bytes()), String::from_utf8_lossy(&partition.0));
 
                                 let _ = broker_lock
                                     .produce(
                                         stream_name.as_bytes(),
                                         &partition,
-                                        current_value.clone(),
+                                        batch.clone(),
                                     )
                                     .await;
+
+                                let mut lock = subscription.write().await;
+
+                                lock.acknowledge(&partition, &(val..val))?;
+
+                                drop(lock);
                             }
                         }
 
-                        prev_record = Some(current_value);
+                        tracing::trace!("Setting previous record to current value.");
+                        prev_record = Some(batch);
                     }
 
-                    let mut lock = subscription.write().await;
 
-                    lock.acknowledge(&partition, &offset)?;
-
-                    drop(lock);
                 }
             }
         }

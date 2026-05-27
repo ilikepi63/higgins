@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match result.body {
                 ResponseBody::Pong(_) => {
-                    println!("Pong!");
+                    !!("Pong!");
                 }
                 _ => {
                     println!("Didn't receive a pong response.");

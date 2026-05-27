@@ -1,6 +1,6 @@
 use super::Broker;
 
-use crate::task::SpawnTaskConfig;
+use crate::{storage::dereference::Reference, task::SpawnTaskConfig};
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -145,12 +145,19 @@ impl Broker {
         let mut result = vec![];
 
         for index in indexes {
+            tracing::debug!("Reference for index");
+            tracing::debug!("HA: {:#?}", &index.inner()[8..8 + Reference::size_of()]);
+
+            tracing::debug!("Reference for index: {:#?}", index.reference());
+
             let deref = dereference(index, stream_def.clone(), partition.clone(), self)
                 .await
                 .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
                 .ok();
             result.push(deref);
         }
+
+        tracing::debug!("Result returning from get_range: {}", result.len());
 
         Ok(result)
     }
