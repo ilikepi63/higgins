@@ -89,11 +89,13 @@ pub async fn dereference(
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
+                    // Retrieve the base schema.
                     let base_stream_schema = broker
                         .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
                         .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
+                    // Create and read the buffer for this index file.
                     let buffer = {
                         let mut derivative_index_file = broker
                             .get_index_file(
@@ -112,8 +114,11 @@ pub async fn dereference(
                         let buffer_size = (index
                             .derivative_range()
                             .end
+                            .saturating_add(1) // Range 0..1 means that the values should return [0,1]
                             .saturating_sub(index.derivative_range().start))
                             as usize;
+
+                        tracing::debug!("Buffer size in indexes: {}", buffer_size);
 
                         let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
 

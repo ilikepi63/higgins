@@ -104,6 +104,8 @@ pub async fn create_windowed_stream_from_definition(
 
                             // debug only, remove after
                             // {
+                            //     tracing::info!("LOOK HERE ");
+                            //     use crate::storage::index::windowed_index::WindowedIndex;
                             //     let mut bytes = [0u8; WindowedIndex::size_of()];
                             //     index_file.read_at(0, &mut bytes).unwrap();
                             //     for index in bytes

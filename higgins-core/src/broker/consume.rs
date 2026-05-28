@@ -1,6 +1,9 @@
 use super::Broker;
 
-use crate::{storage::dereference::Reference, task::SpawnTaskConfig};
+use crate::{
+    storage::{dereference::Reference, index::windowed_index::WindowedIndex},
+    task::SpawnTaskConfig,
+};
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -196,6 +199,11 @@ impl Broker {
 
         if let Some(index) = index {
             tracing::debug!("Dereferencing the reference..");
+            // debugging
+            if *index.type_of() == IndexType::Window {
+                tracing::debug!("{:#?}", WindowedIndex::of(index.inner()));
+            }
+            // end debugging
             dereference(index, stream_def.clone(), partition.clone(), self)
                 .await
                 .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
