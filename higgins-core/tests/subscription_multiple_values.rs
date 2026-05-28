@@ -210,7 +210,7 @@ fn can_update_subscription_with_multiple_values() {
                     0, 0, 0, 0, 0, 0,
                 ],
                 last_completed_offset: 1,
-                max_offset: 1,
+                max_offset: 0,
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,
@@ -263,7 +263,7 @@ fn can_update_subscription_with_multiple_values() {
                     0, 0, 0, 0, 0, 0,
                 ],
                 last_completed_offset: 2,
-                max_offset: 2,
+                max_offset: 1,
             },],
             client_counts: vec![ClientCount {
                 client_id: 1,

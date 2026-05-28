@@ -1,4 +1,4 @@
-use arrow::{array::RecordBatch, record_batch};
+use arrow::array::RecordBatch;
 use higgins_functions::{
     ArbitraryLengthBuffer,
     utils::WasmAllocator,
