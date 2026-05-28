@@ -1,6 +1,9 @@
 use super::Broker;
 
-use crate::task::SpawnTaskConfig;
+use crate::{
+    storage::{dereference::Reference, index::windowed_index::WindowedIndex},
+    task::SpawnTaskConfig,
+};
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -140,15 +143,24 @@ impl Broker {
             )
             .await?;
 
+        tracing::debug!("Result from get_by_range: {:#?}", indexes);
+
         let mut result = vec![];
 
         for index in indexes {
+            tracing::debug!("Reference for index");
+            tracing::debug!("HA: {:#?}", &index.inner()[8..8 + Reference::size_of()]);
+
+            tracing::debug!("Reference for index: {:#?}", index.reference());
+
             let deref = dereference(index, stream_def.clone(), partition.clone(), self)
                 .await
                 .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))
                 .ok();
             result.push(deref);
         }
+
+        tracing::debug!("Result returning from get_range: {}", result.len());
 
         Ok(result)
     }
@@ -187,6 +199,11 @@ impl Broker {
 
         if let Some(index) = index {
             tracing::debug!("Dereferencing the reference..");
+            // debugging
+            if *index.type_of() == IndexType::Window {
+                tracing::debug!("{:#?}", WindowedIndex::of(index.inner()));
+            }
+            // end debugging
             dereference(index, stream_def.clone(), partition.clone(), self)
                 .await
                 .inspect_err(|err| tracing::error!("Error whilst dereferencing: {:#?}", err))

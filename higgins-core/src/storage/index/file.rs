@@ -128,7 +128,20 @@ impl IndexFile {
     ///
     /// Note: offsets are the offsets of the indexes themselves, not the byte offset.
     pub fn read_at_until(&mut self, offset: u64, buffer: &mut [u8]) -> Result<u64, IndexError> {
-        Ok((self.file_handle.read_at(buffer, offset as u64)? / self.element_size) as u64)
+        tracing::debug!("Buffer length: {}", buffer.len());
+
+        tracing::debug!("Index File: {}", self.path.to_string_lossy());
+
+        tracing::debug!("File length: {}", self.file_handle.metadata()?.len());
+
+        let n = self
+            .file_handle
+            .read_at(buffer, offset * self.element_size as u64)?;
+
+        tracing::debug!("Read {n} bytes from index");
+        tracing::debug!("Read {} indexes from index", n / self.element_size);
+
+        Ok((n / self.element_size) as u64)
     }
 
     /// Binary searches through this index file for the boundary where the index

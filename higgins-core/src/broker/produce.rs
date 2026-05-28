@@ -98,7 +98,7 @@ impl Broker {
 
                 tracing::trace!(
                     "[PRODUCE] Notifying the subscription. Subscription end: {}",
-                    offset + 1
+                    offset
                 );
 
                 if subscription
@@ -107,9 +107,9 @@ impl Broker {
                     .find(|sub_key| sub_key.partition_id == *partition)
                     .is_some()
                 {
-                    subscription.set_end(partition, offset + 1)?;
+                    subscription.set_end(partition, offset)?;
                 } else {
-                    subscription.add_partition(partition, 0, offset + 1)?;
+                    subscription.add_partition(partition, 0, offset)?;
                 };
 
                 tracing::info!("SUBSCRIPTION{:#?}", subscription);

@@ -75,6 +75,7 @@ pub async fn dereference(
         }
         Reference::Null => {
             tracing::debug!("Stream def: {:#?}", stream_def);
+            tracing::debug!("No reference");
 
             // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
             // This can also be applied to function types etc.
@@ -88,11 +89,13 @@ pub async fn dereference(
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
+                    // Retrieve the base schema.
                     let base_stream_schema = broker
                         .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
                         .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
+                    // Create and read the buffer for this index file.
                     let buffer = {
                         let mut derivative_index_file = broker
                             .get_index_file(
@@ -111,8 +114,11 @@ pub async fn dereference(
                         let buffer_size = (index
                             .derivative_range()
                             .end
+                            .saturating_add(1) // Range 0..1 means that the values should return [0,1]
                             .saturating_sub(index.derivative_range().start))
                             as usize;
+
+                        tracing::debug!("Buffer size in indexes: {}", buffer_size);
 
                         let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
 
@@ -210,7 +216,10 @@ impl Reference {
 
     /// Read this struct from bytes.
     pub fn from_bytes(data: &[u8]) -> Self {
+        tracing::debug!("Data: {:#?}", data);
         let t = u16::from_be_bytes(data[0..2].try_into().unwrap());
+        tracing::debug!("u16 data: {:#?}", &data[0..2]);
+        tracing::debug!("u16: {t}",);
 
         match t {
             0 => Self::Null,

@@ -74,6 +74,11 @@ impl<'a> Index<'a> {
         Self { index_type, data }
     }
 
+    /// Return type of this index.
+    pub fn type_of(&self) -> &IndexType {
+        &self.index_type
+    }
+
     /// Query for the timestamp of this given
     pub fn timestamp(&self) -> u64 {
         match self.index_type {
@@ -114,6 +119,11 @@ impl OwnedIndex {
             index_type: index.index_type,
             data: index.data.to_vec(),
         }
+    }
+
+    /// Return type of this index.
+    pub fn type_of(&self) -> &IndexType {
+        &self.index_type
     }
 
     /// Query for the timestamp of this given
