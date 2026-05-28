@@ -398,6 +398,31 @@ mod tests {
     }
 
     #[test]
+    fn test_try_put_at_range() {
+        let path = new_file();
+
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+        let mut bytes = [0_u8; DefaultIndex::size_of()];
+
+        DefaultIndex::put(
+            1,
+            crate::storage::dereference::Reference::Null,
+            1,
+            1,
+            1,
+            &mut bytes,
+        )
+        .unwrap();
+
+        file.try_range_put_at(0..1, &mut bytes).unwrap();
+
+        assert_eq!(file.len().unwrap(), 1);
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn append_grows_file_and_remaps() {
         let path = new_file();
 

@@ -130,9 +130,14 @@ pub async fn create_mapped_stream_from_definition(
                                         .await?;
 
                                     let mut index_file =
-                                        broker_lock.get_index_file(stream, &partition).unwrap();
+                                        broker_lock.get_index_file(stream.clone(), &partition).unwrap();
 
                                     let mut index_file_guard = index_file.lock().await;
+
+                                    tracing::info!(
+                                        "[MAP] Retrieved indexfile for stream {stream} and partition {:#?}",
+                                        partition
+                                    );
 
                                     let mut buf = [0_u8; DefaultIndex::size_of()];
 
@@ -148,10 +153,14 @@ pub async fn create_mapped_stream_from_definition(
                                     let offset_usize = offset as usize;
 
                                     index_file_guard
-                                        .try_range_put_at(offset_usize..offset_usize, &mut buf)
+                                        .try_range_put_at(offset_usize..offset_usize.saturating_add(1), &mut buf)
                                         .inspect_err(|err| {
                                             tracing::error!("{:#?}", err);
                                         })?;
+
+                                    tracing::debug!("{:#?}",index_file_guard.len());
+
+                                    tracing::info!("Put the new map index");
                                 }
 
                                 // let result = broker_lock
