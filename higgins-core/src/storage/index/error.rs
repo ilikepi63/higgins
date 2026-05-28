@@ -20,6 +20,8 @@ pub enum IndexError {
     IndexGivenOutOfBoundsForJoinedIndex,
     #[error("Put index out of range")]
     PutIndexOutOfRange,
+    #[error("Attempted to overwrite an index that already exists.")]
+    IndexAlreadyExists(u64, u64),
     #[error("Unknown Index Error")]
     Unknown,
 }

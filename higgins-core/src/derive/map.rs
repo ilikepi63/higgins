@@ -4,6 +4,7 @@ use crate::{
     derive::{joining::opts::eager_range_take_or_wait, utils::get_partition_key_from_record_batch},
     error::HigginsError,
     functions::map::run_map_function,
+    storage::index::default::DefaultIndex,
     topography::{Key, StreamDefinition},
 };
 use higgins_shared::{PartitionName, read_arrow};
@@ -67,12 +68,13 @@ pub async fn create_mapped_stream_from_definition(
                             .await?
                             .into_iter()
                             .filter_map(std::convert::identity)
+                            .zip(offset.start..=offset.end)
                             .collect::<Vec<_>>()
                     };
 
                     tracing::trace!("[MAP] Retrieved records: {:#?}", records);
 
-                    for val in records {
+                    for (val, offset) in records {
                         tracing::trace!("[MAP] Received consume Response");
 
                         let stream_reader = read_arrow(&val);
@@ -114,15 +116,53 @@ pub async fn create_mapped_stream_from_definition(
 
                                 tracing::trace!("[MAP] Producing to the stream..");
 
-                                let result = broker_lock
-                                    .produce(
-                                        stream_name.as_bytes(),
-                                        &PartitionName::try_from(&partition_val[..])?,
-                                        mapped_record_batch,
-                                    )
-                                    .await;
+                                {
+                                    let stream =
+                                        String::from_utf8_lossy(stream_name.as_bytes()).to_string();
+                                    let partition = &PartitionName::try_from(&partition_val[..])?;
 
-                                tracing::trace!("Result from producing with a map: {:#?}", result);
+                                    let reference = broker_lock
+                                        .put_data_store(
+                                            stream.clone(),
+                                            partition,
+                                            mapped_record_batch,
+                                        )
+                                        .await?;
+
+                                    let mut index_file =
+                                        broker_lock.get_index_file(stream, &partition).unwrap();
+
+                                    let mut index_file_guard = index_file.lock().await;
+
+                                    let mut buf = [0_u8; DefaultIndex::size_of()];
+
+                                    DefaultIndex::put(
+                                        offset,
+                                        reference,
+                                        0,
+                                        crate::utils::epoch(),
+                                        0,
+                                        &mut buf,
+                                    )?;
+
+                                    let offset_usize = offset as usize;
+
+                                    index_file_guard
+                                        .try_range_put_at(offset_usize..offset_usize, &mut buf)
+                                        .inspect_err(|err| {
+                                            tracing::error!("{:#?}", err);
+                                        })?;
+                                }
+
+                                // let result = broker_lock
+                                //     .produce(
+                                //         stream_name.as_bytes(),
+                                //         &PartitionName::try_from(&partition_val[..])?,
+                                //         mapped_record_batch,
+                                //     )
+                                //     .await;
+
+                                // tracing::trace!("Result from producing with a map: {:#?}", result);
                             }
 
                             drop(broker_lock);
