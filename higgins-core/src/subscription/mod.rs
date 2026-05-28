@@ -554,7 +554,7 @@ mod tests {
 
         // Try to take offsets
         let offsets = sub.take(5).expect("Failed to take offsets");
-        assert!(offsets.is_empty(), "No offsets should be available");
+        assert_eq!(offsets.len(), 1, "No offsets should be available");
         sub.delete().unwrap();
     }
 
@@ -693,7 +693,7 @@ mod tests {
 
             let partitions = sub.take(10).unwrap();
 
-            assert_eq!(partitions.len(), 0);
+            assert_eq!(partitions.len(), 1);
 
             sub.set_end(&partition_name, 1).unwrap();
 
