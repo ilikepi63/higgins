@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{Message, UploadModuleRequest, UploadModuleResponse, message::Type};
+use higgins_functions::wasmtime::Module;
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -19,8 +20,11 @@ pub async fn handle_upload_module(
         .upload_module_request
         .expect("Marked Upload Module Request without a body.");
 
-    let broker_lock = broker.write().await;
+    let mut broker_lock = broker.write().await;
 
+    let module = Module::new(&broker_lock.wasm_engine, value.clone()).unwrap();
+
+    broker_lock.wasm_modules.push((name.to_owned(), module));
     broker_lock.functions.put_function(&name, value).await;
 
     let mut result = BytesMut::new();

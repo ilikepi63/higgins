@@ -50,6 +50,8 @@ pub struct Broker {
     pub functions: FunctionCollection,
 
     pub task_handler: TaskHandler,
+    pub wasm_engine: higgins_functions::wasmtime::Engine,
+    pub wasm_modules: Vec<(String, higgins_functions::wasmtime::Module)>,
 }
 
 impl Broker {

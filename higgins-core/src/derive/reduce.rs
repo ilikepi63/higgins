@@ -141,20 +141,15 @@ pub async fn create_reduced_stream_from_definition(
                             Some(prev_record) => {
 
                                 tracing::info!("Using previous record..");
-                                let module = broker_lock
-                                    .functions
-                                    .get_function(
-                                        stream_def.function_name.as_ref().unwrap(),
-                                    )
-                                    .await;
+
+                                let module = broker_lock.wasm_modules.iter().find(|(n, _)| n == stream_def.function_name.as_ref().unwrap()).map(|(_, m)| m).unwrap() ;
 
                                 tracing::trace!("Applying the function..");
 
                                 let reduced_record_batch = run_reduce_function(
                                     &batch,
                                     &prev_record,
-                                    module,
-                                );
+                                    &broker_lock.wasm_engine, module                                );
 
                                 tracing::trace!(
                                     "Reduced Record batch: {:#?}",

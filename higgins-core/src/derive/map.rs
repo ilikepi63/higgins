@@ -94,19 +94,18 @@ pub async fn create_mapped_stream_from_definition(
                                     &ColumnName::from(&stream_def),
                                 );
 
+                                let engine = &broker_lock.wasm_engine;
                                 let module = broker_lock
-                                    .functions
-                                    .get_function(
-                                        stream_def
-                                            .function_name
-                                            .as_ref()
-                                            .ok_or(HigginsError::Unknown)?, // TODO: Name this error.
-                                    )
-                                    .await;
+                                    .wasm_modules
+                                    .iter()
+                                    .find(|(n, _)| n == stream_def.function_name.as_ref().unwrap())
+                                    .map(|(_, m)| m)
+                                    .unwrap();
 
                                 tracing::trace!("[MAP] We have fetched the module.");
 
-                                let mapped_record_batch = run_map_function(&record_batch, module);
+                                let mapped_record_batch =
+                                    run_map_function(&record_batch, engine, module);
 
                                 tracing::trace!(
                                     "[MAP] Result from mapping: {:#?}",
