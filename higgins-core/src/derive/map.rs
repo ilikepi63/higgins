@@ -1,7 +1,10 @@
 use super::utils::ColumnName;
 use crate::{
     broker::Broker,
-    derive::{joining::opts::eager_range_take_or_wait, utils::get_partition_key_from_record_batch},
+    derive::{
+        joining::opts::eager_range_take_or_wait,
+        utils::{get_partition_key_from_record_batch, put_default_index_at_range},
+    },
     error::HigginsError,
     functions::map::run_map_function,
     storage::index::default::DefaultIndex,
@@ -121,6 +124,7 @@ pub async fn create_mapped_stream_from_definition(
                                         String::from_utf8_lossy(stream_name.as_bytes()).to_string();
                                     let partition = &PartitionName::try_from(&partition_val[..])?;
 
+                                    // CREATE REFERENCE
                                     let reference = broker_lock
                                         .put_data_store(
                                             stream.clone(),
@@ -129,49 +133,16 @@ pub async fn create_mapped_stream_from_definition(
                                         )
                                         .await?;
 
-                                    let mut index_file =
-                                        broker_lock.get_index_file(stream.clone(), &partition).unwrap();
-
-                                    let mut index_file_guard = index_file.lock().await;
-
-                                    tracing::info!(
-                                        "[MAP] Retrieved indexfile for stream {stream} and partition {:#?}",
-                                        partition
-                                    );
-
-                                    let mut buf = [0_u8; DefaultIndex::size_of()];
-
-                                    DefaultIndex::put(
+                                    // PUT INDEX FILE
+                                    put_default_index_at_range(
+                                        stream,
+                                        partition,
                                         offset,
+                                        &mut broker_lock,
                                         reference,
-                                        0,
-                                        crate::utils::epoch(),
-                                        0,
-                                        &mut buf,
-                                    )?;
-
-                                    let offset_usize = offset as usize;
-
-                                    index_file_guard
-                                        .try_range_put_at(offset_usize..offset_usize.saturating_add(1), &mut buf)
-                                        .inspect_err(|err| {
-                                            tracing::error!("{:#?}", err);
-                                        })?;
-
-                                    tracing::debug!("{:#?}",index_file_guard.len());
-
-                                    tracing::info!("Put the new map index");
+                                    )
+                                    .await?;
                                 }
-
-                                // let result = broker_lock
-                                //     .produce(
-                                //         stream_name.as_bytes(),
-                                //         &PartitionName::try_from(&partition_val[..])?,
-                                //         mapped_record_batch,
-                                //     )
-                                //     .await;
-
-                                // tracing::trace!("Result from producing with a map: {:#?}", result);
                             }
 
                             drop(broker_lock);
