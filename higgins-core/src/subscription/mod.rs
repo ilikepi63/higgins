@@ -267,7 +267,7 @@ impl Subscription {
             let current_partition = self.partitions.get_mut(partition_offset_index);
 
             if let Some(partition_offset) = current_partition {
-                for i in partition_offset.start..partition_offset.end {
+                for i in partition_offset.start..=partition_offset.end {
                     tracing::trace!(
                         "[SUBSCRIPTION TAKE] Taking partition_offset: {:#?}",
                         partition_offset
