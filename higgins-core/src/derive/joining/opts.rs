@@ -1,3 +1,4 @@
+use arrow::record_batch::RecordBatch;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::RwLock;
@@ -5,7 +6,7 @@ use tokio::sync::RwLock;
 use super::subscription::start_join_subscription_task;
 use crate::broker::BrokerIndexFile;
 use crate::broker::utils::get_arrow_data_at;
-use crate::derive::joining::completion::complete_joined_index_file;
+use crate::derive::joining::completion::{complete_from, complete_joined_index_file};
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::{Index, IndexType};
@@ -41,7 +42,7 @@ pub async fn create_join_operator(
 
     // We create the resultant stream that data is zipped into.
     {
-        let join_definition_schema_key = definition.base.1.schema;
+        let join_definition_schema_key = definition.clone().base.1.schema;
 
         let schema = broker.get_schema(&join_definition_schema_key).unwrap();
 
@@ -60,7 +61,7 @@ pub async fn create_join_operator(
 
     // This task awaits all of the given derivative partitions and accumulates them into the
     // new joined stream.
-    let stream: Vec<u8> = definition.base.0.into();
+    let stream: Vec<u8> = definition.clone().base.0.into();
     let n_offsets = definition.joins.len();
 
     // Handle the collection of indexes into the index file.
@@ -69,11 +70,6 @@ pub async fn create_join_operator(
         async move {
             while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
                 for (partition, offset) in partition_offset_vec {
-                    tracing::trace!(
-                        "[JOIN COLLECTION] Opening index file with size: {}",
-                        JoinedIndex::size_of(n_offsets)
-                    );
-
                     // Retrieve the Index file, given the stream name and partition key.
                     let mut index_file = {
                         let mut broker = broker_ref.write().await;
@@ -88,24 +84,92 @@ pub async fn create_join_operator(
                         index_file
                     };
 
-                    tracing::trace!("[JOIN COLLECTION] Opened the index file for appending..",);
-
-                    // Read before write operation to append a joined index to the index file.
-                    append_index_to_stream(&mut index_file, n_offsets, index, offset).await;
-
+                    // We complete the indexes, ascerting that
                     let indexes = complete_joined_index_file(&mut index_file, n_offsets)
                         .await
                         .unwrap();
 
                     amalgamate_indexes(
                         amalgamate_definition.clone(),
-                        partition,
-                        indexes,
+                        partition.clone(),
+                        indexes.clone(),
                         &mut index_file,
                         amalgamate_broker.clone(),
                     )
                     .await
                     .unwrap();
+
+                    // we first make a voodoo index.
+                    let optimistic_range = std::ops::Range {
+                        start: indexes.end,
+                        end: indexes.end.saturating_add(1),
+                    };
+
+                    // Create the index.
+                    let mut optimistic_index = vec![0_u8; JoinedIndex::size_of(n_offsets)];
+
+                    JoinedIndex::put(
+                        optimistic_range.end as u64,
+                        Reference::Null,
+                        epoch(),
+                        &(0..n_offsets)
+                            .into_iter()
+                            .map(|i| if i == index { Some(offset) } else { None })
+                            .collect::<Vec<_>>(),
+                        &mut optimistic_index,
+                    )
+                    .unwrap();
+
+                    let last_completed_index = {
+                        let mut guard = index_file.lock().await;
+                        // TODO: Fix this, if there is no previous index, just complete the current index.
+                        let mut buf = vec![0_u8; JoinedIndex::size_of(n_offsets)];
+                        guard.read_at(optimistic_range.start, &mut buf).unwrap();
+                        buf
+                    };
+
+                    complete_from(&mut optimistic_index, &last_completed_index, n_offsets).unwrap();
+
+                    let data = amalgamate_join(
+                        &optimistic_index,
+                        definition.clone(),
+                        partition.clone(),
+                        broker_ref.clone(),
+                    )
+                    .await
+                    .unwrap();
+
+                    let stream = String::from_utf8_lossy(definition.base.0.as_bytes()).to_string();
+
+                    {
+                        let broker_guard = broker_ref.write().await;
+
+                        let reference = broker_guard
+                            .put_data_store(stream.clone(), &partition, data)
+                            .await
+                            .unwrap();
+
+                        JoinedIndex::put_reference_static(reference, &mut optimistic_index);
+
+                        let mut index_file_guard = index_file.lock().await;
+
+                        tracing::info!(
+                            "Retrieved indexfile for stream {stream} and partition {:#?}",
+                            partition
+                        );
+
+                        index_file_guard
+                            .try_range_put_at(
+                                optimistic_range.end..optimistic_range.end.saturating_add(1),
+                                &mut optimistic_index,
+                            )
+                            .inspect_err(|err| {
+                                tracing::error!("{:#?}", err);
+                            })
+                            .unwrap();
+
+                        tracing::debug!("{:#?}", index_file_guard.len());
+                    }
                 }
             }
         },
@@ -401,6 +465,73 @@ pub async fn amalgamate_indexes(
     }
 
     Ok(())
+}
+
+pub async fn amalgamate_join(
+    index: &[u8],
+    definition: JoinDefinition,
+    partition: PartitionName,
+    broker: Arc<RwLock<Broker>>,
+) -> Result<RecordBatch, HigginsError> {
+    let index = JoinedIndex::of(index);
+    let join_mapping = definition.clone().mapping;
+
+    // Query the other offset data from this index_file.
+    let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
+        let offset = index.get_offset(i);
+
+        tracing::trace!(
+            "[JOIN COMPLETION] Working on the offset for derivate data: {}",
+            i,
+        );
+
+        tracing::trace!("[JOIN COMPLETION] Offset data: {:#?}", offset);
+
+        match offset {
+            Some(offset) => {
+                tracing::trace!("[JOIN COMPLETION] Successfully retrieved the offset.");
+
+                tracing::trace!(
+                    "[FOURTH HANDLE] We are attempting to retrieve the lock on the broker. "
+                );
+
+                let arrow_data = get_arrow_data_at(
+                    definition.joins.get(i).unwrap().stream.0.as_bytes(),
+                    &partition,
+                    offset,
+                    broker.clone(),
+                )
+                .await;
+
+                Some((i, arrow_data))
+            }
+            None => {
+                tracing::trace!("[JOIN COMPLETION] Couldn't find data for indexed value");
+
+                // This means that a derivative offset in the joined stream doesn't exist yet.
+                None
+            }
+        }
+    }))
+    .await
+    .iter()
+    // Retrieve the stream names for the given indexes.
+    .map(|data| {
+        data.as_ref().map(|(index, data)| {
+            let stream = definition.joins.get(*index).unwrap();
+            (
+                String::from_utf8(stream.stream.0.as_bytes().to_owned()).unwrap(),
+                data.clone(),
+            )
+        })
+    })
+    .collect::<Vec<_>>();
+
+    tracing::info!("We are amalgamating the derivative data now.");
+    tracing::trace!("Derived Data: {:#?}", derivative_data);
+    let resultant_record_batch = join_mapping.map_arrow(derivative_data).unwrap();
+
+    Ok(resultant_record_batch)
 }
 
 #[cfg(test)]
