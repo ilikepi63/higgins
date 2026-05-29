@@ -1,5 +1,5 @@
 use super::joining::opts::eager_range_take_or_wait;
-use super::utils::put_default_index_at_range;
+use super::utils::put_default_index_at;
 use crate::{
     broker::Broker,
     error::HigginsError,
@@ -173,7 +173,7 @@ pub async fn create_reduced_stream_from_definition(
                                     // PUT INDEX FILE
                                     //
                                     // TODO: Ranging would likely be better here.
-                                    put_default_index_at_range(
+                                    put_default_index_at(
                                         stream,
                                         &partition,
                                         val,

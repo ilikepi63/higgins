@@ -4,6 +4,7 @@ use arrow::{
     util::display::array_value_to_string,
 };
 use higgins_shared::PartitionName;
+use std::ops::Range;
 use tokio::sync::RwLockWriteGuard;
 
 /// Helper function to retrieve the field and array given a column name.
@@ -63,8 +64,6 @@ pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &Colum
     value.unwrap().as_bytes().to_vec()
 }
 
-use std::ops::Range;
-
 use crate::{
     broker::Broker, error::HigginsError, storage::dereference::Reference,
     topography::StreamDefinition,
@@ -81,7 +80,7 @@ pub fn iter_buffer(
 use crate::storage::index::default::DefaultIndex;
 
 /// Helper for this specific operaion
-pub async fn put_default_index_at_range(
+pub async fn put_default_index_at(
     stream: String,
     partition: &PartitionName,
     offset: u64,
@@ -105,6 +104,63 @@ pub async fn put_default_index_at_range(
 
     index_file_guard
         .try_range_put_at(offset_usize..offset_usize.saturating_add(1), &mut buf)
+        .inspect_err(|err| {
+            tracing::error!("{:#?}", err);
+        })?;
+
+    tracing::debug!("{:#?}", index_file_guard.len());
+
+    Ok(())
+}
+
+/// Helper for putting a set of DefaultIndexes at a range.
+pub async fn put_default_index_at_range(
+    stream: String,
+    partition: &PartitionName,
+    offset: Range<u64>,
+    broker: &mut RwLockWriteGuard<'_, Broker>,
+    references: &[Reference],
+) -> Result<(), HigginsError> {
+    // References and offsets need to be the same length.
+    let offsets_len = (offset.end - offset.start + 1) as usize;
+    if offsets_len != references.len() {
+        return Err(HigginsError::Unknown);
+    }
+
+    let mut index_file = broker.get_index_file(stream.clone(), partition).unwrap();
+
+    let mut index_file_guard = index_file.lock().await;
+
+    tracing::info!(
+        "Retrieved indexfile for stream {stream} and partition {:#?}",
+        partition
+    );
+
+    let mut buf = vec![0_u8; DefaultIndex::size_of() * offsets_len];
+
+    buf.chunks_mut(DefaultIndex::size_of())
+        .zip(offset.start..=offset.end)
+        .zip(references)
+        .map(|((mut chunk, offset), reference)| {
+            DefaultIndex::put(
+                offset,
+                reference.clone(),
+                0,
+                crate::utils::epoch(),
+                0,
+                &mut chunk,
+            )
+        })
+        .collect::<Result<Vec<()>, std::io::Error>>()?;
+
+    let offset_start_usize = offset.start as usize;
+    let offset_end_usize = offset.end as usize;
+
+    index_file_guard
+        .try_range_put_at(
+            offset_start_usize..offset_end_usize.saturating_add(1),
+            &mut buf,
+        )
         .inspect_err(|err| {
             tracing::error!("{:#?}", err);
         })?;

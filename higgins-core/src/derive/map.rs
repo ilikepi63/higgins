@@ -1,4 +1,5 @@
 use super::utils::ColumnName;
+use crate::subscription::Subscription;
 use crate::{
     broker::Broker,
     derive::{
@@ -7,11 +8,143 @@ use crate::{
     },
     error::HigginsError,
     functions::map::run_map_function,
+    storage::dereference::Reference,
     topography::{Key, StreamDefinition},
 };
 use higgins_shared::{PartitionName, read_arrow};
+use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+pub struct MapOperation {
+    broker: Arc<RwLock<Broker>>,
+    stream_name: Key,
+    stream_def: StreamDefinition,
+    base_stream: (Key, StreamDefinition),
+    partition: PartitionName,
+    offset: Range<u64>,
+    references: Option<Vec<Reference>>,
+    subscription: Arc<RwLock<Subscription>>,
+}
+
+impl MapOperation {
+    pub async fn init(&mut self) -> Result<(), HigginsError> {
+        // Init
+
+        let records = {
+            let mut broker_guard = self.broker.write().await;
+
+            broker_guard
+                .get_range(
+                    self.base_stream.0.as_bytes(),
+                    &self.partition,
+                    self.offset.clone(),
+                )
+                .await?
+                .into_iter()
+                .filter_map(std::convert::identity)
+                .zip(self.offset.start..=self.offset.end)
+                .collect::<Vec<_>>()
+        };
+
+        tracing::trace!("[MAP] Retrieved records: {:#?}", records);
+
+        let mut references = vec![];
+
+        for (val, offset) in records {
+            tracing::trace!("[MAP] Received consume Response");
+
+            let stream_reader = read_arrow(&val);
+
+            let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+
+            tracing::trace!("[MAP] Iterating through batches..");
+
+            for record_batch in batches {
+                tracing::trace!("[MAP] Awaiting the broker lock..");
+
+                let broker_lock = self.broker.write().await;
+
+                tracing::trace!("[MAP] We are reading the stream values in..");
+
+                for _ in 0..record_batch.num_rows() {
+                    let partition_val = get_partition_key_from_record_batch(
+                        &record_batch,
+                        &ColumnName::from(&self.stream_def),
+                    );
+
+                    let engine = &broker_lock.wasm_engine;
+                    let module = broker_lock
+                        .wasm_modules
+                        .iter()
+                        .find(|(n, _)| n == self.stream_def.function_name.as_ref().unwrap())
+                        .map(|(_, m)| m)
+                        .unwrap();
+
+                    tracing::trace!("[MAP] We have fetched the module.");
+
+                    let mapped_record_batch = run_map_function(&record_batch, engine, module);
+
+                    tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
+
+                    tracing::trace!("[MAP] Producing to the stream..");
+
+                    {
+                        let stream =
+                            String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+                        let partition = &PartitionName::try_from(&partition_val[..])?;
+
+                        // CREATE REFERENCE
+                        let reference = broker_lock
+                            .put_data_store(stream.clone(), partition, mapped_record_batch)
+                            .await?;
+
+                        references.push(reference);
+                    }
+                }
+
+                drop(broker_lock);
+            }
+        }
+
+        self.references = Some(references);
+
+        Ok(())
+
+        // PREPARE
+        // COMMIT
+    }
+    pub async fn prepare(&mut self) -> Result<(), HigginsError> {
+        Ok(())
+    }
+    pub async fn commit(&mut self) -> Result<(), HigginsError> {
+        match self.references.as_ref() {
+            Some(references) => {
+                let mut broker_guard = self.broker.write().await;
+
+                let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+
+                put_default_index_at_range(
+                    stream,
+                    &self.partition,
+                    self.offset.clone(),
+                    &mut broker_guard,
+                    references,
+                )
+                .await?;
+
+                let mut lock = self.subscription.write().await;
+
+                lock.acknowledge(&self.partition, &self.offset)?;
+
+                drop(lock);
+
+                Ok(())
+            }
+            None => Err(HigginsError::Unknown),
+        }
+    }
+}
 
 pub async fn create_mapped_stream_from_definition(
     stream_name: Key,
@@ -62,97 +195,123 @@ pub async fn create_mapped_stream_from_definition(
                 tracing::info!("[MAP] Retrieved offsets in map {:#?}", offsets);
 
                 for (partition, offset) in offsets {
-                    let records = {
-                        let mut broker_guard = broker_ref.write().await;
-
-                        broker_guard
-                            .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
-                            .await?
-                            .into_iter()
-                            .filter_map(std::convert::identity)
-                            .zip(offset.start..=offset.end)
-                            .collect::<Vec<_>>()
+                    let mut operation = MapOperation {
+                        broker: broker_ref.clone(),
+                        stream_name: stream_name.clone(),
+                        stream_def: stream_def.clone(),
+                        base_stream: base_stream.clone(),
+                        partition: partition.clone(),
+                        offset: offset.clone(),
+                        references: None,
+                        subscription: subscription.clone(),
                     };
 
-                    tracing::trace!("[MAP] Retrieved records: {:#?}", records);
+                    operation.init().await.unwrap();
+                    operation.prepare().await.unwrap();
+                    operation.commit().await.unwrap();
 
-                    for (val, offset) in records {
-                        tracing::trace!("[MAP] Received consume Response");
+                    // // Init
+                    // let records = {
+                    //     let mut broker_guard = broker_ref.write().await;
 
-                        let stream_reader = read_arrow(&val);
+                    //     broker_guard
+                    //         .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
+                    //         .await?
+                    //         .into_iter()
+                    //         .filter_map(std::convert::identity)
+                    //         .zip(offset.start..=offset.end)
+                    //         .collect::<Vec<_>>()
+                    // };
 
-                        let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
+                    // tracing::trace!("[MAP] Retrieved records: {:#?}", records);
 
-                        tracing::trace!("[MAP] Iterating through batches..");
+                    // let mut references = vec![];
 
-                        for record_batch in batches {
-                            tracing::trace!("[MAP] Awaiting the broker lock..");
+                    // for (val, offset) in records {
+                    //     tracing::trace!("[MAP] Received consume Response");
 
-                            let mut broker_lock = broker_ref.write().await;
+                    //     let stream_reader = read_arrow(&val);
 
-                            tracing::trace!("[MAP] We are reading the stream values in..");
+                    //     let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            for _ in 0..record_batch.num_rows() {
-                                let partition_val = get_partition_key_from_record_batch(
-                                    &record_batch,
-                                    &ColumnName::from(&stream_def),
-                                );
+                    //     tracing::trace!("[MAP] Iterating through batches..");
 
-                                let engine = &broker_lock.wasm_engine;
-                                let module = broker_lock
-                                    .wasm_modules
-                                    .iter()
-                                    .find(|(n, _)| n == stream_def.function_name.as_ref().unwrap())
-                                    .map(|(_, m)| m)
-                                    .unwrap();
+                    //     for record_batch in batches {
+                    //         tracing::trace!("[MAP] Awaiting the broker lock..");
 
-                                tracing::trace!("[MAP] We have fetched the module.");
+                    //         let broker_lock = broker_ref.write().await;
 
-                                let mapped_record_batch =
-                                    run_map_function(&record_batch, engine, module);
+                    //         tracing::trace!("[MAP] We are reading the stream values in..");
 
-                                tracing::trace!(
-                                    "[MAP] Result from mapping: {:#?}",
-                                    mapped_record_batch
-                                );
+                    //         for _ in 0..record_batch.num_rows() {
+                    //             let partition_val = get_partition_key_from_record_batch(
+                    //                 &record_batch,
+                    //                 &ColumnName::from(&stream_def),
+                    //             );
 
-                                tracing::trace!("[MAP] Producing to the stream..");
+                    //             let engine = &broker_lock.wasm_engine;
+                    //             let module = broker_lock
+                    //                 .wasm_modules
+                    //                 .iter()
+                    //                 .find(|(n, _)| n == stream_def.function_name.as_ref().unwrap())
+                    //                 .map(|(_, m)| m)
+                    //                 .unwrap();
 
-                                {
-                                    let stream =
-                                        String::from_utf8_lossy(stream_name.as_bytes()).to_string();
-                                    let partition = &PartitionName::try_from(&partition_val[..])?;
+                    //             tracing::trace!("[MAP] We have fetched the module.");
 
-                                    // CREATE REFERENCE
-                                    let reference = broker_lock
-                                        .put_data_store(
-                                            stream.clone(),
-                                            partition,
-                                            mapped_record_batch,
-                                        )
-                                        .await?;
+                    //             let mapped_record_batch =
+                    //                 run_map_function(&record_batch, engine, module);
 
-                                    // PUT INDEX FILE
-                                    put_default_index_at_range(
-                                        stream,
-                                        partition,
-                                        offset,
-                                        &mut broker_lock,
-                                        reference,
-                                    )
-                                    .await?;
-                                }
-                            }
+                    //             tracing::trace!(
+                    //                 "[MAP] Result from mapping: {:#?}",
+                    //                 mapped_record_batch
+                    //             );
 
-                            drop(broker_lock);
-                        }
-                    }
+                    //             tracing::trace!("[MAP] Producing to the stream..");
 
-                    let mut lock = subscription.write().await;
+                    //             {
+                    //                 let stream =
+                    //                     String::from_utf8_lossy(stream_name.as_bytes()).to_string();
+                    //                 let partition = &PartitionName::try_from(&partition_val[..])?;
 
-                    lock.acknowledge(&partition, &offset)?;
+                    //                 // CREATE REFERENCE
+                    //                 let reference = broker_lock
+                    //                     .put_data_store(
+                    //                         stream.clone(),
+                    //                         partition,
+                    //                         mapped_record_batch,
+                    //                     )
+                    //                     .await?;
 
-                    drop(lock);
+                    //                 references.push(reference);
+                    //             }
+                    //         }
+
+                    //         drop(broker_lock);
+                    //     }
+                    // }
+
+                    // // PREPARE
+                    // // COMMIT
+
+                    // let mut broker_guard = broker_ref.write().await;
+
+                    // let stream = String::from_utf8_lossy(stream_name.as_bytes()).to_string();
+
+                    // put_default_index_at_range(
+                    //     stream,
+                    //     &partition,
+                    //     offset.clone(),
+                    //     &mut broker_guard,
+                    //     &references,
+                    // )
+                    // .await?;
+
+                    // let mut lock = subscription.write().await;
+
+                    // lock.acknowledge(&partition, &offset)?;
+
+                    // drop(lock);
                 }
             }
         }
