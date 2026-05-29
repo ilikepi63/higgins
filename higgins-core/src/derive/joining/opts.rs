@@ -6,10 +6,9 @@ use tokio::sync::RwLock;
 use super::subscription::start_join_subscription_task;
 use crate::broker::BrokerIndexFile;
 use crate::broker::utils::get_arrow_data_at;
-use crate::derive::joining::completion::{complete_from, complete_joined_index_file};
+use crate::derive::joining::completion::complete_from;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::storage::index::{Index, IndexType};
 use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
@@ -38,7 +37,6 @@ pub async fn create_join_operator(
 
     // Redefined for movements.
     let amalgamate_definition = definition.clone();
-    let amalgamate_broker = broker_ref.clone();
 
     // We create the resultant stream that data is zipped into.
     {
@@ -83,21 +81,6 @@ pub async fn create_join_operator(
                         drop(broker);
                         index_file
                     };
-
-                    // We complete the indexes, ascerting that
-                    let indexes = complete_joined_index_file(&mut index_file, n_offsets)
-                        .await
-                        .unwrap();
-
-                    amalgamate_indexes(
-                        amalgamate_definition.clone(),
-                        partition.clone(),
-                        indexes.clone(),
-                        &mut index_file,
-                        amalgamate_broker.clone(),
-                    )
-                    .await
-                    .unwrap();
 
                     // we first make a voodoo index.
                     let optimistic_offset = {
@@ -296,116 +279,6 @@ pub async fn eager_range_take_or_wait(
         }
         _ => Ok(offsets),
     }
-}
-
-pub async fn amalgamate_indexes(
-    definition: JoinDefinition,
-    partition: PartitionName,
-    indexes: std::ops::Range<usize>,
-    index_file: &mut BrokerIndexFile,
-    broker: Arc<RwLock<Broker>>,
-) -> Result<(), HigginsError> {
-    tracing::trace!("[JOIN AMALGAMATION] Retrieved completed indexes, starting the join mapping. ");
-
-    let element_size = JoinedIndex::size_of(definition.joins.len());
-
-    // Get the actual mapping.
-    let join_mapping = definition.clone().mapping;
-
-    tracing::trace!("[JOIN AMALGAMATION] Awaiting the lock..");
-
-    let mut file = index_file.lock().await;
-
-    tracing::trace!("[JOIN AMALGAMATION] Retrieved the lock..");
-
-    let mut buffer =
-        vec![0_u8; (indexes.end - indexes.start) * JoinedIndex::size_of(definition.joins.len())];
-
-    file.read_at(indexes.start, &mut buffer).unwrap();
-
-    tracing::trace!("[JOIN AMALGAMATION] Received the indexes");
-
-    for (index, i) in buffer
-        .chunks(element_size)
-        .zip(indexes)
-        .map(|(index, i)| (JoinedIndex::of(index), i))
-    {
-        // Query the other offset data from this index_file.
-        let derivative_data = futures::future::join_all((0..index.offset_len()).map(async |i| {
-            let offset = index.get_offset(i);
-
-            tracing::trace!(
-                "[JOIN COMPLETION] Working on the offset for derivate data: {}",
-                i,
-            );
-
-            tracing::trace!("[JOIN COMPLETION] Offset data: {:#?}", offset);
-
-            match offset {
-                Some(offset) => {
-                    tracing::trace!("[JOIN COMPLETION] Successfully retrieved the offset.");
-
-                    tracing::trace!(
-                        "[FOURTH HANDLE] We are attempting to retrieve the lock on the broker. "
-                    );
-
-                    let arrow_data = get_arrow_data_at(
-                        definition.joins.get(i).unwrap().stream.0.as_bytes(),
-                        &partition,
-                        offset,
-                        broker.clone(),
-                    )
-                    .await;
-
-                    Some((i, arrow_data))
-                }
-                None => {
-                    tracing::trace!("[JOIN COMPLETION] Couldn't find data for indexed value");
-
-                    // This means that a derivative offset in the joined stream doesn't exist yet.
-                    None
-                }
-            }
-        }))
-        .await
-        .iter()
-        // Retrieve the stream names for the given indexes.
-        .map(|data| {
-            data.as_ref().map(|(index, data)| {
-                let stream = definition.joins.get(*index).unwrap();
-                (
-                    String::from_utf8(stream.stream.0.as_bytes().to_owned()).unwrap(),
-                    data.clone(),
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-
-        tracing::info!("We are amalgamating the derivative data now.");
-        tracing::trace!("Derived Data: {:#?}", derivative_data);
-        let resultant_record_batch = join_mapping.map_arrow(derivative_data).unwrap();
-
-        let broker = broker.write().await;
-
-        let mut top_level_index = Index::of(index.inner(), IndexType::Join);
-
-        tracing::trace!("Putting at index: {:#?}", top_level_index);
-        // Places the data at the reference.
-        let mut new_index = broker
-            .put_data(
-                definition.base.0.clone().into(),
-                // String::from_utf8(stream.base.0.as_bytes().to_owned()).unwrap(),
-                &partition,
-                &mut top_level_index,
-                resultant_record_batch,
-            )
-            .await
-            .unwrap();
-
-        file.put_at(i as u64, &mut new_index).unwrap();
-    }
-
-    Ok(())
 }
 
 pub async fn amalgamate_join(
