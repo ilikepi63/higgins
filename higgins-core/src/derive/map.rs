@@ -7,7 +7,6 @@ use crate::{
     },
     error::HigginsError,
     functions::map::run_map_function,
-    storage::index::default::DefaultIndex,
     topography::{Key, StreamDefinition},
 };
 use higgins_shared::{PartitionName, read_arrow};

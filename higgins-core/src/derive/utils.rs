@@ -4,7 +4,7 @@ use arrow::{
     util::display::array_value_to_string,
 };
 use higgins_shared::PartitionName;
-use tokio::sync::{RwLock, RwLockWriteGuard};
+use tokio::sync::RwLockWriteGuard;
 
 /// Helper function to retrieve the field and array given a column name.
 #[allow(unused)]
@@ -63,7 +63,7 @@ pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &Colum
     value.unwrap().as_bytes().to_vec()
 }
 
-use std::ops::{DerefMut, Range};
+use std::ops::Range;
 
 use crate::{
     broker::Broker, error::HigginsError, storage::dereference::Reference,

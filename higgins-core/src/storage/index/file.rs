@@ -104,7 +104,9 @@ impl IndexFile {
         bytes: &mut [u8],
     ) -> Result<(), IndexError> {
         // Just need to check the overlap between the range and the file.
-        if offset.start * self.element_size != self.len()?.saturating_sub(1) {
+        let file_len = self.len()?;
+
+        if offset.start != file_len {
             return Err(IndexError::IndexAlreadyExists(
                 offset.start as u64,
                 self.len()? as u64,
@@ -374,6 +376,7 @@ mod tests {
     use crate::storage::index::default::DefaultIndex;
     use crate::storage::index::joined_index::JoinedIndex;
     use std::fs;
+    use std::panic::catch_unwind;
     use std::path::PathBuf;
 
     fn new_file() -> PathBuf {
@@ -401,25 +404,43 @@ mod tests {
     fn test_try_put_at_range() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+        if path.exists() {
+            fs::remove_file(&path).unwrap();
+        }
 
-        let mut bytes = [0_u8; DefaultIndex::size_of()];
+        let result = catch_unwind(|| {
+            let mut file =
+                IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
-        DefaultIndex::put(
-            1,
-            crate::storage::dereference::Reference::Null,
-            1,
-            1,
-            1,
-            &mut bytes,
-        )
-        .unwrap();
+            let mut bytes = [0_u8; DefaultIndex::size_of()];
 
-        file.try_range_put_at(0..1, &mut bytes).unwrap();
+            DefaultIndex::put(
+                1,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                1,
+                &mut bytes,
+            )
+            .unwrap();
 
-        assert_eq!(file.len().unwrap(), 1);
+            file.try_range_put_at(0..1, &mut bytes).unwrap();
+
+            assert_eq!(file.len().unwrap(), 1);
+
+            file.try_range_put_at(1..2, &mut bytes).unwrap();
+
+            assert_eq!(file.len().unwrap(), 2);
+
+            assert!(matches!(
+                file.try_range_put_at(1..2, &mut bytes),
+                Err(IndexError::IndexAlreadyExists(_, _))
+            ));
+        });
 
         fs::remove_file(path).unwrap();
+
+        result.unwrap();
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use super::joining::opts::eager_range_take_or_wait;
+use super::utils::put_default_index_at_range;
 use crate::{
     broker::Broker,
     error::HigginsError,
@@ -156,18 +157,32 @@ pub async fn create_reduced_stream_from_definition(
                                     reduced_record_batch
                                 );
 
-                                let result = broker_lock
-                                    .produce(
-                                        stream_name.as_bytes(),
-                                        &partition,
-                                        reduced_record_batch,
-                                    )
-                                    .await;
+                                {
+                                    let stream =
+                                        String::from_utf8_lossy(stream_name.as_bytes()).to_string();
 
-                                tracing::trace!(
-                                    "Result from producing with a reduce: {:#?}",
-                                    result
-                                );
+                                    // CREATE REFERENCE
+                                    let reference = broker_lock
+                                        .put_data_store(
+                                            stream.clone(),
+                                           &partition,
+                                            reduced_record_batch,
+                                        )
+                                        .await?;
+
+                                    // PUT INDEX FILE
+                                    //
+                                    // TODO: Ranging would likely be better here.
+                                    put_default_index_at_range(
+                                        stream,
+                                        &partition,
+                                        val,
+                                        &mut broker_lock,
+                                        reference,
+                                    )
+                                    .await?;
+                                }
+
 
                                 let mut lock = subscription.write().await;
 
