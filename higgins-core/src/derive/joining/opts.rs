@@ -100,16 +100,16 @@ pub async fn create_join_operator(
                     .unwrap();
 
                     // we first make a voodoo index.
-                    let optimistic_range = std::ops::Range {
-                        start: indexes.end,
-                        end: indexes.end.saturating_add(1),
+                    let optimistic_offset = {
+                        let guard = index_file.lock().await;
+                        guard.len().unwrap()
                     };
 
                     // Create the index.
                     let mut optimistic_index = vec![0_u8; JoinedIndex::size_of(n_offsets)];
 
                     JoinedIndex::put(
-                        optimistic_range.end as u64,
+                        optimistic_offset as u64,
                         Reference::Null,
                         epoch(),
                         &(0..n_offsets)
@@ -120,15 +120,25 @@ pub async fn create_join_operator(
                     )
                     .unwrap();
 
-                    let last_completed_index = {
-                        let mut guard = index_file.lock().await;
-                        // TODO: Fix this, if there is no previous index, just complete the current index.
-                        let mut buf = vec![0_u8; JoinedIndex::size_of(n_offsets)];
-                        guard.read_at(optimistic_range.start, &mut buf).unwrap();
-                        buf
-                    };
+                    if optimistic_offset > 0 {
+                        tracing::trace!("Completing the index from the previous index.");
+                        let last_completed_index = {
+                            let mut guard = index_file.lock().await;
+                            // TODO: Fix this, if there is no previous index, just complete the current index.
+                            let mut buf = vec![0_u8; JoinedIndex::size_of(n_offsets)];
+                            guard
+                                .read_at(optimistic_offset.saturating_sub(1), &mut buf)
+                                .unwrap();
+                            buf
+                        };
 
-                    complete_from(&mut optimistic_index, &last_completed_index, n_offsets).unwrap();
+                        complete_from(&mut optimistic_index, &last_completed_index, n_offsets)
+                            .unwrap();
+                    } else {
+                        tracing::trace!("Completing the index without a previous index..");
+
+                        JoinedIndex::set_completed(&mut optimistic_index);
+                    }
 
                     let data = amalgamate_join(
                         &optimistic_index,
@@ -139,6 +149,8 @@ pub async fn create_join_operator(
                     .await
                     .unwrap();
 
+                    tracing::trace!("Completed amalmagamation: {:#?}", data);
+
                     let stream = String::from_utf8_lossy(definition.base.0.as_bytes()).to_string();
 
                     {
@@ -148,6 +160,8 @@ pub async fn create_join_operator(
                             .put_data_store(stream.clone(), &partition, data)
                             .await
                             .unwrap();
+
+                        tracing::trace!("Created the Reference: {:#?}", reference);
 
                         JoinedIndex::put_reference_static(reference, &mut optimistic_index);
 
@@ -160,7 +174,7 @@ pub async fn create_join_operator(
 
                         index_file_guard
                             .try_range_put_at(
-                                optimistic_range.end..optimistic_range.end.saturating_add(1),
+                                optimistic_offset..optimistic_offset.saturating_add(1),
                                 &mut optimistic_index,
                             )
                             .inspect_err(|err| {
@@ -168,7 +182,7 @@ pub async fn create_join_operator(
                             })
                             .unwrap();
 
-                        tracing::debug!("{:#?}", index_file_guard.len());
+                        tracing::debug!("Completed join. Length: {:#?}", index_file_guard.len());
                     }
                 }
             }
