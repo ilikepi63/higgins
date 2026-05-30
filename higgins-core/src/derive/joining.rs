@@ -27,12 +27,7 @@ use crate::utils::epoch;
 use opts::amalgamate_join;
 use subscription::start_join_subscription_task;
 
-use crate::subscription::Subscription;
-use crate::{
-    broker::Broker,
-    error::HigginsError,
-    topography::{Key, StreamDefinition},
-};
+use crate::{broker::Broker, error::HigginsError};
 use higgins_shared::PartitionName;
 use std::ops::Range;
 
@@ -42,16 +37,12 @@ pub struct JoinOperation {
     index: u64,
     /// Broker  Reference.
     broker: Arc<RwLock<Broker>>,
-    /// This resultant stream's stream name.
-    stream: String,
     /// This resultant streams stream definition.
     definition: JoinDefinition,
     /// The partition we've received offsets on.
     partition: PartitionName,
     /// The offsets.
     offsets: Range<u64>,
-    /// The references - We want to use these to commit so we have to save them over init and commit branches.
-    references: Option<Vec<Reference>>,
     // /// The subscription that controls how this stream is tracked.
     // subscription: Arc<RwLock<Subscription>>,
     // /// The underlying records that this operation is based on.
@@ -240,10 +231,6 @@ pub async fn create_joined_stream_from_definition(
     let mut derivative_channel_rx =
         start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
 
-    // This task awaits all of the given derivative partitions and accumulates them into the
-    // new joined stream.
-    let stream: Vec<u8> = definition.clone().base.0.into();
-
     // Handle the collection of indexes into the index file.
     let _collection_handle = broker.task_handler.spawn(
         &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
@@ -253,11 +240,9 @@ pub async fn create_joined_stream_from_definition(
                     let mut operation = JoinOperation {
                         index: index.clone() as u64,
                         broker: broker_ref.clone(),
-                        stream: String::from_utf8_lossy(&stream).to_string(),
                         definition: definition.clone(),
                         partition: partition.clone(),
                         offsets: offset..offset,
-                        references: None,
                         // subscription: subscription.clone(),
                         optimistic_index: None,
                         optimistic_offset: None,
