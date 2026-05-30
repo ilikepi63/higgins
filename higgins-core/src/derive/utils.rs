@@ -79,40 +79,6 @@ pub fn iter_buffer(
 
 use crate::storage::index::default::DefaultIndex;
 
-/// Helper for this specific operaion
-pub async fn put_default_index_at(
-    stream: String,
-    partition: &PartitionName,
-    offset: u64,
-    broker: &mut RwLockWriteGuard<'_, Broker>,
-    reference: Reference,
-) -> Result<(), HigginsError> {
-    let mut index_file = broker.get_index_file(stream.clone(), partition).unwrap();
-
-    let mut index_file_guard = index_file.lock().await;
-
-    tracing::info!(
-        "Retrieved indexfile for stream {stream} and partition {:#?}",
-        partition
-    );
-
-    let mut buf = [0_u8; DefaultIndex::size_of()];
-
-    DefaultIndex::put(offset, reference, 0, crate::utils::epoch(), 0, &mut buf)?;
-
-    let offset_usize = offset as usize;
-
-    index_file_guard
-        .try_range_put_at(offset_usize..offset_usize.saturating_add(1), &mut buf)
-        .inspect_err(|err| {
-            tracing::error!("{:#?}", err);
-        })?;
-
-    tracing::debug!("{:#?}", index_file_guard.len());
-
-    Ok(())
-}
-
 /// Helper for putting a set of DefaultIndexes at a range.
 pub async fn put_default_index_at_range(
     stream: String,

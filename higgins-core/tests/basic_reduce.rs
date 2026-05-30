@@ -74,6 +74,8 @@ fn can_implement_basic_reduce() {
         )
         .unwrap();
 
+    std::thread::sleep(Duration::from_secs(1));
+
     client.recv(Some(Duration::from_secs(5))).unwrap(); // await initial produce.
 
     client

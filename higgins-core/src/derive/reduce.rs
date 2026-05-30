@@ -1,14 +1,54 @@
 use super::joining::opts::eager_range_take_or_wait;
 use super::utils::put_default_index_at;
+use super::utils::put_default_index_at_range;
+use crate::storage::dereference::Reference;
+use crate::subscription::Subscription;
 use crate::{
     broker::Broker,
     error::HigginsError,
     functions::reduce::run_reduce_function,
     topography::{Key, StreamDefinition},
 };
+use higgins_shared::PartitionName;
 use higgins_shared::read_arrow;
+use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+pub struct ReduceOperation {
+    /// Broker  Reference.
+    broker: Arc<RwLock<Broker>>,
+    /// This resultant stream's stream name.
+    stream_name: Key,
+    /// This resultant streams stream definition.
+    stream_def: StreamDefinition,
+    /// The partition we've received offsets on.
+    partition: PartitionName,
+    /// The offsets.
+    offset: Range<u64>,
+    /// The references - We want to use these to commit so we have to save them over init and commit branches.
+    references: Option<Vec<Reference>>,
+    /// The subscription that controls how this stream is tracked.
+    subscription: Arc<RwLock<Subscription>>,
+    /// The underlying records that this operation is based on.
+    /// Vec<(
+    ///   Vec<u8> - IPC record batch.
+    ///   u64 - The offset to which it belongs.
+    /// )>
+    records: Vec<(Vec<u8>, u64)>,
+}
+
+impl ReduceOperation {
+    pub async fn init(&mut self) -> Result<(), HigginsError> {
+        Ok(())
+    }
+    pub async fn prepare(&mut self) -> Result<(), HigginsError> {
+        Ok(())
+    }
+    pub async fn commit(&mut self) -> Result<(), HigginsError> {
+        Ok(())
+    }
+}
 
 pub async fn create_reduced_stream_from_definition(
     stream_name: Key,
@@ -57,6 +97,7 @@ pub async fn create_reduced_stream_from_definition(
                         .await?;
 
                 tracing::info!("[REDUCE] Retrieved offsets in REDUCE {:#?}", offsets);
+
 
                 for (partition, offset) in offsets {
                     tracing::debug!("[REDUCE] Iterating offsets");
@@ -113,6 +154,7 @@ pub async fn create_reduced_stream_from_definition(
                     }
                     .flatten();
 
+                    let mut references = vec![];
 
                     for (data, val) in records {
 
@@ -170,42 +212,29 @@ pub async fn create_reduced_stream_from_definition(
                                         )
                                         .await?;
 
-                                    // PUT INDEX FILE
-                                    //
-                                    // TODO: Ranging would likely be better here.
-                                    put_default_index_at(
-                                        stream,
-                                        &partition,
-                                        val,
-                                        &mut broker_lock,
-                                        reference,
-                                    )
-                                    .await?;
+                                    references.push(reference);
+
                                 }
 
 
-                                let mut lock = subscription.write().await;
-
-                                lock.acknowledge(&partition, &(val..val))?;
-
-                                drop(lock);
                             }
                             None => {
                                 tracing::trace!("No previous index found. Producing to stream {} key {} ", String::from_utf8_lossy(stream_name.as_bytes()), String::from_utf8_lossy(&partition.0));
 
-                                let _ = broker_lock
-                                    .produce(
-                                        stream_name.as_bytes(),
-                                        &partition,
+                                let stream =
+                                    String::from_utf8_lossy(stream_name.as_bytes()).to_string();
+
+                                // CREATE REFERENCE
+                                let reference = broker_lock
+                                    .put_data_store(
+                                        stream.clone(),
+                                       &partition,
                                         batch.clone(),
                                     )
-                                    .await;
+                                    .await?;
 
-                                let mut lock = subscription.write().await;
+                                references.push(reference);
 
-                                lock.acknowledge(&partition, &(val..val))?;
-
-                                drop(lock);
                             }
                         }
 
@@ -213,6 +242,31 @@ pub async fn create_reduced_stream_from_definition(
                         prev_record = Some(batch);
                     }
 
+                    tracing::trace!("Writing the values.");
+
+                    {
+                        let mut broker_guard = broker_ref.write().await;
+
+                        let stream = String::from_utf8_lossy(stream_name.as_bytes()).to_string();
+
+                        tracing::trace!("Writing the offsets.");
+
+                        put_default_index_at_range(
+                            stream,
+                            &partition,
+                            offset.clone(),
+                            &mut broker_guard,
+                            &references,
+                        )
+                        .await?;
+                    }
+                    tracing::trace!("Wrote the offsets to {:#?}. References: {:#?}", offset, references);
+
+                    let mut lock = subscription.write().await;
+
+                    lock.acknowledge(&partition, &offset)?;
+
+                    drop(lock);
 
                 }
             }
