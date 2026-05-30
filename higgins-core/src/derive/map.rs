@@ -17,41 +17,37 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub struct MapOperation {
+    /// Broker  Reference.
     broker: Arc<RwLock<Broker>>,
+    /// This resultant stream's stream name.
     stream_name: Key,
+    /// This resultant streams stream definition.
     stream_def: StreamDefinition,
-    base_stream: (Key, StreamDefinition),
+    /// The partition we've received offsets on.
     partition: PartitionName,
+    /// The offsets.
     offset: Range<u64>,
+    /// The references - We want to use these to commit so we have to save them over init and commit branches.
     references: Option<Vec<Reference>>,
+    /// The subscription that controls how this stream is tracked.
     subscription: Arc<RwLock<Subscription>>,
+    /// The underlying records that this operation is based on.
+    /// Vec<(
+    ///   Vec<u8> - IPC record batch.
+    ///   u64 - The offset to which it belongs.
+    /// )>
+    records: Vec<(Vec<u8>, u64)>,
 }
 
 impl MapOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         // Init
 
-        let records = {
-            let mut broker_guard = self.broker.write().await;
-
-            broker_guard
-                .get_range(
-                    self.base_stream.0.as_bytes(),
-                    &self.partition,
-                    self.offset.clone(),
-                )
-                .await?
-                .into_iter()
-                .filter_map(std::convert::identity)
-                .zip(self.offset.start..=self.offset.end)
-                .collect::<Vec<_>>()
-        };
-
-        tracing::trace!("[MAP] Retrieved records: {:#?}", records);
+        tracing::trace!("[MAP] Retrieved records: {:#?}", self.records);
 
         let mut references = vec![];
 
-        for (val, _) in records {
+        for (val, _) in self.records.iter() {
             tracing::trace!("[MAP] Received consume Response");
 
             let stream_reader = read_arrow(&val);
@@ -195,15 +191,27 @@ pub async fn create_mapped_stream_from_definition(
                 tracing::info!("[MAP] Retrieved offsets in map {:#?}", offsets);
 
                 for (partition, offset) in offsets {
+                    let records = {
+                        let mut broker_guard = broker_ref.write().await;
+
+                        broker_guard
+                            .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
+                            .await?
+                            .into_iter()
+                            .filter_map(std::convert::identity)
+                            .zip(offset.start..=offset.end)
+                            .collect::<Vec<_>>()
+                    };
+
                     let mut operation = MapOperation {
                         broker: broker_ref.clone(),
                         stream_name: stream_name.clone(),
                         stream_def: stream_def.clone(),
-                        base_stream: base_stream.clone(),
                         partition: partition.clone(),
                         offset: offset.clone(),
                         references: None,
                         subscription: subscription.clone(),
+                        records,
                     };
 
                     operation.init().await.unwrap();
