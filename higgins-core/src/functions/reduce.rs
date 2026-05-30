@@ -2,23 +2,17 @@ use arrow::array::RecordBatch;
 use higgins_functions::{
     ArbitraryLengthBuffer,
     utils::WasmAllocator,
-    wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
+    wasmtime::{Engine, Linker, Module, Store},
 };
 
 use higgins_shared::{read_arrow, write_arrow};
 
-/// Wrapper around the reduce functions.
-pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u8>) -> RecordBatch {
-    let engine = Engine::new(
-        Config::new()
-            .debug_info(true)
-            .coredump_on_trap(true)
-            .cranelift_opt_level(OptLevel::None),
-    )
-    .unwrap();
-
-    let module = Module::new(&engine, module).unwrap();
-
+pub fn run_reduce_function(
+    curr: &RecordBatch,
+    prev: &RecordBatch,
+    engine: &Engine,
+    module: &Module,
+) -> RecordBatch {
     let linker = Linker::new(&engine);
 
     let mut store: Store<u32> = Store::new(&engine, 4);
@@ -82,7 +76,7 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
 
     tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
 
-    {
+    let result = {
         let mut buf = [0_u8; 8];
 
         memory
@@ -100,5 +94,7 @@ pub fn run_reduce_function(curr: &RecordBatch, prev: &RecordBatch, module: Vec<u
         let array = ArbitraryLengthBuffer::new(buf);
 
         read_arrow(array.data()).next().unwrap().unwrap()
-    }
+    };
+
+    result
 }

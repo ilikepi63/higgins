@@ -7,6 +7,7 @@ use crate::task::TaskHandler;
 use crate::{
     client::ClientCollection, storage::index::directory::IndexDirectory, topography::Topography,
 };
+use higgins_functions::wasmtime::{Config, Engine, OptLevel};
 
 impl Broker {
     /// Creates a new instance of a Broker.
@@ -60,6 +61,14 @@ impl Broker {
             functions: FunctionCollection::new(functions_dir),
             broker_indexes: Vec::new(),
             task_handler: TaskHandler::new(),
+            wasm_engine: Engine::new(
+                Config::new()
+                    .debug_info(true)
+                    .coredump_on_trap(true)
+                    .cranelift_opt_level(OptLevel::None),
+            )
+            .unwrap(),
+            wasm_modules: vec![],
         }
     }
 }

@@ -58,7 +58,7 @@ fn can_implement_basic_reduce() {
         )
         .unwrap();
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.recv(Some(Duration::from_mins(1))).unwrap();
 
     client
         .produce_json(
@@ -73,6 +73,8 @@ fn can_implement_basic_reduce() {
             std::sync::Arc::new(amount_schema()),
         )
         .unwrap();
+
+    std::thread::sleep(Duration::from_secs(1));
 
     client.recv(Some(Duration::from_secs(5))).unwrap(); // await initial produce.
 

@@ -15,6 +15,9 @@ pub enum HigginsError {
     #[error("Attempted to retrieve subscription that does not exist.")]
     SubscriptionRetrievalFailed,
 
+    #[error("IO Error")]
+    StdIOError(#[from] std::io::Error),
+
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
 

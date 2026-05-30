@@ -3,7 +3,7 @@ use std::ops::{Deref, Index as StdIndex};
 #[allow(unused_imports)]
 use bytes::BufMut as _;
 
-mod default;
+pub mod default;
 pub mod directory;
 mod error;
 pub mod file;

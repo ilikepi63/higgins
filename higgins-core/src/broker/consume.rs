@@ -96,7 +96,7 @@ impl Broker {
     ) -> impl Future<Output = Result<Vec<u8>, HigginsError>> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
-            stream,
+            String::from_utf8_lossy(stream),
             partition
         );
         let stream_def = self

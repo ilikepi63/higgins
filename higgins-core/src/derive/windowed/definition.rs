@@ -6,6 +6,7 @@ use crate::{
     topography::{Key, StreamDefinition, errors::TopographyError},
 };
 
+#[derive(Clone)]
 pub struct WindowedStreamDefinition {
     pub base_key: String,
     pub slide: WindowValue,

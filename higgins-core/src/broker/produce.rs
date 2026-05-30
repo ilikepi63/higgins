@@ -123,6 +123,39 @@ impl Broker {
         Ok(())
     }
 
+    /// Places data in the backing store, returning a `Reference` to where it was placed.
+    pub async fn put_data_store(
+        &self,
+        stream: String,
+        partition: &PartitionName,
+        data: RecordBatch,
+    ) -> Result<Reference, HigginsError> {
+        let data = write_arrow(&data);
+
+        let request = ProduceRequest {
+            request_id: 1,
+            topic: stream,
+            partition: partition.0.to_vec(),
+            data,
+        };
+
+        let response = self
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .put(request);
+
+        let response = response.recv().await.unwrap();
+
+        let reference = Reference::S3(S3Reference {
+            object_key: response.object_key,
+            position: response.offset,
+            size: response.size.into(),
+        });
+
+        Ok(reference)
+    }
+
     /// Takes a record batch and places it given the current Index.
     ///
     /// An {Index} will always have the given {Reference}, and therefore will always

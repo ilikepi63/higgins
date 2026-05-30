@@ -2,24 +2,13 @@ use arrow::array::RecordBatch;
 use higgins_functions::{
     types::ArbitraryLengthBuffer,
     utils::WasmAllocator,
-    wasmtime::{Config, Engine, Linker, Module, OptLevel, Store},
+    wasmtime::{Engine, Linker, Module, Store},
 };
 
 use higgins_shared::{read_arrow, write_arrow};
 
 /// Wrapper around the mapping functions.
-pub fn run_map_function(batch: &RecordBatch, module: Vec<u8>) -> RecordBatch {
-    tracing::debug!("RECORD BATCH: {:#?}", batch);
-    let engine = Engine::new(
-        Config::new()
-            .debug_info(true)
-            .coredump_on_trap(true)
-            .cranelift_opt_level(OptLevel::None),
-    )
-    .unwrap();
-
-    let module = Module::new(&engine, module).unwrap();
-
+pub fn run_map_function(batch: &RecordBatch, engine: &Engine, module: &Module) -> RecordBatch {
     let linker = Linker::new(&engine);
 
     let mut store: Store<u32> = Store::new(&engine, 4);

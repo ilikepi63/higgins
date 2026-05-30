@@ -215,11 +215,17 @@ impl<'a> JoinedIndex<'a> {
     /// Update the reference for this.
     pub fn put_reference(&mut self, reference: Reference) -> Vec<u8> {
         let mut cloned = self.0.to_vec();
-        reference
-            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
-            .unwrap();
+
+        Self::put_reference_static(reference, &mut cloned);
 
         cloned
+    }
+
+    /// Update the reference for this.
+    pub fn put_reference_static(reference: Reference, data: &mut [u8]) {
+        reference
+            .to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
+            .unwrap();
     }
 }
 

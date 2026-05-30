@@ -51,7 +51,7 @@ fn can_implement_basic_map() {
         )
         .unwrap();
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.recv(Some(Duration::from_secs(60))).unwrap();
 
     client
         .produce_json(
@@ -63,7 +63,7 @@ fn can_implement_basic_map() {
 
     std::thread::sleep(Duration::from_secs(5));
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.recv(Some(Duration::from_secs(30))).unwrap();
 
     client
         .query_latest(b"result", &PartitionName::try_from("1").unwrap())

@@ -95,6 +95,45 @@ impl IndexFile {
         Ok(())
     }
 
+    // Put the values at the specific offset range.
+    //
+    // If the range already exists, throws an already exists error.
+    pub fn try_range_put_at(
+        &mut self,
+        offset: std::ops::Range<usize>,
+        bytes: &mut [u8],
+    ) -> Result<(), IndexError> {
+        // Just need to check the overlap between the range and the file.
+        let file_len = self.len()?;
+
+        if offset.start != file_len {
+            return Err(IndexError::IndexAlreadyExists(
+                offset.start as u64,
+                self.len()? as u64,
+            ));
+        }
+
+        // Normalize the buffer, so that you can write the entirety of it.
+        let buffer_to_put =
+            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+
+        if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
+            return Err(IndexError::PutIndexOutOfRange);
+        }
+
+        let mut file_handle = std::fs::OpenOptions::new().write(true).open(&self.path)?;
+
+        let offset = offset.start * self.element_size;
+
+        file_handle.seek(SeekFrom::Start(offset as u64))?;
+
+        file_handle.write_all(buffer_to_put)?;
+
+        file_handle.flush()?;
+
+        Ok(())
+    }
+
     pub fn as_view(&self) -> IndexesView<'_> {
         IndexesView {
             buffer: self.as_slice(),
@@ -337,6 +376,7 @@ mod tests {
     use crate::storage::index::default::DefaultIndex;
     use crate::storage::index::joined_index::JoinedIndex;
     use std::fs;
+    use std::panic::catch_unwind;
     use std::path::PathBuf;
 
     fn new_file() -> PathBuf {
@@ -358,6 +398,49 @@ mod tests {
         assert_eq!(file.as_slice().len(), 0);
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn test_try_put_at_range() {
+        let path = new_file();
+
+        if path.exists() {
+            fs::remove_file(&path).unwrap();
+        }
+
+        let result = catch_unwind(|| {
+            let mut file =
+                IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
+
+            let mut bytes = [0_u8; DefaultIndex::size_of()];
+
+            DefaultIndex::put(
+                1,
+                crate::storage::dereference::Reference::Null,
+                1,
+                1,
+                1,
+                &mut bytes,
+            )
+            .unwrap();
+
+            file.try_range_put_at(0..1, &mut bytes).unwrap();
+
+            assert_eq!(file.len().unwrap(), 1);
+
+            file.try_range_put_at(1..2, &mut bytes).unwrap();
+
+            assert_eq!(file.len().unwrap(), 2);
+
+            assert!(matches!(
+                file.try_range_put_at(1..2, &mut bytes),
+                Err(IndexError::IndexAlreadyExists(_, _))
+            ));
+        });
+
+        fs::remove_file(path).unwrap();
+
+        result.unwrap();
     }
 
     #[test]
