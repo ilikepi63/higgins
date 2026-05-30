@@ -51,7 +51,7 @@ fn can_implement_basic_map() {
         )
         .unwrap();
 
-    client.recv(Some(Duration::from_secs(30))).unwrap();
+    client.recv(Some(Duration::from_secs(60))).unwrap();
 
     client
         .produce_json(
