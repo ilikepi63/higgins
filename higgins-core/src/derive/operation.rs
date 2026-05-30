@@ -2,16 +2,19 @@
 //!
 //! If we consider the streams as vertices in a graph, operations would be the edges between those vertices. It is necessary to have an
 //! abstraction over these edges as it is necessary to execute these independently of one another.
+use super::{
+    joining::JoinOperation, map::MapOperation, reduce::ReduceOperation, windowed::WindowOperation,
+};
 
-// pub enum Step {
-//     Init,
-//     Prepare,
-//     Commit,
-// }
+pub enum Step {
+    Init,
+    Prepare,
+    Commit,
+}
 
-// enum Operation {
-//     Map(MapOperation),
-//     Reduce(ReduceOperation),
-//     Window(WindowOperation),
-//     Join(JoinOperation),
-// }
+enum Operation {
+    Map(MapOperation),
+    Reduce(ReduceOperation),
+    Window(WindowOperation),
+    Join(JoinOperation),
+}

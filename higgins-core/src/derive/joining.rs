@@ -16,16 +16,14 @@ mod completion;
 pub mod join;
 pub mod mapping;
 pub mod opts;
-mod subscription;
 
-use crate::broker::BrokerIndexFile;
 use crate::derive::joining::completion::complete_from;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
+use crate::{broker::BrokerIndexFile, derive::joining::opts::eager_range_take_or_wait};
 use opts::amalgamate_join;
-use subscription::start_join_subscription_task;
 
 use crate::{broker::Broker, error::HigginsError};
 use higgins_shared::PartitionName;
@@ -209,9 +207,6 @@ pub async fn create_joined_stream_from_definition(
         definition.base.0
     );
 
-    // Redefined for movements.
-    let amalgamate_definition = definition.clone();
-
     // We create the resultant stream that data is zipped into.
     {
         let join_definition_schema_key = definition.clone().base.1.schema;
@@ -228,33 +223,90 @@ pub async fn create_joined_stream_from_definition(
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
-    let mut derivative_channel_rx =
-        start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
+    // let mut derivative_channel_rx =
+    //     start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
 
-    // Handle the collection of indexes into the index file.
-    let _collection_handle = broker.task_handler.spawn(
-        &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
-        async move {
-            while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
-                for (partition, offset) in partition_offset_vec {
-                    let mut operation = JoinOperation {
-                        index: index.clone() as u64,
-                        broker: broker_ref.clone(),
-                        definition: definition.clone(),
-                        partition: partition.clone(),
-                        offsets: offset..offset,
-                        // subscription: subscription.clone(),
-                        optimistic_index: None,
-                        optimistic_offset: None,
-                    };
+    for (i, join_stream) in definition.joins.iter().enumerate() {
+        let join_stream = join_stream.clone();
+        let broker_ref = broker_ref.clone();
+        let definition = definition.clone();
+        // let tx = derivative_channel_tx.clone();
+        // let task_broker = task_broker.clone();
 
-                    operation.init().await.unwrap();
-                    operation.prepare().await.unwrap();
-                    operation.commit().await.unwrap();
+        let _handle = broker.task_handler.spawn(
+            &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
+            async move {
+                // Create a subscription on each derivative
+                let (client_id, condvar, subscription) = {
+                    let mut broker = broker_ref.write().await;
+                    let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
+                    let left_subscription =
+                        broker.create_subscription(join_stream.stream.0.as_bytes());
+                    let stream = join_stream.stream.clone();
+                    let (left_notify, left_subscription) = broker
+                        .get_subscription_by_key(stream.0.as_bytes(), &left_subscription)
+                        .ok_or(HigginsError::SubscriptionRetrievalFailed)
+                        .unwrap();
+
+                    tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
+                    drop(broker); // Explicitly drop the lock.
+
+                    (client_id, left_notify, left_subscription)
+                };
+
+                loop {
+                    let offsets =
+                        eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
+                            .await
+                            .unwrap();
+
+                    for (partition, offsets) in offsets.iter() {
+                        let mut operation = JoinOperation {
+                            index: i.clone() as u64,
+                            broker: broker_ref.clone(),
+                            definition: definition.clone(),
+                            partition: partition.clone(),
+                            offsets: offsets.clone(),
+                            // subscription: subscription.clone(),
+                            optimistic_index: None,
+                            optimistic_offset: None,
+                        };
+
+                        operation.init().await.unwrap();
+                        operation.prepare().await.unwrap();
+                        operation.commit().await.unwrap();
+                    }
+
+                    tracing::trace!("Retrieved offsets {:#?} from {client_id}.", offsets);
                 }
-            }
-        },
-    );
+            },
+        );
+    }
+
+    // // Handle the collection of indexes into the index file.
+    // let _collection_handle = broker.task_handler.spawn(
+    //     &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
+    //     async move {
+    //         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
+    //             for (partition, offset) in partition_offset_vec {
+    //                 let mut operation = JoinOperation {
+    //                     index: index.clone() as u64,
+    //                     broker: broker_ref.clone(),
+    //                     definition: definition.clone(),
+    //                     partition: partition.clone(),
+    //                     offsets: offset..offset,
+    //                     // subscription: subscription.clone(),
+    //                     optimistic_index: None,
+    //                     optimistic_offset: None,
+    //                 };
+
+    //                 operation.init().await.unwrap();
+    //                 operation.prepare().await.unwrap();
+    //                 operation.commit().await.unwrap();
+    //             }
+    //         }
+    //     },
+    // );
 
     Ok(())
 }
