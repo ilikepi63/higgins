@@ -3,11 +3,9 @@ use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
-use bytes::buf;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
 
-use crate::topography::{Key, StreamDefinition};
 use crate::{
     error::HigginsError,
     storage::{
@@ -16,7 +14,6 @@ use crate::{
     },
 };
 use higgins_shared::write_arrow;
-use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

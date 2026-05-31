@@ -28,7 +28,7 @@ pub async fn handle_produce(
 
     let broker_ref = broker.clone();
 
-    let mut broker = broker.write().await;
+    let broker = broker.write().await;
 
     let (schema, _tx, _rx) = broker
         .get_stream(&stream_name)
