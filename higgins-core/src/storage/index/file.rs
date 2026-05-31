@@ -69,6 +69,8 @@ impl IndexFile {
     }
 
     // Put the index at a specific offset.
+    //
+    // This function is exclusive of the end of offset.
     pub fn range_put_at(
         &mut self,
         offset: std::ops::Range<usize>,
