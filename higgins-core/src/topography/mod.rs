@@ -6,7 +6,7 @@
 use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{BTreeMap, HashMap, btree_map::Entry},
     fmt::Debug,
     sync::Arc,
 };
@@ -28,6 +28,7 @@ mod file;
 
 use file::TopographyFile;
 
+use crate::subscription::SubscriptionId;
 pub use data_type_parser::parse_time_unit;
 
 /// Used to index into Topography system.
@@ -97,6 +98,10 @@ pub struct Topography {
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
     storage: Option<(String, Storage)>,
+    /// The streams that represent the streams that can be produced to.
+    ///
+    /// This structure is used for quick lookup to a dependency tree for each stream.
+    primitive_streams_dependency_graph: Vec<(Key, Vec<(Key, SubscriptionId)>)>,
 }
 
 type Described<T> = (String, T);
@@ -143,13 +148,12 @@ impl Topography {
             }
         }?;
 
-        // let operations: Vec<TopographyUnit> = file.read();
-
         Ok(Self {
             file,
             streams,
             schema,
             storage,
+            primitive_streams_dependency_graph: vec![],
         })
     }
 
@@ -216,6 +220,7 @@ impl Topography {
             Entry::Occupied(_) => Err(TopographyError::Occupied(String::new())), // TODO: add more meat to this error messag .
         }
     }
+
     pub fn add_stream(
         &mut self,
         key: Key,
@@ -230,8 +235,8 @@ impl Topography {
         }
 
         // Check if the derivations exist inside of this topography.
-        if let Some(key) = stream.base.as_ref()
-            && !self.streams.contains_key(key)
+        if let Some(base_key) = stream.base.as_ref()
+            && !self.streams.contains_key(base_key)
         {
             return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
         }

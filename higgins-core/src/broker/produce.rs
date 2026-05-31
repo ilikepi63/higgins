@@ -77,16 +77,6 @@ impl Broker {
 
         tracing::trace!("Offset: {:#?}", offset);
 
-        // if let Err(err) = self
-        //     .create_partition(
-        //         &stream_name,
-        //         &PartitionName::try_from(key.as_bytes()).unwrap(),
-        //     )
-        //     .await
-        // {
-        //     tracing::error!("Failed to create partition inside of broker: {:#?}", err);
-        // };
-
         // Watermark the subscription.
         let subscription = self.subscriptions.get(stream_name);
 
