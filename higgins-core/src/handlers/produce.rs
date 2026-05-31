@@ -26,7 +26,9 @@ pub async fn handle_produce(
 
     tracing::info!("[PRODUCE] Attempting to take the broker lock..");
 
-    let mut broker = broker.write().await;
+    let broker_ref = broker.clone();
+
+    let broker = broker.write().await;
 
     let (schema, _tx, _rx) = broker
         .get_stream(&stream_name)
@@ -95,21 +97,21 @@ pub async fn handle_produce(
 
     tracing::trace!("[PRODUCE] Read the batch, producing..");
 
-    let result = broker
-        .produce(
-            &stream_name,
-            &PartitionName::try_from(key.as_bytes()).unwrap(),
-            batch,
-        )
-        .await;
+    drop(broker);
+
+    let result = Broker::produce(
+        &stream_name,
+        &PartitionName::try_from(key.as_bytes()).unwrap(),
+        batch,
+        broker_ref,
+    )
+    .await;
 
     tracing::trace!(
         "Result from producing to {}: {:#?}",
         String::from_utf8(stream_name.to_vec()).unwrap(),
         result
     );
-
-    drop(broker);
 
     let mut result = BytesMut::new();
 
