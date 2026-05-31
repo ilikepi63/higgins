@@ -1,9 +1,13 @@
 use super::Broker;
 use crate::storage::index::IndexType;
+use crate::storage::index::default::DefaultIndex;
+use crate::utils::epoch;
 use arrow::array::RecordBatch;
+use bytes::buf;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
 
+use crate::topography::{Key, StreamDefinition};
 use crate::{
     error::HigginsError,
     storage::{
@@ -12,14 +16,134 @@ use crate::{
     },
 };
 use higgins_shared::write_arrow;
+use std::ops::Range;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+pub struct ProduceOperation {
+    /// Broker  Reference.
+    broker: Arc<RwLock<Broker>>,
+    /// Stream that this value is being produced to.
+    stream: String,
+    /// The partition we've received offsets on.
+    partition: PartitionName,
+    /// The underlying records that this operation is based on.
+    /// Vec<(
+    ///   Vec<u8> - IPC record batch.
+    ///   u64 - The offset to which it belongs.
+    /// )>
+    records: Vec<RecordBatch>,
+    /// The References that have previously been created.
+    references: Option<Vec<Reference>>,
+}
+
+impl ProduceOperation {
+    pub async fn init(&mut self) -> Result<(), HigginsError> {
+        tracing::debug!("Running init on produce.");
+        let broker = self.broker.write().await;
+        tracing::debug!("Retrieved broker lock.");
+
+        let mut references = vec![];
+
+        for record in &self.records {
+            references.push(
+                broker
+                    .put_data_store(self.stream.clone(), &self.partition.clone(), record.clone())
+                    .await
+                    .inspect_err(|err| tracing::error!("{:#?}", err))?,
+            );
+        }
+
+        tracing::debug!("Returning references.");
+
+        self.references = Some(references);
+
+        Ok(())
+    }
+    pub async fn prepare(&mut self) -> Result<(), HigginsError> {
+        Ok(())
+    }
+    pub async fn commit(&mut self) -> Result<(), HigginsError> {
+        let mut broker = self.broker.write().await;
+        tracing::debug!("Running commit.");
+
+        let mut index_file_lock = broker
+            .get_index_file(self.stream.clone(), &self.partition.clone())
+            .unwrap();
+
+        let mut index_file_guard = index_file_lock.lock().await;
+
+        let file_len = index_file_guard.len().unwrap();
+
+        if let Some(references) = self.references.as_ref() {
+            let offset = file_len..file_len;
+
+            let mut buf = vec![0_u8; DefaultIndex::size_of() * references.len()];
+
+            buf.chunks_mut(DefaultIndex::size_of())
+                .zip(references)
+                .zip(offset.start..=offset.end)
+                .map(|((buf, reference), offset)| {
+                    DefaultIndex::put(
+                        offset.try_into().unwrap(),
+                        reference.clone(),
+                        0,
+                        epoch(),
+                        0,
+                        buf,
+                    )
+                })
+                .collect::<Result<Vec<_>, std::io::Error>>()?;
+
+            index_file_guard.range_put_at(offset.start..offset.end.saturating_add(1), &mut buf)?;
+
+            let subscription = broker.get_subscriptions_for_stream(&self.stream);
+
+            if let Some(subscriptions) = subscription {
+                tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
+
+                for (notify, subscription) in subscriptions.values() {
+                    let mut subscription = subscription.write().await;
+
+                    tracing::trace!(
+                        "[PRODUCE] Notifying the subscription. Offsets: {:#?}",
+                        offset
+                    );
+
+                    if subscription
+                        .partitions
+                        .iter()
+                        .find(|sub_key| sub_key.partition_id == self.partition)
+                        .is_some()
+                    {
+                        subscription.set_end(&self.partition, offset.end as u64)?;
+                    } else {
+                        subscription.add_partition(&self.partition, 0, offset.end as u64)?;
+                    };
+
+                    tracing::info!("SUBSCRIPTION{:#?}", subscription);
+
+                    // Notify the tasks awaiting this subscription.
+                    notify.notify_waiters();
+                    tracing::trace!("[PRODUCE] Notified the subscription.");
+                }
+            }
+        } else {
+            tracing::error!("Attempt to place without errors.");
+        }
+
+        Ok(())
+    }
+}
 
 impl Broker {
     /// Produce a data set onto the named stream.
     pub async fn produce(
-        &mut self,
+        // &mut self,
         stream_name: &[u8],
         partition: &PartitionName,
         record_batch: RecordBatch,
+        broker: Arc<RwLock<Broker>>,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
             "[PRODUCE] Producing to stream: {}, data: {:#?}",
@@ -27,55 +151,75 @@ impl Broker {
             record_batch
         );
 
-        let data = write_arrow(&record_batch);
-
-        let request = ProduceRequest {
-            request_id: 1,
-            topic: String::from_utf8(stream_name.to_vec()).unwrap(),
-            partition: partition.0.to_vec(),
-            data,
+        let mut operation = ProduceOperation {
+            stream: String::from_utf8_lossy(stream_name).to_string(),
+            partition: partition.clone(),
+            broker,
+            references: None,
+            records: vec![record_batch],
         };
 
-        let response = self
-            .backing_store
-            .as_ref()
-            .ok_or(HigginsError::ObjectStoreNotConfigured)?
-            .put(request);
+        operation.init().await?;
+        operation.prepare().await?;
+        operation.commit().await?;
 
-        // Await the response from flushing.
-        let response = response.recv().await.unwrap();
+        // tracing::trace!(
+        //     "[PRODUCE] Producing to stream: {}, data: {:#?}",
+        //     String::from_utf8(stream_name.to_vec()).unwrap(),
+        //     record_batch
+        // );
 
-        // Create a new reference given the data.
-        let reference = Reference::S3(S3Reference {
-            object_key: response.object_key,
-            position: response.offset,
-            size: response.size.into(),
-        });
+        // // Init
+        // let data = write_arrow(&record_batch);
 
-        let (index_type, stream_def) = {
-            let (_, stream_def) = self
-                .get_topography_stream(&crate::topography::Key::try_from(stream_name).unwrap())
-                .unwrap();
+        // let request = ProduceRequest {
+        //     request_id: 1,
+        //     topic: String::from_utf8(stream_name.to_vec()).unwrap(),
+        //     partition: partition.0.to_vec(),
+        //     data,
+        // };
 
-            (
-                IndexType::try_from(stream_def).unwrap(),
-                stream_def.to_owned(),
-            )
-        };
+        // let response = self
+        //     .backing_store
+        //     .as_ref()
+        //     .ok_or(HigginsError::ObjectStoreNotConfigured)?
+        //     .put(request);
 
-        let offset = self
-            .indexes
-            .put_default_index(
-                String::from_utf8(stream_name.to_owned()).unwrap(),
-                partition,
-                reference,
-                response,
-                &index_type,
-                &stream_def,
-            )
-            .await;
+        // // Await the response from flushing.
+        // let response = response.recv().await.unwrap();
 
-        tracing::trace!("Offset: {:#?}", offset);
+        // // Create a new reference given the data.
+        // let reference = Reference::S3(S3Reference {
+        //     object_key: response.object_key,
+        //     position: response.offset,
+        //     size: response.size.into(),
+        // });
+
+        // let (index_type, stream_def) = {
+        //     let (_, stream_def) = self
+        //         .get_topography_stream(&crate::topography::Key::try_from(stream_name).unwrap())
+        //         .unwrap();
+
+        //     (
+        //         IndexType::try_from(stream_def).unwrap(),
+        //         stream_def.to_owned(),
+        //     )
+        // };
+
+        // // Commit
+        // let offset = self
+        //     .indexes
+        //     .put_default_index(
+        //         String::from_utf8(stream_name.to_owned()).unwrap(),
+        //         partition,
+        //         reference,
+        //         response,
+        //         &index_type,
+        //         &stream_def,
+        //     )
+        //     .await;
+
+        // tracing::trace!("Offset: {:#?}", offset);
 
         // if let Err(err) = self
         //     .create_partition(
@@ -88,37 +232,37 @@ impl Broker {
         // };
 
         // Watermark the subscription.
-        let subscription = self.subscriptions.get(stream_name);
+        // let subscription = self.subscriptions.get(stream_name);
 
-        if let Some(subscriptions) = subscription {
-            tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
+        // if let Some(subscriptions) = subscription {
+        //     tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
 
-            for (notify, subscription) in subscriptions.values() {
-                let mut subscription = subscription.write().await;
+        //     for (notify, subscription) in subscriptions.values() {
+        //         let mut subscription = subscription.write().await;
 
-                tracing::trace!(
-                    "[PRODUCE] Notifying the subscription. Subscription end: {}",
-                    offset
-                );
+        //         tracing::trace!(
+        //             "[PRODUCE] Notifying the subscription. Subscription end: {}",
+        //             offset
+        //         );
 
-                if subscription
-                    .partitions
-                    .iter()
-                    .find(|sub_key| sub_key.partition_id == *partition)
-                    .is_some()
-                {
-                    subscription.set_end(partition, offset)?;
-                } else {
-                    subscription.add_partition(partition, 0, offset)?;
-                };
+        //         if subscription
+        //             .partitions
+        //             .iter()
+        //             .find(|sub_key| sub_key.partition_id == *partition)
+        //             .is_some()
+        //         {
+        //             subscription.set_end(partition, offset)?;
+        //         } else {
+        //             subscription.add_partition(partition, 0, offset)?;
+        //         };
 
-                tracing::info!("SUBSCRIPTION{:#?}", subscription);
+        //         tracing::info!("SUBSCRIPTION{:#?}", subscription);
 
-                // Notify the tasks awaiting this subscription.
-                notify.notify_waiters();
-                tracing::trace!("[PRODUCE] Notified the subscription.");
-            }
-        }
+        //         // Notify the tasks awaiting this subscription.
+        //         notify.notify_waiters();
+        //         tracing::trace!("[PRODUCE] Notified the subscription.");
+        //     }
+        // }
 
         Ok(())
     }

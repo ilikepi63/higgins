@@ -29,6 +29,14 @@ impl Broker {
             .cloned()
     }
 
+    /// Retrieves the subscription for this specific key.
+    pub fn get_subscriptions_for_stream(
+        &self,
+        stream: &str,
+    ) -> Option<BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>> {
+        self.subscriptions.get(stream.as_bytes()).cloned()
+    }
+
     /// Acknowledge the given subscription's offsets.
     pub async fn acknowledge(
         &self,

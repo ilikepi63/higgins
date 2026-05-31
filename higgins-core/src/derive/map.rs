@@ -193,7 +193,7 @@ pub async fn create_mapped_stream_from_definition(
                 for (partition, offset) in offsets {
                     let records = {
                         let mut broker_guard = broker_ref.write().await;
-
+                        tracing::info!("[MAP] Retrieved broker lock.");
                         broker_guard
                             .get_range(base_stream.0.as_bytes(), &partition, offset.clone())
                             .await?
@@ -213,6 +213,8 @@ pub async fn create_mapped_stream_from_definition(
                         subscription: subscription.clone(),
                         records,
                     };
+
+                    tracing::info!("[MAP] Created operation.");
 
                     operation.init().await.unwrap();
                     operation.prepare().await.unwrap();
