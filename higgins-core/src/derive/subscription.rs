@@ -1,17 +1,22 @@
-pub fn create_derived_stream_subscription() {
-    let (client_id, condvar, subscription) = {
-        let mut broker = broker_ref.write().await;
-        let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
-        let left_subscription = broker.create_subscription(join_stream.stream.0.as_bytes());
-        let stream = join_stream.stream.clone();
-        let (left_notify, left_subscription) = broker
-            .get_subscription_by_key(stream.0.as_bytes(), &left_subscription)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)
-            .unwrap();
+use std::sync::Arc;
 
-        tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
-        drop(broker); // Explicitly drop the lock.
+use tokio::sync::RwLock;
 
-        (client_id, left_notify, left_subscription)
-    };
+use crate::{
+    broker::Broker, client::ClientRef, error::HigginsError, subscription::Subscription,
+    topography::StreamName,
+};
+
+pub async fn create_derived_stream_subscription(
+    stream: StreamName,
+    broker_ref: Arc<RwLock<Broker>>,
+) -> (u64, Arc<RwLock<Subscription>>) {
+    let mut broker = broker_ref.write().await;
+    let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
+    let (_, sub) = broker.create_non_reactive_subscription(&stream);
+
+    tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
+    drop(broker);
+
+    (client_id, sub)
 }

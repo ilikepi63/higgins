@@ -28,7 +28,7 @@ use crate::subscription::error::SubscriptionError;
 use higgins_shared::PartitionName;
 
 /// Represents the unique ID for a subscription.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct SubscriptionId(Vec<u8>);
 
 impl From<Vec<u8>> for SubscriptionId {

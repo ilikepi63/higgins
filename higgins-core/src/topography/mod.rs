@@ -6,7 +6,7 @@
 use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap, btree_map::Entry},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::Debug,
     sync::Arc,
 };
@@ -30,6 +30,15 @@ use file::TopographyFile;
 
 use crate::subscription::SubscriptionId;
 pub use data_type_parser::parse_time_unit;
+
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]
+pub struct StreamName(String);
+
+impl From<&[u8]> for StreamName {
+    fn from(value: &[u8]) -> Self {
+        Self(String::from_utf8_lossy(value).to_string())
+    }
+}
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?

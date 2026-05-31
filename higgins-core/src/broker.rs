@@ -8,7 +8,9 @@ mod streams;
 mod subscriptions;
 pub mod utils;
 
+use crate::subscription::SubscriptionId;
 use crate::task::TaskHandler;
+use crate::topography::StreamName;
 use arrow::{array::RecordBatch, datatypes::Schema};
 use higgins_shared::PartitionName;
 pub use indexes::BrokerIndexFile;
@@ -39,6 +41,8 @@ pub struct Broker {
     // Subscriptions.
     #[allow(clippy::type_complexity)]
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
+    non_reactive_subscriptions:
+        BTreeMap<StreamName, BTreeMap<SubscriptionId, Arc<RwLock<Subscription>>>>,
 
     // Clients
     pub clients: ClientCollection,
