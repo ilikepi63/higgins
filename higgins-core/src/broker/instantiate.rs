@@ -70,6 +70,7 @@ impl Broker {
             .unwrap(),
             wasm_modules: vec![],
             non_reactive_subscriptions: BTreeMap::new(),
+            relations: vec![],
         }
     }
 }

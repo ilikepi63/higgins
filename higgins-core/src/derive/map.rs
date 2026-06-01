@@ -159,8 +159,27 @@ pub async fn create_mapped_stream_from_definition(
         String::from_utf8_lossy(stream_name.as_bytes())
     );
 
-    let (client_id, subscription) =
-        create_derived_stream_subscription(stream_name.into(), broker_ref);
+    let (client_id, condvar, subscription) = {
+        tracing::trace!("Attempting to input client_id.");
+
+        let client_id = broker
+            .clients
+            .insert(crate::client::ClientRef::NoOp)
+            .ok_or(HigginsError::Unknown)?;
+
+        tracing::trace!("Retrieved client_id.");
+        let subscription = broker.create_subscription(base_stream.0.as_bytes());
+
+        tracing::trace!("Successfully created the subscription.");
+
+        let (notify, subscription) = broker
+            .get_subscription_by_key(base_stream.0.as_bytes(), &subscription)
+            .ok_or(HigginsError::SubscriptionRetrievalFailed)?;
+
+        tracing::trace!("Retrieved the notification for said subscription.");
+
+        (client_id, notify, subscription)
+    };
 
     tokio::task::spawn(async move {
         tracing::trace!("[MAP] We are being initiated");

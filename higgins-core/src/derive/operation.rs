@@ -39,14 +39,17 @@ enum Operation {
 #[allow(unused)]
 impl Operation {
     pub async fn try_new(
+        // passed in dynamically.
         broker: Arc<RwLock<Broker>>,
+        offsets: Range<u64>,
+        references: Option<Vec<Reference>>,
+        records: Vec<(Vec<u8>, u64)>,
+
+        // Can be kept in relation.
         stream_name: StreamName,
         definition: StreamDefinition,
         partition: PartitionName,
-        offsets: Range<u64>,
-        references: Option<Vec<Reference>>,
         subscription: Arc<RwLock<Subscription>>,
-        records: Vec<(Vec<u8>, u64)>,
         join_index: Option<u64>,
     ) -> Result<Self, HigginsError> {
         Ok(match definition.stream_type {
@@ -140,7 +143,15 @@ impl Operation {
         }?;
 
         // Retrieve the relationship between this operation and other operations.
+        let broker_lock = self.broker();
+        let broker_guard = broker_lock.write().await;
+
+        // broker_guard.topo
+
+        // broker
+
         // start an operation and run init.
+
         Ok(())
     }
     pub async fn prepare(&mut self) -> Result<(), HigginsError> {

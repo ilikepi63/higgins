@@ -10,6 +10,7 @@ use std::{
     fmt::Debug,
     sync::Arc,
 };
+mod relation;
 
 use crate::topography::{
     config::{
@@ -24,11 +25,11 @@ mod stream_definition;
 pub use stream_definition::*;
 mod data_type_parser;
 pub mod errors;
+pub use relation::Relation;
 mod file;
 
 use file::TopographyFile;
 
-use crate::subscription::SubscriptionId;
 pub use data_type_parser::parse_time_unit;
 
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]
@@ -37,6 +38,12 @@ pub struct StreamName(String);
 impl From<&[u8]> for StreamName {
     fn from(value: &[u8]) -> Self {
         Self(String::from_utf8_lossy(value).to_string())
+    }
+}
+
+impl From<&str> for StreamName {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
     }
 }
 
@@ -125,10 +132,6 @@ pub struct Topography {
     streams: BTreeMap<Key, StreamDefinition>,
     schema: BTreeMap<Key, Arc<Schema>>,
     storage: Option<(String, Storage)>,
-    /// The streams that represent the streams that can be produced to.
-    ///
-    /// This structure is used for quick lookup to a dependency tree for each stream.
-    primitive_streams_dependency_graph: Vec<(Key, Vec<(Key, SubscriptionId)>)>,
 }
 
 type Described<T> = (String, T);
@@ -180,7 +183,6 @@ impl Topography {
             streams,
             schema,
             storage,
-            primitive_streams_dependency_graph: vec![],
         })
     }
 
