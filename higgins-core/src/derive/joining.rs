@@ -32,15 +32,15 @@ use std::ops::Range;
 use crate::{client::ClientRef, derive::joining::join::JoinDefinition};
 
 pub struct JoinOperation {
-    index: u64,
+    pub index: u64,
     /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
     /// This resultant streams stream definition.
-    definition: JoinDefinition,
+    pub definition: JoinDefinition,
     /// The partition we've received offsets on.
-    partition: PartitionName,
+    pub partition: PartitionName,
     /// The offsets.
-    offsets: Range<u64>,
+    pub offsets: Range<u64>,
     // /// The subscription that controls how this stream is tracked.
     // subscription: Arc<RwLock<Subscription>>,
     // /// The underlying records that this operation is based on.
@@ -50,8 +50,8 @@ pub struct JoinOperation {
     // /// )>
     // records: Vec<(Vec<u8>, u64)>,
     /// Offset at which this index is trying to place.
-    optimistic_offset: Option<usize>,
-    optimistic_index: Option<Vec<u8>>,
+    pub optimistic_offset: Option<usize>,
+    pub optimistic_index: Option<Vec<u8>>,
 }
 
 impl JoinOperation {

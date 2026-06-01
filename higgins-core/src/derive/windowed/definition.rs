@@ -3,7 +3,7 @@ use nom::{IResult, Parser};
 use crate::{
     broker::Broker,
     error::HigginsError,
-    topography::{Key, StreamDefinition, errors::TopographyError},
+    topography::{Key, StreamDefinition, StreamName, errors::TopographyError},
 };
 
 #[derive(Clone)]
@@ -122,6 +122,58 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
             resultant_key: String::from_utf8(key.as_bytes().to_vec()).unwrap(),
         })
     }
+}
+
+impl TryFrom<(StreamName, StreamDefinition)> for WindowedStreamDefinition {
+    type Error = HigginsError;
+
+    fn try_from(
+        (key, StreamDefinition { base, window, .. }): (StreamName, StreamDefinition),
+    ) -> Result<Self, Self::Error> {
+        let base_key: StreamName = base
+            .ok_or(TopographyError::IncorrectStreamDefinition(format!(
+                "Base value non-present for windowed stream: {:#?}",
+                key
+            )))?
+            .into();
+
+        let window = window.ok_or(HigginsError::Unknown)?;
+        let window_value = WindowValue::try_from(window.interval.as_str())?;
+        let slide = window
+            .slide
+            .map(|val| WindowValue::try_from(val.as_str()).ok())
+            .flatten()
+            .unwrap_or(window_value.clone());
+
+        Ok(Self {
+            base_key: base_key.into(),
+            window_type: window_value.clone(),
+            slide,
+            resultant_key: key.into(),
+        })
+    }
+
+    // fn try_from(
+    //     (key, StreamDefinition { base, window, .. }): (Key, StreamDefinition, &Broker),
+    // ) -> Result<Self, Self::Error> {
+    //     let base_key = &base.ok_or(TopographyError::IncorrectStreamDefinition(format!(
+    //         "Base value non-present for windowed stream: {:#?}",
+    //         key
+    //     )))?;
+
+    //     let window = window.unwrap();
+    //     let window_value = WindowValue::try_from(window.interval.as_str())?;
+
+    //     Ok(Self {
+    //         base_key: String::from_utf8(base_key.as_bytes().to_vec()).unwrap(),
+    //         window_type: window_value.clone(),
+    //         slide: window
+    //             .slide
+    //             .map(|val| WindowValue::try_from(val.as_str()).unwrap())
+    //             .unwrap_or(window_value),
+    //         resultant_key: String::from_utf8(key.as_bytes().to_vec()).unwrap(),
+    //     })
+    // }
 }
 
 #[cfg(test)]

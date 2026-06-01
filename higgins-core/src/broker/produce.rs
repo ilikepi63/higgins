@@ -19,19 +19,19 @@ use tokio::sync::RwLock;
 
 pub struct ProduceOperation {
     /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
     /// Stream that this value is being produced to.
-    stream: String,
+    pub stream: String,
     /// The partition we've received offsets on.
-    partition: PartitionName,
+    pub partition: PartitionName,
     /// The underlying records that this operation is based on.
     /// Vec<(
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    records: Vec<RecordBatch>,
+    pub records: Vec<RecordBatch>,
     /// The References that have previously been created.
-    references: Option<Vec<Reference>>,
+    pub references: Option<Vec<Reference>>,
 }
 
 impl ProduceOperation {

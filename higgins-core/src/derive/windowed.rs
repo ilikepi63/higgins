@@ -18,19 +18,19 @@ pub mod definition;
 
 pub struct WindowOperation {
     /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
     /// This resultant stream's stream name.
-    stream: String,
+    pub stream: String,
     /// This resultant streams stream definition.
-    definition: WindowedStreamDefinition,
+    pub definition: WindowedStreamDefinition,
     /// The partition we've received offsets on.
-    partition: PartitionName,
+    pub partition: PartitionName,
     /// The offsets.
-    offsets: Range<u64>,
+    pub offsets: Range<u64>,
     // /// The references - We want to use these to commit so we have to save them over init and commit branches.
     // references: Option<Vec<Reference>>,
     /// The subscription that controls how this stream is tracked.
-    subscription: Arc<RwLock<Subscription>>,
+    pub subscription: Arc<RwLock<Subscription>>,
     // The underlying records that this operation is based on. (Current unused )
     // Vec<(
     //   Vec<u8> - IPC record batch.

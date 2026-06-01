@@ -40,6 +40,24 @@ impl From<&[u8]> for StreamName {
     }
 }
 
+impl From<Key> for StreamName {
+    fn from(value: Key) -> Self {
+        Self(value.0)
+    }
+}
+
+impl Into<Key> for StreamName {
+    fn into(self) -> Key {
+        Key(self.0)
+    }
+}
+
+impl Into<String> for StreamName {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Clone)]

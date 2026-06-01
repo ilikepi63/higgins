@@ -14,6 +14,7 @@ use crate::topography::StreamName;
 use arrow::{array::RecordBatch, datatypes::Schema};
 use higgins_shared::PartitionName;
 pub use indexes::BrokerIndexFile;
+pub use produce::ProduceOperation;
 use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};

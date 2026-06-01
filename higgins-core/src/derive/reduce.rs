@@ -16,25 +16,25 @@ use tokio::sync::RwLock;
 
 pub struct ReduceOperation {
     /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
     /// This resultant stream's stream name.
-    stream_name: Key,
+    pub stream_name: Key,
     /// This resultant streams stream definition.
-    stream_def: StreamDefinition,
+    pub stream_def: StreamDefinition,
     /// The partition we've received offsets on.
-    partition: PartitionName,
+    pub partition: PartitionName,
     /// The offsets.
-    offsets: Range<u64>,
+    pub offsets: Range<u64>,
     /// The references - We want to use these to commit so we have to save them over init and commit branches.
-    references: Option<Vec<Reference>>,
+    pub references: Option<Vec<Reference>>,
     /// The subscription that controls how this stream is tracked.
-    subscription: Arc<RwLock<Subscription>>,
+    pub subscription: Arc<RwLock<Subscription>>,
     /// The underlying records that this operation is based on.
     /// Vec<(
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    records: Vec<(Vec<u8>, u64)>,
+    pub records: Vec<(Vec<u8>, u64)>,
 }
 
 impl ReduceOperation {

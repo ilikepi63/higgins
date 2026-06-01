@@ -1,4 +1,5 @@
 use super::utils::ColumnName;
+use crate::derive::subscription::create_derived_stream_subscription;
 use crate::subscription::Subscription;
 use crate::{
     broker::Broker,
@@ -18,25 +19,25 @@ use tokio::sync::RwLock;
 
 pub struct MapOperation {
     /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
+    pub broker: Arc<RwLock<Broker>>,
     /// This resultant stream's stream name.
-    stream_name: Key,
+    pub stream_name: Key,
     /// This resultant streams stream definition.
-    stream_def: StreamDefinition,
+    pub stream_def: StreamDefinition,
     /// The partition we've received offsets on.
-    partition: PartitionName,
+    pub partition: PartitionName,
     /// The offsets.
-    offset: Range<u64>,
+    pub offset: Range<u64>,
     /// The references - We want to use these to commit so we have to save them over init and commit branches.
-    references: Option<Vec<Reference>>,
+    pub references: Option<Vec<Reference>>,
     /// The subscription that controls how this stream is tracked.
-    subscription: Arc<RwLock<Subscription>>,
+    pub subscription: Arc<RwLock<Subscription>>,
     /// The underlying records that this operation is based on.
     /// Vec<(
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    records: Vec<(Vec<u8>, u64)>,
+    pub records: Vec<(Vec<u8>, u64)>,
 }
 
 impl MapOperation {
@@ -158,27 +159,8 @@ pub async fn create_mapped_stream_from_definition(
         String::from_utf8_lossy(stream_name.as_bytes())
     );
 
-    let (client_id, condvar, subscription) = {
-        tracing::trace!("Attempting to input client_id.");
-
-        let client_id = broker
-            .clients
-            .insert(crate::client::ClientRef::NoOp)
-            .ok_or(HigginsError::Unknown)?;
-
-        tracing::trace!("Retrieved client_id.");
-        let subscription = broker.create_subscription(base_stream.0.as_bytes());
-
-        tracing::trace!("Successfully created the subscription.");
-
-        let (notify, subscription) = broker
-            .get_subscription_by_key(base_stream.0.as_bytes(), &subscription)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)?;
-
-        tracing::trace!("Retrieved the notification for said subscription.");
-
-        (client_id, notify, subscription)
-    };
+    let (client_id, subscription) =
+        create_derived_stream_subscription(stream_name.into(), broker_ref);
 
     tokio::task::spawn(async move {
         tracing::trace!("[MAP] We are being initiated");
