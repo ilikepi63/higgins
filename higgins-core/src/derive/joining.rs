@@ -21,6 +21,7 @@ use crate::derive::joining::completion::complete_from;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::task::SpawnTaskConfig;
+use crate::topography::StreamName;
 use crate::utils::epoch;
 use crate::{broker::BrokerIndexFile, derive::joining::opts::eager_range_take_or_wait};
 use opts::amalgamate_join;
@@ -32,6 +33,7 @@ use std::ops::Range;
 use crate::{client::ClientRef, derive::joining::join::JoinDefinition};
 
 pub struct JoinOperation {
+    pub stream: StreamName,
     pub index: u64,
     /// Broker  Reference.
     pub broker: Arc<RwLock<Broker>>,
@@ -223,15 +225,12 @@ pub async fn create_joined_stream_from_definition(
 
     // We collect the results of each derivative stream into a channel, with which we
     // iterate over and push onto the resultant stream.
-    // let mut derivative_channel_rx =
-    //     start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
 
     for (i, join_stream) in definition.joins.iter().enumerate() {
         let join_stream = join_stream.clone();
         let broker_ref = broker_ref.clone();
         let definition = definition.clone();
-        // let tx = derivative_channel_tx.clone();
-        // let task_broker = task_broker.clone();
+        let stream_name = StreamName::from(definition.base.0.clone());
 
         let _handle = broker.task_handler.spawn(
             &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
@@ -262,6 +261,7 @@ pub async fn create_joined_stream_from_definition(
 
                     for (partition, offsets) in offsets.iter() {
                         let mut operation = JoinOperation {
+                            stream: stream_name.clone(),
                             index: i.clone() as u64,
                             broker: broker_ref.clone(),
                             definition: definition.clone(),

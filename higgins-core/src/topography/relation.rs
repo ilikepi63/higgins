@@ -10,7 +10,7 @@ use crate::{
     topography::{StreamDefinition, StreamName},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Relation {
     pub stream_name: StreamName,
     pub definition: StreamDefinition,

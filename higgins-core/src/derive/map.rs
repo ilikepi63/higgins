@@ -12,6 +12,7 @@ use crate::{
     storage::dereference::Reference,
     topography::{Key, StreamDefinition},
 };
+use arrow::array::RecordBatch;
 use higgins_shared::{PartitionName, read_arrow};
 use std::ops::Range;
 use std::sync::Arc;
@@ -37,7 +38,7 @@ pub struct MapOperation {
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    pub records: Vec<(Vec<u8>, u64)>,
+    pub records: Vec<RecordBatch>,
 }
 
 impl MapOperation {
@@ -48,60 +49,53 @@ impl MapOperation {
 
         let mut references = vec![];
 
-        for (val, _) in self.records.iter() {
+        for record_batch in self.records.iter() {
             tracing::trace!("[MAP] Received consume Response");
-
-            let stream_reader = read_arrow(&val);
-
-            let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
             tracing::trace!("[MAP] Iterating through batches..");
 
-            for record_batch in batches {
-                tracing::trace!("[MAP] Awaiting the broker lock..");
+            tracing::trace!("[MAP] Awaiting the broker lock..");
 
-                let broker_lock = self.broker.write().await;
+            let broker_lock = self.broker.write().await;
 
-                tracing::trace!("[MAP] We are reading the stream values in..");
+            tracing::trace!("[MAP] We are reading the stream values in..");
 
-                for _ in 0..record_batch.num_rows() {
-                    let partition_val = get_partition_key_from_record_batch(
-                        &record_batch,
-                        &ColumnName::from(&self.stream_def),
-                    );
+            for _ in 0..record_batch.num_rows() {
+                let partition_val = get_partition_key_from_record_batch(
+                    &record_batch,
+                    &ColumnName::from(&self.stream_def),
+                );
 
-                    let engine = &broker_lock.wasm_engine;
-                    let module = broker_lock
-                        .wasm_modules
-                        .iter()
-                        .find(|(n, _)| n == self.stream_def.function_name.as_ref().unwrap())
-                        .map(|(_, m)| m)
-                        .unwrap();
+                let engine = &broker_lock.wasm_engine;
+                let module = broker_lock
+                    .wasm_modules
+                    .iter()
+                    .find(|(n, _)| n == self.stream_def.function_name.as_ref().unwrap())
+                    .map(|(_, m)| m)
+                    .unwrap();
 
-                    tracing::trace!("[MAP] We have fetched the module.");
+                tracing::trace!("[MAP] We have fetched the module.");
 
-                    let mapped_record_batch = run_map_function(&record_batch, engine, module);
+                let mapped_record_batch = run_map_function(&record_batch, engine, module);
 
-                    tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
+                tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
 
-                    tracing::trace!("[MAP] Producing to the stream..");
+                tracing::trace!("[MAP] Producing to the stream..");
 
-                    {
-                        let stream =
-                            String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
-                        let partition = &PartitionName::try_from(&partition_val[..])?;
+                {
+                    let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+                    let partition = &PartitionName::try_from(&partition_val[..])?;
 
-                        // CREATE REFERENCE
-                        let reference = broker_lock
-                            .put_data_store(stream.clone(), partition, mapped_record_batch)
-                            .await?;
+                    // CREATE REFERENCE
+                    let reference = broker_lock
+                        .put_data_store(stream.clone(), partition, mapped_record_batch)
+                        .await?;
 
-                        references.push(reference);
-                    }
+                    references.push(reference);
                 }
-
-                drop(broker_lock);
             }
+
+            drop(broker_lock);
         }
 
         self.references = Some(references);
@@ -200,9 +194,19 @@ pub async fn create_mapped_stream_from_definition(
                             .await?
                             .into_iter()
                             .filter_map(std::convert::identity)
-                            .zip(offset.start..=offset.end)
                             .collect::<Vec<_>>()
                     };
+
+                    let records = records
+                        .iter()
+                        .map(|data| {
+                            read_arrow(data)
+                                .next()
+                                .map(|result| result.ok())
+                                .flatten()
+                                .ok_or(HigginsError::Unknown)
+                        })
+                        .collect::<Result<Vec<_>, HigginsError>>()?;
 
                     let mut operation = MapOperation {
                         broker: broker_ref.clone(),

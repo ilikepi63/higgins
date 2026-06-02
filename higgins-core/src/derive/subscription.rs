@@ -3,8 +3,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
-    broker::Broker, client::ClientRef, error::HigginsError, subscription::Subscription,
-    topography::StreamName,
+    broker::Broker, client::ClientRef, subscription::Subscription, topography::StreamName,
 };
 
 pub async fn create_derived_stream_subscription(

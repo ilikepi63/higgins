@@ -8,6 +8,7 @@ use crate::{
     functions::reduce::run_reduce_function,
     topography::{Key, StreamDefinition},
 };
+use arrow::array::RecordBatch;
 use higgins_shared::PartitionName;
 use higgins_shared::read_arrow;
 use std::ops::Range;
@@ -34,7 +35,7 @@ pub struct ReduceOperation {
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    pub records: Vec<(Vec<u8>, u64)>,
+    pub records: Vec<RecordBatch>,
 }
 
 impl ReduceOperation {
@@ -78,27 +79,12 @@ impl ReduceOperation {
 
         let mut references = vec![];
 
-        for (data, _) in self.records.iter() {
+        for batch in self.records.iter() {
             tracing::trace!("[REDUCE] Awaiting the broker lock..");
 
             let broker_lock = self.broker.write().await;
 
             tracing::trace!("[REDUCE] We are reading the stream values in..");
-
-            let batch = {
-                let mut stream_reader = read_arrow(&data);
-
-                let batch = if let Some(batch) = stream_reader.next() {
-                    batch
-                        .inspect_err(|err| tracing::error!("{:#?}", err))
-                        .unwrap()
-                } else {
-                    tracing::error!("No batch returned for current value.   ");
-                    panic!();
-                };
-                // TODO: We need to ensure that these batches are merged if there are more than one.
-                batch
-            };
 
             tracing::debug!("Retrieved current value: {:#?}", batch);
             tracing::debug!("Previous value: {:#?}", prev_record);
@@ -152,7 +138,7 @@ impl ReduceOperation {
             }
 
             tracing::trace!("Setting previous record to current value.");
-            prev_record = Some(batch);
+            prev_record = Some(batch.clone());
         }
 
         self.references = Some(references);
@@ -270,9 +256,19 @@ pub async fn create_reduced_stream_from_definition(
                         range
                             .into_iter()
                             .filter_map(std::convert::identity)
-                            .zip(offset.start..=offset.end)
                             .collect::<Vec<_>>()
                     };
+
+                    let records = records
+                        .iter()
+                        .map(|data| {
+                            read_arrow(data)
+                                .next()
+                                .map(|result| result.ok())
+                                .flatten()
+                                .ok_or(HigginsError::Unknown)
+                        })
+                        .collect::<Result<Vec<RecordBatch>, HigginsError>>()?;
 
                     let mut operation = ReduceOperation {
                         broker: broker_ref.clone(),

@@ -1,7 +1,8 @@
 use super::Broker;
-use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
+use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
+use crate::{derive::operation::Operation, storage::index::IndexType};
 use arrow::array::RecordBatch;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
@@ -148,13 +149,26 @@ impl Broker {
             record_batch
         );
 
-        let mut operation = ProduceOperation {
-            stream: String::from_utf8_lossy(stream_name).to_string(),
-            partition: partition.clone(),
-            broker,
-            references: None,
-            records: vec![record_batch],
+        let definition = {
+            let broker_guard = broker.write().await;
+            broker_guard
+                .get_topography_stream(&Key::from(stream_name))
+                .map(|(_, definition)| definition.clone())
+                .ok_or(HigginsError::Unknown)?
         };
+
+        let mut operation = Operation::try_new(
+            broker.clone(),
+            0..0, // Doesn't matter..
+            None,
+            vec![record_batch],
+            StreamName::from(stream_name),
+            definition,
+            partition.clone(),
+            None,
+            None,
+        )
+        .await?;
 
         operation.init().await?;
         operation.prepare().await?;

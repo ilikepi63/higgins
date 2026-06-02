@@ -117,11 +117,9 @@ impl From<&Key> for Vec<u8> {
     }
 }
 
-impl TryFrom<&[u8]> for Key {
-    type Error = std::string::FromUtf8Error;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Key(String::from_utf8(value.to_owned())?))
+impl From<&[u8]> for Key {
+    fn from(value: &[u8]) -> Self {
+        Key(String::from_utf8_lossy(value).to_string())
     }
 }
 

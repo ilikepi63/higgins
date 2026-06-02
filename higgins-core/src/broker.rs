@@ -110,4 +110,12 @@ impl Broker {
     pub fn get_client_by_id(&self, id: u64) -> Option<crate::client::ClientRef> {
         self.clients.get(id).cloned()
     }
+
+    pub fn get_relation_for_stream(&self, stream: &StreamName) -> Vec<Relation> {
+        self.relations
+            .iter()
+            .filter(|(name, _)| name == stream)
+            .map(|(_, relation)| relation.clone())
+            .collect()
+    }
 }
