@@ -1,4 +1,5 @@
 use super::utils::ColumnName;
+use crate::derive::operation::Eventual;
 use crate::derive::subscription::create_derived_stream_subscription;
 use crate::subscription::Subscription;
 use crate::{
@@ -28,7 +29,7 @@ pub struct MapOperation {
     /// The partition we've received offsets on.
     pub partition: PartitionName,
     /// The offsets.
-    pub offset: Range<u64>,
+    pub offset: Eventual<Range<u64>>,
     /// The references - We want to use these to commit so we have to save them over init and commit branches.
     pub references: Option<Vec<Reference>>,
     /// The subscription that controls how this stream is tracked.
@@ -38,13 +39,11 @@ pub struct MapOperation {
     ///   Vec<u8> - IPC record batch.
     ///   u64 - The offset to which it belongs.
     /// )>
-    pub records: Vec<RecordBatch>,
+    pub records: Eventual<Vec<RecordBatch>>,
 }
 
 impl MapOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        // Init
-
         tracing::trace!("[MAP] Retrieved records: {:#?}", self.records);
 
         let mut references = vec![];

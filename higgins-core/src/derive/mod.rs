@@ -1,5 +1,6 @@
 //! Implementations of algorithms for Derived streams.
 
+pub mod eventual;
 pub mod joining;
 pub mod map;
 pub mod operation;
