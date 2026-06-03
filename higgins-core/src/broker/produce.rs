@@ -17,9 +17,9 @@ use crate::{
     },
 };
 use higgins_shared::write_arrow;
+use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
 pub struct ProduceOperation {
     /// Broker  Reference.
     pub broker: Arc<RwLock<Broker>>,
@@ -27,6 +27,8 @@ pub struct ProduceOperation {
     pub stream: String,
     /// The partition we've received offsets on.
     pub partition: PartitionName,
+    /// The offsets at which we are optimistic of placing these values.
+    pub offsets: Future<Range<u64>>,
     /// The underlying records that this operation is based on.
     /// Vec<(
     ///   Vec<u8> - IPC record batch.
@@ -40,7 +42,7 @@ pub struct ProduceOperation {
 impl ProduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         tracing::debug!("Running init on produce.");
-        let broker = self.broker.write().await;
+        let mut broker = self.broker.write().await;
         tracing::debug!("Retrieved broker lock.");
 
         let mut references = vec![];
@@ -55,6 +57,8 @@ impl ProduceOperation {
         }
 
         tracing::debug!("Returning references.");
+
+        let reference_count = references.len() as u64;
 
         self.references = Some(references);
 
@@ -73,10 +77,8 @@ impl ProduceOperation {
 
         let mut index_file_guard = index_file_lock.lock().await;
 
-        let file_len = index_file_guard.len().unwrap();
-
         if let Some(references) = self.references.as_ref() {
-            let offset = file_len..file_len;
+            let offset = self.offsets.clone();
 
             let mut buf = vec![0_u8; DefaultIndex::size_of() * references.len()];
 
@@ -95,7 +97,10 @@ impl ProduceOperation {
                 })
                 .collect::<Result<Vec<_>, std::io::Error>>()?;
 
-            index_file_guard.range_put_at(offset.start..offset.end.saturating_add(1), &mut buf)?;
+            index_file_guard.range_put_at(
+                offset.start as usize..offset.end.saturating_add(1) as usize,
+                &mut buf,
+            )?;
 
             let subscription = broker.get_subscriptions_for_stream(&self.stream);
 

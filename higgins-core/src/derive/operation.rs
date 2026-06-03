@@ -22,6 +22,14 @@ use crate::{
     topography::{FunctionType, StreamDefinition, StreamName},
 };
 
+pub struct Eventual<T>(tokio::sync::oneshot::Receiver<T>);
+
+impl<T> Eventual<T> {
+    pub async fn get(self) -> Result<T, HigginsError> {
+        self.0.await.map_err(|_| HigginsError::Unknown)
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Step {
@@ -449,7 +457,7 @@ impl Operation {
     pub async fn try_new(
         // passed in dynamically.
         broker: Arc<RwLock<Broker>>,
-        offsets: Range<u64>,
+        offsets: Option<Range<u64>>,
         references: Option<Vec<Reference>>,
         records: Vec<RecordBatch>,
 

@@ -127,45 +127,31 @@ impl Broker {
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
                     self.relations.push((base_key, relation));
-
-                    // let base = self
-                    //     .topography
-                    //     .get_streams()
-                    //     .iter()
-                    //     .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
-                    //     .map(|(key, def)| (key.clone(), def.clone()))
-                    //     .unwrap();
-
-                    // create_mapped_stream_from_definition(
-                    //     derived_stream_key,
-                    //     derived_stream_definition,
-                    //     base,
-                    //     self,
-                    //     broker.clone(),
-                    // )
-                    // .await
-                    // .unwrap();
                 }
                 Some(FunctionType::Reduce) => {
-                    tracing::trace!("Creating Reduced stream definition.");
+                    tracing::trace!("Creating Mapped stream definition.");
 
-                    let left = self
-                        .topography
-                        .get_streams()
-                        .iter()
-                        .find(|(key, _)| *key == derived_stream_definition.base.as_ref().unwrap())
-                        .map(|(key, def)| (key.clone(), def.clone()))
-                        .unwrap();
+                    let stream_name = StreamName::from(derived_stream_key.clone());
 
-                    create_reduced_stream_from_definition(
-                        derived_stream_key,
-                        derived_stream_definition,
-                        left,
-                        self,
-                        broker.clone(),
-                    )
-                    .await
-                    .unwrap();
+                    let (_client_id, subscription) =
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+
+                    let relation = Relation {
+                        stream_name,
+                        definition: derived_stream_definition.clone(),
+                        subscription,
+                        join_index: None,
+                    };
+
+                    let base_key = derived_stream_definition
+                        .base
+                        .as_ref()
+                        .map(|base_key| StreamName::from(base_key.clone()))
+                        .ok_or(HigginsError::Unknown)?;
+
+                    tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
+
+                    self.relations.push((base_key, relation));
                 }
                 Some(FunctionType::Window) => {
                     tracing::trace!("Creating Windowed stream from stream definition.");
