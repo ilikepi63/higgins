@@ -1,9 +1,11 @@
 use super::Broker;
+use crate::derive::operation::produce_operation;
 use crate::storage::index::default::DefaultIndex;
 use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
 use crate::{derive::operation::Operation, storage::index::IndexType};
 use arrow::array::RecordBatch;
+use futures::Stream;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
 
@@ -157,22 +159,16 @@ impl Broker {
                 .ok_or(HigginsError::Unknown)?
         };
 
-        let mut operation = Operation::try_new(
-            broker.clone(),
-            0..0, // Doesn't matter..
-            None,
-            vec![record_batch],
+        tracing::trace!("Initializing produce operation.");
+        produce_operation(
             StreamName::from(stream_name),
-            definition,
             partition.clone(),
-            None,
-            None,
+            definition,
+            &[record_batch],
+            broker,
         )
         .await?;
-
-        operation.init().await?;
-        operation.prepare().await?;
-        operation.commit().await?;
+        tracing::trace!("Completed produce operation.");
 
         Ok(())
     }

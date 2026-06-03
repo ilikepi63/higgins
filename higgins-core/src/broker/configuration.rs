@@ -1,6 +1,6 @@
 use super::Broker;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
-use crate::derive::subscription::create_derived_stream_subscription;
+use crate::derive::subscription::create_derived_stream_subscription_ref;
 use crate::derive::windowed::create_windowed_stream_from_definition;
 use crate::derive::windowed::definition::WindowedStreamDefinition;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
@@ -109,8 +109,7 @@ impl Broker {
                     let stream_name = StreamName::from(derived_stream_key.clone());
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription(stream_name.clone(), broker.clone())
-                            .await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
 
                     let relation = Relation {
                         stream_name,
@@ -124,6 +123,8 @@ impl Broker {
                         .as_ref()
                         .map(|base_key| StreamName::from(base_key.clone()))
                         .ok_or(HigginsError::Unknown)?;
+
+                    tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
                     self.relations.push((base_key, relation));
 

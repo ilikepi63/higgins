@@ -7,7 +7,7 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
-    fmt::Debug,
+    fmt::{Debug, Display},
     sync::Arc,
 };
 mod relation;
@@ -32,8 +32,20 @@ use file::TopographyFile;
 
 pub use data_type_parser::parse_time_unit;
 
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Clone)]
+#[derive(Debug, Eq, Ord, PartialOrd, Clone)]
 pub struct StreamName(String);
+
+impl PartialEq for StreamName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Display for StreamName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 impl From<&[u8]> for StreamName {
     fn from(value: &[u8]) -> Self {

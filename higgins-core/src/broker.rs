@@ -112,10 +112,24 @@ impl Broker {
     }
 
     pub fn get_relation_for_stream(&self, stream: &StreamName) -> Vec<Relation> {
-        self.relations
+        tracing::debug!(
+            "Quering relations with stream {}. Current relations: {:#?}",
+            stream,
+            self.relations
+        );
+        let relations = self
+            .relations
             .iter()
-            .filter(|(name, _)| name == stream)
+            .filter(|(name, _)| {
+                tracing::debug!("Comparing {name} and {stream}");
+                tracing::debug!("{}", name == stream);
+                name == stream
+            })
             .map(|(_, relation)| relation.clone())
-            .collect()
+            .collect();
+
+        tracing::debug!("Returning relations: {:#?}", relations);
+
+        relations
     }
 }
