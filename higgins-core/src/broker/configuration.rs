@@ -1,11 +1,14 @@
 use super::Broker;
+use crate::derive::joining::join::JoinWithStream;
+use crate::derive::joining::mapping::JoinMapping;
 use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
 use crate::derive::subscription::create_derived_stream_subscription_ref;
 use crate::derive::windowed::create_windowed_stream_from_definition;
 use crate::derive::windowed::definition::WindowedStreamDefinition;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
-use crate::topography::{Relation, StreamName};
+use crate::topography::errors::TopographyError;
+use crate::topography::{Key, Relation, StreamName};
 use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
@@ -87,21 +90,38 @@ impl Broker {
         for (derived_stream_key, derived_stream_definition) in derived_streams {
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
-                    tracing::trace!("Creating the Joined Stream definition.");
+                    tracing::trace!("Creating Joined stream definition.");
 
-                    let definition = {
-                        let b: &Broker = self;
-
+                    let join_definition = {
                         JoinDefinition::try_from((
-                            derived_stream_key,
-                            derived_stream_definition,
-                            b,
+                            derived_stream_key.clone(),
+                            derived_stream_definition.clone(),
+                            &*self,
                         ))?
                     };
 
-                    create_joined_stream_from_definition(definition, self, broker.clone())
-                        .await
-                        .unwrap();
+                    for (i, join) in join_definition.joins.iter().enumerate() {
+                        let stream_name = StreamName::from(derived_stream_key.clone());
+
+                        let (_client_id, subscription) =
+                            create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+
+                        let relation = Relation {
+                            stream_name,
+                            definition: derived_stream_definition.clone(),
+                            subscription,
+                            join_index: Some(i as u64),
+                        };
+
+                        let base_key = StreamName::from(join.stream.0.clone());
+                        tracing::debug!(
+                            "Creating Relation {:#?} with key {}",
+                            relation,
+                            base_key.clone()
+                        );
+
+                        self.relations.push((base_key, relation));
+                    }
                 }
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");

@@ -418,28 +418,36 @@ impl Operation {
                 offsets_setter,
                 records_setter,
             })),
-            // Some(FunctionType::Join) => {
-            //     let definition = {
-            //         let broker_guard = broker.write().await;
+            Some(FunctionType::Join) => {
+                let join_definition = {
+                    let broker_guard = broker.write().await;
 
-            //         JoinDefinition::try_from((
-            //             stream_name.clone().into(),
-            //             definition,
-            //             &*broker_guard,
-            //         ))?
-            //     };
+                    JoinDefinition::try_from((
+                        stream_name.clone().into(),
+                        definition.clone(),
+                        &*broker_guard,
+                    ))?
+                };
 
-            //     Operation::Join(JoinOperation {
-            //         stream: stream_name.clone(),
-            //         broker,
-            //         index: join_index.ok_or(HigginsError::Unknown)?,
-            //         definition,
-            //         partition,
-            //         offsets: offsets.unwrap(),
-            //         optimistic_index: None,
-            //         optimistic_offset: None,
-            //     })
-            // }
+                Operation::Join(JoinOperation {
+                    data: OperationData {
+                        broker,
+                        stream: stream_name.into(),
+                        definition: definition.clone(),
+                        partition,
+                        offsets: offsets,
+                        references,
+                        subscription: subscription,
+                        records: records,
+                        join_index,
+                        offsets_setter,
+                        records_setter,
+                    },
+                    definition: join_definition,
+                    optimistic_index: None,
+                    optimistic_offset: None,
+                })
+            }
             // Some(FunctionType::Aggregate) => todo!(),
             None => Operation::Produce(ProduceOperation(OperationData {
                 broker,
@@ -461,7 +469,7 @@ impl Operation {
     pub fn broker(&self) -> Arc<RwLock<Broker>> {
         match self {
             Self::Map(o) => o.0.broker.clone(),
-            Self::Join(o) => o.broker.clone(),
+            Self::Join(o) => o.data.broker.clone(),
             Self::Window(o) => o.broker.clone(),
             Self::Reduce(o) => o.0.broker.clone(),
             Self::Produce(o) => o.0.broker.clone(),
@@ -471,7 +479,7 @@ impl Operation {
     pub fn stream(&self) -> StreamName {
         match self {
             Self::Map(o) => o.0.stream.clone(),
-            Self::Join(o) => o.stream.clone(),
+            Self::Join(o) => o.data.stream.clone(),
             Self::Window(o) => StreamName::from(o.stream.as_str()),
             Self::Reduce(o) => o.0.stream.clone(),
             Self::Produce(o) => o.0.stream.clone(),
