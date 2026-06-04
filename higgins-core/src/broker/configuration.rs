@@ -174,20 +174,29 @@ impl Broker {
                     self.relations.push((base_key, relation));
                 }
                 Some(FunctionType::Window) => {
-                    tracing::trace!("Creating Windowed stream from stream definition.");
-                    let b: &Broker = self;
+                    tracing::trace!("Creating Window stream definition.");
 
-                    create_windowed_stream_from_definition(
-                        WindowedStreamDefinition::try_from((
-                            derived_stream_key,
-                            derived_stream_definition,
-                            b,
-                        ))
-                        .unwrap(),
-                        self,
-                        broker.clone(),
-                    )
-                    .await;
+                    let stream_name = StreamName::from(derived_stream_key.clone());
+
+                    let (_client_id, subscription) =
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+
+                    let relation = Relation {
+                        stream_name,
+                        definition: derived_stream_definition.clone(),
+                        subscription,
+                        join_index: None,
+                    };
+
+                    let base_key = derived_stream_definition
+                        .base
+                        .as_ref()
+                        .map(|base_key| StreamName::from(base_key.clone()))
+                        .ok_or(HigginsError::Unknown)?;
+
+                    tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
+
+                    self.relations.push((base_key, relation));
                 }
                 Some(_) => todo!(),
                 None => {

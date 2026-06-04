@@ -381,14 +381,23 @@ impl Operation {
         join_index: Option<u64>,
     ) -> Result<Self, HigginsError> {
         Ok(match definition.stream_type {
-            // Some(FunctionType::Window) => Operation::Window(WindowOperation {
-            //     broker,
-            //     stream: stream_name.clone().into(),
-            //     definition: WindowedStreamDefinition::try_from((stream_name, definition))?,
-            //     partition,
-            //     offsets: offsets.unwrap(),
-            //     subscription: subscription.ok_or(HigginsError::Unknown)?,
-            // }),
+            Some(FunctionType::Window) => {
+                tracing::debug!("Spawning window operation..");
+                Operation::Window(WindowOperation(OperationData {
+                    broker,
+                    stream: stream_name.into(),
+                    definition: definition,
+                    partition,
+                    offsets: offsets,
+                    references,
+                    subscription: subscription,
+                    records: records,
+                    join_index: None,
+                    offsets_setter,
+                    records_setter,
+                }))
+            }
+
             Some(FunctionType::Map) => {
                 tracing::debug!("Spawning map operation..");
                 Operation::Map(MapOperation(OperationData {
@@ -470,7 +479,7 @@ impl Operation {
         match self {
             Self::Map(o) => o.0.broker.clone(),
             Self::Join(o) => o.data.broker.clone(),
-            Self::Window(o) => o.broker.clone(),
+            Self::Window(o) => o.0.broker.clone(),
             Self::Reduce(o) => o.0.broker.clone(),
             Self::Produce(o) => o.0.broker.clone(),
         }
@@ -480,7 +489,7 @@ impl Operation {
         match self {
             Self::Map(o) => o.0.stream.clone(),
             Self::Join(o) => o.data.stream.clone(),
-            Self::Window(o) => StreamName::from(o.stream.as_str()),
+            Self::Window(o) => o.0.stream.clone(),
             Self::Reduce(o) => o.0.stream.clone(),
             Self::Produce(o) => o.0.stream.clone(),
         }

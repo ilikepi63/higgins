@@ -98,11 +98,11 @@ pub fn window_interval_parser(input: &str) -> Result<WindowValue, HigginsError> 
     })
 }
 
-impl TryFrom<(Key, StreamDefinition, &Broker)> for WindowedStreamDefinition {
+impl TryFrom<(Key, StreamDefinition)> for WindowedStreamDefinition {
     type Error = HigginsError;
 
     fn try_from(
-        (key, StreamDefinition { base, window, .. }, _): (Key, StreamDefinition, &Broker),
+        (key, StreamDefinition { base, window, .. }): (Key, StreamDefinition),
     ) -> Result<Self, Self::Error> {
         let base_key = &base.ok_or(TopographyError::IncorrectStreamDefinition(format!(
             "Base value non-present for windowed stream: {:#?}",
