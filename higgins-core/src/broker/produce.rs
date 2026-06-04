@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::derive::operation::produce_operation;
+use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::index::default::DefaultIndex;
 use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
@@ -20,37 +20,42 @@ use higgins_shared::write_arrow;
 use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-pub struct ProduceOperation {
-    /// Broker  Reference.
-    pub broker: Arc<RwLock<Broker>>,
-    /// Stream that this value is being produced to.
-    pub stream: String,
-    /// The partition we've received offsets on.
-    pub partition: PartitionName,
-    /// The offsets at which we are optimistic of placing these values.
-    pub offsets: Future<Range<u64>>,
-    /// The underlying records that this operation is based on.
-    /// Vec<(
-    ///   Vec<u8> - IPC record batch.
-    ///   u64 - The offset to which it belongs.
-    /// )>
-    pub records: Vec<RecordBatch>,
-    /// The References that have previously been created.
-    pub references: Option<Vec<Reference>>,
-}
+pub struct ProduceOperation(pub OperationData);
+// /// Broker  Reference.
+// pub broker: Arc<RwLock<Broker>>,
+// /// Stream that this value is being produced to.
+// pub stream: String,
+// /// The partition we've received offsets on.
+// pub partition: PartitionName,
+// /// The offsets at which we are optimistic of placing these values.
+// pub offsets: Range<u64>,
+// /// The underlying records that this operation is based on.
+// /// Vec<(
+// ///   Vec<u8> - IPC record batch.
+// ///   u64 - The offset to which it belongs.
+// /// )>
+// pub records: Vec<RecordBatch>,
+// /// The References that have previously been created.
+// pub references: Option<Vec<Reference>>,
 
 impl ProduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         tracing::debug!("Running init on produce.");
-        let mut broker = self.broker.write().await;
+        let mut broker = self.0.broker.write().await;
         tracing::debug!("Retrieved broker lock.");
 
         let mut references = vec![];
 
-        for record in &self.records {
+        let records = self.0.records.get().await?;
+
+        for record in records {
             references.push(
                 broker
-                    .put_data_store(self.stream.clone(), &self.partition.clone(), record.clone())
+                    .put_data_store(
+                        self.0.stream.to_string(),
+                        &self.0.partition.clone(),
+                        record.clone(),
+                    )
                     .await
                     .inspect_err(|err| tracing::error!("{:#?}", err))?,
             );
@@ -60,7 +65,7 @@ impl ProduceOperation {
 
         let reference_count = references.len() as u64;
 
-        self.references = Some(references);
+        self.0.references = Some(references);
 
         Ok(())
     }
@@ -68,17 +73,17 @@ impl ProduceOperation {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        let mut broker = self.broker.write().await;
+        let mut broker = self.0.broker.write().await;
         tracing::debug!("Running commit.");
 
         let mut index_file_lock = broker
-            .get_index_file(self.stream.clone(), &self.partition.clone())
+            .get_index_file(self.0.stream.to_string(), &self.0.partition.clone())
             .unwrap();
 
         let mut index_file_guard = index_file_lock.lock().await;
 
-        if let Some(references) = self.references.as_ref() {
-            let offset = self.offsets.clone();
+        if let Some(references) = self.0.references.as_ref() {
+            let offset = self.0.offsets.get().await?;
 
             let mut buf = vec![0_u8; DefaultIndex::size_of() * references.len()];
 
@@ -102,7 +107,7 @@ impl ProduceOperation {
                 &mut buf,
             )?;
 
-            let subscription = broker.get_subscriptions_for_stream(&self.stream);
+            let subscription = broker.get_subscriptions_for_stream(&self.0.stream.to_string());
 
             if let Some(subscriptions) = subscription {
                 tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
@@ -118,12 +123,12 @@ impl ProduceOperation {
                     if subscription
                         .partitions
                         .iter()
-                        .find(|sub_key| sub_key.partition_id == self.partition)
+                        .find(|sub_key| sub_key.partition_id == self.0.partition)
                         .is_some()
                     {
-                        subscription.set_end(&self.partition, offset.end as u64)?;
+                        subscription.set_end(&self.0.partition, offset.end as u64)?;
                     } else {
-                        subscription.add_partition(&self.partition, 0, offset.end as u64)?;
+                        subscription.add_partition(&self.0.partition, 0, offset.end as u64)?;
                     };
 
                     tracing::info!("SUBSCRIPTION{:#?}", subscription);

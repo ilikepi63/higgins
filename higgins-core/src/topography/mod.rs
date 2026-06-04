@@ -35,6 +35,12 @@ pub use data_type_parser::parse_time_unit;
 #[derive(Debug, Eq, Ord, PartialOrd, Clone)]
 pub struct StreamName(String);
 
+impl StreamName {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
 impl PartialEq for StreamName {
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0)

@@ -16,7 +16,7 @@ pub fn eventual<T>() -> (Eventual<T>, Setter<T>) {
     (Eventual(data.clone()), Setter(data))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Eventual<T>(Arc<(AtomicPtr<T>, Notify)>);
 
 impl<T> Eventual<T> {
@@ -27,6 +27,7 @@ impl<T> Eventual<T> {
             drop(ptr);
             self.0.1.notified().await;
         }
+
         let ptr = self.0.0.load(Ordering::SeqCst);
         // SAFETY: If notify has been notified, this means this value is present.
         Ok(unsafe { std::ptr::read(ptr) })

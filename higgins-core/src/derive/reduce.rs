@@ -1,7 +1,10 @@
 use super::joining::opts::eager_range_take_or_wait;
 use super::utils::put_default_index_at_range;
+use crate::derive::eventual::eventual;
+use crate::derive::operation::OperationData;
 use crate::storage::dereference::Reference;
 use crate::subscription::Subscription;
+use crate::topography::StreamName;
 use crate::{
     broker::Broker,
     error::HigginsError,
@@ -15,43 +18,24 @@ use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub struct ReduceOperation {
-    /// Broker  Reference.
-    pub broker: Arc<RwLock<Broker>>,
-    /// This resultant stream's stream name.
-    pub stream_name: Key,
-    /// This resultant streams stream definition.
-    pub stream_def: StreamDefinition,
-    /// The partition we've received offsets on.
-    pub partition: PartitionName,
-    /// The offsets.
-    pub offsets: Range<u64>,
-    /// The references - We want to use these to commit so we have to save them over init and commit branches.
-    pub references: Option<Vec<Reference>>,
-    /// The subscription that controls how this stream is tracked.
-    pub subscription: Arc<RwLock<Subscription>>,
-    /// The underlying records that this operation is based on.
-    /// Vec<(
-    ///   Vec<u8> - IPC record batch.
-    ///   u64 - The offset to which it belongs.
-    /// )>
-    pub records: Vec<RecordBatch>,
-}
+pub struct ReduceOperation(pub OperationData);
 
 impl ReduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        tracing::debug!("Retrieved {} records for reduction.", self.records.len());
+        // tracing::debug!("Retrieved {} records for reduction.", self.records.len());
+
+        let offsets = self.0.offsets.get().await?;
         // In order to begin the reduction for these records, we need to
         // retrieve the first record's previous record.
-        let mut prev_record = match self.offsets.start {
+        let mut prev_record = match offsets.start {
             0 => None,
             _ => {
-                let mut broker_guard = self.broker.write().await;
+                let mut broker_guard = self.0.broker.write().await;
                 broker_guard
                     .get_at(
-                        self.stream_name.as_bytes(),
-                        &self.partition,
-                        self.offsets.start - 1, // TODO: This should be impossible to fail as the invariant forces > 0, perhaps there is a better technique to be used here
+                        self.0.stream.as_bytes(),
+                        &self.0.partition,
+                        offsets.start - 1, // TODO: This should be impossible to fail as the invariant forces > 0, perhaps there is a better technique to be used here
                     )
                     .await
                     .inspect_err(|err| {
@@ -79,69 +63,80 @@ impl ReduceOperation {
 
         let mut references = vec![];
 
-        for batch in self.records.iter() {
-            tracing::trace!("[REDUCE] Awaiting the broker lock..");
+        let records = self.0.records.get().await;
 
-            let broker_lock = self.broker.write().await;
+        for batches in records.iter() {
+            for batch in batches.iter() {
+                tracing::trace!("[REDUCE] Awaiting the broker lock..");
 
-            tracing::trace!("[REDUCE] We are reading the stream values in..");
+                let broker_lock = self.0.broker.write().await;
 
-            tracing::debug!("Retrieved current value: {:#?}", batch);
-            tracing::debug!("Previous value: {:#?}", prev_record);
+                tracing::trace!("[REDUCE] We are reading the stream values in..");
 
-            match prev_record.as_ref() {
-                Some(prev_record) => {
-                    tracing::info!("Using previous record..");
+                tracing::debug!("Retrieved current value: {:#?}", batch);
+                tracing::debug!("Previous value: {:#?}", prev_record);
 
-                    let module = broker_lock
-                        .wasm_modules
-                        .iter()
-                        .find(|(n, _)| n == self.stream_def.function_name.as_ref().unwrap())
-                        .map(|(_, m)| m)
-                        .unwrap();
+                match prev_record.as_ref() {
+                    Some(prev_record) => {
+                        tracing::info!("Using previous record..");
 
-                    tracing::trace!("Applying the function..");
+                        let module = broker_lock
+                            .wasm_modules
+                            .iter()
+                            .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
+                            .map(|(_, m)| m)
+                            .unwrap();
 
-                    let reduced_record_batch =
-                        run_reduce_function(&batch, &prev_record, &broker_lock.wasm_engine, module);
+                        tracing::trace!("Applying the function..");
 
-                    tracing::trace!("Reduced Record batch: {:#?}", reduced_record_batch);
+                        let reduced_record_batch = run_reduce_function(
+                            &batch,
+                            &prev_record,
+                            &broker_lock.wasm_engine,
+                            module,
+                        );
 
-                    {
-                        let stream =
-                            String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+                        tracing::trace!("Reduced Record batch: {:#?}", reduced_record_batch);
+
+                        {
+                            // CREATE REFERENCE
+                            let reference = broker_lock
+                                .put_data_store(
+                                    self.0.stream.to_string(),
+                                    &self.0.partition,
+                                    reduced_record_batch,
+                                )
+                                .await?;
+
+                            references.push(reference);
+                        }
+                    }
+                    None => {
+                        tracing::trace!(
+                            "No previous index found. Producing to stream {} key {} ",
+                            self.0.stream.to_string(),
+                            String::from_utf8_lossy(&self.0.partition.0)
+                        );
 
                         // CREATE REFERENCE
                         let reference = broker_lock
-                            .put_data_store(stream.clone(), &self.partition, reduced_record_batch)
+                            .put_data_store(
+                                self.0.stream.to_string(),
+                                &self.0.partition,
+                                batch.clone(),
+                            )
                             .await?;
 
                         references.push(reference);
                     }
                 }
-                None => {
-                    tracing::trace!(
-                        "No previous index found. Producing to stream {} key {} ",
-                        String::from_utf8_lossy(self.stream_name.as_bytes()),
-                        String::from_utf8_lossy(&self.partition.0)
-                    );
 
-                    let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
-
-                    // CREATE REFERENCE
-                    let reference = broker_lock
-                        .put_data_store(stream.clone(), &self.partition, batch.clone())
-                        .await?;
-
-                    references.push(reference);
-                }
+                tracing::trace!("Setting previous record to current value.");
+                prev_record = Some(batch.clone());
             }
-
-            tracing::trace!("Setting previous record to current value.");
-            prev_record = Some(batch.clone());
         }
 
-        self.references = Some(references);
+        self.0.references = Some(references);
 
         Ok(())
     }
@@ -151,18 +146,18 @@ impl ReduceOperation {
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
         tracing::trace!("Writing the values.");
 
-        if let Some(references) = self.references.as_ref() {
-            {
-                let mut broker_guard = self.broker.write().await;
+        if let Some(references) = self.0.references.as_ref() {
+            let offsets = self.0.offsets.get().await?;
 
-                let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+            {
+                let mut broker_guard = self.0.broker.write().await;
 
                 tracing::trace!("Writing the offsets.");
 
                 put_default_index_at_range(
-                    stream,
-                    &self.partition,
-                    self.offsets.clone(),
+                    self.0.stream.to_string(),
+                    &self.0.partition,
+                    offsets.clone(),
                     &mut broker_guard,
                     references,
                 )
@@ -170,15 +165,15 @@ impl ReduceOperation {
             }
             tracing::trace!(
                 "Wrote the offsets to {:#?}. References: {:#?}",
-                self.offsets,
+                offsets,
                 references
             );
 
-            let mut lock = self.subscription.write().await;
+            if let Some(subscription) = self.0.subscription.as_ref() {
+                let mut lock = subscription.write().await;
 
-            lock.acknowledge(&self.partition, &self.offsets)?;
-
-            drop(lock);
+                lock.acknowledge(&self.0.partition, &offsets)?;
+            }
         } else {
             tracing::error!("Attempt to commit without any referencs on Reduce stream.")
         }
@@ -270,16 +265,25 @@ pub async fn create_reduced_stream_from_definition(
                         })
                         .collect::<Result<Vec<RecordBatch>, HigginsError>>()?;
 
-                    let mut operation = ReduceOperation {
+                    let (records_eventual, record_setter) = eventual();
+                    let (offsets, offsets_setter) = eventual();
+
+                    offsets_setter.set(offset);
+                    record_setter.set(records);
+
+                    let mut operation = ReduceOperation(OperationData {
                         broker: broker_ref.clone(),
-                        stream_name: stream_name.clone(),
-                        stream_def: stream_def.clone(),
+                        stream: StreamName::from(stream_name.clone()).clone(),
+                        definition: stream_def.clone(),
                         partition: partition.clone(),
-                        offsets: offset.clone(),
+                        offsets: offsets,
                         references: None,
-                        subscription: subscription.clone(),
-                        records,
-                    };
+                        subscription: Some(subscription.clone()),
+                        records: records_eventual,
+                        join_index: None,
+                        offsets_setter: todo!(),
+                        records_setter: todo!(),
+                    });
 
                     operation.init().await.unwrap();
                     operation.prepare().await.unwrap();

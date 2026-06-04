@@ -206,6 +206,8 @@ pub async fn create_mapped_stream_from_definition(
                         subscription: Some(subscription.clone()),
                         records: records_eventual,
                         join_index: None,
+                        offsets_setter: todo!(),
+                        records_setter: todo!(),
                     });
 
                     tracing::info!("[MAP] Created operation.");
