@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use higgins_shared::PartitionName;
 use tokio::sync::RwLock;
 
 use crate::{

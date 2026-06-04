@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     broker::{Broker, ProduceOperation},
-    derive::{joining::join::JoinDefinition, windowed::definition::WindowedStreamDefinition},
+    derive::joining::join::JoinDefinition,
     error::HigginsError,
     storage::dereference::Reference,
     subscription::Subscription,
@@ -58,19 +58,6 @@ impl From<&AtomicU8> for Step {
             3 => Self::Commit,
             _ => Self::Pre,
         }
-    }
-}
-
-impl Step {
-    /// Checks if this related step can allow the derivative algorithm to
-    /// prepare it's data for commit.
-    pub fn can_prepare(&self) -> bool {
-        *self > Self::Pre
-    }
-
-    /// A check to see if the transaction can commit.
-    pub fn can_commit(&self) -> bool {
-        *self > Self::Commit
     }
 }
 
@@ -494,48 +481,6 @@ impl Operation {
             Self::Produce(o) => o.0.stream.clone(),
         }
     }
-
-    // // records,
-    // // partition,
-    // pub fn offsets(&self) -> Range<u64> {
-    //     match self {
-    //         Self::Map(o) => o.offset.clone(),
-    //         Self::Join(o) => o.offsets.clone(),
-    //         Self::Window(o) => o.offsets.clone(),
-    //         Self::Reduce(o) => o.offsets.clone(),
-    //         Self::Produce(o) => 0..0, // Not required.
-    //     }
-    // }
-
-    // pub fn references(&self) -> Option<Vec<Reference>> {
-    //     match self {
-    //         Self::Map(o) => o.references.clone(),
-    //         Self::Join(o) => None,
-    //         Self::Window(o) => None,
-    //         Self::Reduce(o) => o.references.clone(),
-    //         Self::Produce(o) => o.references.clone(),
-    //     }
-    // }
-
-    // pub fn records(&self) -> Option<Vec<RecordBatch>> {
-    //     match self {
-    //         Self::Map(o) => Some(o.records.clone()),
-    //         Self::Join(o) => None,
-    //         Self::Window(o) => None,
-    //         Self::Reduce(o) => Some(o.records.clone()),
-    //         Self::Produce(o) => Some(o.records.clone()),
-    //     }
-    // }
-
-    // pub fn partition(&self) -> PartitionName {
-    //     match self {
-    //         Self::Map(o) => o.partition.clone(),
-    //         Self::Join(o) => o.partition.clone(),
-    //         Self::Window(o) => o.partition.clone(),
-    //         Self::Reduce(o) => o.partition.clone(),
-    //         Self::Produce(o) => o.partition.clone(),
-    //     }
-    // }
 
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         match self {

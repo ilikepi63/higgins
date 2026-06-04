@@ -1,36 +1,21 @@
 use super::Broker;
-use crate::derive::joining::join::JoinWithStream;
-use crate::derive::joining::mapping::JoinMapping;
-use crate::derive::joining::{create_joined_stream_from_definition, join::JoinDefinition};
+use crate::derive::joining::join::JoinDefinition;
 use crate::derive::subscription::create_derived_stream_subscription_ref;
-use crate::derive::windowed::create_windowed_stream_from_definition;
-use crate::derive::windowed::definition::WindowedStreamDefinition;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
 use crate::topography::config::{Storage, StorageType};
-use crate::topography::errors::TopographyError;
-use crate::topography::{Key, Relation, StreamName};
+use crate::topography::{Relation, StreamName};
 use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
-use crate::{
-    derive::{
-        map::create_mapped_stream_from_definition, reduce::create_reduced_stream_from_definition,
-    },
-    topography::FunctionType,
-};
+use crate::topography::FunctionType;
 use crate::{error::HigginsError, topography::config::from_toml};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
     // and then the state of the topography creates resources inside of the broker. However,
     // due to focus on naive implementations, we're going to just apply the configuration directly.
-    pub async fn apply_configuration(
-        &mut self,
-        config: &[u8],
-        broker: Arc<RwLock<Self>>,
-    ) -> Result<(), HigginsError> {
+    pub async fn apply_configuration(&mut self, config: &[u8]) -> Result<(), HigginsError> {
         tracing::trace!("Deserializing the toml.");
         tracing::trace!("{:#?}", String::from_utf8(config.to_vec()));
 

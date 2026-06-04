@@ -1,44 +1,20 @@
 //! All liveness work on the windowed specific derived streams
 
 use crate::broker::{Broker, BrokerIndexFile};
-use crate::derive::joining::opts::eager_range_take_or_wait;
 use crate::derive::operation::OperationData;
 use crate::derive::windowed::definition::WindowValue;
 use crate::error::HigginsError;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
 use crate::storage::windowing::assign_sliding_windows_range;
-use crate::subscription::Subscription;
-use crate::task::SpawnTaskConfig;
 use crate::topography::Key;
 use definition::WindowedStreamDefinition;
 use higgins_shared::PartitionName;
-use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub mod definition;
 
 pub struct WindowOperation(pub OperationData);
-// /// Broker  Reference.
-// pub broker: Arc<RwLock<Broker>>,
-// /// This resultant stream's stream name.
-// pub stream: String,
-// /// This resultant streams stream definition.
-// pub definition: WindowedStreamDefinition,
-// /// The partition we've received offsets on.
-// pub partition: PartitionName,
-// /// The offsets.
-// pub offsets: Range<u64>,
-// // /// The references - We want to use these to commit so we have to save them over init and commit branches.
-// // references: Option<Vec<Reference>>,
-// /// The subscription that controls how this stream is tracked.
-// pub subscription: Arc<RwLock<Subscription>>,
-// // The underlying records that this operation is based on. (Current unused )
-// // Vec<(
-// //   Vec<u8> - IPC record batch.
-// //   u64 - The offset to which it belongs.
-// // )>
-// // records: Vec<(Vec<u8>, u64)>,
 
 impl WindowOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
@@ -131,74 +107,6 @@ impl WindowOperation {
 
         Ok(())
     }
-}
-
-pub async fn create_windowed_stream_from_definition(
-    definition: WindowedStreamDefinition,
-    broker: &mut Broker,
-    broker_ref: Arc<RwLock<Broker>>,
-) {
-    tracing::trace!("Calling create_windowed_stream_from_definition.");
-    tracing::trace!("{:#?}", definition.base_key);
-    let base_stream = definition.base_key.clone();
-    let stream = definition.resultant_key.clone();
-
-    let (client_id, condvar, subscription) = {
-        tracing::trace!("Attempting to input client_id.");
-
-        let client_id = broker
-            .clients
-            .insert(crate::client::ClientRef::NoOp)
-            .unwrap();
-
-        tracing::trace!("Retrieved client_id.");
-        let subscription = broker.create_subscription(base_stream.as_bytes());
-
-        tracing::trace!("Successfully created the subscription.");
-
-        let (notify, subscription) = broker
-            .get_subscription_by_key(base_stream.as_bytes(), &subscription)
-            .ok_or(HigginsError::SubscriptionRetrievalFailed)
-            .unwrap();
-
-        tracing::trace!("Retrieved the notification for said subscription.");
-
-        (client_id, notify, subscription)
-    };
-
-    tracing::trace!("Retrieved client_id.");
-
-    broker
-        .task_handler
-        .spawn(&SpawnTaskConfig::new("windowing", false), async move {
-            tracing::trace!("Spawning task.");
-
-            loop {
-                let offsets =
-                    eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
-                        .await
-                        .unwrap();
-
-                tracing::info!("Retrieved some offsets: {:#?}", offsets);
-
-                todo!()
-                // for (partition, offsets) in offsets.iter() {
-                //     let mut operation = WindowOperation {
-                //         broker: broker_ref.clone(),
-                //         stream: stream.clone(),
-                //         definition: definition.clone(),
-                //         partition: partition.clone(),
-                //         offsets: offsets.clone(),
-                //         subscription: subscription.clone(),
-                //     };
-
-                //     operation.init().await.unwrap();
-                //     operation.prepare().await.unwrap();
-                //     operation.commit().await.unwrap();
-                // }
-            }
-        })
-        .unwrap();
 }
 
 async fn get_index_file_handle(

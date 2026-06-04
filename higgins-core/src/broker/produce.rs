@@ -1,11 +1,10 @@
 use super::Broker;
 use crate::derive::operation::{OperationData, produce_operation};
+use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
 use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
-use crate::{derive::operation::Operation, storage::index::IndexType};
 use arrow::array::RecordBatch;
-use futures::Stream;
 use higgins_shared::PartitionName;
 use riskless::messages::ProduceRequest;
 
@@ -17,31 +16,15 @@ use crate::{
     },
 };
 use higgins_shared::write_arrow;
-use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
 pub struct ProduceOperation(pub OperationData);
-// /// Broker  Reference.
-// pub broker: Arc<RwLock<Broker>>,
-// /// Stream that this value is being produced to.
-// pub stream: String,
-// /// The partition we've received offsets on.
-// pub partition: PartitionName,
-// /// The offsets at which we are optimistic of placing these values.
-// pub offsets: Range<u64>,
-// /// The underlying records that this operation is based on.
-// /// Vec<(
-// ///   Vec<u8> - IPC record batch.
-// ///   u64 - The offset to which it belongs.
-// /// )>
-// pub records: Vec<RecordBatch>,
-// /// The References that have previously been created.
-// pub references: Option<Vec<Reference>>,
 
 impl ProduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         tracing::debug!("Running init on produce.");
-        let mut broker = self.0.broker.write().await;
+        let broker = self.0.broker.write().await;
         tracing::debug!("Retrieved broker lock.");
 
         let mut references = vec![];

@@ -9,8 +9,11 @@ use higgins_shared::PartitionName;
 
 use crate::{error::HigginsError, subscription::Subscription};
 
+#[allow(unused)]
 static N: u64 = 10;
 
+/// Allowing unused as this might be the strategy to redo failed operations within the future.
+#[allow(unused)]
 pub async fn eager_range_take_or_wait(
     subscription: Arc<RwLock<Subscription>>,
     notify: Arc<tokio::sync::Notify>,
