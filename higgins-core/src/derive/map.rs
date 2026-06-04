@@ -1,7 +1,9 @@
 use super::utils::ColumnName;
-use crate::derive::operation::Eventual;
+use crate::derive::eventual::eventual;
+use crate::derive::operation::OperationData;
 use crate::derive::subscription::create_derived_stream_subscription;
 use crate::subscription::Subscription;
+use crate::topography::StreamName;
 use crate::{
     broker::Broker,
     derive::{
@@ -19,57 +21,38 @@ use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub struct MapOperation {
-    /// Broker  Reference.
-    pub broker: Arc<RwLock<Broker>>,
-    /// This resultant stream's stream name.
-    pub stream_name: Key,
-    /// This resultant streams stream definition.
-    pub stream_def: StreamDefinition,
-    /// The partition we've received offsets on.
-    pub partition: PartitionName,
-    /// The offsets.
-    pub offset: Eventual<Range<u64>>,
-    /// The references - We want to use these to commit so we have to save them over init and commit branches.
-    pub references: Option<Vec<Reference>>,
-    /// The subscription that controls how this stream is tracked.
-    pub subscription: Arc<RwLock<Subscription>>,
-    /// The underlying records that this operation is based on.
-    /// Vec<(
-    ///   Vec<u8> - IPC record batch.
-    ///   u64 - The offset to which it belongs.
-    /// )>
-    pub records: Eventual<Vec<RecordBatch>>,
-}
+pub struct MapOperation(pub OperationData);
 
 impl MapOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        tracing::trace!("[MAP] Retrieved records: {:#?}", self.records);
+        tracing::trace!("[MAP] Retrieved records: {:#?}", self.0.records);
 
         let mut references = vec![];
 
-        for record_batch in self.records.iter() {
+        let records = self.0.records.get().await?;
+
+        for record_batch in records.iter() {
             tracing::trace!("[MAP] Received consume Response");
 
             tracing::trace!("[MAP] Iterating through batches..");
 
             tracing::trace!("[MAP] Awaiting the broker lock..");
 
-            let broker_lock = self.broker.write().await;
+            let broker_lock = self.0.broker.write().await;
 
             tracing::trace!("[MAP] We are reading the stream values in..");
 
             for _ in 0..record_batch.num_rows() {
                 let partition_val = get_partition_key_from_record_batch(
                     &record_batch,
-                    &ColumnName::from(&self.stream_def),
+                    &ColumnName::from(&self.0.definition),
                 );
 
                 let engine = &broker_lock.wasm_engine;
                 let module = broker_lock
                     .wasm_modules
                     .iter()
-                    .find(|(n, _)| n == self.stream_def.function_name.as_ref().unwrap())
+                    .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
                     .map(|(_, m)| m)
                     .unwrap();
 
@@ -82,7 +65,7 @@ impl MapOperation {
                 tracing::trace!("[MAP] Producing to the stream..");
 
                 {
-                    let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+                    let stream = self.0.stream.to_string();
                     let partition = &PartitionName::try_from(&partition_val[..])?;
 
                     // CREATE REFERENCE
@@ -97,7 +80,7 @@ impl MapOperation {
             drop(broker_lock);
         }
 
-        self.references = Some(references);
+        self.0.references = Some(references);
 
         Ok(())
 
@@ -108,24 +91,24 @@ impl MapOperation {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        match self.references.as_ref() {
+        match self.0.references.as_ref() {
             Some(references) => {
-                let mut broker_guard = self.broker.write().await;
+                let mut broker_guard = self.0.broker.write().await;
 
-                let stream = String::from_utf8_lossy(self.stream_name.as_bytes()).to_string();
+                let offsets = self.0.offsets.get().await?;
 
                 put_default_index_at_range(
-                    stream,
-                    &self.partition,
-                    self.offset.clone(),
+                    self.0.stream.to_string(),
+                    &self.0.partition,
+                    offsets.clone(),
                     &mut broker_guard,
                     references,
                 )
                 .await?;
 
-                let mut lock = self.subscription.write().await;
+                let mut lock = self.0.subscription.as_mut().unwrap().write().await;
 
-                lock.acknowledge(&self.partition, &self.offset)?;
+                lock.acknowledge(&self.0.partition, &offsets)?;
 
                 drop(lock);
 
@@ -207,16 +190,23 @@ pub async fn create_mapped_stream_from_definition(
                         })
                         .collect::<Result<Vec<_>, HigginsError>>()?;
 
-                    let mut operation = MapOperation {
+                    let (records_eventual, record_setter) = eventual();
+                    let (offsets, offsets_setter) = eventual();
+
+                    offsets_setter.set(offset);
+                    record_setter.set(records);
+
+                    let mut operation = MapOperation(OperationData {
                         broker: broker_ref.clone(),
-                        stream_name: stream_name.clone(),
-                        stream_def: stream_def.clone(),
+                        stream: StreamName::from(stream_name.clone()).clone(),
+                        definition: stream_def.clone(),
                         partition: partition.clone(),
-                        offset: offset.clone(),
+                        offsets: offsets,
                         references: None,
-                        subscription: subscription.clone(),
-                        records,
-                    };
+                        subscription: Some(subscription.clone()),
+                        records: records_eventual,
+                        join_index: None,
+                    });
 
                     tracing::info!("[MAP] Created operation.");
 

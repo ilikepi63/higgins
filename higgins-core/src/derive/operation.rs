@@ -3,8 +3,8 @@
 //! If we consider the streams as vertices in a graph, operations would be the edges between those vertices. It is necessary to have an
 //! abstraction over these edges as it is necessary to execute these independently of one another.
 use arrow::array::RecordBatch;
-use higgins_shared::{PartitionName, read_arrow};
-use std::collections::VecDeque;
+use higgins_shared::{PartitionName};
+use std::collections::VecDeque;;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::{ops::Range, sync::atomic::AtomicU8};
@@ -13,6 +13,7 @@ use tokio::sync::{Notify, RwLock};
 use super::{
     joining::JoinOperation, map::MapOperation, reduce::ReduceOperation, windowed::WindowOperation,
 };
+use crate::derive::eventual;
 use crate::{
     broker::{Broker, ProduceOperation},
     derive::{joining::join::JoinDefinition, windowed::definition::WindowedStreamDefinition},
@@ -21,6 +22,24 @@ use crate::{
     subscription::Subscription,
     topography::{FunctionType, StreamDefinition, StreamName},
 };
+
+/// Data that every operation will need to complete.
+pub struct OperationData {
+    // passed in dynamically.
+    pub broker: Arc<RwLock<Broker>>,
+    pub offsets: eventual::Eventual<Range<u64>>,
+    pub records: eventual::Eventual<Vec<RecordBatch>>,
+    pub offsets_setter: eventual::Setter<Range<u64>>,
+    pub records_setter: eventual::Setter<Vec<RecordBatch>>,
+    pub references: Option<Vec<Reference>>,
+
+    // Can be kept in relation.
+    pub stream: StreamName,
+    pub definition: StreamDefinition,
+    pub partition: PartitionName,
+    pub subscription: Option<Arc<RwLock<Subscription>>>,
+    pub join_index: Option<u64>,
+}
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
@@ -125,12 +144,17 @@ pub async fn produce_operation(
     records: &[RecordBatch],
     broker: Arc<RwLock<Broker>>,
 ) -> Result<(), HigginsError> {
+    let (records_eventual, record_setter) = eventual();
+    let (offsets_eventual, offsets_setter) = eventual();
+
+    record_setter.set(records);
+
     tracing::trace!("Initializing the Operation.");
     let mut operation = Operation::try_new(
         broker.clone(),
-        0..0, // Doesn't matter..
+        offsets_eventual,
         None,
-        records.to_vec(),
+        records_eventual,
         StreamName::from(stream.clone()),
         definition.clone(),
         partition.clone(),
@@ -323,117 +347,6 @@ pub async fn generate_relation_tasks_from_stream(
     Ok(())
 }
 
-/// A represntation of a
-pub struct NodeOperation {
-    operation: Operation,
-    condvar: Notify,
-    step: AtomicU8,
-}
-
-impl NodeOperation {
-    pub fn of(operation: Operation) -> Self {
-        Self {
-            operation,
-            condvar: Notify::new(),
-            step: AtomicU8::new(Step::Pre.into()),
-        }
-    }
-
-    pub async fn init(&mut self) -> Result<(), HigginsError> {
-        self.operation.init().await?;
-        self.step
-            .store(Step::Init.into(), std::sync::atomic::Ordering::SeqCst);
-
-        // Retrieve the relationship between this operation and other operations.
-
-        let relations = {
-            let broker_lock = self.operation.broker();
-            let broker_guard = broker_lock.write().await;
-            broker_guard
-                .get_relation_for_stream(&self.operation.stream())
-                .clone()
-        };
-
-        let sync_values = Arc::new((Notify::new(), AtomicU8::new(Step::Pre.into())));
-
-        for relation in relations {
-            let moved_values = {
-                (
-                    self.operation.broker().clone(),
-                    relation.definition.clone(),
-                    relation.join_index.clone(),
-                    relation.stream_name.clone(),
-                    relation.subscription.clone(),
-                    self.operation.offsets().clone(),
-                    self.operation.records().clone(),
-                    self.operation.partition().clone(),
-                    sync_values.clone(),
-                )
-            };
-
-            let broker_lock = self.operation.broker();
-            let mut broker_guard = broker_lock.write().await;
-            drop(broker_guard);
-
-            tokio::spawn(async move {
-                let (
-                    broker,
-                    definition,
-                    join_index,
-                    stream_name,
-                    subscription,
-                    offsets,
-                    records,
-                    partition,
-                    sync_values,
-                ) = moved_values;
-
-                let stream_type = definition.stream_type.clone();
-
-                let mut operation = Operation::try_new(
-                    broker,
-                    offsets,
-                    None,
-                    records.unwrap_or(vec![]), // TODO: Join and Window need to create their records in init.
-                    stream_name,
-                    definition,
-                    partition,
-                    Some(subscription), // Always Some as this would always be a relation.
-                    join_index,
-                )
-                .await
-                .inspect_err(|err| tracing::error!("{:#?}", err))
-                .unwrap();
-
-                if Step::from(&sync_values.1).can_prepare() {
-                    operation.init().await.unwrap();
-                    operation.prepare().await.unwrap(); // TODO: handle failure for commit.
-
-                    match stream_type {
-                        Some(FunctionType::Window | FunctionType::Join) => {}
-                        _ => {
-                            sync_values
-                                .1
-                                .store(Step::Prepare as u8, std::sync::atomic::Ordering::SeqCst);
-                            sync_values.0.notify_waiters();
-                        }
-                    }
-                }
-
-                if Step::from(&sync_values.1).can_commit() {
-                    operation.commit().await.unwrap();
-                    sync_values
-                        .1
-                        .store(Step::Commit as u8, std::sync::atomic::Ordering::SeqCst);
-                    sync_values.0.notify_waiters();
-                }
-            });
-        }
-
-        Ok(())
-    }
-}
-
 pub enum Operation {
     Map(MapOperation),
     Reduce(ReduceOperation),
@@ -449,9 +362,9 @@ impl Operation {
     pub async fn try_new(
         // passed in dynamically.
         broker: Arc<RwLock<Broker>>,
-        offsets: Option<Range<u64>>,
+        offsets: eventual::Eventual<Range<u64>>,
         references: Option<Vec<Reference>>,
-        records: Vec<RecordBatch>,
+        records: eventual::Eventual<Vec<RecordBatch>>,
 
         // Can be kept in relation.
         stream_name: StreamName,
@@ -466,28 +379,35 @@ impl Operation {
                 stream: stream_name.clone().into(),
                 definition: WindowedStreamDefinition::try_from((stream_name, definition))?,
                 partition,
-                offsets,
+                offsets: offsets.unwrap(),
                 subscription: subscription.ok_or(HigginsError::Unknown)?,
             }),
             Some(FunctionType::Map) => {
                 tracing::debug!("Spawning map operation..");
-                Operation::Map(MapOperation {
+                let (records_eventual, record_setter) = eventual();
+                let (offsets_eventual, offsets_setter) = eventual();
+
+                offsets_setter.set(offsets.unwrap());
+                record_setter.set(records);
+
+                Operation::Map(MapOperation(OperationData {
                     broker,
-                    stream_name: stream_name.into(),
-                    stream_def: definition,
+                    stream: stream_name.into(),
+                    definition: definition,
                     partition,
-                    offset: offsets,
+                    offsets: offsets_eventual,
                     references,
-                    subscription: subscription.ok_or(HigginsError::Unknown)?,
-                    records,
-                })
+                    subscription: subscription,
+                    records: records_eventual,
+                    join_index: None,
+                }))
             }
             Some(FunctionType::Reduce) => Operation::Reduce(ReduceOperation {
                 broker,
                 stream_name: stream_name.into(),
                 stream_def: definition,
                 partition,
-                offsets,
+                offsets: offsets.unwrap(),
                 references,
                 subscription: subscription.ok_or(HigginsError::Unknown)?,
                 records,
@@ -509,7 +429,7 @@ impl Operation {
                     index: join_index.ok_or(HigginsError::Unknown)?,
                     definition,
                     partition,
-                    offsets,
+                    offsets: offsets.unwrap(),
                     optimistic_index: None,
                     optimistic_offset: None,
                 })
@@ -519,6 +439,7 @@ impl Operation {
                 broker,
                 stream: stream_name.into(),
                 partition,
+                offsets: offsets.unwrap(),
                 references,
                 records,
             }),
@@ -527,7 +448,7 @@ impl Operation {
 
     pub fn broker(&self) -> Arc<RwLock<Broker>> {
         match self {
-            Self::Map(o) => o.broker.clone(),
+            Self::Map(o) => o.0.broker.clone(),
             Self::Join(o) => o.broker.clone(),
             Self::Window(o) => o.broker.clone(),
             Self::Reduce(o) => o.broker.clone(),
@@ -545,47 +466,47 @@ impl Operation {
         }
     }
 
-    // records,
-    // partition,
-    pub fn offsets(&self) -> Range<u64> {
-        match self {
-            Self::Map(o) => o.offset.clone(),
-            Self::Join(o) => o.offsets.clone(),
-            Self::Window(o) => o.offsets.clone(),
-            Self::Reduce(o) => o.offsets.clone(),
-            Self::Produce(o) => 0..0, // Not required.
-        }
-    }
+    // // records,
+    // // partition,
+    // pub fn offsets(&self) -> Range<u64> {
+    //     match self {
+    //         Self::Map(o) => o.offset.clone(),
+    //         Self::Join(o) => o.offsets.clone(),
+    //         Self::Window(o) => o.offsets.clone(),
+    //         Self::Reduce(o) => o.offsets.clone(),
+    //         Self::Produce(o) => 0..0, // Not required.
+    //     }
+    // }
 
-    pub fn references(&self) -> Option<Vec<Reference>> {
-        match self {
-            Self::Map(o) => o.references.clone(),
-            Self::Join(o) => None,
-            Self::Window(o) => None,
-            Self::Reduce(o) => o.references.clone(),
-            Self::Produce(o) => o.references.clone(),
-        }
-    }
+    // pub fn references(&self) -> Option<Vec<Reference>> {
+    //     match self {
+    //         Self::Map(o) => o.references.clone(),
+    //         Self::Join(o) => None,
+    //         Self::Window(o) => None,
+    //         Self::Reduce(o) => o.references.clone(),
+    //         Self::Produce(o) => o.references.clone(),
+    //     }
+    // }
 
-    pub fn records(&self) -> Option<Vec<RecordBatch>> {
-        match self {
-            Self::Map(o) => Some(o.records.clone()),
-            Self::Join(o) => None,
-            Self::Window(o) => None,
-            Self::Reduce(o) => Some(o.records.clone()),
-            Self::Produce(o) => Some(o.records.clone()),
-        }
-    }
+    // pub fn records(&self) -> Option<Vec<RecordBatch>> {
+    //     match self {
+    //         Self::Map(o) => Some(o.records.clone()),
+    //         Self::Join(o) => None,
+    //         Self::Window(o) => None,
+    //         Self::Reduce(o) => Some(o.records.clone()),
+    //         Self::Produce(o) => Some(o.records.clone()),
+    //     }
+    // }
 
-    pub fn partition(&self) -> PartitionName {
-        match self {
-            Self::Map(o) => o.partition.clone(),
-            Self::Join(o) => o.partition.clone(),
-            Self::Window(o) => o.partition.clone(),
-            Self::Reduce(o) => o.partition.clone(),
-            Self::Produce(o) => o.partition.clone(),
-        }
-    }
+    // pub fn partition(&self) -> PartitionName {
+    //     match self {
+    //         Self::Map(o) => o.partition.clone(),
+    //         Self::Join(o) => o.partition.clone(),
+    //         Self::Window(o) => o.partition.clone(),
+    //         Self::Reduce(o) => o.partition.clone(),
+    //         Self::Produce(o) => o.partition.clone(),
+    //     }
+    // }
 
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         match self {
