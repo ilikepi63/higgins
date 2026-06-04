@@ -25,6 +25,8 @@ impl ReduceOperation {
         // tracing::debug!("Retrieved {} records for reduction.", self.records.len());
 
         let offsets = self.0.offsets.get().await?;
+
+        self.0.offsets_setter.set(offsets.clone()).await;
         // In order to begin the reduction for these records, we need to
         // retrieve the first record's previous record.
         let mut prev_record = match offsets.start {
@@ -63,77 +65,68 @@ impl ReduceOperation {
 
         let mut references = vec![];
 
-        let records = self.0.records.get().await;
+        let records = self.0.records.get().await?;
+        self.0.records_setter.set(records.clone()).await;
 
-        for batches in records.iter() {
-            for batch in batches.iter() {
-                tracing::trace!("[REDUCE] Awaiting the broker lock..");
+        for batch in records.iter() {
+            tracing::trace!("[REDUCE] Awaiting the broker lock..");
 
-                let broker_lock = self.0.broker.write().await;
+            let broker_lock = self.0.broker.write().await;
 
-                tracing::trace!("[REDUCE] We are reading the stream values in..");
+            tracing::trace!("[REDUCE] We are reading the stream values in..");
 
-                tracing::debug!("Retrieved current value: {:#?}", batch);
-                tracing::debug!("Previous value: {:#?}", prev_record);
+            tracing::debug!("Retrieved current value: {:#?}", batch);
+            tracing::debug!("Previous value: {:#?}", prev_record);
 
-                match prev_record.as_ref() {
-                    Some(prev_record) => {
-                        tracing::info!("Using previous record..");
+            match prev_record.as_ref() {
+                Some(prev_record) => {
+                    tracing::info!("Using previous record..");
 
-                        let module = broker_lock
-                            .wasm_modules
-                            .iter()
-                            .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
-                            .map(|(_, m)| m)
-                            .unwrap();
+                    let module = broker_lock
+                        .wasm_modules
+                        .iter()
+                        .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
+                        .map(|(_, m)| m)
+                        .unwrap();
 
-                        tracing::trace!("Applying the function..");
+                    tracing::trace!("Applying the function..");
 
-                        let reduced_record_batch = run_reduce_function(
-                            &batch,
-                            &prev_record,
-                            &broker_lock.wasm_engine,
-                            module,
-                        );
+                    let reduced_record_batch =
+                        run_reduce_function(&batch, &prev_record, &broker_lock.wasm_engine, module);
 
-                        tracing::trace!("Reduced Record batch: {:#?}", reduced_record_batch);
+                    tracing::trace!("Reduced Record batch: {:#?}", reduced_record_batch);
 
-                        {
-                            // CREATE REFERENCE
-                            let reference = broker_lock
-                                .put_data_store(
-                                    self.0.stream.to_string(),
-                                    &self.0.partition,
-                                    reduced_record_batch,
-                                )
-                                .await?;
-
-                            references.push(reference);
-                        }
-                    }
-                    None => {
-                        tracing::trace!(
-                            "No previous index found. Producing to stream {} key {} ",
-                            self.0.stream.to_string(),
-                            String::from_utf8_lossy(&self.0.partition.0)
-                        );
-
+                    {
                         // CREATE REFERENCE
                         let reference = broker_lock
                             .put_data_store(
                                 self.0.stream.to_string(),
                                 &self.0.partition,
-                                batch.clone(),
+                                reduced_record_batch,
                             )
                             .await?;
 
                         references.push(reference);
                     }
                 }
+                None => {
+                    tracing::trace!(
+                        "No previous index found. Producing to stream {} key {} ",
+                        self.0.stream.to_string(),
+                        String::from_utf8_lossy(&self.0.partition.0)
+                    );
 
-                tracing::trace!("Setting previous record to current value.");
-                prev_record = Some(batch.clone());
+                    // CREATE REFERENCE
+                    let reference = broker_lock
+                        .put_data_store(self.0.stream.to_string(), &self.0.partition, batch.clone())
+                        .await?;
+
+                    references.push(reference);
+                }
             }
+
+            tracing::trace!("Setting previous record to current value.");
+            prev_record = Some(batch.clone());
         }
 
         self.0.references = Some(references);

@@ -405,16 +405,19 @@ impl Operation {
                     records_setter,
                 }))
             }
-            // Some(FunctionType::Reduce) => Operation::Reduce(ReduceOperation {
-            //     broker,
-            //     stream_name: stream_name.into(),
-            //     stream_def: definition,
-            //     partition,
-            //     offsets: offsets.unwrap(),
-            //     references,
-            //     subscription: subscription.ok_or(HigginsError::Unknown)?,
-            //     records,
-            // }),
+            Some(FunctionType::Reduce) => Operation::Reduce(ReduceOperation(OperationData {
+                broker,
+                stream: stream_name.into(),
+                definition: definition,
+                partition,
+                offsets: offsets,
+                references,
+                subscription: subscription,
+                records: records,
+                join_index: None,
+                offsets_setter,
+                records_setter,
+            })),
             // Some(FunctionType::Join) => {
             //     let definition = {
             //         let broker_guard = broker.write().await;
