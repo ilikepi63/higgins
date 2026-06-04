@@ -48,6 +48,8 @@ impl ProduceOperation {
 
         let records = self.0.records.get().await?;
 
+        self.0.records_setter.set(records.clone()).await;
+
         for record in records {
             references.push(
                 broker
@@ -62,8 +64,6 @@ impl ProduceOperation {
         }
 
         tracing::debug!("Returning references.");
-
-        let reference_count = references.len() as u64;
 
         self.0.references = Some(references);
 
@@ -81,10 +81,10 @@ impl ProduceOperation {
             .unwrap();
 
         let mut index_file_guard = index_file_lock.lock().await;
-
+        let file_len = index_file_guard.len().unwrap();
         if let Some(references) = self.0.references.as_ref() {
-            let offset = self.0.offsets.get().await?;
-
+            let offset = file_len..file_len;
+            let setter_offset = file_len as u64..file_len as u64;
             let mut buf = vec![0_u8; DefaultIndex::size_of() * references.len()];
 
             buf.chunks_mut(DefaultIndex::size_of())
@@ -106,6 +106,8 @@ impl ProduceOperation {
                 offset.start as usize..offset.end.saturating_add(1) as usize,
                 &mut buf,
             )?;
+
+            self.0.offsets_setter.set(setter_offset).await;
 
             let subscription = broker.get_subscriptions_for_stream(&self.0.stream.to_string());
 

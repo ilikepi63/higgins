@@ -12,12 +12,9 @@ use crate::{
     },
     error::HigginsError,
     functions::map::run_map_function,
-    storage::dereference::Reference,
     topography::{Key, StreamDefinition},
 };
-use arrow::array::RecordBatch;
 use higgins_shared::{PartitionName, read_arrow};
-use std::ops::Range;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -31,11 +28,9 @@ impl MapOperation {
 
         let records = self.0.records.get().await?;
 
+        tracing::debug!("[MAP] Received records: {:#?}", records);
+
         for record_batch in records.iter() {
-            tracing::trace!("[MAP] Received consume Response");
-
-            tracing::trace!("[MAP] Iterating through batches..");
-
             tracing::trace!("[MAP] Awaiting the broker lock..");
 
             let broker_lock = self.0.broker.write().await;
@@ -193,8 +188,8 @@ pub async fn create_mapped_stream_from_definition(
                     let (records_eventual, record_setter) = eventual();
                     let (offsets, offsets_setter) = eventual();
 
-                    offsets_setter.set(offset);
-                    record_setter.set(records);
+                    offsets_setter.set(offset).await;
+                    record_setter.set(records).await;
 
                     let mut operation = MapOperation(OperationData {
                         broker: broker_ref.clone(),

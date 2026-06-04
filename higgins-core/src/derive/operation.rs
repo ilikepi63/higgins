@@ -147,7 +147,7 @@ pub async fn produce_operation(
     let (records_eventual, record_setter) = eventual::eventual();
     let (offsets_eventual, offsets_setter) = eventual::eventual();
 
-    record_setter.set(records.to_vec());
+    record_setter.set(records.to_vec()).await;
 
     tracing::trace!("Initializing the Operation.");
     let mut operation = Operation::try_new(
@@ -156,7 +156,7 @@ pub async fn produce_operation(
         None,
         records_eventual.clone(),
         offsets_setter,
-        record_setter,
+        eventual::eventual().1, // This shouldn't matter. It is not writing to this value.
         StreamName::from(stream.clone()),
         definition.clone(),
         partition.clone(),

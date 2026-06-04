@@ -1,49 +1,39 @@
 //! An Eventual is a structure that can represent a value present or not,
 //! where another arbitrary writer can write to.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicPtr, Ordering},
-};
-
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio::sync::Notify;
 
 use crate::error::HigginsError;
 
 pub fn eventual<T>() -> (Eventual<T>, Setter<T>) {
-    let data = Arc::new((AtomicPtr::new(std::ptr::null_mut()), Notify::new()));
-
+    let data = Arc::new((Mutex::new(None), Notify::new()));
     (Eventual(data.clone()), Setter(data))
 }
 
-#[derive(Debug, Clone)]
-pub struct Eventual<T>(Arc<(AtomicPtr<T>, Notify)>);
+#[derive(Clone, Debug)]
+pub struct Eventual<T>(Arc<(Mutex<Option<T>>, Notify)>);
 
-impl<T> Eventual<T> {
+impl<T: Clone> Eventual<T> {
     pub async fn get(&self) -> Result<T, HigginsError> {
-        let ptr = self.0.0.load(Ordering::SeqCst);
+        loop {
+            let notified = self.0.1.notified();
 
-        if ptr.is_null() {
-            drop(ptr);
-            self.0.1.notified().await;
+            if let Some(val) = self.0.0.lock().await.as_ref() {
+                return Ok(val.clone());
+            }
+
+            notified.await;
         }
-
-        let ptr = self.0.0.load(Ordering::SeqCst);
-        // SAFETY: If notify has been notified, this means this value is present.
-        Ok(unsafe { std::ptr::read(ptr) })
     }
 }
 
-pub struct Setter<T>(Arc<(AtomicPtr<T>, Notify)>);
+pub struct Setter<T>(Arc<(Mutex<Option<T>>, Notify)>);
 
 impl<T> Setter<T> {
-    pub fn set(&self, val: T) {
-        let set = Box::new(val);
-
-        let ptr = Box::into_raw(set);
-
-        self.0.0.store(ptr, Ordering::SeqCst);
-
+    pub async fn set(&self, val: T) {
+        *self.0.0.lock().await = Some(val);
         self.0.1.notify_waiters();
     }
 }
