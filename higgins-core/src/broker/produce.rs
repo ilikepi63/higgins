@@ -1,6 +1,8 @@
 use super::Broker;
+use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
+use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
 use higgins_shared::PartitionName;
@@ -17,35 +19,28 @@ use higgins_shared::write_arrow;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub struct ProduceOperation {
-    /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
-    /// Stream that this value is being produced to.
-    stream: String,
-    /// The partition we've received offsets on.
-    partition: PartitionName,
-    /// The underlying records that this operation is based on.
-    /// Vec<(
-    ///   Vec<u8> - IPC record batch.
-    ///   u64 - The offset to which it belongs.
-    /// )>
-    records: Vec<RecordBatch>,
-    /// The References that have previously been created.
-    references: Option<Vec<Reference>>,
-}
+pub struct ProduceOperation(pub OperationData);
 
 impl ProduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
         tracing::debug!("Running init on produce.");
-        let broker = self.broker.write().await;
+        let broker = self.0.broker.write().await;
         tracing::debug!("Retrieved broker lock.");
 
         let mut references = vec![];
 
-        for record in &self.records {
+        let records = self.0.records.get().await?;
+
+        self.0.records_setter.set(records.clone()).await;
+
+        for record in records {
             references.push(
                 broker
-                    .put_data_store(self.stream.clone(), &self.partition.clone(), record.clone())
+                    .put_data_store(
+                        self.0.stream.to_string(),
+                        &self.0.partition.clone(),
+                        record.clone(),
+                    )
                     .await
                     .inspect_err(|err| tracing::error!("{:#?}", err))?,
             );
@@ -53,7 +48,7 @@ impl ProduceOperation {
 
         tracing::debug!("Returning references.");
 
-        self.references = Some(references);
+        self.0.references = Some(references);
 
         Ok(())
     }
@@ -61,20 +56,18 @@ impl ProduceOperation {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        let mut broker = self.broker.write().await;
+        let mut broker = self.0.broker.write().await;
         tracing::debug!("Running commit.");
 
         let mut index_file_lock = broker
-            .get_index_file(self.stream.clone(), &self.partition.clone())
+            .get_index_file(self.0.stream.to_string(), &self.0.partition.clone())
             .unwrap();
 
         let mut index_file_guard = index_file_lock.lock().await;
-
         let file_len = index_file_guard.len().unwrap();
-
-        if let Some(references) = self.references.as_ref() {
+        if let Some(references) = self.0.references.as_ref() {
             let offset = file_len..file_len;
-
+            let setter_offset = file_len as u64..file_len as u64;
             let mut buf = vec![0_u8; DefaultIndex::size_of() * references.len()];
 
             buf.chunks_mut(DefaultIndex::size_of())
@@ -92,9 +85,14 @@ impl ProduceOperation {
                 })
                 .collect::<Result<Vec<_>, std::io::Error>>()?;
 
-            index_file_guard.range_put_at(offset.start..offset.end.saturating_add(1), &mut buf)?;
+            index_file_guard.range_put_at(
+                offset.start as usize..offset.end.saturating_add(1) as usize,
+                &mut buf,
+            )?;
 
-            let subscription = broker.get_subscriptions_for_stream(&self.stream);
+            self.0.offsets_setter.set(setter_offset).await;
+
+            let subscription = broker.get_subscriptions_for_stream(&self.0.stream.to_string());
 
             if let Some(subscriptions) = subscription {
                 tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
@@ -110,12 +108,12 @@ impl ProduceOperation {
                     if subscription
                         .partitions
                         .iter()
-                        .find(|sub_key| sub_key.partition_id == self.partition)
+                        .find(|sub_key| sub_key.partition_id == self.0.partition)
                         .is_some()
                     {
-                        subscription.set_end(&self.partition, offset.end as u64)?;
+                        subscription.set_end(&self.0.partition, offset.end as u64)?;
                     } else {
-                        subscription.add_partition(&self.partition, 0, offset.end as u64)?;
+                        subscription.add_partition(&self.0.partition, 0, offset.end as u64)?;
                     };
 
                     tracing::info!("SUBSCRIPTION{:#?}", subscription);
@@ -148,17 +146,24 @@ impl Broker {
             record_batch
         );
 
-        let mut operation = ProduceOperation {
-            stream: String::from_utf8_lossy(stream_name).to_string(),
-            partition: partition.clone(),
-            broker,
-            references: None,
-            records: vec![record_batch],
+        let definition = {
+            let broker_guard = broker.write().await;
+            broker_guard
+                .get_topography_stream(&Key::from(stream_name))
+                .map(|(_, definition)| definition.clone())
+                .ok_or(HigginsError::Unknown)?
         };
 
-        operation.init().await?;
-        operation.prepare().await?;
-        operation.commit().await?;
+        tracing::trace!("Initializing produce operation.");
+        produce_operation(
+            StreamName::from(stream_name),
+            partition.clone(),
+            definition,
+            &[record_batch],
+            broker,
+        )
+        .await?;
+        tracing::trace!("Completed produce operation.");
 
         Ok(())
     }

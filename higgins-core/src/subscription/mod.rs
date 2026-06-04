@@ -27,6 +27,22 @@ use tokio::sync::Notify;
 use crate::subscription::error::SubscriptionError;
 use higgins_shared::PartitionName;
 
+/// Represents the unique ID for a subscription.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct SubscriptionId(Vec<u8>);
+
+impl From<Vec<u8>> for SubscriptionId {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+
+impl Into<Vec<u8>> for SubscriptionId {
+    fn into(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 /// Represents the current offset of a partition, as well as the maximum offset for that specific partition.
 #[derive(Clone, Debug)]
 pub struct PartitionOffsets {

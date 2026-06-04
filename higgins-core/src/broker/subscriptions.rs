@@ -13,7 +13,8 @@ use uuid::Uuid;
 
 use crate::{
     error::HigginsError,
-    subscription::{Subscription, error::SubscriptionError},
+    subscription::{Subscription, SubscriptionId, error::SubscriptionError},
+    topography::StreamName,
 };
 
 impl Broker {
@@ -24,6 +25,17 @@ impl Broker {
         subscription_id: &[u8],
     ) -> Option<(Arc<Notify>, Arc<RwLock<Subscription>>)> {
         self.subscriptions
+            .get(stream)
+            .and_then(|v| v.get(subscription_id))
+            .cloned()
+    }
+
+    pub fn get_non_reactive_subscription_by_key(
+        &self,
+        stream: &StreamName,
+        subscription_id: &SubscriptionId,
+    ) -> Option<Arc<RwLock<Subscription>>> {
+        self.non_reactive_subscriptions
             .get(stream)
             .and_then(|v| v.get(subscription_id))
             .cloned()
@@ -111,6 +123,41 @@ impl Broker {
             .unwrap();
 
         uuid.as_bytes().to_vec()
+    }
+
+    /// Creates a `non-reactive` subscription.
+    ///
+    /// Non-reactive subscriptions are subscriptions tha are not notified once they are
+    /// produced to, but rather are used to keep track of updates to streams.
+    pub fn create_non_reactive_subscription(
+        &mut self,
+        stream: &StreamName,
+    ) -> (SubscriptionId, Arc<RwLock<Subscription>>) {
+        let uuid = Uuid::new_v4();
+
+        let mut path = self.dir.clone();
+        path.push("subscriptions"); // TODO: move to const.
+        path.push(uuid.to_string());
+
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+
+        let sub = SubscriptionId::from(uuid.as_bytes().to_vec());
+
+        // TODO: This also needs to be done atomically.
+        match self.non_reactive_subscriptions.entry(stream.clone()) {
+            std::collections::btree_map::Entry::Vacant(vacant_entry) => {
+                let mut map = BTreeMap::new();
+                map.insert(sub.clone(), subscription.clone());
+                vacant_entry.insert(map);
+            }
+            std::collections::btree_map::Entry::Occupied(mut occupied_entry) => {
+                occupied_entry
+                    .get_mut()
+                    .insert(sub.clone(), subscription.clone());
+            }
+        }
+
+        (sub, subscription)
     }
 
     /// A function to extract the current subscription indexes from the

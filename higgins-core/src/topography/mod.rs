@@ -7,9 +7,10 @@ use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
-    fmt::Debug,
+    fmt::{Debug, Display},
     sync::Arc,
 };
+mod relation;
 
 use crate::topography::{
     config::{
@@ -24,11 +25,63 @@ mod stream_definition;
 pub use stream_definition::*;
 mod data_type_parser;
 pub mod errors;
+pub use relation::Relation;
 mod file;
 
 use file::TopographyFile;
 
 pub use data_type_parser::parse_time_unit;
+
+#[derive(Debug, Eq, Ord, PartialOrd, Clone)]
+pub struct StreamName(String);
+
+impl StreamName {
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl PartialEq for StreamName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Display for StreamName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<&[u8]> for StreamName {
+    fn from(value: &[u8]) -> Self {
+        Self(String::from_utf8_lossy(value).to_string())
+    }
+}
+
+impl From<&str> for StreamName {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<Key> for StreamName {
+    fn from(value: Key) -> Self {
+        Self(value.0)
+    }
+}
+
+impl Into<Key> for StreamName {
+    fn into(self) -> Key {
+        Key(self.0)
+    }
+}
+
+impl Into<String> for StreamName {
+    fn into(self) -> String {
+        self.0
+    }
+}
 
 /// Used to index into Topography system.
 /// TODO: perhaps make this sized?
@@ -82,11 +135,9 @@ impl From<&Key> for Vec<u8> {
     }
 }
 
-impl TryFrom<&[u8]> for Key {
-    type Error = std::string::FromUtf8Error;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Key(String::from_utf8(value.to_owned())?))
+impl From<&[u8]> for Key {
+    fn from(value: &[u8]) -> Self {
+        Key(String::from_utf8_lossy(value).to_string())
     }
 }
 
@@ -142,8 +193,6 @@ impl Topography {
                 }
             }
         }?;
-
-        // let operations: Vec<TopographyUnit> = file.read();
 
         Ok(Self {
             file,
@@ -216,6 +265,7 @@ impl Topography {
             Entry::Occupied(_) => Err(TopographyError::Occupied(String::new())), // TODO: add more meat to this error messag .
         }
     }
+
     pub fn add_stream(
         &mut self,
         key: Key,
@@ -230,8 +280,8 @@ impl Topography {
         }
 
         // Check if the derivations exist inside of this topography.
-        if let Some(key) = stream.base.as_ref()
-            && !self.streams.contains_key(key)
+        if let Some(base_key) = stream.base.as_ref()
+            && !self.streams.contains_key(base_key)
         {
             return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
         }

@@ -8,10 +8,13 @@ mod streams;
 mod subscriptions;
 pub mod utils;
 
+use crate::subscription::SubscriptionId;
 use crate::task::TaskHandler;
+use crate::topography::{Relation, StreamName};
 use arrow::{array::RecordBatch, datatypes::Schema};
 use higgins_shared::PartitionName;
 pub use indexes::BrokerIndexFile;
+pub use produce::ProduceOperation;
 use riskless::object_store;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Notify, RwLock};
@@ -39,6 +42,9 @@ pub struct Broker {
     // Subscriptions.
     #[allow(clippy::type_complexity)]
     subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
+    non_reactive_subscriptions:
+        BTreeMap<StreamName, BTreeMap<SubscriptionId, Arc<RwLock<Subscription>>>>,
+    relations: Vec<(StreamName, Relation)>,
 
     // Clients
     pub clients: ClientCollection,
@@ -103,5 +109,27 @@ impl Broker {
     /// Retrieves a ClientRef given a client id.
     pub fn get_client_by_id(&self, id: u64) -> Option<crate::client::ClientRef> {
         self.clients.get(id).cloned()
+    }
+
+    pub fn get_relation_for_stream(&self, stream: &StreamName) -> Vec<Relation> {
+        tracing::debug!(
+            "Quering relations with stream {}. Current relations: {:#?}",
+            stream,
+            self.relations
+        );
+        let relations = self
+            .relations
+            .iter()
+            .filter(|(name, _)| {
+                tracing::debug!("Comparing {name} and {stream}");
+                tracing::debug!("{}", name == stream);
+                name == stream
+            })
+            .map(|(_, relation)| relation.clone())
+            .collect();
+
+        tracing::debug!("Returning relations: {:#?}", relations);
+
+        relations
     }
 }

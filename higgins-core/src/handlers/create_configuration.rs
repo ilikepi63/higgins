@@ -17,8 +17,6 @@ pub async fn handle_create_configuration(
 ) {
     tracing::info!("We're trying to get the lock.");
 
-    let broker_ref = broker.clone();
-
     let mut broker = broker.write().await;
 
     tracing::info!("Applying configuration..");
@@ -26,7 +24,7 @@ pub async fn handle_create_configuration(
     if let Some(CreateConfigurationRequest { data }) = message.create_configuration_request {
         tracing::trace!("Making a config");
 
-        let result = broker.apply_configuration(&data, broker_ref).await;
+        let result = broker.apply_configuration(&data).await;
 
         tracing::trace!("Returned {:#?} from configuratin update.", result);
 

@@ -61,6 +61,45 @@ impl TryFrom<(Key, StreamDefinition, &Broker)> for JoinDefinition {
     }
 }
 
+impl TryFrom<(Key, StreamDefinition, &mut Broker)> for JoinDefinition {
+    type Error = TopographyError;
+
+    fn try_from(
+        (key, stream_definition, broker): (Key, StreamDefinition, &mut Broker),
+    ) -> Result<Self, Self::Error> {
+        let schema = broker
+            .get_stream(
+                &Into::<Vec<u8>>::into(key.clone()), // key.into()
+            )
+            .map(|(schema, _, _)| schema.clone())
+            .ok_or(TopographyError::SchemaNotFound(format!("{:#?}", key)))?;
+
+        let join_streams = stream_definition
+            .join
+            .clone()
+            .map(|joins| {
+                joins.into_iter().map(|stream_name| {
+                    broker
+                        .get_topography_stream(&Key::from(&stream_name))
+                        .map(JoinWithStream::from)
+                        .ok_or(TopographyError::JoinStreamDoesNotExist)
+                })
+            })
+            .ok_or(TopographyError::NoJoinsInJoinDefinition)?
+            .collect::<Result<Vec<_>, TopographyError>>()?;
+
+        Ok(JoinDefinition {
+            base: (key, stream_definition.clone()),
+            joins: join_streams,
+            mapping: stream_definition
+                .map
+                .clone()
+                .map(|map| JoinMapping::from((schema, map)))
+                .ok_or(TopographyError::JoinStreamWithoutMappingAttributes)?,
+        })
+    }
+}
+
 /// # JoinWithStream
 ///
 /// Structure primarily used as a ADT over different join types.

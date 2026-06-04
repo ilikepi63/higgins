@@ -8,50 +8,29 @@
 
 // TODO: How do we chain multiple streams together?.
 
-use std::sync::Arc;
-
-use tokio::sync::RwLock;
-
 mod completion;
 pub mod join;
 pub mod mapping;
 pub mod opts;
 
+use crate::broker::BrokerIndexFile;
 use crate::derive::joining::completion::complete_from;
+use crate::derive::operation::OperationData;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
-use crate::task::SpawnTaskConfig;
 use crate::utils::epoch;
-use crate::{broker::BrokerIndexFile, derive::joining::opts::eager_range_take_or_wait};
 use opts::amalgamate_join;
 
-use crate::{broker::Broker, error::HigginsError};
-use higgins_shared::PartitionName;
-use std::ops::Range;
+use crate::error::HigginsError;
 
-use crate::{client::ClientRef, derive::joining::join::JoinDefinition};
+use crate::derive::joining::join::JoinDefinition;
 
 pub struct JoinOperation {
-    index: u64,
-    /// Broker  Reference.
-    broker: Arc<RwLock<Broker>>,
-    /// This resultant streams stream definition.
-    definition: JoinDefinition,
-    /// The partition we've received offsets on.
-    partition: PartitionName,
-    /// The offsets.
-    offsets: Range<u64>,
-    // /// The subscription that controls how this stream is tracked.
-    // subscription: Arc<RwLock<Subscription>>,
-    // /// The underlying records that this operation is based on.
-    // /// Vec<(
-    // ///   Vec<u8> - IPC record batch.
-    // ///   u64 - The offset to which it belongs.
-    // /// )>
-    // records: Vec<(Vec<u8>, u64)>,
+    pub data: OperationData,
+    pub definition: JoinDefinition,
     /// Offset at which this index is trying to place.
-    optimistic_offset: Option<usize>,
-    optimistic_index: Option<Vec<u8>>,
+    pub optimistic_offset: Option<usize>,
+    pub optimistic_index: Option<Vec<u8>>,
 }
 
 impl JoinOperation {
@@ -64,11 +43,11 @@ impl JoinOperation {
 
         // Retrieve the Index file, given the stream name and partition key.
         let mut index_file = {
-            let mut broker = self.broker.write().await;
+            let mut broker = self.data.broker.write().await;
             let index_file: BrokerIndexFile = broker
                 .get_index_file(
                     String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
-                    &self.partition,
+                    &self.data.partition,
                 )
                 .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
             tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
@@ -85,6 +64,10 @@ impl JoinOperation {
         // Create the index.
         let mut optimistic_index = vec![0_u8; JoinedIndex::size_of(n_offsets)];
 
+        let offsets = self.data.offsets.get().await?;
+
+        tracing::debug!("We retrieved the offsets: {:#?}", offsets);
+
         JoinedIndex::put(
             optimistic_offset as u64,
             Reference::Null,
@@ -92,8 +75,8 @@ impl JoinOperation {
             &(0..n_offsets)
                 .into_iter()
                 .map(|i| {
-                    if i == self.index as usize {
-                        Some(self.offsets.start)
+                    if i == self.data.join_index.unwrap() as usize {
+                        Some(offsets.start)
                     } else {
                         None
                     }
@@ -101,7 +84,10 @@ impl JoinOperation {
                 .collect::<Vec<_>>(),
             &mut optimistic_index,
         )
+        .inspect_err(|err| tracing::error!("Error: {:#?}", err))
         .unwrap();
+
+        tracing::debug!("Completed index: {:#?}", offsets);
 
         if optimistic_offset > 0 {
             tracing::trace!("Completing the index from the previous index.");
@@ -125,20 +111,24 @@ impl JoinOperation {
         let data = amalgamate_join(
             &optimistic_index,
             self.definition.clone(),
-            self.partition.clone(),
-            self.broker.clone(),
+            self.data.partition.clone(),
+            self.data.broker.clone(),
         )
         .await
         .unwrap();
+
+        tracing::debug!("Got the data {:#?}", offsets);
+
+        self.data.records_setter.set(vec![data.clone()]).await;
 
         tracing::trace!("Completed amalmagamation: {:#?}", data);
 
         let stream = String::from_utf8_lossy(self.definition.base.0.as_bytes()).to_string();
 
-        let broker_guard = self.broker.write().await;
+        let broker_guard = self.data.broker.write().await;
 
         let reference = broker_guard
-            .put_data_store(stream.clone(), &self.partition, data)
+            .put_data_store(stream.clone(), &self.data.partition, data)
             .await
             .unwrap();
 
@@ -155,9 +145,9 @@ impl JoinOperation {
         let stream = String::from_utf8_lossy(self.definition.base.0.as_bytes()).to_string();
 
         let mut index_file = {
-            let mut broker = self.broker.write().await;
+            let mut broker = self.data.broker.write().await;
             let index_file: BrokerIndexFile = broker
-                .get_index_file(stream.clone(), &self.partition)
+                .get_index_file(stream.clone(), &self.data.partition)
                 .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
             tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
             drop(broker);
@@ -168,7 +158,7 @@ impl JoinOperation {
 
         tracing::info!(
             "Retrieved indexfile for stream {stream} and partition {:#?}",
-            self.partition
+            self.data.partition
         );
 
         match (
@@ -185,6 +175,13 @@ impl JoinOperation {
                         tracing::error!("{:#?}", err);
                     })
                     .unwrap();
+                self.data
+                    .offsets_setter
+                    .set(
+                        optimistic_offset.clone() as u64
+                            ..optimistic_offset.saturating_add(1) as u64,
+                    )
+                    .await;
 
                 tracing::debug!("Completed join. Length: {:#?}", index_file_guard.len());
             }
@@ -195,118 +192,4 @@ impl JoinOperation {
 
         Ok(())
     }
-}
-
-pub async fn create_joined_stream_from_definition(
-    definition: JoinDefinition,
-    broker: &mut Broker,
-    broker_ref: Arc<RwLock<Broker>>,
-) -> Result<(), HigginsError> {
-    tracing::trace!(
-        "[JOIN] Setting up Join Operator for definition: {:#?}",
-        definition.base.0
-    );
-
-    // We create the resultant stream that data is zipped into.
-    {
-        let join_definition_schema_key = definition.clone().base.1.schema;
-
-        let schema = broker.get_schema(&join_definition_schema_key).unwrap();
-
-        // Create the actual derived stream.
-        broker.create_stream(definition.base.0.as_bytes(), schema.clone());
-
-        tracing::trace!("[JOIN] Successfully created the stream definition inside of the broker.");
-    };
-
-    tracing::trace!("[JOIN] Successfully created the join stream.");
-
-    // We collect the results of each derivative stream into a channel, with which we
-    // iterate over and push onto the resultant stream.
-    // let mut derivative_channel_rx =
-    //     start_join_subscription_task(broker, broker_ref.clone(), amalgamate_definition.clone());
-
-    for (i, join_stream) in definition.joins.iter().enumerate() {
-        let join_stream = join_stream.clone();
-        let broker_ref = broker_ref.clone();
-        let definition = definition.clone();
-        // let tx = derivative_channel_tx.clone();
-        // let task_broker = task_broker.clone();
-
-        let _handle = broker.task_handler.spawn(
-            &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
-            async move {
-                // Create a subscription on each derivative
-                let (client_id, condvar, subscription) = {
-                    let mut broker = broker_ref.write().await;
-                    let client_id = broker.clients.insert(ClientRef::NoOp).unwrap();
-                    let left_subscription =
-                        broker.create_subscription(join_stream.stream.0.as_bytes());
-                    let stream = join_stream.stream.clone();
-                    let (left_notify, left_subscription) = broker
-                        .get_subscription_by_key(stream.0.as_bytes(), &left_subscription)
-                        .ok_or(HigginsError::SubscriptionRetrievalFailed)
-                        .unwrap();
-
-                    tracing::trace!("[FIRST HANDLE] We are dropping the broker. ");
-                    drop(broker); // Explicitly drop the lock.
-
-                    (client_id, left_notify, left_subscription)
-                };
-
-                loop {
-                    let offsets =
-                        eager_range_take_or_wait(subscription.clone(), condvar.clone(), client_id)
-                            .await
-                            .unwrap();
-
-                    for (partition, offsets) in offsets.iter() {
-                        let mut operation = JoinOperation {
-                            index: i.clone() as u64,
-                            broker: broker_ref.clone(),
-                            definition: definition.clone(),
-                            partition: partition.clone(),
-                            offsets: offsets.clone(),
-                            // subscription: subscription.clone(),
-                            optimistic_index: None,
-                            optimistic_offset: None,
-                        };
-
-                        operation.init().await.unwrap();
-                        operation.prepare().await.unwrap();
-                        operation.commit().await.unwrap();
-                    }
-
-                    tracing::trace!("Retrieved offsets {:#?} from {client_id}.", offsets);
-                }
-            },
-        );
-    }
-
-    // // Handle the collection of indexes into the index file.
-    // let _collection_handle = broker.task_handler.spawn(
-    //     &SpawnTaskConfig::new("joining", true), // TODO: we probably want this referencable from the stream.
-    //     async move {
-    //         while let Some((index, partition_offset_vec)) = derivative_channel_rx.recv().await {
-    //             for (partition, offset) in partition_offset_vec {
-    //                 let mut operation = JoinOperation {
-    //                     index: index.clone() as u64,
-    //                     broker: broker_ref.clone(),
-    //                     definition: definition.clone(),
-    //                     partition: partition.clone(),
-    //                     offsets: offset..offset,
-    //                     // subscription: subscription.clone(),
-    //                     optimistic_index: None,
-    //                     optimistic_offset: None,
-    //                 };
-
-    //                 operation.init().await.unwrap();
-    //                 operation.prepare().await.unwrap();
-    //                 operation.commit().await.unwrap();
-    //             }
-    //         }
-    //     },
-    // );
-
-    Ok(())
 }
