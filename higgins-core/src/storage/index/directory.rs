@@ -8,6 +8,7 @@ use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
+use crate::topography::StreamName;
 use higgins_shared::PartitionName;
 use std::{path::PathBuf, time::SystemTime};
 
@@ -216,17 +217,6 @@ impl IndexDirectory {
 
         let index = indexes.last();
 
-        // #[cfg(test)]
-        {
-            tracing::trace!("ITERATING INDEXES");
-
-            for i in 0..indexes.count() {
-                let index = indexes.get(i).unwrap();
-                tracing::trace!("{:#?}", Index::of(index, index_type.clone()));
-            }
-            tracing::trace!("COMPLETED ITERATING INDEXES");
-        }
-
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
         let index = index
@@ -235,8 +225,14 @@ impl IndexDirectory {
         match index {
             Some(index) => Ok(index),
             None => {
-                tracing::error!("No Index found at offset {}", 0);
-                todo!()
+                let offset = indexes.count().saturating_sub(1) as u64;
+                tracing::error!("No Index found at offset {}", offset);
+
+                Err(HigginsError::IndexNotFoundError(
+                    StreamName::from(stream),
+                    partition.clone(),
+                    offset,
+                ))
             }
         }
     }
@@ -283,9 +279,14 @@ impl IndexDirectory {
                 Ok(index)
             }
             None => {
-                // TODO: handle error here.
-                tracing::error!("No Index found at offset {}", 0);
-                unimplemented!();
+                let offset = indexes.count().saturating_sub(1) as u64;
+                tracing::error!("No Index found at offset {}", offset);
+
+                Err(HigginsError::IndexNotFoundError(
+                    StreamName::from(stream),
+                    partition.clone(),
+                    offset,
+                ))
             }
         }
     }

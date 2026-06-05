@@ -93,7 +93,7 @@ impl Broker {
         &mut self,
         stream: &[u8],
         partition: &PartitionName,
-    ) -> impl Future<Output = Result<Vec<u8>, HigginsError>> {
+    ) -> Result<impl Future<Output = Result<Vec<u8>, HigginsError>>, HigginsError> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
             String::from_utf8_lossy(stream),
@@ -112,9 +112,14 @@ impl Broker {
                 &IndexType::try_from(stream_def).unwrap(),
                 stream_def,
             )
-            .await;
+            .await?;
 
-        dereference(index, stream_def.clone(), partition.clone(), self)
+        Ok(dereference(
+            index,
+            stream_def.clone(),
+            partition.clone(),
+            self,
+        ))
     }
 
     /// Given a specified range, retrieve the data at the range or a subset thereof.

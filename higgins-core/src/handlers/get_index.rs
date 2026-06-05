@@ -83,7 +83,7 @@ pub async fn handle_get_index(
 
                 let response = broker_lock.get_latest(&index.stream, partition).await;
 
-                let response = response.await.unwrap();
+                let response = response.unwrap().await.unwrap();
 
                 tracing::trace!("Response for GetIndexRequest: {:#?}", response);
 

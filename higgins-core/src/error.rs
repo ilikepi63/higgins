@@ -1,7 +1,9 @@
+use higgins_shared::PartitionName;
 use thiserror::Error;
 
 use crate::storage::index::IndexError;
 use crate::subscription::error::SubscriptionError;
+use crate::topography::StreamName;
 use crate::topography::errors::TopographyError;
 
 #[derive(Error, Debug)]
@@ -20,6 +22,9 @@ pub enum HigginsError {
 
     #[error("Error occurred with Typography.")]
     TopographyError(#[from] TopographyError),
+
+    #[error("The specified index was not found: stream: {0}, partition: {1}, offset: {2}")]
+    IndexNotFoundError(StreamName, PartitionName, u64),
 
     #[error("Error occurred with Indexing.")]
     IndexError(#[from] IndexError),
