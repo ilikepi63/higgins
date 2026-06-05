@@ -1,11 +1,15 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Eq, Ord, PartialOrd, Clone)]
+#[derive(Debug, Eq, Ord, PartialOrd, Clone, Serialize, Deserialize)]
 pub struct StreamName(String);
 
 impl StreamName {
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0.as_str()
     }
 }
 
@@ -27,9 +31,21 @@ impl From<&[u8]> for StreamName {
     }
 }
 
+impl From<Vec<u8>> for StreamName {
+    fn from(value: Vec<u8>) -> Self {
+        Self::from(value.as_slice())
+    }
+}
+
 impl From<&str> for StreamName {
     fn from(value: &str) -> Self {
         Self(value.to_string())
+    }
+}
+
+impl From<String> for StreamName {
+    fn from(value: String) -> Self {
+        Self(value)
     }
 }
 

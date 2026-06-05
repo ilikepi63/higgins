@@ -1,12 +1,13 @@
 use std::fmt::Display;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 /// Name of the partition.
 ///
 /// The reason for choosing 32 is because:
 /// - The need for a fixed size buffer.
 /// - A long enough buffer for users to be able to store human-readable names.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PartitionName(pub [u8; 32]);
 
 impl Display for PartitionName {

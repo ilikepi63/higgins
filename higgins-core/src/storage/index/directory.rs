@@ -6,10 +6,8 @@ use crate::storage::dereference::S3Reference;
 use crate::storage::index::Index;
 use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
-use crate::topography::Key;
 use crate::topography::StreamDefinition;
-use crate::topography::StreamName;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use std::{path::PathBuf, time::SystemTime};
 
 use super::IndexError;
@@ -67,10 +65,10 @@ impl IndexDirectory {
 
     pub fn index_file_name_from_stream_and_partition(
         &self,
-        stream: String,
+        stream: StreamName,
         partition: &PartitionName,
     ) -> String {
-        let mut topic_dir = self.create_topic_dir(&stream);
+        let mut topic_dir = self.create_topic_dir(stream.as_str());
 
         let index_file_path = Self::index_file_path_from_partition(partition);
 
@@ -82,7 +80,7 @@ impl IndexDirectory {
     /// Retrieves an index file instance given a stream and partition.
     pub fn index_file_from_stream_and_partition(
         &self,
-        stream: String,
+        stream: StreamName,
         partition: &PartitionName,
         element_size: usize,
         index_type: IndexType,
@@ -105,7 +103,7 @@ impl IndexDirectory {
     #[allow(unused)]
     pub async fn get_by_timestamp(
         &self,
-        stream: &[u8],
+        stream: StreamName,
         partition: &PartitionName,
         timestamp: u64,
         index_type: IndexType,
@@ -113,13 +111,11 @@ impl IndexDirectory {
         todo!();
         let mut responses = vec![];
 
-        let stream_str = String::from_utf8_lossy(stream).to_string();
-
-        let topic_id_partition = TopicIdPartition(stream_str.clone(), partition.0.to_vec());
+        let topic_id_partition = TopicIdPartition(stream.into(), partition.0.to_vec());
 
         let index_file = self
             .index_file_from_stream_and_partition(
-                stream_str,
+                stream,
                 partition,
                 DefaultIndex::size_of(),
                 index_type,
@@ -193,16 +189,14 @@ impl IndexDirectory {
     /// Retrieves the latest value to be placed on this partition.
     pub async fn get_latest_offset(
         &self,
-        stream: &[u8],
+        stream: StreamName,
         partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
     ) -> Result<OwnedIndex, HigginsError> {
-        let stream_str = String::from_utf8_lossy(stream).to_string();
-
         let index_file = self
             .index_file_from_stream_and_partition(
-                stream_str,
+                stream.clone(),
                 partition,
                 index_size_from_index_type_and_definition(index_type, stream_definition),
                 index_type.clone(),
@@ -240,7 +234,7 @@ impl IndexDirectory {
     /// Retrieves the offset by its offset number.
     pub async fn get_by_offset<'a>(
         &self,
-        stream: &[u8],
+        stream: StreamName,
         partition: &PartitionName,
         offset: u64,
         index_type: IndexType,
@@ -248,13 +242,11 @@ impl IndexDirectory {
     ) -> Result<OwnedIndex, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
-        let stream_str = String::from_utf8_lossy(stream).to_string();
-
         let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
 
         let index_file = self
             .index_file_from_stream_and_partition(
-                stream_str,
+                stream.clone(),
                 partition,
                 index_size,
                 index_type.clone(),
@@ -294,7 +286,7 @@ impl IndexDirectory {
     /// Retrieves the offset by its offset number.
     pub async fn get_by_range<'a>(
         &self,
-        stream: &[u8],
+        stream: StreamName,
         partition: &PartitionName,
         offset: std::ops::Range<u64>,
         index_type: IndexType,
@@ -302,12 +294,10 @@ impl IndexDirectory {
     ) -> Result<Vec<OwnedIndex>, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
-        let stream_str = String::from_utf8_lossy(stream).to_string();
-
         let index_size = stream_definition.index_size();
 
         let mut index_file = self.index_file_from_stream_and_partition(
-            stream_str,
+            stream,
             partition,
             index_size,
             index_type.clone(),
@@ -353,9 +343,11 @@ impl IndexDirectory {
 
             let TopicIdPartition(topic, partition) = topic_id_partition.clone();
 
+            let stream = StreamName::from(topic);
+
             let index_file = self
                 .index_file_from_stream_and_partition(
-                    topic,
+                    stream,
                     &PartitionName::try_from(&partition[..]).unwrap(),
                     index_size_from_index_type_and_definition(index_type, stream_definition),
                     index_type.clone(),
@@ -398,7 +390,7 @@ impl IndexDirectory {
     /// Adds a default index to the given type, returning the offset at which it was put.
     pub async fn put_default_index(
         &self,
-        stream: String,
+        stream: StreamName,
         partition: &PartitionName,
         reference: Reference,
         batch_coord: BatchCoordinate,
@@ -471,10 +463,12 @@ impl IndexDirectory {
         for batch in batches {
             let TopicIdPartition(topic, partition) = batch.topic_id_partition.clone();
 
+            let stream = StreamName::from(topic);
+
             let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
-                let (_, stream_def) = broker.get_topography_stream(&Key::from(&topic)).unwrap();
+                let (_, stream_def) = broker.get_topography_stream(&stream).unwrap();
 
                 (
                     IndexType::try_from(stream_def).unwrap(),
@@ -484,7 +478,7 @@ impl IndexDirectory {
 
             let mut index_file = self
                 .index_file_from_stream_and_partition(
-                    topic,
+                    stream,
                     &PartitionName::try_from(&partition[..]).unwrap(),
                     index_size_from_index_type_and_definition(&index_type, &stream_def),
                     index_type.clone(),

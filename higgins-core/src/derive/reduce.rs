@@ -20,7 +20,7 @@ impl ReduceOperation {
                 let mut broker_guard = self.0.broker.write().await;
                 broker_guard
                     .get_at(
-                        self.0.stream.as_bytes(),
+                        &self.0.stream,
                         &self.0.partition,
                         offsets.start - 1, // TODO: This should be impossible to fail as the invariant forces > 0, perhaps there is a better technique to be used here
                     )
@@ -133,7 +133,7 @@ impl ReduceOperation {
                 tracing::trace!("Writing the offsets.");
 
                 put_default_index_at_range(
-                    self.0.stream.to_string(),
+                    self.0.stream.clone(),
                     &self.0.partition,
                     offsets.clone(),
                     &mut broker_guard,

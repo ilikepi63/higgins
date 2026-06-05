@@ -1,9 +1,7 @@
 use nom::{IResult, Parser};
 
-use crate::{
-    error::HigginsError,
-    topography::{Key, StreamDefinition, StreamName},
-};
+use crate::{error::HigginsError, topography::StreamDefinition};
+use higgins_shared::StreamName;
 
 #[derive(Clone)]
 pub struct WindowedStreamDefinition {
@@ -95,12 +93,10 @@ pub fn window_interval_parser(input: &str) -> Result<WindowValue, HigginsError> 
     })
 }
 
-impl TryFrom<(Key, StreamDefinition)> for WindowedStreamDefinition {
+impl TryFrom<StreamDefinition> for WindowedStreamDefinition {
     type Error = HigginsError;
 
-    fn try_from(
-        (_, StreamDefinition { window, .. }): (Key, StreamDefinition),
-    ) -> Result<Self, Self::Error> {
+    fn try_from(StreamDefinition { window, .. }: StreamDefinition) -> Result<Self, Self::Error> {
         let window = window.unwrap();
         let window_value = WindowValue::try_from(window.interval.as_str())?;
 

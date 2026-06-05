@@ -82,7 +82,7 @@ impl MapOperation {
                 let offsets = self.0.offsets.get().await?;
 
                 put_default_index_at_range(
-                    self.0.stream.to_string(),
+                    self.0.stream.clone(),
                     &self.0.partition,
                     offsets.clone(),
                     &mut broker_guard,

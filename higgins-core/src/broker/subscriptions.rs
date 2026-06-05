@@ -2,7 +2,7 @@ use super::Broker;
 
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use prost::Message as _;
 use std::{
     collections::BTreeMap,
@@ -14,14 +14,13 @@ use uuid::Uuid;
 use crate::{
     error::HigginsError,
     subscription::{Subscription, SubscriptionId, error::SubscriptionError},
-    topography::StreamName,
 };
 
 impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(
         &self,
-        stream: &[u8],
+        stream: &StreamName,
         subscription_id: &[u8],
     ) -> Option<(Arc<Notify>, Arc<RwLock<Subscription>>)> {
         self.subscriptions
@@ -44,22 +43,22 @@ impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscriptions_for_stream(
         &self,
-        stream: &str,
+        stream: &StreamName,
     ) -> Option<BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>> {
-        self.subscriptions.get(stream.as_bytes()).cloned()
+        self.subscriptions.get(stream).cloned()
     }
 
     /// Acknowledge the given subscription's offsets.
     pub async fn acknowledge(
         &self,
-        stream: String,
+        stream: StreamName,
         subscription_id: Vec<u8>,
         offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
     ) -> Result<(String, Vec<(PartitionName, std::ops::Range<u64>)>), SubscriptionError> {
         tracing::info!("Retrieved acknowledgement, acknowledging..");
 
         let (_, subscription) = self
-            .get_subscription_by_key(stream.as_bytes(), &subscription_id)
+            .get_subscription_by_key(&stream, &subscription_id)
             .ok_or(SubscriptionError::SubscriptionNotFound)?;
 
         let mut subscription = subscription.write().await;
@@ -87,11 +86,11 @@ impl Broker {
     /// list. If the list of the stream does not yet exist, we create one.
     fn upsert_subscription(
         &mut self,
-        stream: &[u8],
+        stream: &StreamName,
         uuid: &[u8],
         value: (Arc<Notify>, Arc<RwLock<Subscription>>),
     ) -> Result<(), HigginsError> {
-        match self.subscriptions.entry(stream.to_vec()) {
+        match self.subscriptions.entry(stream.clone()) {
             std::collections::btree_map::Entry::Vacant(vacant_entry) => {
                 let mut map = BTreeMap::new();
                 map.insert(uuid.to_vec(), value);
@@ -105,7 +104,7 @@ impl Broker {
         Ok(())
     }
 
-    pub fn create_subscription(&mut self, stream: &[u8]) -> Vec<u8> {
+    pub fn create_subscription(&mut self, stream: &StreamName) -> Vec<u8> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();
@@ -165,7 +164,7 @@ impl Broker {
     pub async fn take_from_subscription(
         &mut self,
         client_id: u64,
-        stream: &[u8],
+        stream: &StreamName,
         subscription: &[u8],
         client_ref: tokio::sync::mpsc::Sender<BytesMut>,
         broker: Arc<RwLock<Broker>>,
@@ -178,7 +177,7 @@ impl Broker {
             .get_mut(stream)
             .and_then(|v| v.get_mut(subscription))
             .ok_or(HigginsError::SubscriptionForStreamDoesNotExist(
-                stream.iter().map(|v| v.to_string()).collect::<String>(),
+                stream.to_string(),
                 subscription
                     .iter()
                     .map(|v| v.to_string())
@@ -191,7 +190,7 @@ impl Broker {
         );
 
         let task_subscription = subscription.clone();
-        let task_stream_name = stream.to_vec();
+        let task_stream_name = stream.clone();
         let task_notify = notify.clone();
 
         let mut subscription = subscription.write().await;
@@ -252,8 +251,7 @@ impl Broker {
                                     );
 
                                     results.push(OffsetPayload {
-                                        stream: String::from_utf8(task_stream_name.clone())
-                                            .unwrap(),
+                                        stream: task_stream_name.clone(),
                                         key: partition.clone(),
                                         offset,
                                         bytes: result.unwrap(), // TODO: wrap this in a conversion function and filter out errors.
@@ -287,7 +285,7 @@ impl Broker {
 
 /// Intermediary Struct that holds the payload and which stream/key/offset it came from.
 pub struct OffsetPayload {
-    pub stream: String,
+    pub stream: StreamName,
     pub key: PartitionName,
     pub offset: u64,
     pub bytes: Vec<u8>,
@@ -354,13 +352,13 @@ mod tests {
 
         let payloads = vec![
             OffsetPayload {
-                stream: "stream-a".to_string(),
+                stream: StreamName::from("stream-a"),
                 key: PartitionName::try_from("part-1").unwrap(),
                 offset: 100,
                 bytes: test_json.clone(),
             },
             OffsetPayload {
-                stream: "stream-b".to_string(),
+                stream: StreamName::from("stream-b"),
                 key: PartitionName::try_from("part-2").unwrap(),
                 offset: 200,
                 bytes: test_json,

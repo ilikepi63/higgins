@@ -4,6 +4,7 @@ use bytes::BytesMut;
 use higgins_codec::{
     CreateSubscriptionRequest, CreateSubscriptionResponse, Message, message::Type,
 };
+use higgins_shared::StreamName;
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -22,6 +23,8 @@ pub async fn handle_create_subscription(
 
     let CreateSubscriptionRequest { stream_name, .. } =
         message.create_subscription_request.unwrap();
+
+    let stream_name = StreamName::from(stream_name);
 
     let mut broker = broker.write().await;
 

@@ -95,7 +95,7 @@ pub async fn amalgamate_join(
                 );
 
                 let arrow_data = get_arrow_data_at(
-                    definition.joins.get(i).unwrap().stream.0.as_bytes(),
+                    &definition.joins.get(i).unwrap().stream.0,
                     &partition,
                     offset,
                     broker.clone(),

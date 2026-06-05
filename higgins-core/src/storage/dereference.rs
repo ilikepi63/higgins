@@ -88,28 +88,30 @@ pub async fn dereference(
                 FunctionType::Window => {
                     let index = WindowedIndex::of(index.inner());
 
+                    let base_stream =
+                        stream_def
+                            .base
+                            .as_ref()
+                            .ok_or(HigginsError::DereferenceError(
+                                "No base stream for windowed stream dereference.".to_string(),
+                            ))?;
+
                     // Retrieve the base stream - the stream that this windowed stream is based off of.
                     let base_stream_def = broker
-                        .get_topography_stream(stream_def.base.as_ref().unwrap())
+                        .get_topography_stream(&base_stream)
                         .map(|(_, stream_def)| stream_def.clone())
                         .unwrap();
 
                     // Retrieve the base schema.
                     let base_stream_schema = broker
-                        .get_stream(stream_def.base.as_ref().unwrap().as_bytes())
+                        .get_stream(base_stream)
                         .map(|(schema, _, _)| schema.clone())
                         .unwrap();
 
                     // Create and read the buffer for this index file.
                     let buffer = {
                         let mut derivative_index_file = broker
-                            .get_index_file(
-                                String::from_utf8(
-                                    stream_def.base.as_ref().unwrap().as_bytes().to_vec(),
-                                )
-                                .unwrap(),
-                                &partition,
-                            )
+                            .get_index_file(base_stream.clone(), &partition)
                             .unwrap();
 
                         let mut guard = derivative_index_file.lock().await;

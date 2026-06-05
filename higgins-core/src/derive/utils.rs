@@ -3,7 +3,7 @@ use arrow::{
     datatypes::Field,
     util::display::array_value_to_string,
 };
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use std::ops::Range;
 use tokio::sync::RwLockWriteGuard;
 
@@ -41,7 +41,7 @@ impl ColumnName {
 
 impl From<&StreamDefinition> for ColumnName {
     fn from(value: &StreamDefinition) -> Self {
-        Self(String::from_utf8_lossy(value.partition_key.as_bytes()).into_owned()) // TODO: Remove this when we enforce stream keys to be strings.
+        Self(String::from_utf8_lossy(&value.partition_key.0).into_owned()) // TODO: Remove this when we enforce stream keys to be strings.
     }
 }
 
@@ -81,7 +81,7 @@ use crate::storage::index::default::DefaultIndex;
 
 /// Helper for putting a set of DefaultIndexes at a range.
 pub async fn put_default_index_at_range(
-    stream: String,
+    stream: StreamName,
     partition: &PartitionName,
     offset: Range<u64>,
     broker: &mut RwLockWriteGuard<'_, Broker>,

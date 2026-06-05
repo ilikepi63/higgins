@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{Message, TakeRecordsRequest};
+use higgins_shared::StreamName;
 use tokio::sync::RwLock;
 
 use crate::broker::Broker;
@@ -29,6 +30,7 @@ pub async fn handle_take_records(
     );
 
     let mut broker = broker.write().await;
+    let stream_name = StreamName::from(stream_name);
 
     broker
         .take_from_subscription(

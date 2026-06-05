@@ -1,6 +1,6 @@
 use super::Broker;
 use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -75,7 +75,7 @@ impl<'a> BrokerIndexFileLock<'a> {
 impl Broker {
     pub fn get_index_file(
         &mut self,
-        stream: String,
+        stream: StreamName,
         partition: &PartitionName,
     ) -> Option<BrokerIndexFile> {
         let stream_def = self
@@ -101,7 +101,7 @@ impl Broker {
                     None => {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.
                         self.broker_indexes.push((
-                            stream.to_owned(),
+                            stream.clone(),
                             partition.0.to_vec(),
                             Arc::new(tokio::sync::Mutex::new(())),
                         ));
