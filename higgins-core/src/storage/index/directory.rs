@@ -196,7 +196,7 @@ impl IndexDirectory {
         partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> OwnedIndex {
+    ) -> Result<OwnedIndex, HigginsError> {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_file = self
@@ -233,7 +233,7 @@ impl IndexDirectory {
             .map(|index_bytes| Index::of(index_bytes, index_type.clone()))
             .map(OwnedIndex::from);
         match index {
-            Some(index) => index,
+            Some(index) => Ok(index),
             None => {
                 tracing::error!("No Index found at offset {}", 0);
                 todo!()
@@ -249,7 +249,7 @@ impl IndexDirectory {
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Result<OwnedIndex, Box<dyn std::error::Error>> {
+    ) -> Result<OwnedIndex, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
         let stream_str = String::from_utf8_lossy(stream).to_string();

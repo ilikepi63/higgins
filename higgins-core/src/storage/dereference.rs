@@ -79,7 +79,12 @@ pub async fn dereference(
 
             // We do not throw an error any more, instead we attempt to actually dereference the entire index correctly.
             // This can also be applied to function types etc.
-            match stream_def.stream_type.unwrap() {
+            match stream_def
+                .stream_type
+                .as_ref()
+                .ok_or(HigginsError::DereferenceError(
+                    "Attempt to dereference null reference with no stream type.".to_string(),
+                ))? {
                 FunctionType::Window => {
                     let index = WindowedIndex::of(index.inner());
 
@@ -180,7 +185,10 @@ pub async fn dereference(
 
                     Ok(write_arrow(&combined))
                 }
-                _ => todo!(),
+                _ => Err(HigginsError::DereferenceError(format!(
+                    "Attempted to dereference a null value that has no resolution logic. Stream type: {:#?}",
+                    stream_def.stream_type
+                ))),
             }
         }
     }
