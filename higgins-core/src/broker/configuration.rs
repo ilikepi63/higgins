@@ -2,14 +2,15 @@ use super::Broker;
 use crate::derive::joining::join::JoinDefinition;
 use crate::derive::subscription::create_derived_stream_subscription_ref;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
+use crate::topography::Relation;
 use crate::topography::config::{Storage, StorageType};
-use crate::topography::{Relation, StreamName};
 use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
 
 use crate::topography::FunctionType;
 use crate::{error::HigginsError, topography::config::from_toml};
+use higgins_shared::StreamName;
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,

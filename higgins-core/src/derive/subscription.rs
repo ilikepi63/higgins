@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::{
-    broker::Broker, client::ClientRef, subscription::Subscription, topography::StreamName,
-};
+use crate::{broker::Broker, client::ClientRef, subscription::Subscription};
+use higgins_shared::StreamName;
 
 pub async fn create_derived_stream_subscription_ref(
     stream: StreamName,

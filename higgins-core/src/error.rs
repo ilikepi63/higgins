@@ -1,9 +1,8 @@
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use thiserror::Error;
 
 use crate::storage::index::IndexError;
 use crate::subscription::error::SubscriptionError;
-use crate::topography::StreamName;
 use crate::topography::errors::TopographyError;
 
 #[derive(Error, Debug)]

@@ -4,7 +4,7 @@
 //! abstraction over these edges as it is necessary to execute these independently of one another.
 use crate::derive::eventual;
 use arrow::array::RecordBatch;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -20,7 +20,7 @@ use crate::{
     error::HigginsError,
     storage::dereference::Reference,
     subscription::Subscription,
-    topography::{FunctionType, StreamDefinition, StreamName},
+    topography::{FunctionType, StreamDefinition},
 };
 
 /// Data that every operation will need to complete.

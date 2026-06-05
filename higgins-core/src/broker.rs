@@ -10,9 +10,9 @@ pub mod utils;
 
 use crate::subscription::SubscriptionId;
 use crate::task::TaskHandler;
-use crate::topography::{Relation, StreamName};
+use crate::topography::Relation;
 use arrow::{array::RecordBatch, datatypes::Schema};
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 pub use indexes::BrokerIndexFile;
 pub use produce::ProduceOperation;
 use riskless::object_store;
