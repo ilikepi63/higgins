@@ -1,5 +1,6 @@
-use thiserror::Error;
+use std::fmt::Display;
 
+use thiserror::Error;
 /// Name of the partition.
 ///
 /// The reason for choosing 32 is because:
@@ -7,6 +8,12 @@ use thiserror::Error;
 /// - A long enough buffer for users to be able to store human-readable names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartitionName(pub [u8; 32]);
+
+impl Display for PartitionName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&String::from_utf8_lossy(&self.0))
+    }
+}
 
 impl From<PartitionName> for Vec<u8> {
     fn from(val: PartitionName) -> Self {

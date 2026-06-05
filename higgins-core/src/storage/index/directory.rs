@@ -8,6 +8,7 @@ use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::Key;
 use crate::topography::StreamDefinition;
+use crate::topography::StreamName;
 use higgins_shared::PartitionName;
 use std::{path::PathBuf, time::SystemTime};
 
@@ -196,7 +197,7 @@ impl IndexDirectory {
         partition: &PartitionName,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> OwnedIndex {
+    ) -> Result<OwnedIndex, HigginsError> {
         let stream_str = String::from_utf8_lossy(stream).to_string();
 
         let index_file = self
@@ -216,27 +217,22 @@ impl IndexDirectory {
 
         let index = indexes.last();
 
-        // #[cfg(test)]
-        {
-            tracing::trace!("ITERATING INDEXES");
-
-            for i in 0..indexes.count() {
-                let index = indexes.get(i).unwrap();
-                tracing::trace!("{:#?}", Index::of(index, index_type.clone()));
-            }
-            tracing::trace!("COMPLETED ITERATING INDEXES");
-        }
-
         tracing::trace!("Indexes Length: {} ", indexes.count());
 
         let index = index
             .map(|index_bytes| Index::of(index_bytes, index_type.clone()))
             .map(OwnedIndex::from);
         match index {
-            Some(index) => index,
+            Some(index) => Ok(index),
             None => {
-                tracing::error!("No Index found at offset {}", 0);
-                todo!()
+                let offset = indexes.count().saturating_sub(1) as u64;
+                tracing::error!("No Index found at offset {}", offset);
+
+                Err(HigginsError::IndexNotFoundError(
+                    StreamName::from(stream),
+                    partition.clone(),
+                    offset,
+                ))
             }
         }
     }
@@ -249,7 +245,7 @@ impl IndexDirectory {
         offset: u64,
         index_type: IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Result<OwnedIndex, Box<dyn std::error::Error>> {
+    ) -> Result<OwnedIndex, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
         let stream_str = String::from_utf8_lossy(stream).to_string();
@@ -283,9 +279,14 @@ impl IndexDirectory {
                 Ok(index)
             }
             None => {
-                // TODO: handle error here.
-                tracing::error!("No Index found at offset {}", 0);
-                unimplemented!();
+                let offset = indexes.count().saturating_sub(1) as u64;
+                tracing::error!("No Index found at offset {}", offset);
+
+                Err(HigginsError::IndexNotFoundError(
+                    StreamName::from(stream),
+                    partition.clone(),
+                    offset,
+                ))
             }
         }
     }
