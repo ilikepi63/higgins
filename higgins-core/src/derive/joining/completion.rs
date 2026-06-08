@@ -1,6 +1,5 @@
-use crate::storage::index::IndexError;
 use crate::storage::index::joined_index::JoinedIndex;
-
+use higgins_shared::IndexError;
 /// Completes a given index from another completed given index.
 pub fn complete_from(
     index: &mut [u8],

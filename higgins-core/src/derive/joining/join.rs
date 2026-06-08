@@ -1,9 +1,8 @@
-use higgins_shared::StreamName;
+use higgins_shared::{StreamName, TopographyError};
 
 use super::mapping::JoinMapping;
 use crate::broker::Broker;
 use crate::topography::StreamDefinition;
-use crate::topography::errors::TopographyError;
 
 /// A {JoinDefinition} represents a definition as how it would like be represented in configuration with all of its
 /// metadata.

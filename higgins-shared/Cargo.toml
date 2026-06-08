@@ -8,3 +8,6 @@ license-file = "../LICENSE.md"
 thiserror = {workspace = true}
 arrow = {workspace = true}
 serde = {workspace = true}
+serde_json = {workspace = true}
+toml = { workspace = true }
+rkyv = { workspace = true }

@@ -1,7 +1,7 @@
 use super::utils::put_default_index_at_range;
 use crate::derive::operation::OperationData;
-use crate::{error::HigginsError, functions::reduce::run_reduce_function};
-use higgins_shared::read_arrow;
+use crate::functions::reduce::run_reduce_function;
+use higgins_shared::{HigginsError, read_arrow};
 
 pub struct ReduceOperation(pub OperationData);
 

@@ -1,6 +1,6 @@
 use super::Broker;
-use crate::storage::index::{IndexError, IndexFile, IndexType, IndexesView};
-use higgins_shared::{PartitionName, StreamName};
+use crate::storage::index::{IndexFile, IndexType, IndexesView};
+use higgins_shared::{IndexError, PartitionName, StreamName};
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,

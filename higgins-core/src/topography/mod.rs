@@ -4,7 +4,7 @@
 //! and how they are partitioned.
 
 use arrow::datatypes::Schema;
-use higgins_shared::StreamName;
+use higgins_shared::{StreamName, TopographyError};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
@@ -13,19 +13,15 @@ use std::{
 };
 mod relation;
 
-use crate::topography::{
-    config::{
-        Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
-        schema_to_arrow_schema,
-    },
-    errors::TopographyError,
+use crate::topography::config::{
+    Configuration, ConfigurationStreamDefinition, Storage, arrow_schema_to_schema,
+    schema_to_arrow_schema,
 };
 
 pub mod config;
 mod stream_definition;
 pub use stream_definition::*;
 mod data_type_parser;
-pub mod errors;
 pub use relation::Relation;
 mod file;
 

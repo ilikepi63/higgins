@@ -9,8 +9,8 @@ use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
 
 use crate::topography::FunctionType;
-use crate::{error::HigginsError, topography::config::from_toml};
-use higgins_shared::StreamName;
+use crate::topography::config::from_toml;
+use higgins_shared::{HigginsError, StreamName};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,

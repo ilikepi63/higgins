@@ -64,10 +64,8 @@ pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &Colum
     value.unwrap().as_bytes().to_vec()
 }
 
-use crate::{
-    broker::Broker, error::HigginsError, storage::dereference::Reference,
-    topography::StreamDefinition,
-};
+use crate::{broker::Broker, storage::dereference::Reference, topography::StreamDefinition};
+use higgins_shared::HigginsError;
 
 pub fn iter_buffer(
     range: Range<usize>,

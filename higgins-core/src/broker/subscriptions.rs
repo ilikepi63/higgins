@@ -2,7 +2,7 @@ use super::Broker;
 
 use bytes::BytesMut;
 use higgins_codec::{Message, Record, TakeRecordsResponse, message::Type};
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, PartitionName, StreamName, SubscriptionError};
 use prost::Message as _;
 use std::{
     collections::BTreeMap,
@@ -11,10 +11,7 @@ use std::{
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
 
-use crate::{
-    error::HigginsError,
-    subscription::{Subscription, SubscriptionId, error::SubscriptionError},
-};
+use crate::subscription::{Subscription, SubscriptionId};
 
 impl Broker {
     /// Retrieves the subscription for this specific key.

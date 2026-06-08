@@ -3,11 +3,10 @@
 use crate::broker::{Broker, BrokerIndexFile};
 use crate::derive::operation::OperationData;
 use crate::derive::windowed::definition::WindowValue;
-use crate::error::HigginsError;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
 use crate::storage::windowing::assign_sliding_windows_range;
 use definition::WindowedStreamDefinition;
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

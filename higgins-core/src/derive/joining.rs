@@ -15,15 +15,13 @@ pub mod opts;
 
 use crate::broker::BrokerIndexFile;
 use crate::derive::joining::completion::complete_from;
+use crate::derive::joining::join::JoinDefinition;
 use crate::derive::operation::OperationData;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::utils::epoch;
+use higgins_shared::HigginsError;
 use opts::amalgamate_join;
-
-use crate::error::HigginsError;
-
-use crate::derive::joining::join::JoinDefinition;
 
 pub struct JoinOperation {
     pub data: OperationData,

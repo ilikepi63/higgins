@@ -5,9 +5,9 @@ use tokio::sync::RwLock;
 use crate::broker::utils::get_arrow_data_at;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::{broker::Broker, derive::joining::join::JoinDefinition};
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName};
 
-use crate::{error::HigginsError, subscription::Subscription};
+use crate::subscription::Subscription;
 
 #[allow(unused)]
 static N: u64 = 10;

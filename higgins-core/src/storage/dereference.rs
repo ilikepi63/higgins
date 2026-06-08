@@ -4,14 +4,13 @@ use std::io::Write;
 
 use crate::{
     broker::Broker,
-    error::HigginsError,
     storage::index::{Index, OwnedIndex, windowed_index::WindowedIndex},
     topography::{FunctionType, StreamDefinition},
 };
 use arrow::compute::concat_batches;
 
 use arrow::array::RecordBatch;
-use higgins_shared::{PartitionName, read_arrow, write_arrow};
+use higgins_shared::{HigginsError, PartitionName, read_arrow, write_arrow};
 use riskless::object_store::path::Path;
 
 static NULL_DISCRIMINATOR: u16 = 0;

@@ -1,9 +1,7 @@
 use bytes::BytesMut;
 use higgins_codec::Message;
-use higgins_shared::UniqueCollection;
+use higgins_shared::{HigginsError, UniqueCollection};
 use prost::Message as _;
-
-use crate::error::HigginsError;
 
 #[derive(Debug, Clone)]
 pub enum ClientRef {

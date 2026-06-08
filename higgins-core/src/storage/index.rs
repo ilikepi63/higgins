@@ -5,11 +5,9 @@ use bytes::BufMut as _;
 
 pub mod default;
 pub mod directory;
-mod error;
 pub mod file;
 pub mod joined_index;
 pub mod windowed_index;
-pub use error::IndexError;
 
 pub use file::{CompletedBinarySearchResult, IndexFile};
 
@@ -18,6 +16,7 @@ use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::windowed_index::WindowedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
+use higgins_shared::IndexError;
 
 /// The high-level type of index that all indexes could possibly be.
 ///

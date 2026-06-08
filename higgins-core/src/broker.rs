@@ -12,7 +12,7 @@ use crate::subscription::SubscriptionId;
 use crate::task::TaskHandler;
 use crate::topography::Relation;
 use arrow::{array::RecordBatch, datatypes::Schema};
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 pub use indexes::BrokerIndexFile;
 pub use produce::ProduceOperation;
 use riskless::object_store;
@@ -21,7 +21,7 @@ use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, error::HigginsError, storage::backing_store::BackingStore,
+    client::ClientCollection, storage::backing_store::BackingStore,
     storage::index::directory::IndexDirectory, subscription::Subscription, topography::Topography,
 };
 

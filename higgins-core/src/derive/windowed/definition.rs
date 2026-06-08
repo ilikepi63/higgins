@@ -1,7 +1,7 @@
 use nom::{IResult, Parser};
 
-use crate::{error::HigginsError, topography::StreamDefinition};
-use higgins_shared::StreamName;
+use crate::topography::StreamDefinition;
+use higgins_shared::{HigginsError, StreamName};
 
 #[derive(Clone)]
 pub struct WindowedStreamDefinition {

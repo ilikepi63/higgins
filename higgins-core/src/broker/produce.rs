@@ -7,14 +7,11 @@ use arrow::array::RecordBatch;
 use higgins_shared::{PartitionName, StreamName};
 use riskless::messages::ProduceRequest;
 
-use crate::{
-    error::HigginsError,
-    storage::{
-        dereference::{Reference, S3Reference},
-        index::Index,
-    },
+use crate::storage::{
+    dereference::{Reference, S3Reference},
+    index::Index,
 };
-use higgins_shared::write_arrow;
+use higgins_shared::{HigginsError, write_arrow};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

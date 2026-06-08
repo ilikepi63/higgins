@@ -1,13 +1,11 @@
 //! File-related utilities for managing Subscriptions.
 
-use higgins_shared::{PartitionName, PartitionNameError};
+use higgins_shared::{PartitionName, PartitionNameError, SubscriptionError};
 use std::{
     fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     ops::Range,
 };
-
-use crate::subscription::error::SubscriptionError;
 
 #[allow(unused)]
 static BODY_INDEX: usize = size_of::<u64>() * 2;

@@ -1,5 +1,4 @@
 use crate::broker::Broker;
-use crate::error::HigginsError;
 use crate::storage::batch_coordinate::BatchCoordinate;
 use crate::storage::dereference::Reference;
 use crate::storage::dereference::S3Reference;
@@ -7,10 +6,9 @@ use crate::storage::index::Index;
 use crate::storage::index::OwnedIndex;
 use crate::storage::index::index_size_from_index_type_and_definition;
 use crate::topography::StreamDefinition;
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, IndexError, PartitionName, StreamName};
 use std::{path::PathBuf, time::SystemTime};
 
-use super::IndexError;
 use super::IndexFile;
 use super::IndexType;
 use super::IndexesView;
