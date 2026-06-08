@@ -41,7 +41,7 @@ impl ColumnName {
 
 impl From<&StreamDefinition> for ColumnName {
     fn from(value: &StreamDefinition) -> Self {
-        Self(value.partition_key.to_string()) // TODO: Remove this when we enforce stream keys to be strings.
+        Self(value.partition_key.to_string().unwrap()) // TODO: Remove this when we enforce stream keys to be strings.
     }
 }
 

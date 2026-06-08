@@ -55,7 +55,7 @@ impl From<StreamDefinition> for ConfigurationStreamDefinition {
         ConfigurationStreamDefinition {
             base: value.base.map(StreamName::into),
             stream_type: value.stream_type.map(FunctionType::into),
-            partition_key: value.partition_key.to_string(),
+            partition_key: value.partition_key.to_string().unwrap(),
             schema: value.schema.into(),
             join: value.join.map(|join| {
                 join.iter()

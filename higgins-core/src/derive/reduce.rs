@@ -98,7 +98,7 @@ impl ReduceOperation {
                     tracing::trace!(
                         "No previous index found. Producing to stream {} key {} ",
                         self.0.stream.to_string(),
-                        &self.0.partition.to_string()
+                        &self.0.partition.to_string().unwrap_or("NO_KEY".to_string())
                     );
 
                     // CREATE REFERENCE
