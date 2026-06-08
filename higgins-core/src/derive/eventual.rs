@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 
-use crate::error::HigginsError;
+use higgins_shared::HigginsError;
 
 pub fn eventual<T>() -> (Eventual<T>, Setter<T>) {
     let data = Arc::new((Mutex::new(None), Notify::new()));

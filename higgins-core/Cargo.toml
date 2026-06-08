@@ -11,8 +11,8 @@ async-trait = "0.1.88"
 bytes = "1.10.1"
 clap = {workspace = true}
 riskless = "0.7.3"
-serde = { version = "1.0.219", features = ["derive"] }
-toml = "0.9.5"
+serde = {workspace = true}
+toml = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = "0.3.19"
@@ -24,14 +24,14 @@ higgins-codec = { path = "../higgins-codec" }
 higgins-functions = { path = "../higgins-functions" }
 prost = "0.13.5"
 thiserror = "2.0.12"
-rkyv = "0.8.10"
 memmap2 = "0.9.8"
 zerocopy = { version = "0.8.27", features = ["derive"] }
 rand = "0.9.2"
 futures = "0.3.31"
 higgins-shared = { path = "../higgins-shared" }
-serde_json = "1.0.140"
+serde_json = { workspace = true }
 nom = "8.0.0"
+rkyv = { workspace = true }
 
 [dev-dependencies]
 higgins-client = { path = "../higgins-client" }

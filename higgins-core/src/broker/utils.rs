@@ -2,14 +2,14 @@
 
 use crate::broker::Broker;
 use arrow::record_batch::RecordBatch;
-use higgins_shared::PartitionName;
 use higgins_shared::read_arrow;
+use higgins_shared::{PartitionName, StreamName};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Retrieve the arrow data at the specified index.
 pub async fn get_arrow_data_at(
-    stream: &[u8],
+    stream: &StreamName,
     partition: &PartitionName,
     offset: u64,
     broker: Arc<RwLock<Broker>>,

@@ -15,15 +15,13 @@ pub mod opts;
 
 use crate::broker::BrokerIndexFile;
 use crate::derive::joining::completion::complete_from;
+use crate::derive::joining::join::JoinDefinition;
 use crate::derive::operation::OperationData;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::utils::epoch;
+use higgins_shared::HigginsError;
 use opts::amalgamate_join;
-
-use crate::error::HigginsError;
-
-use crate::derive::joining::join::JoinDefinition;
 
 pub struct JoinOperation {
     pub data: OperationData,
@@ -38,18 +36,14 @@ impl JoinOperation {
         Ok(())
     }
     pub async fn prepare(&mut self) -> Result<(), HigginsError> {
-        let stream: Vec<u8> = self.definition.clone().base.0.into();
+        let stream = self.definition.clone().base.0;
         let n_offsets = self.definition.joins.len();
 
         // Retrieve the Index file, given the stream name and partition key.
         let mut index_file = {
             let mut broker = self.data.broker.write().await;
-            let index_file: BrokerIndexFile = broker
-                .get_index_file(
-                    String::from_utf8(stream.to_owned()).unwrap(), // TODO: Enforce Strings for stream names.
-                    &self.data.partition,
-                )
-                .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+            let index_file: BrokerIndexFile =
+                broker.get_index_file(stream, &self.data.partition).unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
             tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
             drop(broker);
             index_file
@@ -142,7 +136,7 @@ impl JoinOperation {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        let stream = String::from_utf8_lossy(self.definition.base.0.as_bytes()).to_string();
+        let stream = self.definition.base.0.clone();
 
         let mut index_file = {
             let mut broker = self.data.broker.write().await;

@@ -5,7 +5,7 @@ use higgins_codec::{
     AcknowledgeSubscriptionOffsetsRequest, AcknowledgeSubscriptionOffsetsResponse, ClientCount,
     GetSubscriptionRequest, GetSubscriptionResponse, KeyOffset, Message, Offset, message::Type,
 };
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use prost::Message as _;
 use tokio::sync::RwLock;
 use zerocopy::IntoBytes;
@@ -25,7 +25,7 @@ pub async fn handle_get_subscription(
         stream,
     }) = message.get_subscription_request
         && let Some((_, subscription_data)) =
-            broker.get_subscription_by_key(stream.as_bytes(), &subscription_id)
+            broker.get_subscription_by_key(&StreamName::from(stream.clone()), &subscription_id)
     {
         let subscription_data = subscription_data.read().await;
 
@@ -42,7 +42,7 @@ pub async fn handle_get_subscription(
                     .partitions
                     .iter()
                     .map(|key| KeyOffset {
-                        key: key.partition_id.0.as_bytes().to_owned(),
+                        key: key.partition_id.to_vec(),
                         max_offset: key.end,
                         last_completed_offset: key.start,
                     })
@@ -91,6 +91,8 @@ pub async fn handle_acknowledge(
             })
             .collect::<Vec<_>>();
 
+        let stream = StreamName::from(stream);
+
         let (error, failed_offsets) = match broker
             .acknowledge(stream.clone(), subscription_id.clone(), offsets)
             .await
@@ -105,12 +107,12 @@ pub async fn handle_acknowledge(
             correlation_id: message.correlation_id,
             r#type: Type::Acknowledgeresponse as i32,
             acknowledge_response: Some(AcknowledgeSubscriptionOffsetsResponse {
-                stream,
+                stream: stream.into(),
                 subscription_id,
                 failed_offsets: failed_offsets
                     .iter()
                     .map(|offset| Offset {
-                        key: offset.0.0.to_vec(),
+                        key: offset.0.to_vec(),
                         range: Some(higgins_codec::Range {
                             start: offset.1.start,
                             end: offset.1.end,

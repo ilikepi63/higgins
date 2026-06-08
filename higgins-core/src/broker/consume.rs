@@ -13,16 +13,16 @@ use std::sync::Arc;
 
 use crate::{broker::object_store::path::Path, storage::index::IndexType};
 
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 
-use crate::{error::HigginsError, storage::dereference::dereference};
+use crate::storage::dereference::dereference;
 use riskless::messages::ConsumeBatch;
 use std::collections::HashSet;
 
 impl Broker {
     pub async fn consume(
         &mut self,
-        topic: &[u8],
+        stream: &StreamName,
         partition: &PartitionName,
         offset: u64,
         _max_partition_fetch_bytes: u32,
@@ -31,7 +31,7 @@ impl Broker {
 
         let stream_definition = self
             .topography
-            .get_stream_definition_by_key(String::from_utf8(topic.to_owned()).unwrap())
+            .get_stream_definition_by_key(stream.clone())
             .cloned()
             .unwrap();
 
@@ -40,10 +40,7 @@ impl Broker {
         let batch_responses = indexes
             .find_batches(
                 vec![FindBatchRequest {
-                    topic_id_partition: TopicIdPartition(
-                        String::from_utf8(topic.to_owned()).unwrap(),
-                        partition.0.to_vec(),
-                    ),
+                    topic_id_partition: TopicIdPartition(stream.clone().into(), partition.to_vec()),
                     offset,
                     max_partition_fetch_bytes: 0,
                 }],
@@ -63,19 +60,19 @@ impl Broker {
     }
     pub async fn get_by_timestamp(
         &mut self,
-        stream: &[u8],
+        stream: &StreamName,
         partition: &PartitionName,
         timestamp: u64,
     ) -> Option<ConsumeResponse> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .get_stream_definition_by_key(stream.clone())
             .unwrap();
 
         let find_batch_responses = self
             .indexes
             .get_by_timestamp(
-                stream,
+                stream.clone(),
                 partition,
                 timestamp,
                 IndexType::try_from(stream_def).unwrap(),
@@ -91,23 +88,23 @@ impl Broker {
 
     pub async fn get_latest(
         &mut self,
-        stream: &[u8],
+        stream: &StreamName,
         partition: &PartitionName,
     ) -> Result<impl Future<Output = Result<Vec<u8>, HigginsError>>, HigginsError> {
         tracing::trace!(
             "Attempting to retrieve latest index for stream: {:#?}, partition: {:#?}",
-            String::from_utf8_lossy(stream),
+            stream,
             partition
         );
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .get_stream_definition_by_key(stream.clone())
             .unwrap();
 
         let index = self
             .indexes
             .get_latest_offset(
-                stream,
+                stream.clone(),
                 partition,
                 &IndexType::try_from(stream_def).unwrap(),
                 stream_def,
@@ -125,13 +122,13 @@ impl Broker {
     /// Given a specified range, retrieve the data at the range or a subset thereof.
     pub async fn get_range(
         &mut self,
-        stream: &[u8],
+        stream: &StreamName,
         partition: &PartitionName,
         offset: std::ops::Range<u64>,
     ) -> Result<Vec<Option<Vec<u8>>>, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .get_stream_definition_by_key(stream.clone())
             .unwrap()
             .clone();
 
@@ -140,7 +137,7 @@ impl Broker {
         let indexes = self
             .indexes
             .get_by_range(
-                stream,
+                stream.clone(),
                 partition,
                 offset,
                 IndexType::try_from(&stream_def.clone()).unwrap(),
@@ -173,13 +170,13 @@ impl Broker {
     /// Retrieve the data at the specified offset.
     pub async fn get_at(
         &mut self,
-        stream: &[u8],
+        stream: &StreamName,
         partition: &PartitionName,
         offset: u64,
     ) -> Result<Option<Vec<u8>>, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(String::from_utf8(stream.to_owned()).unwrap())
+            .get_stream_definition_by_key(stream.clone())
             .unwrap();
 
         tracing::debug!("Stream def: {:#?}", stream_def);
@@ -191,7 +188,7 @@ impl Broker {
         let index = self
             .indexes
             .get_by_offset(
-                stream,
+                stream.clone(),
                 partition,
                 offset,
                 IndexType::try_from(stream_def).unwrap(),

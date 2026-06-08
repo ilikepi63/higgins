@@ -1342,7 +1342,11 @@ name = "higgins-shared"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "rkyv",
+ "serde",
+ "serde_json",
  "thiserror 2.0.17",
+ "toml 0.9.11+spec-1.1.0",
 ]
 
 [[package]]

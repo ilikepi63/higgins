@@ -16,7 +16,6 @@
 //! - 0..0 -> you can read 0 from this PartitionOffsets
 //! - 0..1 -> you can read 0..=1 from this Partition.
 //! - 1..0 -> This partition is `complete`. When a partition gets acknowledged at u64::Max, there should possibly be some form of tomb stoning.
-pub mod error;
 pub mod file;
 
 use file::SubscriptionFile;
@@ -24,8 +23,7 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Notify;
 
-use crate::subscription::error::SubscriptionError;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, SubscriptionError};
 
 /// Represents the unique ID for a subscription.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -260,7 +258,7 @@ impl Subscription {
             }
             None => Err(
                 SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                    String::from_utf8(key.0.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    String::from_utf8(key.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
                     offsets.start,
                 ),
             ),

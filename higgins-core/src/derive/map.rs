@@ -2,10 +2,9 @@ use super::utils::ColumnName;
 use crate::derive::operation::OperationData;
 use crate::{
     derive::utils::{get_partition_key_from_record_batch, put_default_index_at_range},
-    error::HigginsError,
     functions::map::run_map_function,
 };
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName};
 
 pub struct MapOperation(pub OperationData);
 
@@ -82,7 +81,7 @@ impl MapOperation {
                 let offsets = self.0.offsets.get().await?;
 
                 put_default_index_at_range(
-                    self.0.stream.to_string(),
+                    self.0.stream.clone(),
                     &self.0.partition,
                     offsets.clone(),
                     &mut broker_guard,

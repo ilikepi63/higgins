@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::broker::Broker;
-use crate::topography::Key;
 use arrow_schema::DataType;
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, ProduceResponse, message::Type};
 use higgins_shared::PartitionName;
+use higgins_shared::StreamName;
 use higgins_shared::read_arrow;
 use prost::Message as _;
 use tokio::sync::RwLock;
@@ -30,6 +30,8 @@ pub async fn handle_produce(
 
     let broker = broker.write().await;
 
+    let stream_name = StreamName::from(stream_name);
+
     let (schema, _tx, _rx) = broker
         .get_stream(&stream_name)
         .expect("Could not find stream for stream_name.");
@@ -38,15 +40,15 @@ pub async fn handle_produce(
 
     tracing::info!("[PRODUCE] Retrieved the broker lock.");
 
-    let (_, stream_definition) = broker
-        .get_topography_stream(&Key::try_from(stream_name.as_bytes()).unwrap())
-        .unwrap();
+    let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone()).unwrap();
 
     let key = &stream_definition.partition_key;
 
     tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
 
-    let key = String::from_utf8(key.as_bytes().to_vec()).unwrap();
+    let key = key.to_string().unwrap();
+
+    tracing::trace!("[PRODUCE] Key for stream produce: {}", key);
 
     let key_type = schema.field_with_name(&key).unwrap().data_type();
 
@@ -107,11 +109,7 @@ pub async fn handle_produce(
     )
     .await;
 
-    tracing::trace!(
-        "Result from producing to {}: {:#?}",
-        String::from_utf8(stream_name.to_vec()).unwrap(),
-        result
-    );
+    tracing::trace!("Result from producing to {}: {:#?}", stream_name, result);
 
     let mut result = BytesMut::new();
 

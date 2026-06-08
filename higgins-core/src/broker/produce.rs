@@ -2,20 +2,16 @@ use super::Broker;
 use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
-use crate::topography::{Key, StreamName};
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use riskless::messages::ProduceRequest;
 
-use crate::{
-    error::HigginsError,
-    storage::{
-        dereference::{Reference, S3Reference},
-        index::Index,
-    },
+use crate::storage::{
+    dereference::{Reference, S3Reference},
+    index::Index,
 };
-use higgins_shared::write_arrow;
+use higgins_shared::{HigginsError, write_arrow};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -60,7 +56,7 @@ impl ProduceOperation {
         tracing::debug!("Running commit.");
 
         let mut index_file_lock = broker
-            .get_index_file(self.0.stream.to_string(), &self.0.partition.clone())
+            .get_index_file(self.0.stream.clone(), &self.0.partition.clone())
             .unwrap();
 
         let mut index_file_guard = index_file_lock.lock().await;
@@ -92,7 +88,7 @@ impl ProduceOperation {
 
             self.0.offsets_setter.set(setter_offset).await;
 
-            let subscription = broker.get_subscriptions_for_stream(&self.0.stream.to_string());
+            let subscription = broker.get_subscriptions_for_stream(&self.0.stream);
 
             if let Some(subscriptions) = subscription {
                 tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
@@ -135,28 +131,28 @@ impl Broker {
     /// Produce a data set onto the named stream.
     pub async fn produce(
         // &mut self,
-        stream_name: &[u8],
+        stream_name: &StreamName,
         partition: &PartitionName,
         record_batch: RecordBatch,
         broker: Arc<RwLock<Broker>>,
     ) -> Result<(), HigginsError> {
         tracing::trace!(
             "[PRODUCE] Producing to stream: {}, data: {:#?}",
-            String::from_utf8(stream_name.to_vec()).unwrap(),
+            stream_name,
             record_batch
         );
 
         let definition = {
             let broker_guard = broker.write().await;
             broker_guard
-                .get_topography_stream(&Key::from(stream_name))
+                .get_topography_stream(stream_name)
                 .map(|(_, definition)| definition.clone())
                 .ok_or(HigginsError::Unknown)?
         };
 
         tracing::trace!("Initializing produce operation.");
         produce_operation(
-            StreamName::from(stream_name),
+            stream_name.clone(),
             partition.clone(),
             definition,
             &[record_batch],
@@ -180,7 +176,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             data,
         };
 
@@ -220,7 +216,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             data,
         };
 

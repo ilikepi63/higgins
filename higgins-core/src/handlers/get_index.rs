@@ -7,7 +7,7 @@ use prost::Message as _;
 use tokio::sync::RwLock;
 
 use crate::broker::Broker;
-use higgins_shared::PartitionName;
+use higgins_shared::{PartitionName, StreamName};
 use tokio::sync::mpsc::Sender;
 
 pub async fn handle_get_index(
@@ -31,7 +31,7 @@ pub async fn handle_get_index(
             higgins_codec::index::Type::Timestamp => {
                 let values = broker_lock
                     .get_by_timestamp(
-                        &index.stream,
+                        &StreamName::from(index.stream.clone()),
                         &PartitionName::try_from(&index.partition[..]).unwrap(),
                         index.timestamp(),
                     )
@@ -80,8 +80,9 @@ pub async fn handle_get_index(
                 tracing::trace!("Retrieved a Latest GetIndexRequest",);
 
                 let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
+                let stream = StreamName::from(index.stream.clone());
 
-                let response = broker_lock.get_latest(&index.stream, partition).await;
+                let response = broker_lock.get_latest(&stream, partition).await;
 
                 let response = response.unwrap().await.unwrap();
 
@@ -117,7 +118,7 @@ pub async fn handle_get_index(
                 let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
 
                 let response = broker_lock
-                    .get_at(&index.stream, partition, offset)
+                    .get_at(&StreamName::from(index.stream.clone()), partition, offset)
                     .await
                     .ok()
                     .flatten()

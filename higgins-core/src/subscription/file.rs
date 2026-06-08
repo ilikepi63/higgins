@@ -1,13 +1,11 @@
 //! File-related utilities for managing Subscriptions.
 
-use higgins_shared::{PartitionName, PartitionNameError};
+use higgins_shared::{PartitionName, PartitionNameError, SubscriptionError};
 use std::{
     fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     ops::Range,
 };
-
-use crate::subscription::error::SubscriptionError;
 
 #[allow(unused)]
 static BODY_INDEX: usize = size_of::<u64>() * 2;
@@ -40,7 +38,7 @@ impl<'a> PartitionOffsetsSerde<'a> {
         dest: &mut [u8],
     ) {
         // TODO: perhaps we want to check the size of dest first?
-        dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.0);
+        dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.to_vec());
         dest[LAST_COMPLETED_OFFSET..MAX_OFFSET]
             .clone_from_slice(&last_completed_offset.to_be_bytes());
         dest[MAX_OFFSET..AMOUNT_TO_TAKE_OFFSET].clone_from_slice(&max_offset.to_be_bytes());

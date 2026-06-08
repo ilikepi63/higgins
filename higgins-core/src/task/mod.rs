@@ -4,10 +4,7 @@ use std::collections::VecDeque;
 
 use tokio::task::JoinHandle;
 
-use crate::error::HigginsError;
-use error::HigginsTaskError;
-pub mod error;
-
+use higgins_shared::{HigginsError, HigginsTaskError};
 /// Primary structure for handling the creation and deletion of tasks.
 #[derive(Debug)]
 pub struct TaskHandler {

@@ -2,7 +2,8 @@
 //! given to the hard storage that backs up the streams from Higgins.
 
 use crate::storage::shared_log_segment::SharedLogSegment;
-use crate::{error::HigginsError, utils::request_response::Response};
+use crate::utils::request_response::Response;
+use higgins_shared::HigginsError;
 use std::time::Duration;
 
 use riskless::{

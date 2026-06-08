@@ -2,14 +2,15 @@ use super::Broker;
 use crate::derive::joining::join::JoinDefinition;
 use crate::derive::subscription::create_derived_stream_subscription_ref;
 use crate::storage::backing_store::{BackingStore, ObjectBackingStore};
+use crate::topography::Relation;
 use crate::topography::config::{Storage, StorageType};
-use crate::topography::{Relation, StreamName};
 use object_store::aws::AmazonS3Builder;
 use riskless::object_store::memory::InMemory;
 use std::sync::Arc;
 
 use crate::topography::FunctionType;
-use crate::{error::HigginsError, topography::config::from_toml};
+use crate::topography::config::from_toml;
+use higgins_shared::{HigginsError, StreamName};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
@@ -42,10 +43,7 @@ impl Broker {
             .get_streams()
             .iter()
             .filter_map(|(stream_key, def)| {
-                if !self
-                    .streams
-                    .contains_key(&Into::<Vec<u8>>::into(stream_key))
-                {
+                if !self.streams.contains_key(stream_key) {
                     let schema = self
                         .topography
                         .get_schema_by_key(def.schema.clone().into())?
@@ -61,7 +59,7 @@ impl Broker {
         tracing::trace!("Creating streams...");
 
         for (key, schema) in streams_to_create {
-            self.create_stream(Into::<Vec<u8>>::into(key).as_ref(), schema);
+            self.create_stream(&key, schema);
         }
 
         // Retrieve derived streams metadata.
@@ -81,7 +79,7 @@ impl Broker {
                         JoinDefinition::try_from((
                             derived_stream_key.clone(),
                             derived_stream_definition.clone(),
-                            &*self,
+                            &mut *self,
                         ))?
                     };
 
@@ -105,7 +103,7 @@ impl Broker {
                             base_key.clone()
                         );
 
-                        self.relations.push((base_key, relation));
+                        self.relations.push((base_key.clone(), relation));
                     }
                 }
                 Some(FunctionType::Map) => {

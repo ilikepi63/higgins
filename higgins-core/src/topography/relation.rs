@@ -2,12 +2,10 @@
 
 use std::sync::Arc;
 
+use higgins_shared::StreamName;
 use tokio::sync::RwLock;
 
-use crate::{
-    subscription::Subscription,
-    topography::{StreamDefinition, StreamName},
-};
+use crate::{subscription::Subscription, topography::StreamDefinition};
 
 #[derive(Debug, Clone)]
 pub struct Relation {

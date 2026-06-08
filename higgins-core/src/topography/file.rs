@@ -1,8 +1,7 @@
 //! File-related operations for a given typography.
-use super::errors::TopographyError;
+use higgins_shared::TopographyError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
 use {std::io::Read as _, std::io::Write as _};
 
 static FILE_NAME: &str = "topography.jsonl";

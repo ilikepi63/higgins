@@ -3,12 +3,10 @@
 use crate::broker::{Broker, BrokerIndexFile};
 use crate::derive::operation::OperationData;
 use crate::derive::windowed::definition::WindowValue;
-use crate::error::HigginsError;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
 use crate::storage::windowing::assign_sliding_windows_range;
-use crate::topography::Key;
 use definition::WindowedStreamDefinition;
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -24,9 +22,8 @@ impl WindowOperation {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        let stream_key: Key = self.0.stream.clone().into();
-        let definition =
-            WindowedStreamDefinition::try_from((stream_key, self.0.definition.clone()))?;
+        // let stream_key: Key = self.0.stream.clone().into();
+        let definition = WindowedStreamDefinition::try_from(self.0.definition.clone())?;
 
         match &definition.window_type {
             WindowValue::Count(count) => {
@@ -36,12 +33,9 @@ impl WindowOperation {
                 tracing::info!("Retrieving index file for stream {resultant_stream}");
 
                 // TODO: maybe paralellize these?
-                let mut resultant_index_file = get_index_file_handle(
-                    &self.0.stream.to_string(),
-                    &self.0.partition,
-                    self.0.broker.clone(),
-                )
-                .await;
+                let mut resultant_index_file =
+                    get_index_file_handle(&self.0.stream, &self.0.partition, self.0.broker.clone())
+                        .await;
 
                 tracing::info!("Retrieved index file..");
 
@@ -76,20 +70,6 @@ impl WindowOperation {
                     guard.acknowledge(&self.0.partition, &offsets).unwrap();
                 }
 
-                // debug only, remove after
-                // {
-                //     tracing::info!("LOOK HERE ");
-                //     use crate::storage::index::windowed_index::WindowedIndex;
-                //     let mut bytes = [0u8; WindowedIndex::size_of()];
-                //     index_file.read_at(0, &mut bytes).unwrap();
-                //     for index in bytes
-                //         .chunks(WindowedIndex::size_of())
-                //         .map(WindowedIndex::of)
-                //     {
-                //         tracing::debug!("{:#?}", index);
-                //     }
-                // }
-
                 tracing::info!("Successfully applied ranges to windowed function.");
             }
             WindowValue::Timed((_count, _time_unit)) => {
@@ -110,10 +90,10 @@ impl WindowOperation {
 }
 
 async fn get_index_file_handle(
-    stream: &str,
+    stream: &StreamName,
     key: &PartitionName,
     broker_ref: Arc<RwLock<Broker>>,
 ) -> BrokerIndexFile {
     let mut broker = broker_ref.write().await;
-    broker.get_index_file(stream.to_owned(), key).unwrap()
+    broker.get_index_file(stream.clone(), key).unwrap()
 }

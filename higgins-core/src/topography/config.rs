@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use arrow::datatypes::{DataType, Field};
+use higgins_shared::StreamName;
 use serde::{Deserialize, Serialize};
 
-use crate::topography::{FunctionType, Key, StreamDefinition};
+use crate::topography::{FunctionType, StreamDefinition};
 
 /// A Configuration is a serializable value that corresponds to a
 /// unit of implementation. These implementations aggregate to become a
@@ -52,11 +53,15 @@ pub struct WindowDefinition {
 impl From<StreamDefinition> for ConfigurationStreamDefinition {
     fn from(value: StreamDefinition) -> Self {
         ConfigurationStreamDefinition {
-            base: value.base.map(Key::into),
+            base: value.base.map(StreamName::into),
             stream_type: value.stream_type.map(FunctionType::into),
-            partition_key: value.partition_key.into(),
+            partition_key: value.partition_key.to_string().unwrap(),
             schema: value.schema.into(),
-            join: value.join,
+            join: value.join.map(|join| {
+                join.iter()
+                    .map(|stream| stream.to_string())
+                    .collect::<Vec<_>>()
+            }),
             map: value.map,
             function_name: value.function_name,
             window: value.window,

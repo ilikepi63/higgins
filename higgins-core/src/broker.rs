@@ -10,9 +10,9 @@ pub mod utils;
 
 use crate::subscription::SubscriptionId;
 use crate::task::TaskHandler;
-use crate::topography::{Relation, StreamName};
+use crate::topography::Relation;
 use arrow::{array::RecordBatch, datatypes::Schema};
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 pub use indexes::BrokerIndexFile;
 pub use produce::ProduceOperation;
 use riskless::object_store;
@@ -21,7 +21,7 @@ use tokio::sync::{Notify, RwLock};
 
 use crate::functions::collection::FunctionCollection;
 use crate::{
-    client::ClientCollection, error::HigginsError, storage::backing_store::BackingStore,
+    client::ClientCollection, storage::backing_store::BackingStore,
     storage::index::directory::IndexDirectory, subscription::Subscription, topography::Topography,
 };
 
@@ -32,16 +32,17 @@ type Sender = tokio::sync::broadcast::Sender<RecordBatch>;
 #[derive(Debug)]
 pub struct Broker {
     dir: PathBuf,
-    streams: BTreeMap<Vec<u8>, (Arc<Schema>, Sender, Receiver)>,
+    streams: BTreeMap<StreamName, (Arc<Schema>, Sender, Receiver)>,
 
     // Concurrency control for indexing files.
     indexes: Arc<IndexDirectory>,
-    broker_indexes: Vec<(String, Vec<u8>, std::sync::Arc<tokio::sync::Mutex<()>>)>,
+    broker_indexes: Vec<(StreamName, Vec<u8>, std::sync::Arc<tokio::sync::Mutex<()>>)>,
     pub backing_store: Option<Arc<dyn BackingStore<Error = HigginsError>>>,
 
     // Subscriptions.
     #[allow(clippy::type_complexity)]
-    subscriptions: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
+    subscriptions:
+        BTreeMap<StreamName, BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>>,
     non_reactive_subscriptions:
         BTreeMap<StreamName, BTreeMap<SubscriptionId, Arc<RwLock<Subscription>>>>,
     relations: Vec<(StreamName, Relation)>,
@@ -62,7 +63,7 @@ pub struct Broker {
 
 impl Broker {
     /// Retrieve the receiver for a named stream.
-    pub fn get_receiver(&self, stream_name: &[u8]) -> Option<Receiver> {
+    pub fn get_receiver(&self, stream_name: &StreamName) -> Option<Receiver> {
         self.streams
             .iter()
             .find(|(id, _)| *id == stream_name)
@@ -77,7 +78,7 @@ impl Broker {
     /// TODO: This needs to be fault-tolerant.
     pub async fn create_partition(
         &mut self,
-        stream_name: &[u8],
+        stream_name: &StreamName,
         key: &PartitionName,
         offset: u64,
         max_offset: u64,
