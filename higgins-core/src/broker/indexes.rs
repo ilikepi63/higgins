@@ -102,7 +102,7 @@ impl Broker {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.
                         self.broker_indexes.push((
                             stream.clone(),
-                            partition.0.to_vec(),
+                            partition.to_vec(),
                             Arc::new(tokio::sync::Mutex::new(())),
                         ));
 

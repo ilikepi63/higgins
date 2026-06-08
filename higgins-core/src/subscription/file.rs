@@ -40,7 +40,7 @@ impl<'a> PartitionOffsetsSerde<'a> {
         dest: &mut [u8],
     ) {
         // TODO: perhaps we want to check the size of dest first?
-        dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.0);
+        dest[0..LAST_COMPLETED_OFFSET].clone_from_slice(&partition_id.to_vec());
         dest[LAST_COMPLETED_OFFSET..MAX_OFFSET]
             .clone_from_slice(&last_completed_offset.to_be_bytes());
         dest[MAX_OFFSET..AMOUNT_TO_TAKE_OFFSET].clone_from_slice(&max_offset.to_be_bytes());

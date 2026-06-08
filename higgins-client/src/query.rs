@@ -19,7 +19,7 @@ pub async fn query_by_timestamp<
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
             stream: stream.to_owned(),
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             timestamp: Some(timestamp),
             index: None,
         }],
@@ -55,7 +55,7 @@ pub async fn query_latest<
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
             stream: stream.to_owned(),
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             timestamp: None,
             index: None,
         }],
@@ -93,7 +93,7 @@ pub async fn query_at<
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Offset.into(),
             stream: stream.to_owned(),
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             timestamp: None,
             index: Some(offset),
         }],

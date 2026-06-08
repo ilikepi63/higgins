@@ -56,7 +56,7 @@ impl IndexDirectory {
         format!(
             "{:0>20}.index",
             partition_key
-                .0
+                .to_vec()
                 .iter()
                 .map(|b| b.to_string())
                 .collect::<String>()
@@ -111,7 +111,7 @@ impl IndexDirectory {
         todo!();
         let mut responses = vec![];
 
-        let topic_id_partition = TopicIdPartition(stream.into(), partition.0.to_vec());
+        let topic_id_partition = TopicIdPartition(stream.into(), partition.to_vec());
 
         let index_file = self
             .index_file_from_stream_and_partition(

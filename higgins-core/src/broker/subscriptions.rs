@@ -296,7 +296,7 @@ impl From<OffsetPayload> for Record {
         Record {
             data: val.bytes,
             stream: val.stream.as_bytes().to_vec(),
-            partition: val.key.0.to_vec(),
+            partition: val.key.to_vec(),
             offset: val.offset,
         }
     }
@@ -382,7 +382,10 @@ mod tests {
         assert_eq!(resp1.records.len(), 1);
         let rec1 = &resp1.records[0];
         assert_eq!(rec1.stream, b"stream-a".to_vec());
-        assert_eq!(rec1.partition, PartitionName::try_from("part-1").unwrap().0);
+        assert_eq!(
+            rec1.partition,
+            PartitionName::try_from("part-1").unwrap().to_vec()
+        );
         assert_eq!(rec1.offset, 100);
 
         // Decode second
@@ -390,7 +393,10 @@ mod tests {
         let resp2 = msg2.take_records_response.expect("has response");
         let rec2 = &resp2.records[0];
         assert_eq!(rec2.stream, b"stream-b".to_vec());
-        assert_eq!(rec2.partition, PartitionName::try_from("part-2").unwrap().0);
+        assert_eq!(
+            rec2.partition,
+            PartitionName::try_from("part-2").unwrap().to_vec()
+        );
         assert_eq!(rec2.offset, 200);
     }
 }

@@ -40,10 +40,7 @@ impl Broker {
         let batch_responses = indexes
             .find_batches(
                 vec![FindBatchRequest {
-                    topic_id_partition: TopicIdPartition(
-                        stream.clone().into(),
-                        partition.0.to_vec(),
-                    ),
+                    topic_id_partition: TopicIdPartition(stream.clone().into(), partition.to_vec()),
                     offset,
                     max_partition_fetch_bytes: 0,
                 }],

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
+use std::ffi::CStr;
 use thiserror::Error;
 /// Name of the partition.
 ///
@@ -8,11 +9,27 @@ use thiserror::Error;
 /// - The need for a fixed size buffer.
 /// - A long enough buffer for users to be able to store human-readable names.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PartitionName(pub [u8; 32]);
+pub struct PartitionName([u8; 32]);
 
 impl Display for PartitionName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&String::from_utf8_lossy(&self.0))
+    }
+}
+
+impl PartitionName {
+    /// Attempts to convert this key name into a String.
+    ///
+    /// TODO: This should ideally error out but also a key name should always ideally be a
+    /// Sized string, so we'd need to change the internals of this struct.
+    pub fn to_string(&self) -> Option<String> {
+        let cstr = CStr::from_bytes_until_nul(&self.0).ok()?;
+
+        Some(cstr.to_str().ok()?.to_string())
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
     }
 }
 

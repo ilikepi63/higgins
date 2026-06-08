@@ -14,7 +14,7 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Timestamp.into(),
             stream: stream.to_owned(),
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             timestamp: Some(timestamp),
             index: None,
         }],
@@ -63,7 +63,7 @@ pub fn query_latest<T: std::io::Read + std::io::Write>(
         indexes: vec![Index {
             r#type: higgins_codec::index::Type::Latest.into(),
             stream: stream.to_owned(),
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             timestamp: None,
             index: None,
         }],

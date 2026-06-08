@@ -46,9 +46,14 @@ pub async fn handle_produce(
 
     tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
 
-    let key = String::from_utf8_lossy(key.0.as_bytes());
+    let key = key.to_string();
 
-    let key_type = schema.field_with_name(&key).unwrap().data_type();
+    tracing::trace!("[PRODUCE] Key for stream produce: {}", key);
+
+    let key_type = schema
+        .field_with_name(&key.to_string())
+        .unwrap()
+        .data_type();
 
     let array = batch.column(
         batch

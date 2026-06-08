@@ -58,7 +58,7 @@ impl Debug for StreamDefinition {
         f.debug_struct("StreamDefinition")
             .field("base", &self.base.as_ref())
             .field("stream_type", &self.stream_type)
-            .field("partition_key", &self.partition_key.0)
+            .field("partition_key", &self.partition_key.to_vec())
             .field("schema", &self.schema)
             .field("join", &self.join)
             .field("map", &self.map)

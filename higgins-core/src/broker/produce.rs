@@ -179,7 +179,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             data,
         };
 
@@ -219,7 +219,7 @@ impl Broker {
         let request = ProduceRequest {
             request_id: 1,
             topic: stream,
-            partition: partition.0.to_vec(),
+            partition: partition.to_vec(),
             data,
         };
 

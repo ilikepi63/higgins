@@ -260,7 +260,7 @@ impl Subscription {
             }
             None => Err(
                 SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                    String::from_utf8(key.0.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    String::from_utf8(key.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
                     offsets.start,
                 ),
             ),

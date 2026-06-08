@@ -117,7 +117,7 @@ pub async fn acknowledge<
         offsets: offsets
             .iter()
             .map(|offset| Offset {
-                key: offset.0.0.to_vec(),
+                key: offset.0.to_vec(),
                 range: Some(Range {
                     start: offset.1.start,
                     end: offset.1.end,

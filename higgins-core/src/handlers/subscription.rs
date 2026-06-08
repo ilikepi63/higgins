@@ -42,7 +42,7 @@ pub async fn handle_get_subscription(
                     .partitions
                     .iter()
                     .map(|key| KeyOffset {
-                        key: key.partition_id.0.as_bytes().to_owned(),
+                        key: key.partition_id.to_vec(),
                         max_offset: key.end,
                         last_completed_offset: key.start,
                     })
@@ -112,7 +112,7 @@ pub async fn handle_acknowledge(
                 failed_offsets: failed_offsets
                     .iter()
                     .map(|offset| Offset {
-                        key: offset.0.0.to_vec(),
+                        key: offset.0.to_vec(),
                         range: Some(higgins_codec::Range {
                             start: offset.1.start,
                             end: offset.1.end,
