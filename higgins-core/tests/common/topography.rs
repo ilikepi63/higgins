@@ -1,10 +1,8 @@
-mod common;
-
 use higgins::run_server_returning;
 use higgins_client::ResponseBody;
 use std::{path::PathBuf, time::Duration};
 
-use common::get_random_port;
+use super::get_random_port;
 
 fn get_dir() -> PathBuf {
     // let mut dir = temp_dir();
@@ -27,10 +25,7 @@ pub fn setup_server(
     (server_handle, client)
 }
 
-#[test]
-fn can_achieve_basic_topography_retrieval() {
-    tracing_subscriber::fmt::init();
-
+pub fn can_achieve_basic_topography_retrieval() {
     let port = get_random_port();
 
     let dir = get_dir();

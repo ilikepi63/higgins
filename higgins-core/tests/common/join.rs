@@ -1,13 +1,10 @@
-use common::get_random_port;
-use common::schema::customer_schema;
+use super::{get_random_port, schema::customer_schema};
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
 use higgins_shared::{PartitionName, read_arrow};
 use std::panic::catch_unwind;
 use std::time::Duration;
-
-mod common;
 
 static CONFIG: &str = r#"
 [storage.memory]
@@ -64,10 +61,18 @@ city = "address.city"
 province = "address.province"
 "#;
 
-#[test]
-fn can_implement_a_basic_stream_join() {
+// #[test]
+fn can_implement_a_basic_stream_join() {}
+
+use arrow::array::RecordBatch;
+use arrow::array::{Int32Array, StringArray};
+use arrow::datatypes::{DataType, Field, Schema};
+use std::sync::Arc;
+
+use crate::common::schema::address_schema;
+
+pub fn run_basic_join_test() {
     let port = get_random_port();
-    tracing_subscriber::fmt::init();
 
     tracing::info!("Running on port: {port}");
 
@@ -178,13 +183,6 @@ fn can_implement_a_basic_stream_join() {
 
     result.unwrap()
 }
-
-use arrow::array::RecordBatch;
-use arrow::array::{Int32Array, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
-use std::sync::Arc;
-
-use crate::common::schema::address_schema;
 
 pub fn create_test_customer_address_data() -> RecordBatch {
     // Define the schema

@@ -1,12 +1,10 @@
-mod common;
-
-use common::{configuration::upload_configuration_sync, ping::client_sync_ping_test};
+use super::{configuration::upload_configuration_sync, ping::client_sync_ping_test};
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
 use std::{panic::catch_unwind, path::PathBuf, time::Duration};
 
-use common::get_random_port;
+use super::get_random_port;
 
 fn get_dir() -> PathBuf {
     // let mut dir = temp_dir();
@@ -25,10 +23,7 @@ static PAYLOAD: &str = r#"{
     "i": 123
 }"#;
 
-#[test]
-fn basic_windowing() {
-    tracing_subscriber::fmt::init();
-
+pub fn basic_windowing() {
     let port = get_random_port();
 
     let dir = get_dir();
