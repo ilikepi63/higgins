@@ -17,6 +17,7 @@ pub mod query;
 pub mod schema;
 pub mod subscription;
 pub use port::get_random_port;
+pub mod basic;
 pub mod map;
 pub mod reduce;
 pub mod topography;

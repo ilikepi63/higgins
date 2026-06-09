@@ -10,17 +10,17 @@ use tokio::{
 };
 
 use crate::{broker::Broker, client::ClientRef};
+
 pub mod broker;
 pub mod client;
 mod derive;
 pub mod functions;
+mod handlers;
 pub mod storage;
 pub mod subscription;
 pub mod task;
 pub mod topography;
 pub mod utils;
-
-mod handlers;
 
 async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
