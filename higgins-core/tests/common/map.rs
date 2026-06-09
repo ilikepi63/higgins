@@ -1,5 +1,5 @@
+use super::get_random_port;
 use arrow::{array::AsArray, datatypes::Int32Type};
-use common::get_random_port;
 use higgins::run_server;
 use higgins_client::{ResponseBody, blocking::Client};
 use higgins_shared::{PartitionName, read_arrow};
@@ -7,13 +7,8 @@ use std::{env::temp_dir, time::Duration};
 
 use crate::common::schema::amount_schema;
 
-mod common;
-
-#[test]
-// #[allow(unused)]
-fn can_implement_basic_map() {
+pub fn can_implement_basic_map() {
     let port = get_random_port();
-    tracing_subscriber::fmt::init();
     tracing::info!("Running on port: {port}");
 
     let dir = {

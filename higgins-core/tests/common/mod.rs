@@ -10,13 +10,18 @@ pub mod client_utils;
 pub mod configuration;
 pub mod data;
 pub mod functions;
+pub mod join;
 pub mod ping;
 mod port;
 pub mod query;
 pub mod schema;
 pub mod subscription;
-
 pub use port::get_random_port;
+pub mod map;
+pub mod reduce;
+pub mod topography;
+pub mod windowing;
+
 /// produce to a stream without waiting for the response.
 ///
 /// This is helpful in scenarios where you may want to produce concurrently.

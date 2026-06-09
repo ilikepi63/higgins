@@ -1,18 +1,14 @@
+use super::get_random_port;
+use super::schema::amount_schema;
 use arrow::array::AsArray;
 use arrow::datatypes::Int32Type;
-use common::get_random_port;
-use common::schema::amount_schema;
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_client::blocking::Client;
 use higgins_shared::{PartitionName, read_arrow};
 use std::{env::temp_dir, time::Duration};
 
-mod common;
-
-#[allow(unused)]
-#[test]
-fn can_implement_basic_reduce() {
+pub fn can_implement_basic_reduce() {
     {
         // Delete the current files for this..
         let _ = std::fs::remove_dir("result");
@@ -20,7 +16,6 @@ fn can_implement_basic_reduce() {
     }
 
     let port = get_random_port();
-    tracing_subscriber::fmt::init();
     tracing::info!("Running on port: {port}");
 
     let dir = {

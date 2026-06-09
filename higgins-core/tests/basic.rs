@@ -1,12 +1,18 @@
 mod common;
 
+use common::get_random_port;
+use common::join::run_basic_join_test;
+use common::map::can_implement_basic_map;
 use common::schema::customer_schema;
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
 use std::{panic::catch_unwind, path::PathBuf, time::Duration};
 
-use common::get_random_port;
+use crate::common::{
+    reduce::can_implement_basic_reduce, subscription::*,
+    topography::can_achieve_basic_topography_retrieval, windowing::basic_windowing,
+};
 
 fn get_dir() -> PathBuf {
     // let mut dir = temp_dir();
@@ -166,4 +172,14 @@ fn can_achieve_basic_broker_functionality() {
     std::fs::remove_dir_all(dir_remove).unwrap();
 
     result.unwrap();
+
+    run_basic_join_test();
+    can_implement_basic_map();
+    can_implement_basic_reduce();
+    can_achieve_basic_topography_retrieval();
+    basic_windowing();
+    can_retrieve_data_from_subscription();
+    subscription_works_with_multiple_clients();
+    can_update_subscription_with_multiple_values();
+    can_update_subscription_after_created();
 }
