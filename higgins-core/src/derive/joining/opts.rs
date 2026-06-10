@@ -100,7 +100,8 @@ pub async fn amalgamate_join(
                     offset,
                     broker.clone(),
                 )
-                .await;
+                .await
+                .ok()?;
 
                 Some((i, arrow_data))
             }
@@ -116,12 +117,12 @@ pub async fn amalgamate_join(
     .iter()
     // Retrieve the stream names for the given indexes.
     .map(|data| {
-        data.as_ref().map(|(index, data)| {
+        data.as_ref().and_then(|(index, data)| {
             let stream = definition.joins.get(*index)?;
-            (
-                String::from_utf8(stream.stream.0.as_bytes().to_owned())?,
+            Some((
+                String::from_utf8(stream.stream.0.as_bytes().to_owned()).ok()?,
                 data.clone(),
-            )
+            ))
         })
     })
     .collect::<Vec<_>>();
@@ -140,7 +141,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn test_eager_range_take_sync() {
+    async fn test_eager_range_take_sync() -> Result<(), HigginsError> {
         let sub_path = "sub_take_eager_range";
         let notify = Arc::new(tokio::sync::Notify::new());
         let client_id = 1;
@@ -148,13 +149,12 @@ mod test {
         let partition = &PartitionName::try_from("1")?;
         let mut guard = subscription.write().await;
 
-        guard.add_partition(&partition, 0, 0)?;
+        guard.add_partition(&partition, 0, 0).unwrap();
 
         drop(guard);
 
-        let values = eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id)
-            .await
-            ?;
+        let values =
+            eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id).await?;
 
         for value in values {
             for record in value.1.start..=value.1.end {
@@ -174,5 +174,7 @@ mod test {
         assert!(values.is_err()); // Timeout because there is no value.
 
         std::fs::remove_file(sub_path)?;
+
+        Ok(())
     }
 }

@@ -40,7 +40,7 @@ impl MapOperation {
 
                 tracing::trace!("[MAP] We have fetched the module.");
 
-                let mapped_record_batch = run_map_function(&record_batch, engine, module);
+                let mapped_record_batch = run_map_function(&record_batch, engine, module)?;
 
                 tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
 
@@ -96,7 +96,7 @@ impl MapOperation {
 
                 Ok(())
             }
-            None => Err(HigginsError::Unknown),
+            None => Err(HigginsError::Arbitrary("No References found".to_string())),
         }
     }
 }

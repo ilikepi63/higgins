@@ -1,9 +1,16 @@
 use crate::{PartitionName, PartitionNameError, StreamName};
 use arrow::error::ArrowError;
+use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum HigginsError {
+    #[error("Encoding Error")]
+    EncodeError(#[from] EncodeError),
+
+    #[error("Decoding protobuf Error")]
+    DecodeError(#[from] DecodeError),
+
     #[error("Stream/Subscription does not exist: {0} {1}")]
     SubscriptionForStreamDoesNotExist(String, String),
 

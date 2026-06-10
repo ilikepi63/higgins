@@ -17,7 +17,12 @@ impl ClientRef {
 
         match self {
             ClientRef::AsyncTcpSocket(sender) => {
-                sender.send(result).await?;
+                sender.send(result).await.map_err(|err| {
+                    HigginsError::Arbitrary(format!(
+                        "Failed to write offsets to client: {:#?}",
+                        err
+                    ))
+                })?;
             }
             ClientRef::NoOp => {}
         }

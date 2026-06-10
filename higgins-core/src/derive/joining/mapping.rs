@@ -2,6 +2,7 @@
 //! joined dataset.
 
 use arrow::{array::new_null_array, record_batch::RecordBatch};
+use higgins_shared::HigginsError;
 use std::collections::BTreeMap;
 
 /// JoinMapping is the mapping metadata between a joined data structs properties
@@ -49,7 +50,7 @@ impl JoinMapping {
     pub fn map_arrow(
         &self,
         batches: Vec<Option<(String, RecordBatch)>>,
-    ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
+    ) -> Result<RecordBatch, HigginsError> {
         let mut columns = vec![];
 
         let batches_row_count = batches
@@ -71,7 +72,8 @@ impl JoinMapping {
                     let (_, (stream_name, stream_propery_key)) = self
                         .1
                         .iter()
-                        .find(|(prop_name, _)| prop_name == field_name)?;
+                        .find(|(prop_name, _)| prop_name == field_name)
+                        .ok_or(HigginsError::Arbitrary("field name not found".to_string()))?;
 
                     // We then retrieve the batch for this.
                     let batch_opt = batches
@@ -85,7 +87,12 @@ impl JoinMapping {
 
                     columns.push(match batch_opt {
                         Some((_, batch)) => {
-                            let column = batch.column_by_name(stream_propery_key)?;
+                            let column = batch.column_by_name(stream_propery_key).ok_or(
+                                HigginsError::Arbitrary(format!(
+                                    "Could not find column for name: {}",
+                                    stream_propery_key
+                                )),
+                            )?;
 
                             column.clone()
                         }
@@ -169,7 +176,7 @@ mod tests {
     }
 
     // Helper function to create a customer record batch
-    fn create_customer_batch() -> RecordBatch {
+    fn create_customer_batch() -> Result<RecordBatch, HigginsError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int32, false),
             Field::new("first_name", DataType::Utf8, false),
@@ -180,11 +187,14 @@ mod tests {
         let first_name = Arc::new(StringArray::from(vec!["John", "Jane", "Bob"]));
         let last_name = Arc::new(StringArray::from(vec!["Doe", "Smith", "Johnson"]));
 
-        RecordBatch::try_new(schema, vec![id, first_name, last_name])?
+        Ok(RecordBatch::try_new(
+            schema,
+            vec![id, first_name, last_name],
+        )?)
     }
 
     // Helper function to create an address record batch
-    fn create_address_batch() -> RecordBatch {
+    fn create_address_batch() -> Result<RecordBatch, HigginsError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("customer_id", DataType::Int32, false),
             Field::new("address", DataType::Utf8, false),
@@ -197,7 +207,7 @@ mod tests {
             "789 Pine Rd",
         ]));
 
-        RecordBatch::try_new(schema, vec![customer_id, address])?
+        Ok(RecordBatch::try_new(schema, vec![customer_id, address])?)
     }
 
     #[test]
@@ -277,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_map_arrow_basic() {
+    fn test_map_arrow_basic() -> Result<(), HigginsError> {
         let schema = create_test_schema();
         let mut mapping = BTreeMap::new();
         mapping.insert(
@@ -295,8 +305,8 @@ mod tests {
 
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
-        let customer_batch = create_customer_batch();
-        let address_batch = create_address_batch();
+        let customer_batch = create_customer_batch()?;
+        let address_batch = create_address_batch()?;
 
         let batches = vec![
             Some(("customer".to_string(), customer_batch)),
@@ -314,10 +324,12 @@ mod tests {
         assert!(result.column_by_name("customer_first_name").is_some());
         assert!(result.column_by_name("customer_last_name").is_some());
         assert!(result.column_by_name("customer_address").is_some());
+
+        Ok(())
     }
 
     #[test]
-    fn test_map_arrow_basic_missing_batch() {
+    fn test_map_arrow_basic_missing_batch() -> Result<(), HigginsError> {
         let schema = create_test_schema();
         let mut mapping = BTreeMap::new();
         mapping.insert(
@@ -335,7 +347,7 @@ mod tests {
 
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
-        let customer_batch = create_customer_batch();
+        let customer_batch = create_customer_batch()?;
 
         let batches = vec![Some(("customer".to_string(), customer_batch)), None];
 
@@ -350,10 +362,12 @@ mod tests {
         assert!(result.column_by_name("customer_first_name").is_some());
         assert!(result.column_by_name("customer_last_name").is_some());
         assert!(result.column_by_name("customer_address").is_some());
+
+        Ok(())
     }
 
     #[test]
-    fn test_map_arrow_column_order_matches_schema() {
+    fn test_map_arrow_column_order_matches_schema() -> Result<(), HigginsError> {
         let schema = create_test_schema();
         let mut mapping = BTreeMap::new();
         mapping.insert(
@@ -371,8 +385,8 @@ mod tests {
 
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
-        let customer_batch = create_customer_batch();
-        let address_batch = create_address_batch();
+        let customer_batch = create_customer_batch()?;
+        let address_batch = create_address_batch()?;
 
         let batches = vec![
             Some(("customer".to_string(), customer_batch)),
@@ -394,10 +408,12 @@ mod tests {
                 "customer_address"
             ]
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_map_arrow_single_stream() {
+    fn test_map_arrow_single_stream() -> Result<(), HigginsError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("renamed_id", DataType::Int32, false),
             Field::new("renamed_first_name", DataType::Utf8, false),
@@ -412,13 +428,15 @@ mod tests {
 
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
-        let customer_batch = create_customer_batch();
+        let customer_batch = create_customer_batch()?;
         let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         let result = join_mapping.map_arrow(batches)?;
 
         assert_eq!(result.num_columns(), 2);
         assert_eq!(result.num_rows(), 3);
+
+        Ok(())
     }
 
     #[test]
@@ -434,7 +452,8 @@ mod tests {
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
 
         // Only provide address batch, missing customer batch
-        let address_batch = create_address_batch();
+        #[allow(clippy::unwrap_used)]
+        let address_batch = create_address_batch().unwrap();
         let batches = vec![Some(("address".to_string(), address_batch))];
 
         // This should panic due to unwrap() on missing stream
@@ -452,8 +471,8 @@ mod tests {
         );
 
         let join_mapping = JoinMapping::from((schema.clone(), mapping));
-
-        let customer_batch = create_customer_batch();
+        #[allow(clippy::unwrap_used)]
+        let customer_batch = create_customer_batch().unwrap();
         let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         // This should panic due to unwrap() on missing column

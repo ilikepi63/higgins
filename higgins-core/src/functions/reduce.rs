@@ -5,23 +5,21 @@ use higgins_functions::{
     wasmtime::{Engine, Linker, Module, Store},
 };
 
-use higgins_shared::{read_arrow, write_arrow};
+use higgins_shared::{HigginsError, read_arrow, write_arrow};
 
 pub fn run_reduce_function(
     curr: &RecordBatch,
     prev: &RecordBatch,
     engine: &Engine,
     module: &Module,
-) -> RecordBatch {
+) -> Result<RecordBatch, HigginsError> {
     let linker = Linker::new(&engine);
 
     let mut store: Store<u32> = Store::new(&engine, 4);
 
     let instance = linker.instantiate(&mut store, &module)?;
 
-    let mut wasm_malloc_fn = instance
-        .get_typed_func::<u32, u32>(&mut store, "_malloc")
-        ?;
+    let mut wasm_malloc_fn = instance.get_typed_func::<u32, u32>(&mut store, "_malloc")?;
 
     let mut memory = instance.get_memory(&mut store, "memory")?;
 
@@ -32,7 +30,7 @@ pub fn run_reduce_function(
         tracing::debug!("Current Record Batch: {:#?}", current_record_batch_bytes);
         let data = ArbitraryLengthBuffer::from(write_arrow(curr).as_ref()).into_inner();
 
-        allocator.copy(&data)
+        allocator.copy(&data)?
     };
 
     let prev_ptr = {
@@ -41,29 +39,23 @@ pub fn run_reduce_function(
 
         let data = ArbitraryLengthBuffer::from(write_arrow(prev).as_ref()).into_inner();
 
-        allocator.copy(&data)
+        allocator.copy(&data)?
     };
 
-    let wasm_run_fn = instance
-        .get_typed_func::<(u32, u32), u32>(&mut store, "run")
-        ?;
+    let wasm_run_fn = instance.get_typed_func::<(u32, u32), u32>(&mut store, "run")?;
 
     let record_batch_ptr = wasm_run_fn.call(&mut store, (prev_ptr, curr_ptr));
 
     tracing::debug!("{:#?}", record_batch_ptr);
 
     {
-        let wasm_error_fn = instance
-            .get_typed_func::<(), u32>(&mut store, "get_errors")
-            ?;
+        let wasm_error_fn = instance.get_typed_func::<(), u32>(&mut store, "get_errors")?;
 
         let errors = wasm_error_fn.call(&mut store, ())?;
 
         let mut bytes = vec![0; 1000 * 10];
 
-        memory
-            .read(&mut store, errors.try_into()?, &mut bytes)
-            ?;
+        memory.read(&mut store, errors.try_into()?, &mut bytes)?;
 
         for chunk in bytes.chunks(100) {
             let s = String::from_utf8_lossy(chunk);
@@ -79,17 +71,13 @@ pub fn run_reduce_function(
     let result = {
         let mut buf = [0_u8; 8];
 
-        memory
-            .read(&store, record_batch_ptr.try_into()?, &mut buf)
-            ?;
+        memory.read(&store, record_batch_ptr.try_into()?, &mut buf)?;
 
         let length = u64::from_be_bytes(buf);
 
         let mut buf = vec![0_u8; length as usize + 8];
 
-        memory
-            .read(&store, record_batch_ptr.try_into()?, &mut buf)
-            ?;
+        memory.read(&store, record_batch_ptr.try_into()?, &mut buf)?;
 
         let array = ArbitraryLengthBuffer::new(buf);
 

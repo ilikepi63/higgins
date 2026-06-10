@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{GetIndexResponse, Message, Record, message::Type};
-use higgins_shared::read_arrow;
+use higgins_shared::{HigginsError, read_arrow};
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -14,7 +14,7 @@ pub async fn handle_get_index(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     tracing::trace!("Trying to retrieve the broker lock..");
 
     let mut broker_lock = broker.write().await;
@@ -49,7 +49,7 @@ pub async fn handle_get_index(
 
                             let batch_refs = batches.first()?;
 
-                            let data = higgins_shared::write_arrow(batch_refs);
+                            let data = higgins_shared::write_arrow(batch_refs)?;
 
                             Record {
                                 data,
@@ -143,4 +143,6 @@ pub async fn handle_get_index(
             }
         }
     }
+
+    Ok(())
 }

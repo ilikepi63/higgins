@@ -21,7 +21,7 @@ impl TryFrom<&str> for WindowValue {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         window_interval_parser(value)
             .inspect_err(|err| tracing::error!("{:#?}", err))
-            .map_err(|_err| HigginsError::Unknown)
+            .map_err(|err| HigginsError::Arbitrary(err.to_string()))
     }
 }
 
@@ -79,12 +79,12 @@ pub fn window_interval_parser(input: &str) -> Result<WindowValue, HigginsError> 
         .parse(input)
         .map_err(|e| {
             tracing::error!("{:#?}", e);
-            HigginsError::Unknown
+            HigginsError::Arbitrary(e.to_string())
         })?;
 
     let n = str::parse::<u64>(n).map_err(|e| {
         tracing::error!("{:#?}", e);
-        HigginsError::Unknown
+        HigginsError::Arbitrary(e.to_string())
     })?;
 
     Ok(match time {
@@ -97,14 +97,16 @@ impl TryFrom<StreamDefinition> for WindowedStreamDefinition {
     type Error = HigginsError;
 
     fn try_from(StreamDefinition { window, .. }: StreamDefinition) -> Result<Self, Self::Error> {
-        let window = window?;
+        let window = window.ok_or(HigginsError::Arbitrary(
+            "No window found for window stream.".to_string(),
+        ))?;
         let window_value = WindowValue::try_from(window.interval.as_str())?;
 
         Ok(Self {
             window_type: window_value.clone(),
             slide: window
                 .slide
-                .map(|val| WindowValue::try_from(val.as_str())?)
+                .and_then(|val| WindowValue::try_from(val.as_str()).ok())
                 .unwrap_or(window_value),
         })
     }
@@ -116,7 +118,9 @@ impl TryFrom<(StreamName, StreamDefinition)> for WindowedStreamDefinition {
     fn try_from(
         (_key, StreamDefinition { window, .. }): (StreamName, StreamDefinition),
     ) -> Result<Self, Self::Error> {
-        let window = window.ok_or(HigginsError::Unknown)?;
+        let window = window.ok_or(HigginsError::Arbitrary(
+            "No window found for window stream.".to_string(),
+        ))?;
         let window_value = WindowValue::try_from(window.interval.as_str())?;
         let slide = window
             .slide

@@ -5,10 +5,14 @@ use higgins_functions::{
     wasmtime::{Engine, Linker, Module, Store},
 };
 
-use higgins_shared::{read_arrow, write_arrow};
+use higgins_shared::{HigginsError, read_arrow, write_arrow};
 
 /// Wrapper around the mapping functions.
-pub fn run_map_function(batch: &RecordBatch, engine: &Engine, module: &Module) -> RecordBatch {
+pub fn run_map_function(
+    batch: &RecordBatch,
+    engine: &Engine,
+    module: &Module,
+) -> Result<RecordBatch, HigginsError> {
     let linker = Linker::new(&engine);
 
     let mut store: Store<u32> = Store::new(&engine, 4);
@@ -25,7 +29,7 @@ pub fn run_map_function(batch: &RecordBatch, engine: &Engine, module: &Module) -
 
     let data = ArbitraryLengthBuffer::from(write_arrow(batch).as_ref()).into_inner();
 
-    let record_batch_ptr = allocator.copy(&data);
+    let record_batch_ptr = allocator.copy(&data)?;
 
     let wasm_run_fn = instance.get_typed_func::<u32, u32>(&mut store, "run")?;
 

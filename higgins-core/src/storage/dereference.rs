@@ -145,7 +145,7 @@ pub async fn dereference(
                         ))
                         .await?;
 
-                        for rb in read_arrow(&data) {
+                        for rb in read_arrow(&data)? {
                             if let Ok(rb) = rb {
                                 tracing::debug!(
                                     "BATCHES: schema: {:#?} combined: {:#?}, rb: {:#?}",
@@ -175,7 +175,7 @@ pub async fn dereference(
                         }
                     }
 
-                    Ok(write_arrow(&combined))
+                    Ok(write_arrow(&combined)?)
                 }
                 _ => Err(HigginsError::DereferenceError(format!(
                     "Attempted to dereference a null value that has no resolution logic. Stream type: {:#?}",

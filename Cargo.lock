@@ -1343,6 +1343,7 @@ name = "higgins-shared"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "prost",
  "rkyv",
  "serde",
  "serde_json",

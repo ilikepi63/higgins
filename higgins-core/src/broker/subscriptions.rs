@@ -238,21 +238,26 @@ impl Broker {
 
                                     let mut results = vec![];
 
-                                    for result in broker_lock
+                                    let consumption = broker_lock
                                         .consume(&task_stream_name, &partition, offset, 50_000)
-                                        .await?
-                                    {
-                                        tracing::trace!(
-                                            "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
-                                            result
-                                        );
+                                        .await;
 
-                                        results.push(OffsetPayload {
-                                            stream: task_stream_name.clone(),
-                                            key: partition.clone(),
-                                            offset,
-                                            bytes: result?, // TODO: wrap this in a conversion function and filter out errors.
-                                        });
+                                    if let Ok(consumption) = consumption {
+                                        for result in consumption {
+                                            tracing::trace!(
+                                                "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
+                                                result
+                                            );
+
+                                            if let Ok(result) = result {
+                                                results.push(OffsetPayload {
+                                                    stream: task_stream_name.clone(),
+                                                    key: partition.clone(),
+                                                    offset,
+                                                    bytes: result, // TODO: wrap this in a conversion function and filter out errors.
+                                                });
+                                            }
+                                        }
                                     }
 
                                     results
@@ -309,7 +314,7 @@ impl From<OffsetPayload> for Record {
 pub async fn write_offsets_to_client(
     consumption: Vec<OffsetPayload>,
     client_ref: tokio::sync::mpsc::Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     for val in consumption {
         let resp = TakeRecordsResponse {
             records: vec![{ val.into() }],
@@ -326,8 +331,12 @@ pub async fn write_offsets_to_client(
 
         tracing::trace!("[TAKE] Writing the amount back to client.");
 
-        client_ref.send(result).await?;
+        client_ref.send(result).await.map_err(|err| {
+            HigginsError::Arbitrary(format!("Failed to write offsets to client: {:#?}", err))
+        })?;
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -341,12 +350,12 @@ mod tests {
     use tokio::sync::mpsc::Sender;
 
     #[tokio::test]
-    async fn write_offsets_sends_one_message_per_payload() {
+    async fn write_offsets_sends_one_message_per_payload() -> Result<(), HigginsError> {
         let test_json = write_arrow(&arrow::array::record_batch!(
             ("a", Int32, [1, 2, 3]),
             ("b", Float64, [Some(4.0), None, Some(5.0)]),
             ("c", Utf8, ["alpha", "beta", "gamma"])
-        )?);
+        )?)?;
 
         let (tx, mut rx): (Sender<BytesMut>, _) = mpsc::channel(16);
 
@@ -392,5 +401,7 @@ mod tests {
         assert_eq!(rec2.stream, b"stream-b".to_vec());
         assert_eq!(rec2.partition, PartitionName::try_from("part-2")?.to_vec());
         assert_eq!(rec2.offset, 200);
+
+        Ok(())
     }
 }
