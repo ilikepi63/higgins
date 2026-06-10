@@ -9,7 +9,7 @@ impl StreamName {
         self.0.as_bytes()
     }
     pub fn as_str(&self) -> &str {
-        &self.0.as_str()
+        self.0.as_str()
     }
 }
 
@@ -49,8 +49,8 @@ impl From<String> for StreamName {
     }
 }
 
-impl Into<String> for StreamName {
-    fn into(self) -> String {
-        self.0
+impl From<StreamName> for String {
+    fn from(val: StreamName) -> Self {
+        val.0
     }
 }

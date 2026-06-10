@@ -1,4 +1,5 @@
 use crate::{PartitionName, PartitionNameError, StreamName};
+use arrow::error::ArrowError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -23,6 +24,9 @@ pub enum HigginsError {
 
     #[error("PartitionNameError")]
     PartitionNameError(#[from] PartitionNameError),
+
+    #[error("ArrowError")]
+    ArrowError(#[from] ArrowError),
 
     #[error("Attempted to place data at a null reference. ")]
     UnableToPlaceDataAtNullReference,
