@@ -33,8 +33,7 @@ pub async fn handle_get_topography(
                 }),
                 ..Default::default()
             }
-            .encode(&mut result)
-            .unwrap();
+            .encode(&mut result)?;
 
             let _ = writer_tx.send(result).await;
         }
@@ -46,8 +45,7 @@ pub async fn handle_get_topography(
                 error: Some(Error { r#type: 2 }),
                 ..Default::default()
             }
-            .encode(&mut result)
-            .unwrap();
+            .encode(&mut result)?;
 
             let _ = writer_tx.send(result).await;
         }

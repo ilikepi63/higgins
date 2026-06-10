@@ -44,11 +44,10 @@ pub async fn dereference(
                 Ok(get_result) => {
                     if let Ok(b) = get_result.bytes().await {
                         // index into the bytes.
-                        let start: usize = (reference_object_store.position).try_into().unwrap();
+                        let start: usize = (reference_object_store.position).try_into()?;
                         let end: usize = (reference_object_store.position
                             + reference_object_store.size)
-                            .try_into()
-                            .unwrap();
+                            .try_into()?;
 
                         let data = b.slice(start..end);
 
@@ -98,20 +97,17 @@ pub async fn dereference(
                     // Retrieve the base stream - the stream that this windowed stream is based off of.
                     let base_stream_def = broker
                         .get_topography_stream(&base_stream)
-                        .map(|(_, stream_def)| stream_def.clone())
-                        .unwrap();
+                        .map(|(_, stream_def)| stream_def.clone())?;
 
                     // Retrieve the base schema.
                     let base_stream_schema = broker
                         .get_stream(base_stream)
-                        .map(|(schema, _, _)| schema.clone())
-                        .unwrap();
+                        .map(|(schema, _, _)| schema.clone())?;
 
                     // Create and read the buffer for this index file.
                     let buffer = {
-                        let mut derivative_index_file = broker
-                            .get_index_file(base_stream.clone(), &partition)
-                            .unwrap();
+                        let mut derivative_index_file =
+                            broker.get_index_file(base_stream.clone(), &partition)?;
 
                         let mut guard = derivative_index_file.lock().await;
 
@@ -129,9 +125,7 @@ pub async fn dereference(
                         let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
 
                         // Read all of the indexes.
-                        guard
-                            .read_at(index.derivative_range().start as usize, &mut buffer)
-                            .unwrap();
+                        guard.read_at(index.derivative_range().start as usize, &mut buffer)?;
 
                         buffer
                     };
@@ -149,8 +143,7 @@ pub async fn dereference(
                             partition.clone(),
                             broker,
                         ))
-                        .await
-                        .unwrap();
+                        .await?;
 
                         for rb in read_arrow(&data) {
                             if let Ok(rb) = rb {
@@ -167,15 +160,13 @@ pub async fn dereference(
                                         .fields
                                         .iter()
                                         .map(|field| {
-                                            rb.column_by_name(field.name()).unwrap().clone() // TODO: this unwrap should actually be unchecked, considering these schema should always match.
+                                            rb.column_by_name(field.name())?.clone() // TODO: this unwrap should actually be unchecked, considering these schema should always match.
                                         })
                                         .collect::<Vec<_>>(),
-                                )
-                                .unwrap();
+                                )?;
 
                                 combined =
-                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])
-                                        .unwrap();
+                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])?;
                             } else {
                                 tracing::error!(
                                     "Failed to read the record batch from the stream reader."
@@ -226,16 +217,16 @@ impl Reference {
     /// Read this struct from bytes.
     pub fn from_bytes(data: &[u8]) -> Self {
         tracing::debug!("Data: {:#?}", data);
-        let t = u16::from_be_bytes(data[0..2].try_into().unwrap());
+        let t = u16::from_be_bytes(data[0..2].try_into()?);
         tracing::debug!("u16 data: {:#?}", &data[0..2]);
         tracing::debug!("u16: {t}",);
 
         match t {
             0 => Self::Null,
             1 => {
-                let object_key: [u8; 16] = data[2..(2 + 16)].try_into().unwrap();
-                let position: u64 = u64::from_be_bytes(data[18..26].try_into().unwrap());
-                let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into().unwrap());
+                let object_key: [u8; 16] = data[2..(2 + 16)].try_into()?;
+                let position: u64 = u64::from_be_bytes(data[18..26].try_into()?);
+                let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into()?);
 
                 Self::S3(S3Reference {
                     object_key,
@@ -285,7 +276,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify discriminator
-        let discriminator = u16::from_be_bytes(buffer[0..2].try_into().unwrap());
+        let discriminator = u16::from_be_bytes(buffer[0..2].try_into()?);
         assert_eq!(discriminator, NULL_DISCRIMINATOR);
     }
 
@@ -304,16 +295,16 @@ mod tests {
         let result = reference.to_bytes(&mut buffer);
         assert!(result.is_ok());
 
-        let discriminator = u16::from_be_bytes(buffer[0..2].try_into().unwrap());
+        let discriminator = u16::from_be_bytes(buffer[0..2].try_into()?);
         assert_eq!(discriminator, OBJECT_STORE_DISCRIMINATOR);
 
-        let read_key: [u8; 16] = buffer[2..18].try_into().unwrap();
+        let read_key: [u8; 16] = buffer[2..18].try_into()?;
         assert_eq!(read_key, object_key);
 
-        let read_position = u64::from_be_bytes(buffer[18..26].try_into().unwrap());
+        let read_position = u64::from_be_bytes(buffer[18..26].try_into()?);
         assert_eq!(read_position, position);
 
-        let read_size = u64::from_be_bytes(buffer[26..34].try_into().unwrap());
+        let read_size = u64::from_be_bytes(buffer[26..34].try_into()?);
         assert_eq!(read_size, size);
     }
 
@@ -321,7 +312,7 @@ mod tests {
     fn test_reference_null_from_bytes() {
         let mut buffer = [0u8; Reference::size_of()];
         let original = Reference::Null;
-        original.to_bytes(&mut buffer).unwrap();
+        original.to_bytes(&mut buffer)?;
 
         let deserialized = Reference::from_bytes(&buffer);
         assert!(matches!(deserialized, Reference::Null));
@@ -339,7 +330,7 @@ mod tests {
         });
 
         let mut buffer = [0u8; Reference::size_of()];
-        original.to_bytes(&mut buffer).unwrap();
+        original.to_bytes(&mut buffer)?;
 
         let deserialized = Reference::from_bytes(&buffer);
         match deserialized {
@@ -354,11 +345,7 @@ mod tests {
 
     #[test]
     fn test_reference_s3_roundtrip() {
-        let object_key = uuid::Uuid::new_v4()
-            .as_bytes()
-            .to_owned()
-            .try_into()
-            .unwrap(); // Use a real UUID for variety
+        let object_key = uuid::Uuid::new_v4().as_bytes().to_owned().try_into()?; // Use a real UUID for variety
         let position = 123u64;
         let size = 456u64;
         let original = Reference::S3(S3Reference {
@@ -368,7 +355,7 @@ mod tests {
         });
 
         let mut buffer = [0u8; Reference::size_of()];
-        original.to_bytes(&mut buffer).unwrap();
+        original.to_bytes(&mut buffer)?;
 
         let deserialized = Reference::from_bytes(&buffer);
         match deserialized {

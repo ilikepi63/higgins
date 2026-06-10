@@ -55,7 +55,7 @@ impl From<StreamDefinition> for ConfigurationStreamDefinition {
         ConfigurationStreamDefinition {
             base: value.base.map(StreamName::into),
             stream_type: value.stream_type.map(FunctionType::into),
-            partition_key: value.partition_key.to_string().unwrap(),
+            partition_key: value.partition_key.to_string()?,
             schema: value.schema.into(),
             join: value.join.map(|join| {
                 join.iter()
@@ -75,7 +75,7 @@ pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
     let fields = schema
         .iter()
         .map(|(key, value)| {
-            let (_, data_type) = super::data_type_parser::parse(value).unwrap();
+            let (_, data_type) = super::data_type_parser::parse(value)?;
             tracing::debug!("Converted input {value} to output {data_type}");
             Field::new(key, data_type, true) // TODO: how do we handle nullable here? OR how do we actually determine them?
         })
@@ -146,7 +146,7 @@ pub fn from_toml(config: &[u8]) -> Configuration {
         .inspect(|val| {
             tracing::info!("{:#?}", val);
         })
-        .unwrap();
+        ?;
 
     tracing::trace!("Deserialized toml: {:#?}", config);
 
@@ -244,31 +244,31 @@ mod test {
         );
 
         // Assert individual fields
-        let config_streams = config.streams.unwrap();
-        let config_schema = config.schema.unwrap();
+        let config_streams = config.streams?;
+        let config_schema = config.schema?;
         assert_eq!(
             config_streams.len(),
             2,
             "Should have two stream definitions"
         );
         assert_eq!(
-            config_streams.get("customer").unwrap().partition_key,
+            config_streams.get("customer")?.partition_key,
             "id",
             "Customer stream partition key should be id"
         );
         assert_eq!(
-            config_streams.get("customer").unwrap().stream_type,
+            config_streams.get("customer")?.stream_type,
             Some("reduce".to_string()),
             "Customer stream type should be reduce"
         );
         assert_eq!(
-            config_streams.get("update_customer").unwrap().base,
+            config_streams.get("update_customer")?.base,
             None,
             "Update_customer stream base should be None"
         );
         assert_eq!(config_schema.len(), 2, "Should have two schema definitions");
         assert_eq!(
-            config_schema.get("customer").unwrap().get("age").unwrap(),
+            config_schema.get("customer")?.get("age")?,
             "int32",
             "Customer schema age field should be int32"
         );
@@ -437,8 +437,8 @@ mod test {
         );
 
         assert_eq!(config.schema, expected.schema);
-        let config_streams = config.streams.unwrap();
-        let expected_streams = expected.streams.unwrap();
+        let config_streams = config.streams?;
+        let expected_streams = expected.streams?;
 
         assert_eq!(
             config_streams.get("address"),
@@ -593,8 +593,8 @@ mod test {
         assert_eq!(config, expected,);
 
         assert_eq!(config.schema, expected.schema);
-        let config_streams = config.streams.unwrap();
-        let expected_streams = expected.streams.unwrap();
+        let config_streams = config.streams?;
+        let expected_streams = expected.streams?;
 
         assert_eq!(
             config_streams.get("address"),

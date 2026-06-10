@@ -21,13 +21,10 @@ pub async fn handle_take_records(
         n,
         stream_name,
         subscription_id,
-    } = message.take_records_request.unwrap();
+    } = message.take_records_request?;
 
     // TODO: Wrap this behind test cfg flag.
-    tracing::info!(
-        "Sub ID: {:#?}",
-        uuid::Uuid::from_slice(&subscription_id).unwrap()
-    );
+    tracing::info!("Sub ID: {:#?}", uuid::Uuid::from_slice(&subscription_id)?);
 
     let mut broker = broker.write().await;
     let stream_name = StreamName::from(stream_name);
@@ -41,6 +38,5 @@ pub async fn handle_take_records(
             broker_ref,
             n,
         )
-        .await
-        .unwrap();
+        .await?;
 }

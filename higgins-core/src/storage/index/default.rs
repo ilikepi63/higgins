@@ -34,14 +34,14 @@ impl<'a> DefaultIndex<'a> {
     /// Returns the offset as a u64, converted from big-endian bytes.
     #[allow(unused)]
     pub fn offset(&self) -> u64 {
-        u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
+        u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into()?)
     }
 
     //TODO: This is deprecated, but I don't have the energy to make the change rn.
     #[allow(unused)]
     /// Returns the position as a u32, converted from big-endian bytes.
     pub fn position(&self) -> u32 {
-        u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into().unwrap())
+        u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into()?)
     }
 
     //TODO: This is deprecated, but I don't have the energy to make the change rn.
@@ -49,7 +49,7 @@ impl<'a> DefaultIndex<'a> {
     /// Returns the size as a u64, converted from big-endian bytes.
     pub fn size(&self) -> u64 {
         let end = SIZE_INDEX + size_of::<u64>();
-        u64::from_be_bytes(self.0[SIZE_INDEX..end].try_into().unwrap())
+        u64::from_be_bytes(self.0[SIZE_INDEX..end].try_into()?)
     }
 
     pub fn to_bytes(&self) -> BytesMut {
@@ -83,7 +83,7 @@ impl<'a> DefaultIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into().unwrap())
+        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into()?)
     }
 
     /// Retrieve the reference of this Index.
@@ -97,11 +97,10 @@ impl<'a> DefaultIndex<'a> {
 
         let mut bytes = vec![0_u8; Reference::size_of()];
 
-        reference.to_bytes(&mut bytes).unwrap();
+        reference.to_bytes(&mut bytes)?;
 
         reference
-            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
-            .unwrap();
+            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
         cloned
     }
@@ -146,8 +145,8 @@ mod tests {
     fn references_equal(r1: &Reference, r2: &Reference) -> bool {
         let mut buf1 = vec![0u8; Reference::size_of()];
         let mut buf2 = vec![0u8; Reference::size_of()];
-        r1.to_bytes(&mut buf1).unwrap();
-        r2.to_bytes(&mut buf2).unwrap();
+        r1.to_bytes(&mut buf1)?;
+        r2.to_bytes(&mut buf2)?;
         buf1 == buf2
     }
 

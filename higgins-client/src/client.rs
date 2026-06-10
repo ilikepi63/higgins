@@ -79,7 +79,7 @@ impl Client {
                 HigginsClientError::MissingPayload
             })?;
 
-        let payload = higgins_shared::write_arrow(&batch);
+        let payload = higgins_shared::write_arrow(&batch)?;
 
         timeout!(
             produce(

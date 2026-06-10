@@ -63,7 +63,7 @@ impl<'a> WindowedIndex<'a> {
         u64::from_be_bytes(
             self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
                 .try_into()
-                .unwrap(),
+                ?,
         )
     }
 
@@ -77,7 +77,7 @@ impl<'a> WindowedIndex<'a> {
         let mut cloned = self.0.to_vec();
         reference
             .to_bytes(&mut cloned[REFERENCE_INDEX..REFERENCE_INDEX + Reference::size_of()])
-            .unwrap();
+            ?;
 
         cloned
     }
@@ -86,13 +86,13 @@ impl<'a> WindowedIndex<'a> {
         let start = u64::from_be_bytes(
             self.0[INCLUSIVE_RANGE_OFFSET..INCLUSIVE_RANGE_OFFSET + size_of::<u64>()]
                 .try_into()
-                .unwrap(),
+                ?,
         );
         let end = u64::from_be_bytes(
             self.0[INCLUSIVE_RANGE_OFFSET + size_of::<u64>()
                 ..INCLUSIVE_RANGE_OFFSET + size_of::<u64>() * 2]
                 .try_into()
-                .unwrap(),
+                ?,
         );
         start..end
     }
@@ -109,13 +109,13 @@ impl<'a> WindowedIndex<'a> {
         let start = u64::from_be_bytes(
             self.0[DERIVATIVE_RANGE_OFFSET..DERIVATIVE_RANGE_OFFSET + size_of::<u64>()]
                 .try_into()
-                .unwrap(),
+                ?,
         );
         let end = u64::from_be_bytes(
             self.0[DERIVATIVE_RANGE_OFFSET + size_of::<u64>()
                 ..DERIVATIVE_RANGE_OFFSET + size_of::<u64>() * 2]
                 .try_into()
-                .unwrap(),
+                ?,
         );
         start..end
     }
@@ -200,7 +200,7 @@ mod tests {
             original_derivative_range.clone(),
             &mut buffer,
         )
-        .unwrap();
+        ?;
 
         let mut index = WindowedIndex::of(&buffer);
 
@@ -241,7 +241,7 @@ mod tests {
         let mut buffer = vec![0u8; 200];
         let original_ref = Reference::Null;
 
-        WindowedIndex::put(original_ref.clone(), 100, 50..150, 50..150, &mut buffer).unwrap();
+        WindowedIndex::put(original_ref.clone(), 100, 50..150, 50..150, &mut buffer)?;
 
         let index = WindowedIndex::of(&buffer);
         assert_eq!(index.reference(), original_ref);

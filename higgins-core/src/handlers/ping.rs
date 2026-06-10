@@ -16,10 +16,9 @@ pub async fn handle_ping(message: Message, writer_tx: Sender<BytesMut>) {
         pong: Some(pong),
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
     tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx.send(result).await?;
 }

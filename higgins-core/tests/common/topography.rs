@@ -19,8 +19,7 @@ pub fn setup_server(
 
     std::thread::sleep(Duration::from_millis(100));
 
-    let client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+    let client = higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     (server_handle, client)
 }
@@ -36,21 +35,21 @@ pub fn can_achieve_basic_topography_retrieval() {
     let (server_handle, mut client) = setup_server(dir, port);
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
-    client.upload_configuration(config.as_bytes()).unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
+    client.upload_configuration(config.as_bytes())?;
 
-    match client.recv(None).unwrap().body {
+    match client.recv(None)?.body {
         ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        } //create_subscription_response.subscription_id?,
         _ => panic!("Retrieved unexpected result."),
     };
 
-    client.get_current_topography().unwrap();
+    client.get_current_topography()?;
 
-    let first_response = match client.recv(None).unwrap().body {
+    let first_response = match client.recv(None)?.body {
         ResponseBody::GetCurrentTopography(topography) => {
-            let value: toml::Value = toml::from_slice(&topography.data).unwrap();
+            let value: toml::Value = toml::from_slice(&topography.data)?;
             value
         }
         _ => panic!("Retrieved unexpected result."),
@@ -60,11 +59,11 @@ pub fn can_achieve_basic_topography_retrieval() {
 
     let (server_handle, mut client) = setup_server(dir_clone, port);
 
-    client.get_current_topography().unwrap();
+    client.get_current_topography()?;
 
-    let second_response = match client.recv(None).unwrap().body {
+    let second_response = match client.recv(None)?.body {
         ResponseBody::GetCurrentTopography(topography) => {
-            let value: toml::Value = toml::from_slice(&topography.data).unwrap();
+            let value: toml::Value = toml::from_slice(&topography.data)?;
             value
         }
         _ => panic!("Retrieved unexpected result."),
@@ -72,7 +71,7 @@ pub fn can_achieve_basic_topography_retrieval() {
 
     server_handle.close();
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 
     assert_eq!(first_response, second_response);
 }

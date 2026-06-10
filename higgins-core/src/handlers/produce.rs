@@ -22,7 +22,7 @@ pub async fn handle_produce(
     let ProduceRequest {
         stream_name,
         payload,
-    } = message.produce_request.unwrap();
+    } = message.produce_request?;
 
     tracing::info!("[PRODUCE] Attempting to take the broker lock..");
 
@@ -36,27 +36,26 @@ pub async fn handle_produce(
         .get_stream(&stream_name)
         .expect("Could not find stream for stream_name.");
 
-    let batch = read_arrow(&payload).next().unwrap().unwrap();
+    let batch = read_arrow(&payload).next()??;
 
     tracing::info!("[PRODUCE] Retrieved the broker lock.");
 
-    let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone()).unwrap();
+    let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone())?;
 
     let key = &stream_definition.partition_key;
 
     tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
 
-    let key = key.to_string().unwrap();
+    let key = key.to_string()?;
 
     tracing::trace!("[PRODUCE] Key for stream produce: {}", key);
 
-    let key_type = schema.field_with_name(&key).unwrap().data_type();
+    let key_type = schema.field_with_name(&key)?.data_type();
 
     let array = batch.column(
         batch
             .schema()
-            .index_of(core::str::from_utf8(key.as_bytes()).unwrap())
-            .unwrap(),
+            .index_of(core::str::from_utf8(key.as_bytes())?)?,
     );
 
     tracing::trace!("[PRODUCE] Array: {:#?}", array);
@@ -103,7 +102,7 @@ pub async fn handle_produce(
 
     let result = Broker::produce(
         &stream_name,
-        &PartitionName::try_from(key.as_bytes()).unwrap(),
+        &PartitionName::try_from(key.as_bytes())?,
         batch,
         broker_ref,
     )
@@ -121,8 +120,7 @@ pub async fn handle_produce(
         produce_response: Some(resp),
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx.send(result).await?;
 }

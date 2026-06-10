@@ -27,9 +27,9 @@ impl FunctionCollection {
             .write(true)
             .truncate(true)
             .open(path)
-            .unwrap();
+            ?;
 
-        file.write_all(&module).unwrap();
+        file.write_all(&module)?;
     }
 
     pub async fn get_function(&self, name: &str) -> Vec<u8> {
@@ -42,13 +42,13 @@ impl FunctionCollection {
 
         tracing::info!("Reading function: {:#?}", path);
 
-        let mut file = std::fs::OpenOptions::new().read(true).open(path).unwrap();
+        let mut file = std::fs::OpenOptions::new().read(true).open(path)?;
 
-        tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
+        tracing::trace!("File Metadata: {:#?}", file.metadata()?.size());
 
-        let mut buffer = vec![0; file.metadata().unwrap().size().try_into().unwrap()];
+        let mut buffer = vec![0; file.metadata()?.size().try_into()?];
 
-        file.read_exact(&mut buffer).unwrap();
+        file.read_exact(&mut buffer)?;
 
         buffer
     }

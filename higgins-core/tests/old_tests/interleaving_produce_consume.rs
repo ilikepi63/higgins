@@ -24,8 +24,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
             min: 2000,
             max: 25000,
         },
-    )
-    .unwrap();
+    )?;
 
     tracing::info!("Running on port: {port}");
 
@@ -42,16 +41,16 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}"))?;
 
-    // socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+    // socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
     // 1. Do a basic Ping test.
     let ping = Ping::default();
@@ -61,28 +60,27 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
         ping: Some(ping),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf)?;
 
-    let n = socket.read(&mut read_buf).unwrap();
+    let n = socket.read(&mut read_buf)?;
 
     assert_ne!(n, 0);
 
     let slice = &read_buf[0..n];
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    match Type::try_from(message.r#type).unwrap() {
+    match Type::try_from(message.r#type)? {
         Type::Pong => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
     let create_config_req = CreateConfigurationRequest {
         data: config.into_bytes(),
@@ -93,20 +91,19 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
         create_configuration_request: Some(create_config_req),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
-    socket.write_all(&write_buf).unwrap();
+    socket.write_all(&write_buf)?;
 
-    let n = socket.read(&mut read_buf).unwrap();
+    let n = socket.read(&mut read_buf)?;
 
     assert_ne!(n, 0);
 
     let slice = &read_buf[0..n];
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    match Type::try_from(message.r#type).unwrap() {
+    match Type::try_from(message.r#type)? {
         Type::Createconfigurationresponse => {
             tracing::info!("Received response from server for configuration request.")
         }
@@ -114,17 +111,15 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
     }
 
     // Start a subscription on that stream.
-    let sub_id = create_subscription("update_customer".as_bytes(), &mut socket).unwrap();
+    let sub_id = create_subscription("update_customer".as_bytes(), &mut socket)?;
 
     // Produce to the stream.
-    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
+    let payload = std::fs::read_to_string("tests/customer.json")?;
 
     loom::model(move || {
-        let socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+        let socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}"))?;
 
-        socket
-            .set_read_timeout(Some(Duration::from_secs(1)))
-            .unwrap();
+        socket.set_read_timeout(Some(Duration::from_secs(1)))?;
 
         let socket = loom::sync::Arc::new(loom::sync::Mutex::new(socket));
         let result_collection = loom::sync::Arc::new(loom::sync::Mutex::new(vec![]));
@@ -138,7 +133,7 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
             loom::thread::spawn(move || {
                 loom::future::block_on(async {
-                    let mut socket = socket.lock().unwrap();
+                    let mut socket = socket.lock()?;
 
                     produce(
                         "update_customer".as_bytes(),
@@ -157,12 +152,12 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
             loom::thread::spawn(move || {
                 loom::future::block_on(async {
-                    let mut socket = socket.lock().unwrap();
+                    let mut socket = socket.lock()?;
 
                     // Consume from the stream.
-                    let response = consume(sub_id, b"update_customer", &mut *socket).unwrap();
+                    let response = consume(sub_id, b"update_customer", &mut *socket)?;
 
-                    let mut collection_lock = result_collection.lock().unwrap();
+                    let mut collection_lock = result_collection.lock()?;
 
                     collection_lock.push(response);
                 });
@@ -171,12 +166,12 @@ async fn can_correctly_consume_and_produce_interleaving_requests() {
 
         // Join the given handles.
         for handle in produce_handles.chain(consume_handles) {
-            handle.join().unwrap();
+            handle.join()?;
         }
 
-        let received_values = result_collection.lock().unwrap();
+        let received_values = result_collection.lock()?;
         assert_eq!(message_count, received_values.len());
     });
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }

@@ -61,7 +61,7 @@ pub unsafe fn get_errors() -> *const [u8; ERROR_MSG_SIZE] {
 
 #[unsafe(no_mangle)]
 pub unsafe fn _malloc(len: u32) -> *mut u8 {
-    let mut buf = Vec::with_capacity(len.try_into().unwrap());
+    let mut buf = Vec::with_capacity(len.try_into()?);
     let ptr = buf.as_mut_ptr();
     std::mem::forget(buf);
     ptr
@@ -74,7 +74,7 @@ pub unsafe fn run(rb_ptr: *const u8) -> *const u8 {
     // Retrieve record batch from FFI ptr.
     let buffer: Vec<u8> = ArbitraryLengthBuffer::from(rb_ptr).into_inner();
 
-    let record_batch = read_arrow(&buffer).nth(0).unwrap().unwrap();
+    let record_batch = read_arrow(&buffer).nth(0)??;
 
     log::info!("Resultant Record Batch: {:#?}", record_batch);
 
@@ -107,8 +107,7 @@ pub unsafe fn run(rb_ptr: *const u8) -> *const u8 {
             Arc::new(arr),
         ],
     )
-    .inspect_err(|e| log::error!("Error: {:#?}", e))
-    .unwrap();
+    .inspect_err(|e| log::error!("Error: {:#?}", e))?;
 
     log::info!("Retrieved the batch: {:#?}", batch);
 
@@ -134,9 +133,7 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
 
     log::info!("Schema Index: {:#?}", schema_index);
 
-    let schema_index = schema_index
-        .inspect_err(|err| log::error!("{:#?}", err))
-        .unwrap();
+    let schema_index = schema_index.inspect_err(|err| log::error!("{:#?}", err))?;
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
@@ -149,11 +146,11 @@ use arrow::ipc::{reader::StreamReader, writer::StreamWriter};
 pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
     let mut buf = Vec::new();
 
-    let mut writer = StreamWriter::try_new(&mut buf, &batch.schema()).unwrap();
+    let mut writer = StreamWriter::try_new(&mut buf, &batch.schema())?;
 
-    writer.write(batch).unwrap();
+    writer.write(batch)?;
 
-    writer.finish().unwrap();
+    writer.finish()?;
 
     buf
 }
@@ -161,5 +158,5 @@ pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
 pub fn read_arrow(bytes: &[u8]) -> StreamReader<&[u8]> {
     let projection = None; // read all columns
 
-    StreamReader::try_new(bytes, projection).unwrap()
+    StreamReader::try_new(bytes, projection)?
 }

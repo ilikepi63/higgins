@@ -55,12 +55,11 @@ impl ProduceOperation {
         let mut broker = self.0.broker.write().await;
         tracing::debug!("Running commit.");
 
-        let mut index_file_lock = broker
-            .get_index_file(self.0.stream.clone(), &self.0.partition.clone())
-            .unwrap();
+        let mut index_file_lock =
+            broker.get_index_file(self.0.stream.clone(), &self.0.partition.clone())?;
 
         let mut index_file_guard = index_file_lock.lock().await;
-        let file_len = index_file_guard.len().unwrap();
+        let file_len = index_file_guard.len()?;
         if let Some(references) = self.0.references.as_ref() {
             let offset = file_len..file_len;
             let setter_offset = file_len as u64..file_len as u64;
@@ -70,14 +69,7 @@ impl ProduceOperation {
                 .zip(references)
                 .zip(offset.start..=offset.end)
                 .map(|((buf, reference), offset)| {
-                    DefaultIndex::put(
-                        offset.try_into().unwrap(),
-                        reference.clone(),
-                        0,
-                        epoch(),
-                        0,
-                        buf,
-                    )
+                    DefaultIndex::put(offset as u64, reference.clone(), 0, epoch(), 0, buf)
                 })
                 .collect::<Result<Vec<_>, std::io::Error>>()?;
 
@@ -146,8 +138,7 @@ impl Broker {
             let broker_guard = broker.write().await;
             broker_guard
                 .get_topography_stream(stream_name)
-                .map(|(_, definition)| definition.clone())
-                .ok_or(HigginsError::Unknown)?
+                .map(|(_, definition)| definition.clone())?
         };
 
         tracing::trace!("Initializing produce operation.");
@@ -171,7 +162,7 @@ impl Broker {
         partition: &PartitionName,
         data: RecordBatch,
     ) -> Result<Reference, HigginsError> {
-        let data = write_arrow(&data);
+        let data = write_arrow(&data)?;
 
         let request = ProduceRequest {
             request_id: 1,
@@ -186,7 +177,10 @@ impl Broker {
             .ok_or(HigginsError::ObjectStoreNotConfigured)?
             .put(request);
 
-        let response = response.recv().await.unwrap();
+        let response = response
+            .recv()
+            .await
+            .map_err(|e| HigginsError::Arbitrary(e.to_string()))?;
 
         let reference = Reference::S3(S3Reference {
             object_key: response.object_key,
@@ -211,7 +205,7 @@ impl Broker {
     ) -> Result<Vec<u8>, HigginsError> {
         tracing::trace!("[PRODUCE] Producing to stream: {}", stream);
 
-        let data = write_arrow(&data);
+        let data = write_arrow(&data)?;
 
         let request = ProduceRequest {
             request_id: 1,
@@ -226,7 +220,10 @@ impl Broker {
             .ok_or(HigginsError::ObjectStoreNotConfigured)?
             .put(request);
 
-        let response = response.recv().await.unwrap();
+        let response = response
+            .recv()
+            .await
+            .map_err(|e| HigginsError::Arbitrary(e.to_string()))?;
 
         let reference = Reference::S3(S3Reference {
             object_key: response.object_key,
@@ -236,7 +233,7 @@ impl Broker {
 
         let mut reference_bytes = [0_u8; Reference::size_of()];
 
-        reference.to_bytes(&mut reference_bytes).unwrap();
+        reference.to_bytes(&mut reference_bytes)?;
 
         tracing::trace!("Reference: {:#?}", reference_bytes);
 

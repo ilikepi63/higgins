@@ -15,13 +15,13 @@ pub fn ping<S: std::io::Read + std::io::Write>(socket: &mut S) {
         ..Default::default()
     }
     .encode(&mut write_buf)
-    .unwrap();
+    ?;
 
     tracing::info!("Writing: {:#?}", write_buf);
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write(socket)?;
 }
 
 #[allow(unused)]
@@ -30,22 +30,22 @@ pub fn ping_sync<S: std::io::Read + std::io::Write>(socket: &mut S) {
 
     ping(socket);
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read(socket)?;
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    match Type::try_from(message.r#type).unwrap() {
+    match Type::try_from(message.r#type)? {
         Type::Pong => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }
 }
 
 pub fn client_sync_ping_test(client: &mut higgins_client::blocking::Client) {
-    client.ping().unwrap();
+    client.ping()?;
 
-    match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+    match client.recv(Some(Duration::from_secs(5)))?.body {
         higgins_client::ResponseBody::Pong(_) => {
             tracing::info!("Retrieved Pong!");
         }

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::topography::FunctionType;
 use crate::topography::config::from_toml;
-use higgins_shared::{HigginsError, StreamName};
+use higgins_shared::{HigginsError, StreamName, TopographyError};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
@@ -32,7 +32,7 @@ impl Broker {
         // Apply the storages.
         if let Some(storage) = self.topography.get_storage() {
             let backing_store = instantiate_storage_from_configuration(storage);
-            self.backing_store = Some(backing_store);
+            self.backing_store = Some(backing_store?);
         }
 
         tracing::trace!("Successfully instantiated the storage.");
@@ -125,7 +125,9 @@ impl Broker {
                         .base
                         .as_ref()
                         .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ))?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -150,7 +152,9 @@ impl Broker {
                         .base
                         .as_ref()
                         .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ))?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -175,7 +179,9 @@ impl Broker {
                         .base
                         .as_ref()
                         .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ))?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -200,15 +206,15 @@ use crate::topography::config::AwsS3Storage;
 
 pub fn instantiate_storage_from_configuration(
     (_storage_config_name, storage_config): &(String, Storage),
-) -> Arc<dyn BackingStore<Error = HigginsError>> {
+) -> Result<Arc<dyn BackingStore<Error = HigginsError>>, HigginsError> {
     match storage_config.storage_type {
         StorageType::Memory => {
             let store = InMemory::new();
 
             let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
-            backing_store.start_task().unwrap();
+            backing_store.start_task()?;
 
-            Arc::new(backing_store) // TODO: magic number here.
+            Ok(Arc::new(backing_store)) // TODO: magic number here.
         }
         StorageType::File => {
             todo!()
@@ -269,12 +275,14 @@ pub fn instantiate_storage_from_configuration(
                 s3_builder,
             );
 
-            let store = s3_builder.build().unwrap();
+            let store = s3_builder
+                .build()
+                .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
             let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
-            backing_store.start_task().unwrap();
+            backing_store.start_task()?;
 
-            Arc::new(backing_store) // TODO: magic number here.
+            Ok(Arc::new(backing_store)) // TODO: magic number here.
         }
     }
 }

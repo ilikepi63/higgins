@@ -70,9 +70,8 @@ impl ReduceOperation {
                     let module = broker_lock
                         .wasm_modules
                         .iter()
-                        .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
-                        .map(|(_, m)| m)
-                        .unwrap();
+                        .find(|(n, _)| n == self.0.definition.function_name.as_ref()?)
+                        .map(|(_, m)| m)?;
 
                     tracing::trace!("Applying the function..");
 

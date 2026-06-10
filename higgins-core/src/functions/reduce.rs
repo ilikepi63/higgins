@@ -17,13 +17,13 @@ pub fn run_reduce_function(
 
     let mut store: Store<u32> = Store::new(&engine, 4);
 
-    let instance = linker.instantiate(&mut store, &module).unwrap();
+    let instance = linker.instantiate(&mut store, &module)?;
 
     let mut wasm_malloc_fn = instance
         .get_typed_func::<u32, u32>(&mut store, "_malloc")
-        .unwrap();
+        ?;
 
-    let mut memory = instance.get_memory(&mut store, "memory").unwrap();
+    let mut memory = instance.get_memory(&mut store, "memory")?;
 
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
@@ -46,7 +46,7 @@ pub fn run_reduce_function(
 
     let wasm_run_fn = instance
         .get_typed_func::<(u32, u32), u32>(&mut store, "run")
-        .unwrap();
+        ?;
 
     let record_batch_ptr = wasm_run_fn.call(&mut store, (prev_ptr, curr_ptr));
 
@@ -55,15 +55,15 @@ pub fn run_reduce_function(
     {
         let wasm_error_fn = instance
             .get_typed_func::<(), u32>(&mut store, "get_errors")
-            .unwrap();
+            ?;
 
-        let errors = wasm_error_fn.call(&mut store, ()).unwrap();
+        let errors = wasm_error_fn.call(&mut store, ())?;
 
         let mut bytes = vec![0; 1000 * 10];
 
         memory
-            .read(&mut store, errors.try_into().unwrap(), &mut bytes)
-            .unwrap();
+            .read(&mut store, errors.try_into()?, &mut bytes)
+            ?;
 
         for chunk in bytes.chunks(100) {
             let s = String::from_utf8_lossy(chunk);
@@ -72,7 +72,7 @@ pub fn run_reduce_function(
         }
     }
 
-    let record_batch_ptr = record_batch_ptr.unwrap();
+    let record_batch_ptr = record_batch_ptr?;
 
     tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
 
@@ -80,20 +80,20 @@ pub fn run_reduce_function(
         let mut buf = [0_u8; 8];
 
         memory
-            .read(&store, record_batch_ptr.try_into().unwrap(), &mut buf)
-            .unwrap();
+            .read(&store, record_batch_ptr.try_into()?, &mut buf)
+            ?;
 
         let length = u64::from_be_bytes(buf);
 
         let mut buf = vec![0_u8; length as usize + 8];
 
         memory
-            .read(&store, record_batch_ptr.try_into().unwrap(), &mut buf)
-            .unwrap();
+            .read(&store, record_batch_ptr.try_into()?, &mut buf)
+            ?;
 
         let array = ArbitraryLengthBuffer::new(buf);
 
-        read_arrow(array.data()).next().unwrap().unwrap()
+        read_arrow(array.data()).next()??
     };
 
     result

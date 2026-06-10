@@ -195,8 +195,13 @@ impl Topography {
     }
 
     /// Retrieve the stream definition of the given stream key.
-    pub fn get_stream_definition_by_key(&self, stream: StreamName) -> Option<&StreamDefinition> {
-        self.streams.get(&stream)
+    pub fn get_stream_definition_by_key(
+        &self,
+        stream: StreamName,
+    ) -> Result<&StreamDefinition, TopographyError> {
+        self.streams
+            .get(&stream)
+            .ok_or(TopographyError::StreamNotFound(stream.to_string()))
     }
 
     /// Retrieve the stream definition of the given stream key.
@@ -253,8 +258,7 @@ impl Topography {
         // Create the non-derived streams first.
         for (stream_name, topic_defintion) in configuration
             .streams
-            .as_ref()
-            .unwrap()
+            .as_ref()?
             .iter()
             .filter(|(_, def)| def.base.is_none())
         {
@@ -276,8 +280,7 @@ impl Topography {
 
         for (stream_name, stream_definition) in configuration
             .streams
-            .as_ref()
-            .unwrap()
+            .as_ref()?
             .iter()
             .filter(|(_, def)| def.base.is_some())
         {
@@ -380,19 +383,17 @@ pub mod test {
         let result = catch_unwind(|| {
             let config = from_toml(BASIC_CONFIG.as_bytes());
 
-            let mut topography = Topography::from_file(file_name).unwrap();
+            let mut topography = Topography::from_file(file_name)?;
 
-            topography
-                .apply_configuration_to_topography(&config)
-                .unwrap();
+            topography.apply_configuration_to_topography(&config)?;
 
             let config_from_topography = topography.to_config();
 
             assert_eq!(config, config_from_topography);
         });
 
-        std::fs::remove_dir_all(destroy_file_name).unwrap();
+        std::fs::remove_dir_all(destroy_file_name)?;
 
-        result.unwrap();
+        result?;
     }
 }

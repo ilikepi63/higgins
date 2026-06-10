@@ -22,7 +22,7 @@ pub async fn handle_upload_module(
 
     let mut broker_lock = broker.write().await;
 
-    let module = Module::new(&broker_lock.wasm_engine, value.clone()).unwrap();
+    let module = Module::new(&broker_lock.wasm_engine, value.clone())?;
 
     broker_lock.wasm_modules.push((name.to_owned(), module));
     broker_lock.functions.put_function(&name, value).await;
@@ -38,7 +38,7 @@ pub async fn handle_upload_module(
         ..Default::default()
     }
     .encode(&mut result)
-    .unwrap();
+    ?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx.send(result).await?;
 }

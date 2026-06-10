@@ -43,7 +43,7 @@ impl JoinOperation {
         let mut index_file = {
             let mut broker = self.data.broker.write().await;
             let index_file: BrokerIndexFile =
-                broker.get_index_file(stream, &self.data.partition).unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+                broker.get_index_file(stream, &self.data.partition)?; // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
             tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
             drop(broker);
             index_file
@@ -52,7 +52,7 @@ impl JoinOperation {
         // we first make a voodoo index.
         let optimistic_offset = {
             let guard = index_file.lock().await;
-            guard.len().unwrap()
+            guard.len()?
         };
 
         // Create the index.
@@ -69,7 +69,7 @@ impl JoinOperation {
             &(0..n_offsets)
                 .into_iter()
                 .map(|i| {
-                    if i == self.data.join_index.unwrap() as usize {
+                    if i == self.data.join_index? as usize {
                         Some(offsets.start)
                     } else {
                         None
@@ -78,8 +78,7 @@ impl JoinOperation {
                 .collect::<Vec<_>>(),
             &mut optimistic_index,
         )
-        .inspect_err(|err| tracing::error!("Error: {:#?}", err))
-        .unwrap();
+        .inspect_err(|err| tracing::error!("Error: {:#?}", err))?;
 
         tracing::debug!("Completed index: {:#?}", offsets);
 
@@ -89,13 +88,11 @@ impl JoinOperation {
                 let mut guard = index_file.lock().await;
                 // TODO: Fix this, if there is no previous index, just complete the current index.
                 let mut buf = vec![0_u8; JoinedIndex::size_of(n_offsets)];
-                guard
-                    .read_at(optimistic_offset.saturating_sub(1), &mut buf)
-                    .unwrap();
+                guard.read_at(optimistic_offset.saturating_sub(1), &mut buf)?;
                 buf
             };
 
-            complete_from(&mut optimistic_index, &last_completed_index, n_offsets).unwrap();
+            complete_from(&mut optimistic_index, &last_completed_index, n_offsets)?;
         } else {
             tracing::trace!("Completing the index without a previous index..");
 
@@ -108,8 +105,7 @@ impl JoinOperation {
             self.data.partition.clone(),
             self.data.broker.clone(),
         )
-        .await
-        .unwrap();
+        .await?;
 
         tracing::debug!("Got the data {:#?}", offsets);
 
@@ -123,8 +119,7 @@ impl JoinOperation {
 
         let reference = broker_guard
             .put_data_store(stream.clone(), &self.data.partition, data)
-            .await
-            .unwrap();
+            .await?;
 
         tracing::trace!("Created the Reference: {:#?}", reference);
 
@@ -140,9 +135,8 @@ impl JoinOperation {
 
         let mut index_file = {
             let mut broker = self.data.broker.write().await;
-            let index_file: BrokerIndexFile = broker
-                .get_index_file(stream.clone(), &self.data.partition)
-                .unwrap(); // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
+            let index_file: BrokerIndexFile =
+                broker.get_index_file(stream.clone(), &self.data.partition)?; // This is safe because of the above. Likely should be unchecked (we create this stream at initialisation.)
             tracing::trace!("[SECOND HANDLE] We are dropping the broker. ");
             drop(broker);
             index_file
@@ -167,8 +161,7 @@ impl JoinOperation {
                     )
                     .inspect_err(|err| {
                         tracing::error!("{:#?}", err);
-                    })
-                    .unwrap();
+                    })?;
                 self.data
                     .offsets_setter
                     .set(

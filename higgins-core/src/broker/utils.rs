@@ -25,9 +25,7 @@ pub async fn get_arrow_data_at(
                 "Retrieved an error when trying to unwrap this value: {:#?}",
                 err
             )
-        })
-        .unwrap()
-        .unwrap();
+        })??;
 
     tracing::trace!("[FOURTH HANDLE] We are dropping the broker. ");
     drop(broker_lock); // Explicitly drop the lock here.
@@ -39,5 +37,5 @@ pub async fn get_arrow_data_at(
 
     // Retrieve the first record, as there should be only one record.
 
-    read_arrow(&data).next().and_then(|r| r.ok()).unwrap()
+    read_arrow(&data).next().and_then(|r| r.ok())?
 }

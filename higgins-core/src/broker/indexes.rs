@@ -1,6 +1,6 @@
 use super::Broker;
 use crate::storage::index::{IndexFile, IndexType, IndexesView};
-use higgins_shared::{IndexError, PartitionName, StreamName};
+use higgins_shared::{HigginsError, IndexError, PartitionName, StreamName};
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
@@ -77,11 +77,10 @@ impl Broker {
         &mut self,
         stream: StreamName,
         partition: &PartitionName,
-    ) -> Option<BrokerIndexFile> {
+    ) -> Result<BrokerIndexFile, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .unwrap();
+            .get_stream_definition_by_key(stream.clone())?;
 
         let element_size = stream_def.index_size();
 
@@ -89,14 +88,16 @@ impl Broker {
             stream.clone(),
             partition,
             element_size,
-            IndexType::try_from(stream_def).unwrap(),
+            IndexType::try_from(stream_def)?,
         );
 
         match index_file_get_result {
             Ok(index_file) => {
-                let broker_index = match self.broker_indexes.iter().find(|(s, p, _)| {
-                    s == &stream && PartitionName::try_from(&p[..]).unwrap() == *partition
-                }) {
+                let broker_index = match self
+                    .broker_indexes
+                    .iter()
+                    .find(|(s, p, _)| s == &stream && partition.eq_bytes(p))
+                {
                     Some(val) => val,
                     None => {
                         // We are guaranteed to be Sync here because we hold a mutable reference on the broker.
@@ -106,18 +107,22 @@ impl Broker {
                             Arc::new(tokio::sync::Mutex::new(())),
                         ));
 
-                        self.broker_indexes.last().unwrap()
+                        self.broker_indexes.last().ok_or(HigginsError::Arbitrary(
+                            "Failed to retrieve last index.".to_string(),
+                        ))?
                     }
                 };
 
-                Some(BrokerIndexFile::new(index_file, broker_index.2.clone()))
+                Ok(BrokerIndexFile::new(index_file, broker_index.2.clone()))
             }
             Err(err) => {
                 tracing::error!(
                     "Failure retrieving index file, returning None. Error: {:#?}",
                     err
                 );
-                None
+                Err(HigginsError::Arbitrary(
+                    "Failed to retrieve IndexFile".to_string(),
+                ))
             }
         }
     }

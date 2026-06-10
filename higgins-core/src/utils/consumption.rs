@@ -19,7 +19,7 @@ pub async fn collect_consume_responses(
 
                     let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                    let data = higgins_shared::write_arrow(batches.first().unwrap());
+                    let data = higgins_shared::write_arrow(batches.first()?);
 
                     Record {
                         data,

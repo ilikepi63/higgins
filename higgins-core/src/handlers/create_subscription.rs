@@ -21,8 +21,7 @@ pub async fn handle_create_subscription(
         message.create_subscription_request
     );
 
-    let CreateSubscriptionRequest { stream_name, .. } =
-        message.create_subscription_request.unwrap();
+    let CreateSubscriptionRequest { stream_name, .. } = message.create_subscription_request?;
 
     let stream_name = StreamName::from(stream_name);
 
@@ -43,8 +42,7 @@ pub async fn handle_create_subscription(
         create_subscription_response: Some(resp),
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx.send(result).await?;
 }

@@ -41,7 +41,7 @@ pub async fn handle_create_configuration(
                 ..Default::default()
             }
             .encode(&mut result)
-            .unwrap();
+            ?;
 
             let _ = writer_tx.send(result).await;
         } else {
@@ -58,7 +58,7 @@ pub async fn handle_create_configuration(
                 ..Default::default()
             }
             .encode(&mut result)
-            .unwrap();
+            ?;
 
             let result = writer_tx.send(result).await;
             tracing::info!("Result from writing: {:#?}", result);
@@ -77,10 +77,10 @@ pub async fn handle_create_configuration(
             ..Default::default()
         }
         .encode(&mut result)
-        .unwrap();
+        ?;
 
         tracing::info!("Responding with: {:#?}", result.clone().to_vec());
 
-        writer_tx.send(result).await.unwrap();
+        writer_tx.send(result).await?;
     }
 }

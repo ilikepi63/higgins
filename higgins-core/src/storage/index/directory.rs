@@ -44,7 +44,7 @@ impl IndexDirectory {
         if !topic_path.exists() {
             tracing::trace!("Stream path does not exist, creating: {:#?}", topic_path);
 
-            std::fs::create_dir_all(&topic_path).unwrap();
+            std::fs::create_dir_all(&topic_path)?;
         }
 
         topic_path
@@ -111,14 +111,12 @@ impl IndexDirectory {
 
         let topic_id_partition = TopicIdPartition(stream.into(), partition.to_vec());
 
-        let index_file = self
-            .index_file_from_stream_and_partition(
-                stream,
-                partition,
-                DefaultIndex::size_of(),
-                index_type,
-            )
-            .unwrap();
+        let index_file = self.index_file_from_stream_and_partition(
+            stream,
+            partition,
+            DefaultIndex::size_of(),
+            index_type,
+        )?;
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
@@ -147,7 +145,7 @@ impl IndexDirectory {
                     metadata: BatchMetadata {
                         topic_id_partition,
                         byte_offset: index_reference.position,
-                        byte_size: index_reference.size.try_into().unwrap(),
+                        byte_size: index_reference.size.try_into()?,
                         base_offset: 0,
                         last_offset: 0,
                         log_append_timestamp: 0,
@@ -192,14 +190,12 @@ impl IndexDirectory {
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
     ) -> Result<OwnedIndex, HigginsError> {
-        let index_file = self
-            .index_file_from_stream_and_partition(
-                stream.clone(),
-                partition,
-                index_size_from_index_type_and_definition(index_type, stream_definition),
-                index_type.clone(),
-            )
-            .unwrap();
+        let index_file = self.index_file_from_stream_and_partition(
+            stream.clone(),
+            partition,
+            index_size_from_index_type_and_definition(index_type, stream_definition),
+            index_type.clone(),
+        )?;
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
@@ -242,14 +238,12 @@ impl IndexDirectory {
 
         let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
 
-        let index_file = self
-            .index_file_from_stream_and_partition(
-                stream.clone(),
-                partition,
-                index_size,
-                index_type.clone(),
-            )
-            .unwrap();
+        let index_file = self.index_file_from_stream_and_partition(
+            stream.clone(),
+            partition,
+            index_size,
+            index_type.clone(),
+        )?;
 
         tracing::info!("Retrieved the index_file correctly.");
 
@@ -260,7 +254,7 @@ impl IndexDirectory {
         };
 
         let index = indexes
-            .get(offset.try_into().unwrap())
+            .get(offset.try_into()?)
             .map(|data| OwnedIndex::from(Index::of(data, index_type)));
 
         match index {
@@ -305,7 +299,7 @@ impl IndexDirectory {
         let mut buf =
             vec![0_u8; (offset.end.saturating_add(1) - offset.start) as usize * index_size];
 
-        tracing::debug!("File size in indexes: {}", index_file.len().unwrap());
+        tracing::debug!("File size in indexes: {}", index_file.len()?);
         tracing::debug!("Buffer size in indexes: {}", buf.len() / index_size);
         tracing::debug!("Reading from: {}", offset.start);
 
@@ -343,14 +337,12 @@ impl IndexDirectory {
 
             let stream = StreamName::from(topic);
 
-            let index_file = self
-                .index_file_from_stream_and_partition(
-                    stream,
-                    &PartitionName::try_from(&partition[..]).unwrap(),
-                    index_size_from_index_type_and_definition(index_type, stream_definition),
-                    index_type.clone(),
-                )
-                .unwrap();
+            let index_file = self.index_file_from_stream_and_partition(
+                stream,
+                &PartitionName::try_from(&partition[..])?,
+                index_size_from_index_type_and_definition(index_type, stream_definition),
+                index_type.clone(),
+            )?;
 
             let indexes = IndexesView {
                 buffer: index_file.as_slice(),
@@ -364,7 +356,7 @@ impl IndexDirectory {
             tracing::info!("Reading at offset: {}", 0);
 
             let index = indexes
-                .get(offset.try_into().unwrap())
+                .get(offset.try_into()?)
                 .map(|data| Index::of(data, index_type.clone()))
                 .map(OwnedIndex::from);
 
@@ -395,14 +387,12 @@ impl IndexDirectory {
         index_type: &IndexType,
         stream_def: &StreamDefinition,
     ) -> u64 {
-        let mut index_file = self
-            .index_file_from_stream_and_partition(
-                stream,
-                partition,
-                index_size_from_index_type_and_definition(index_type, stream_def),
-                index_type.clone(),
-            )
-            .unwrap();
+        let mut index_file = self.index_file_from_stream_and_partition(
+            stream,
+            partition,
+            index_size_from_index_type_and_definition(index_type, stream_def),
+            index_type.clone(),
+        )?;
 
         let indexes = index_file.as_view();
 
@@ -411,8 +401,7 @@ impl IndexDirectory {
         let offset = (indexes.count()) as u64;
         let position = batch_coord.offset;
         let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
+            .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs();
 
         let mut val = vec![0; index_size_from_index_type_and_definition(index_type, stream_def)];
@@ -427,18 +416,17 @@ impl IndexDirectory {
         DefaultIndex::put(
             offset,
             reference,
-            position.try_into().unwrap(),
+            position.try_into()?,
             timestamp,
             batch_coord.size.into(),
             &mut val,
-        )
-        .unwrap();
+        )?;
 
         let index = DefaultIndex::of(&val).to_bytes();
 
         tracing::info!("Saving Index: {:#?}", index);
 
-        index_file.append(&index).unwrap();
+        index_file.append(&index)?;
 
         tracing::trace!(
             "Index file size after push: {}",
@@ -466,22 +454,17 @@ impl IndexDirectory {
             let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
-                let (_, stream_def) = broker.get_topography_stream(&stream).unwrap();
+                let (_, stream_def) = broker.get_topography_stream(&stream)?;
 
-                (
-                    IndexType::try_from(stream_def).unwrap(),
-                    stream_def.to_owned(),
-                )
+                (IndexType::try_from(stream_def)?, stream_def.to_owned())
             };
 
-            let mut index_file = self
-                .index_file_from_stream_and_partition(
-                    stream,
-                    &PartitionName::try_from(&partition[..]).unwrap(),
-                    index_size_from_index_type_and_definition(&index_type, &stream_def),
-                    index_type.clone(),
-                )
-                .unwrap();
+            let mut index_file = self.index_file_from_stream_and_partition(
+                stream,
+                &PartitionName::try_from(&partition[..])?,
+                index_size_from_index_type_and_definition(&index_type, &stream_def),
+                index_type.clone(),
+            )?;
 
             let indexes = IndexesView {
                 buffer: index_file.as_slice(),
@@ -492,8 +475,7 @@ impl IndexDirectory {
             let offset = (indexes.count() + 1) as u64;
             let position = batch.byte_offset;
             let timestamp = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs();
 
             let reference = Reference::S3(S3Reference {
@@ -507,18 +489,17 @@ impl IndexDirectory {
             DefaultIndex::put(
                 offset,
                 reference,
-                position.try_into().unwrap(),
+                position.try_into()?,
                 timestamp,
                 batch.size.into(),
                 &mut val,
-            )
-            .unwrap();
+            )?;
 
             let index = DefaultIndex::of(&val).to_bytes();
 
             tracing::info!("Saving Index: {:#?}", index);
 
-            index_file.append(&index).unwrap();
+            index_file.append(&index)?;
 
             tracing::info!("Successfully saved Index: {:#?}", index);
 

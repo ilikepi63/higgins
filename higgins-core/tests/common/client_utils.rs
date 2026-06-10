@@ -10,7 +10,7 @@ pub fn recv_until_take(
     consume_client: &mut higgins_client::blocking::Client,
 ) -> TakeRecordsResponse {
     loop {
-        match consume_client.recv(None).unwrap().body {
+        match consume_client.recv(None)?.body {
             ResponseBody::TakeRecords(response) => {
                 return response;
             }
@@ -26,7 +26,7 @@ pub fn recv_until_take(
 }
 
 pub fn record_to_string(record: &Record) -> String {
-    String::from_utf8(record.data.to_owned()).unwrap()
+    String::from_utf8(record.data.to_owned())?
 }
 
 pub fn get_subscription_data(
@@ -34,10 +34,10 @@ pub fn get_subscription_data(
     sub_id: &[u8],
     client: &mut higgins_client::blocking::Client,
 ) -> GetSubscriptionResponse {
-    client.get_subscription(stream, sub_id).unwrap();
+    client.get_subscription(stream, sub_id)?;
 
     // Basically asserts that a Getsubscription request was returned
-    let result = client.recv(None).unwrap();
+    let result = client.recv(None)?;
     match result.body {
         ResponseBody::GetSubscription(response) => return response,
         _ => panic!("Retrieved unexpected result: {:#?}", result),
@@ -48,11 +48,11 @@ pub fn create_subscription(
     client: &mut higgins_client::blocking::Client,
     stream_name: &str,
 ) -> Vec<u8> {
-    client.create_subscription(stream_name.as_bytes()).unwrap();
+    client.create_subscription(stream_name.as_bytes())?;
 
-    let sub_id = match client.recv(None).unwrap().body {
+    let sub_id = match client.recv(None)?.body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
-            create_subscription_response.subscription_id.unwrap()
+            create_subscription_response.subscription_id?
         }
         _ => panic!("Retrieved unexpected result."),
     };
@@ -68,9 +68,9 @@ pub fn produce(
 ) -> higgins_codec::ProduceResponse {
     println!("Producing! {:#?}", payload);
 
-    client.produce_json(stream, payload, schema).unwrap();
+    client.produce_json(stream, payload, schema)?;
 
-    match client.recv(None).unwrap().body {
+    match client.recv(None)?.body {
         ResponseBody::Produce(response) => {
             return response;
         }
@@ -87,9 +87,9 @@ pub fn acknowledge(
     offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
     client: &mut higgins_client::blocking::Client,
 ) -> higgins_codec::AcknowledgeSubscriptionOffsetsResponse {
-    client.acknowledge(stream, &sub_id, offsets).unwrap();
+    client.acknowledge(stream, &sub_id, offsets)?;
 
-    match client.recv(None).unwrap().body {
+    match client.recv(None)?.body {
         ResponseBody::Acknowledge(response) => {
             return response;
         }

@@ -3,7 +3,7 @@ use crate::topography::StreamDefinition;
 use super::Broker;
 
 use arrow::{array::RecordBatch, datatypes::Schema};
-use higgins_shared::StreamName;
+use higgins_shared::{StreamName, TopographyError};
 use std::sync::Arc;
 
 type Receiver = tokio::sync::broadcast::Receiver<RecordBatch>;
@@ -26,7 +26,7 @@ impl Broker {
     pub fn get_topography_stream(
         &self,
         key: &StreamName,
-    ) -> Option<(StreamName, &StreamDefinition)> {
+    ) -> Result<(StreamName, &StreamDefinition), TopographyError> {
         self.topography
             .get_stream_definition_by_key(key.clone())
             .map(|stream_def| (key.clone(), stream_def))

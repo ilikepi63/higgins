@@ -72,7 +72,7 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
         StreamDefinition {
             base: value.base.as_ref().map(|s| s.as_str().into()),
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
-            partition_key: PartitionName::try_from(value.partition_key.as_str()).unwrap(),
+            partition_key: PartitionName::try_from(value.partition_key.as_str())?,
             schema: value.schema.as_str().into(),
             join: value.join.as_ref().map(|s| {
                 s.iter()

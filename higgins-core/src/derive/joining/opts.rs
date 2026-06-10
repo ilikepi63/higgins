@@ -95,7 +95,7 @@ pub async fn amalgamate_join(
                 );
 
                 let arrow_data = get_arrow_data_at(
-                    &definition.joins.get(i).unwrap().stream.0,
+                    &definition.joins.get(i)?.stream.0,
                     &partition,
                     offset,
                     broker.clone(),
@@ -117,9 +117,9 @@ pub async fn amalgamate_join(
     // Retrieve the stream names for the given indexes.
     .map(|data| {
         data.as_ref().map(|(index, data)| {
-            let stream = definition.joins.get(*index).unwrap();
+            let stream = definition.joins.get(*index)?;
             (
-                String::from_utf8(stream.stream.0.as_bytes().to_owned()).unwrap(),
+                String::from_utf8(stream.stream.0.as_bytes().to_owned())?,
                 data.clone(),
             )
         })
@@ -128,7 +128,7 @@ pub async fn amalgamate_join(
 
     tracing::info!("We are amalgamating the derivative data now.");
     tracing::trace!("Derived Data: {:#?}", derivative_data);
-    let resultant_record_batch = join_mapping.map_arrow(derivative_data).unwrap();
+    let resultant_record_batch = join_mapping.map_arrow(derivative_data)?;
 
     Ok(resultant_record_batch)
 }
@@ -145,22 +145,22 @@ mod test {
         let notify = Arc::new(tokio::sync::Notify::new());
         let client_id = 1;
         let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
-        let partition = &PartitionName::try_from("1").unwrap();
+        let partition = &PartitionName::try_from("1")?;
         let mut guard = subscription.write().await;
 
-        guard.add_partition(&partition, 0, 0).unwrap();
+        guard.add_partition(&partition, 0, 0)?;
 
         drop(guard);
 
         let values = eager_range_take_or_wait(subscription.clone(), notify.clone(), client_id)
             .await
-            .unwrap();
+            ?;
 
         for value in values {
             for record in value.1.start..=value.1.end {
                 let mut guard = subscription.write().await;
 
-                guard.acknowledge(&partition, &(record..record)).unwrap(); // acknowledging the entire range
+                guard.acknowledge(&partition, &(record..record))?; // acknowledging the entire range
 
                 dbg!(&guard.partitions);
             }
@@ -173,6 +173,6 @@ mod test {
 
         assert!(values.is_err()); // Timeout because there is no value.
 
-        std::fs::remove_file(sub_path).unwrap();
+        std::fs::remove_file(sub_path)?;
     }
 }

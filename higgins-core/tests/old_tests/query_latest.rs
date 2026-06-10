@@ -22,8 +22,7 @@ fn can_arbitrarily_query_for_time_based_values() {
             min: 2000,
             max: 25000,
         },
-    )
-    .unwrap();
+    )?;
 
     tracing::trace!("Running on port: {port}");
 
@@ -37,7 +36,7 @@ fn can_arbitrarily_query_for_time_based_values() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -45,14 +44,12 @@ fn can_arbitrarily_query_for_time_based_values() {
     // This will make the above server more likely to be instantiated.
     std::thread::sleep(Duration::from_millis(100));
 
-    let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+    let mut socket = std::net::TcpStream::connect(format!("127.0.0.1:{port}"))?;
 
-    socket
-        .set_read_timeout(Some(Duration::from_secs(10)))
-        .unwrap();
+    socket.set_read_timeout(Some(Duration::from_secs(10)))?;
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
     upload_configuration(config.as_bytes(), &mut socket);
 
@@ -81,31 +78,25 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         first_payload.as_bytes(),
         &mut socket,
-    )
-    .unwrap();
+    )?;
 
-    let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
-        .unwrap()
+    let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)?
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
-        .unwrap();
+        .and_then(|record| String::from_utf8(record.data.clone()).ok())?;
 
     let result = query_by_timestamp(
         stream.as_bytes(),
         partition.as_bytes(),
         &mut socket,
         epoch(),
-    )
-    .unwrap()
+    )?
     .first()
-    .and_then(|record| String::from_utf8(record.data.clone()).ok())
-    .unwrap();
+    .and_then(|record| String::from_utf8(record.data.clone()).ok())?;
 
     assert_eq!(result, latest_result);
 
-    let result: serde_json::Value = serde_json::from_slice(result.as_bytes()).unwrap();
-    let first_payload: serde_json::Value =
-        serde_json::from_slice(first_payload.as_bytes()).unwrap();
+    let result: serde_json::Value = serde_json::from_slice(result.as_bytes())?;
+    let first_payload: serde_json::Value = serde_json::from_slice(first_payload.as_bytes())?;
 
     assert_eq!(result, first_payload);
 
@@ -114,29 +105,23 @@ fn can_arbitrarily_query_for_time_based_values() {
         partition.as_bytes(),
         second_payload.as_bytes(),
         &mut socket,
-    )
-    .unwrap();
+    )?;
 
-    let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
-        .unwrap()
+    let latest_result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)?
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
-        .unwrap();
+        .and_then(|record| String::from_utf8(record.data.clone()).ok())?;
 
-    let result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)
-        .unwrap()
+    let result = query_latest(stream.as_bytes(), partition.as_bytes(), &mut socket)?
         .first()
-        .and_then(|record| String::from_utf8(record.data.clone()).ok())
-        .unwrap();
+        .and_then(|record| String::from_utf8(record.data.clone()).ok())?;
 
     assert_eq!(result, latest_result);
 
-    let result: serde_json::Value = serde_json::from_slice(result.as_bytes()).unwrap();
-    let second_payload: serde_json::Value =
-        serde_json::from_slice(second_payload.as_bytes()).unwrap();
+    let result: serde_json::Value = serde_json::from_slice(result.as_bytes())?;
+    let second_payload: serde_json::Value = serde_json::from_slice(second_payload.as_bytes())?;
 
     assert_eq!(result, second_payload);
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }
 
 pub fn epoch() -> u64 {

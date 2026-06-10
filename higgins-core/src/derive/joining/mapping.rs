@@ -71,8 +71,7 @@ impl JoinMapping {
                     let (_, (stream_name, stream_propery_key)) = self
                         .1
                         .iter()
-                        .find(|(prop_name, _)| prop_name == field_name)
-                        .unwrap();
+                        .find(|(prop_name, _)| prop_name == field_name)?;
 
                     // We then retrieve the batch for this.
                     let batch_opt = batches
@@ -86,7 +85,7 @@ impl JoinMapping {
 
                     columns.push(match batch_opt {
                         Some((_, batch)) => {
-                            let column = batch.column_by_name(stream_propery_key).unwrap();
+                            let column = batch.column_by_name(stream_propery_key)?;
 
                             column.clone()
                         }
@@ -181,7 +180,7 @@ mod tests {
         let first_name = Arc::new(StringArray::from(vec!["John", "Jane", "Bob"]));
         let last_name = Arc::new(StringArray::from(vec!["Doe", "Smith", "Johnson"]));
 
-        RecordBatch::try_new(schema, vec![id, first_name, last_name]).unwrap()
+        RecordBatch::try_new(schema, vec![id, first_name, last_name])?
     }
 
     // Helper function to create an address record batch
@@ -198,7 +197,7 @@ mod tests {
             "789 Pine Rd",
         ]));
 
-        RecordBatch::try_new(schema, vec![customer_id, address]).unwrap()
+        RecordBatch::try_new(schema, vec![customer_id, address])?
     }
 
     #[test]
@@ -304,7 +303,7 @@ mod tests {
             Some(("address".to_string(), address_batch)),
         ];
 
-        let result = join_mapping.map_arrow(batches).unwrap();
+        let result = join_mapping.map_arrow(batches)?;
 
         // Verify the result has the correct schema
         assert_eq!(result.schema().fields().len(), 3);
@@ -340,7 +339,7 @@ mod tests {
 
         let batches = vec![Some(("customer".to_string(), customer_batch)), None];
 
-        let result = join_mapping.map_arrow(batches).unwrap();
+        let result = join_mapping.map_arrow(batches)?;
 
         // Verify the result has the correct schema
         assert_eq!(result.schema().fields().len(), 3);
@@ -380,7 +379,7 @@ mod tests {
             Some(("address".to_string(), address_batch)),
         ];
 
-        let result = join_mapping.map_arrow(batches).unwrap();
+        let result = join_mapping.map_arrow(batches)?;
 
         let schema = result.schema();
 
@@ -416,7 +415,7 @@ mod tests {
         let customer_batch = create_customer_batch();
         let batches = vec![Some(("customer".to_string(), customer_batch))];
 
-        let result = join_mapping.map_arrow(batches).unwrap();
+        let result = join_mapping.map_arrow(batches)?;
 
         assert_eq!(result.num_columns(), 2);
         assert_eq!(result.num_rows(), 3);

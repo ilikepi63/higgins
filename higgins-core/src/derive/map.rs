@@ -35,9 +35,8 @@ impl MapOperation {
                 let module = broker_lock
                     .wasm_modules
                     .iter()
-                    .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
-                    .map(|(_, m)| m)
-                    .unwrap();
+                    .find(|(n, _)| n == self.0.definition.function_name.as_ref()?)
+                    .map(|(_, m)| m)?;
 
                 tracing::trace!("[MAP] We have fetched the module.");
 
@@ -89,7 +88,7 @@ impl MapOperation {
                 )
                 .await?;
 
-                let mut lock = self.0.subscription.as_mut().unwrap().write().await;
+                let mut lock = self.0.subscription.as_mut()?.write().await;
 
                 lock.acknowledge(&self.0.partition, &offsets)?;
 

@@ -29,21 +29,21 @@ pub fn query_by_timestamp<T: std::io::Read + std::io::Write>(
         ..Default::default()
     }
     .encode(&mut write_buf)
-    .unwrap();
+    ?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write(socket)?;
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read(socket)?;
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    let result = match Type::try_from(message.r#type).unwrap() {
+    let result = match Type::try_from(message.r#type)? {
         Type::Getindexresponse => {
-            let response = message.get_index_response.unwrap();
+            let response = message.get_index_response?;
 
             response.records
         }
@@ -78,20 +78,20 @@ pub fn query_latest<T: std::io::Read + std::io::Write>(
         ..Default::default()
     }
     .encode(&mut write_buf)
-    .unwrap();
+    ?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket).unwrap();
+    frame.try_write(socket)?;
 
-    let frame = Frame::try_read(socket).unwrap();
+    let frame = Frame::try_read(socket)?;
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice).unwrap();
-    let result = match Type::try_from(message.r#type).unwrap() {
+    let message = Message::decode(slice)?;
+    let result = match Type::try_from(message.r#type)? {
         Type::Getindexresponse => {
-            let response = message.get_index_response.unwrap();
+            let response = message.get_index_response?;
 
             response.records
         }

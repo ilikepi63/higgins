@@ -14,15 +14,12 @@ pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayR
 
     let schema = batch.schema();
 
-    let schema_index = schema
-        .index_of(col_name)
-        .inspect(|err| {
-            tracing::error!(
-                "Unexpected error not being able to retrieve partition key by name: {:#?}",
-                err
-            );
-        })
-        .unwrap();
+    let schema_index = schema.index_of(col_name).inspect(|err| {
+        tracing::error!(
+            "Unexpected error not being able to retrieve partition key by name: {:#?}",
+            err
+        );
+    })?;
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
@@ -41,7 +38,7 @@ impl ColumnName {
 
 impl From<&StreamDefinition> for ColumnName {
     fn from(value: &StreamDefinition) -> Self {
-        Self(value.partition_key.to_string().unwrap()) // TODO: Remove this when we enforce stream keys to be strings.
+        Self(value.partition_key.to_string()?) // TODO: Remove this when we enforce stream keys to be strings.
     }
 }
 
@@ -54,14 +51,13 @@ pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &Colum
                 "Unexpected error not being able to retrieve partition key by name: {:#?}",
                 err
             );
-        })
-        .unwrap();
+        })?;
 
     let col = batch.column(schema_index);
 
     let value = array_value_to_string(col, 0);
 
-    value.unwrap().as_bytes().to_vec()
+    value?.as_bytes().to_vec()
 }
 
 use crate::{broker::Broker, storage::dereference::Reference, topography::StreamDefinition};
@@ -91,7 +87,7 @@ pub async fn put_default_index_at_range(
         return Err(HigginsError::Unknown);
     }
 
-    let mut index_file = broker.get_index_file(stream.clone(), partition).unwrap();
+    let mut index_file = broker.get_index_file(stream.clone(), partition)?;
 
     let mut index_file_guard = index_file.lock().await;
 

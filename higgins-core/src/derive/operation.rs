@@ -295,8 +295,7 @@ pub async fn generate_relation_tasks_from_stream(
                         join_index,
                     )
                     .await
-                    .inspect_err(|err| tracing::error!("{:#?}", err))
-                    .unwrap();
+                    .inspect_err(|err| tracing::error!("{:#?}", err))?;
                     tracing::debug!("Awaiting prepare step.");
 
                     producer_step_sync.await_step(Step::Prepare).await;
@@ -304,8 +303,8 @@ pub async fn generate_relation_tasks_from_stream(
                     match stream_type {
                         Some(FunctionType::Window | FunctionType::Join) => {}
                         _ => {
-                            operation.init().await.unwrap();
-                            operation.prepare().await.unwrap();
+                            operation.init().await?;
+                            operation.prepare().await?;
 
                             consumer_step_sync.set_step(Step::Prepare);
                         }
@@ -318,13 +317,13 @@ pub async fn generate_relation_tasks_from_stream(
 
                     match stream_type {
                         Some(FunctionType::Window | FunctionType::Join) => {
-                            operation.init().await.unwrap();
-                            operation.prepare().await.unwrap();
+                            operation.init().await?;
+                            operation.prepare().await?;
                         }
                         _ => {}
                     }
 
-                    operation.commit().await.unwrap();
+                    operation.commit().await?;
                     tracing::debug!("Committed..");
 
                     consumer_step_sync.set_step(Step::Commit);

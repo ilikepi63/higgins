@@ -208,35 +208,33 @@ mod test {
     #[test]
     fn can_parse() {
         for (input, output) in VALUES {
-            assert_eq!(parse(input).unwrap().1, *output)
+            assert_eq!(parse(input)?.1, *output)
         }
     }
 
     #[test]
     fn can_parse_decimal() {
-        let (_, result) = parse_decimal("decimal[1,3]")
-            .inspect_err(|err| {
-                dbg!(err);
-            })
-            .unwrap();
+        let (_, result) = parse_decimal("decimal[1,3]").inspect_err(|err| {
+            dbg!(err);
+        })?;
 
         assert_eq!(result, DataType::Decimal128(1, 3));
     }
 
     #[test]
     fn can_parse_timestamp() {
-        let (_, result) = parse_timestamp("timestamp[s]").unwrap();
+        let (_, result) = parse_timestamp("timestamp[s]")?;
 
         assert_eq!(result, DataType::Timestamp(TimeUnit::Second, None));
 
-        let (_, result) = parse_timestamp("timestamp[ms, America/New_York]").unwrap();
+        let (_, result) = parse_timestamp("timestamp[ms, America/New_York]")?;
 
         assert_eq!(
             result,
             DataType::Timestamp(TimeUnit::Millisecond, Some("America/New_York".into()))
         );
 
-        let (_, result) = parse_timestamp("timestamp[ms, +07:30]").unwrap();
+        let (_, result) = parse_timestamp("timestamp[ms, +07:30]")?;
 
         assert_eq!(
             result,

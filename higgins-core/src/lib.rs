@@ -33,8 +33,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
     let client_id = broker_lock
         .clients
-        .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))
-        .unwrap();
+        .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))?;
 
     let _read_handle = broker_lock.task_handler.spawn(
         &SpawnTaskConfig::new(
@@ -50,7 +49,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                 };
 
-                let message = Message::decode(&mut frame.inner()).unwrap();
+                let message = Message::decode(&mut frame.inner())?;
 
                 tracing::info!("Received a message {:#?}, responding.", message);
 
@@ -58,7 +57,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                 tracing::info!("Request Type: {:#?}", t);
 
-                match Type::try_from(message.r#type).unwrap() {
+                match Type::try_from(message.r#type)? {
                     Type::Ping => {
                         handlers::handle_ping(message, writer_tx.clone()).await;
                     }
@@ -151,10 +150,9 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
 
                     Frame::new(val.to_vec())
                         .try_write_async(&mut write_socket)
-                        .await
-                        .unwrap();
+                        .await?;
                     // let _result = write_socket.write_all(&val).await;
-                    write_socket.flush().await.unwrap();
+                    write_socket.flush().await?;
                 }
             });
 
@@ -165,21 +163,19 @@ pub struct ServerHandle(tokio::sync::oneshot::Sender<()>);
 
 impl ServerHandle {
     pub fn close(self) {
-        self.0.send(()).unwrap();
+        self.0.send(())?;
     }
 }
 
 pub async fn run_server(dir: PathBuf, port: u16) {
     let broker = Arc::new(RwLock::new(Broker::new(dir)));
 
-    let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
-        .await
-        .unwrap();
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
 
     tracing::info!("Connected on {}", port);
 
     loop {
-        let (socket, addr) = listener.accept().await.unwrap();
+        let (socket, addr) = listener.accept().await?;
         tracing::info!("Received connection from: {addr}");
 
         process_socket(socket, broker.clone()).await;
@@ -193,19 +189,17 @@ pub fn run_server_returning(dir: PathBuf, port: u16) -> ServerHandle {
     let (tx, mut rx) = tokio::sync::oneshot::channel();
 
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(async move {
-            let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
-                .await
-                .unwrap();
+            let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
 
             tracing::info!("Connected on {}", port);
 
             loop {
                 tokio::select! {
                     socket = listener.accept() => {
-                        let (socket, addr) = socket.unwrap();
+                        let (socket, addr) = socket?;
                         tracing::info!("Received connection from: {addr}");
 
                         process_socket(socket, broker.clone()).await;

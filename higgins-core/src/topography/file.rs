@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn add_item_writes_json_and_read_single() {
-        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string())?;
 
         let moved_temp_file_name = temp_file_name.clone();
 
@@ -107,14 +107,14 @@ mod tests {
             assert_eq!(values, vec![json!({ "a": 1 })]);
         });
 
-        std::fs::remove_dir_all(temp_file_name).unwrap();
+        std::fs::remove_dir_all(temp_file_name)?;
 
-        result.unwrap();
+        result?;
     }
 
     #[test]
     fn read_multiple_items_from_newline_separated_json() {
-        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let temp_file_name = PathBuf::from_str(&uuid::Uuid::new_v4().to_string())?;
 
         let moved_temp_file_name = temp_file_name.clone();
 
@@ -132,8 +132,8 @@ mod tests {
             assert_eq!(values, vec![json!({ "a": 1 }), json!({"b": 2})]);
         });
 
-        std::fs::remove_dir_all(temp_file_name).unwrap();
+        std::fs::remove_dir_all(temp_file_name)?;
 
-        result.unwrap();
+        result?;
     }
 }

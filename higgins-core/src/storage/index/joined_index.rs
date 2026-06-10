@@ -20,13 +20,13 @@ impl<'a> JoinedIndex<'a> {
         u64::from_be_bytes(
             self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]
                 .try_into()
-                .unwrap(),
+                ?,
         )
     }
 
     /// Retrieve whether or not this join is completed.
     pub fn completed(&self) -> bool {
-        u8::from_be_bytes(self.0[COMPLETED_RANGE].try_into().unwrap()) == 1
+        u8::from_be_bytes(self.0[COMPLETED_RANGE].try_into()?) == 1
     }
 
     // Constructors
@@ -99,10 +99,10 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at(1);
 
-                let result_value = u8::from_be_bytes(optional.try_into().unwrap());
+                let result_value = u8::from_be_bytes(optional.try_into()?);
 
                 match result_value {
-                    1 => Some(u64::from_be_bytes(offset.try_into().unwrap())),
+                    1 => Some(u64::from_be_bytes(offset.try_into()?)),
                     0 => None,
                     _ => {
                         tracing::error!(
@@ -131,8 +131,8 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at_mut(1);
 
-                let optional: &mut [u8; 1] = optional.try_into().unwrap();
-                let offset: &mut [u8; 8] = offset.try_into().unwrap();
+                let optional: &mut [u8; 1] = optional.try_into()?;
+                let offset: &mut [u8; 8] = offset.try_into()?;
 
                 *optional = u8::to_be_bytes(1);
                 *offset = put_offset.to_be_bytes();
@@ -203,7 +203,7 @@ impl<'a> JoinedIndex<'a> {
         u64::from_be_bytes(
             self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
                 .try_into()
-                .unwrap(),
+                ?,
         )
     }
 
@@ -225,7 +225,7 @@ impl<'a> JoinedIndex<'a> {
     pub fn put_reference_static(reference: Reference, data: &mut [u8]) {
         reference
             .to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
-            .unwrap();
+            ?;
     }
 }
 
@@ -266,7 +266,7 @@ impl<'a> JoinedIndexOffset<'a> {
 
     /// Check if this value is Some or None.
     pub fn get_unchecked(&self) -> u64 {
-        u64::from_be_bytes(self.0[1..9].try_into().unwrap())
+        u64::from_be_bytes(self.0[1..9].try_into()?)
     }
 
     /// Check if this value is Some or None.
@@ -350,7 +350,7 @@ mod test {
                 err,
             );
         })
-        .unwrap();
+        ?;
 
         dbg!(&joined_index_bytes);
 
@@ -473,7 +473,7 @@ mod test {
         let start0 = INDEXES_INDEX;
         assert_eq!(data[start0], 1u8);
         assert_eq!(
-            u64::from_be_bytes(data[start0 + 1..start0 + 9].try_into().unwrap()),
+            u64::from_be_bytes(data[start0 + 1..start0 + 9].try_into()?),
             offset0
         );
 
@@ -484,7 +484,7 @@ mod test {
         let start1 = start0 + 9;
         assert_eq!(data[start1], 1u8);
         assert_eq!(
-            u64::from_be_bytes(data[start1 + 1..start1 + 9].try_into().unwrap()),
+            u64::from_be_bytes(data[start1 + 1..start1 + 9].try_into()?),
             offset1
         );
 
@@ -570,12 +570,12 @@ mod test {
         // offset 0 should now be filled from other (100)
         assert_eq!(current[start0], 1u8);
         assert_eq!(
-            u64::from_be_bytes(current[start0 + 1..start0 + 9].try_into().unwrap()),
+            u64::from_be_bytes(current[start0 + 1..start0 + 9].try_into()?),
             100u64
         );
         // offset 1 remains 200 since current was present
         assert_eq!(
-            u64::from_be_bytes(current[start1 + 1..start1 + 9].try_into().unwrap()),
+            u64::from_be_bytes(current[start1 + 1..start1 + 9].try_into()?),
             200u64
         );
     }

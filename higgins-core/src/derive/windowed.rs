@@ -27,8 +27,7 @@ impl WindowOperation {
 
         match &definition.window_type {
             WindowValue::Count(count) => {
-                let resultant_stream =
-                    String::from_utf8(self.0.stream.as_bytes().to_vec()).unwrap();
+                let resultant_stream = String::from_utf8(self.0.stream.as_bytes().to_vec())?;
 
                 tracing::info!("Retrieving index file for stream {resultant_stream}");
 
@@ -55,7 +54,7 @@ impl WindowOperation {
 
                 tracing::info!("Applying ranges {:#?} to windowed index file.", new_ranges);
 
-                windowed_index_file.put_ranges(&mut new_ranges).unwrap();
+                windowed_index_file.put_ranges(&mut new_ranges)?;
 
                 // acknowledge me!
                 {
@@ -67,7 +66,7 @@ impl WindowOperation {
                         .write()
                         .await;
                     tracing::info!("Acknowledging ranges {:#?}.", offsets);
-                    guard.acknowledge(&self.0.partition, &offsets).unwrap();
+                    guard.acknowledge(&self.0.partition, &offsets)?;
                 }
 
                 tracing::info!("Successfully applied ranges to windowed function.");
@@ -95,5 +94,5 @@ async fn get_index_file_handle(
     broker_ref: Arc<RwLock<Broker>>,
 ) -> BrokerIndexFile {
     let mut broker = broker_ref.write().await;
-    broker.get_index_file(stream.clone(), key).unwrap()
+    broker.get_index_file(stream.clone(), key)?
 }

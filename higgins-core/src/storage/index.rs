@@ -159,7 +159,7 @@ pub fn index_size_from_index_type_and_definition(
     stream_definition: &StreamDefinition,
 ) -> usize {
     match index_type {
-        IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref().unwrap().len()),
+        IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref()?.len()),
         IndexType::Default => DefaultIndex::size_of(),
         IndexType::Window => WindowedIndex::size_of(),
     }
@@ -256,8 +256,7 @@ impl<'a> IndexesView<'a> {
             let mid = left + (right - left) / 2;
             let view = self
                 .get(mid)
-                .map(|data| Index::of(data, self.index_type.clone()))
-                .unwrap();
+                .map(|data| Index::of(data, self.index_type.clone()))?;
             let current_timestamp = view.timestamp();
 
             match current_timestamp.cmp(&timestamp) {
@@ -323,7 +322,7 @@ mod test {
 
         let mut reference_bytes = [0_u8; Reference::size_of()];
 
-        reference.to_bytes(&mut reference_bytes).unwrap();
+        reference.to_bytes(&mut reference_bytes)?;
 
         tracing::trace!("Reference: {:#?}", reference_bytes);
 

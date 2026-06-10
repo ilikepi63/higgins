@@ -32,7 +32,7 @@ impl<'a> WindowedIndexFile<'a> {
         ranges.sort_by(|a, b| a.0.clone().cmp(b.0.clone())); // TODO: There is probably a more sensible way than a clone here.
 
         // Find the current first range. Ranges should always be sorted.
-        let first_range = ranges.first().unwrap().0.clone(); // TODO: unwrap not necessary here, should always exist
+        let first_range = ranges.first()?.0.clone(); // TODO: unwrap not necessary here, should always exist
 
         let offset = self.index_of_range_rev(first_range).unwrap_or(0);
 
@@ -40,14 +40,12 @@ impl<'a> WindowedIndexFile<'a> {
 
         // Pull the first offset from the file, this will then be aggregated into the first range of
         // the put range.
-        if self.0.len().unwrap() > 0 {
+        if self.0.len()? > 0 {
             let mut first_range_buffer = vec![0_u8; WindowedIndex::size_of()];
 
-            self.0
-                .read_at(offset as usize, &mut first_range_buffer)
-                .unwrap();
+            self.0.read_at(offset as usize, &mut first_range_buffer)?;
             let index = WindowedIndex::of(&first_range_buffer);
-            let first_current_range = ranges.first_mut().unwrap();
+            let first_current_range = ranges.first_mut()?;
 
             if index.inclusive_range() == first_current_range.0 {
                 first_current_range.1.start = index.derivative_range().start;
@@ -126,19 +124,19 @@ mod test {
 
         let result = std::panic::catch_unwind(|| {
             let mut index_file =
-                IndexFile::new(&path, WindowedIndex::size_of(), IndexType::Window).unwrap();
+                IndexFile::new(&path, WindowedIndex::size_of(), IndexType::Window)?;
             let mut file = WindowedIndexFile::of(&mut index_file);
 
             let mut ranges = vec![(0..5, 3..5), (1..6, 3..5), (2..7, 3..5)];
 
-            file.put_ranges(&mut ranges).unwrap();
+            file.put_ranges(&mut ranges)?;
 
             assert_file_holds_ranges(path, &ranges);
         });
 
-        std::fs::remove_file(remove_path).unwrap();
+        std::fs::remove_file(remove_path)?;
 
-        result.unwrap();
+        result?;
     }
 
     #[test]
@@ -149,24 +147,24 @@ mod test {
 
         let result = std::panic::catch_unwind(|| {
             let mut index_file =
-                IndexFile::new(&path, WindowedIndex::size_of(), IndexType::Window).unwrap();
+                IndexFile::new(&path, WindowedIndex::size_of(), IndexType::Window)?;
             let mut file = WindowedIndexFile::of(&mut index_file);
 
             let mut ranges = vec![(0..5, 0..5), (5..10, 5..10), (10..15, 10..12)];
 
-            file.put_ranges(&mut ranges).unwrap();
+            file.put_ranges(&mut ranges)?;
 
             assert_file_holds_ranges(&path, &ranges);
 
             let mut ranges = vec![(10..15, 12..13)];
 
-            file.put_ranges(&mut ranges).unwrap();
+            file.put_ranges(&mut ranges)?;
 
             assert_file_holds_ranges(&path, &[(0..5, 0..5), (5..10, 5..10), (10..15, 10..13)]);
 
             let mut ranges = vec![(10..15, 13..15), (15..20, 15..20), (20..25, 20..22)];
 
-            file.put_ranges(&mut ranges).unwrap();
+            file.put_ranges(&mut ranges)?;
 
             assert_file_holds_ranges(
                 &path,
@@ -180,20 +178,20 @@ mod test {
             );
         });
 
-        std::fs::remove_file(remove_path).unwrap();
+        std::fs::remove_file(remove_path)?;
 
-        result.unwrap();
+        result?;
     }
 
     fn assert_file_holds_ranges<F: AsRef<std::path::Path>>(
         file: F,
         ranges: &[(Range<u64>, Range<u64>)],
     ) {
-        let mut fd = std::fs::File::open(file).unwrap();
+        let mut fd = std::fs::File::open(file)?;
 
         let mut buf = Vec::new();
 
-        let _ = fd.read_to_end(&mut buf).unwrap();
+        let _ = fd.read_to_end(&mut buf)?;
 
         let buf_iter = buf.chunks(WindowedIndex::size_of()).map(WindowedIndex::of);
 

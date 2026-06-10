@@ -28,128 +28,95 @@ pub fn can_implement_basic_reduce() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
 
     std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
-    let mut client =
-        Client::connect(format!("127.0.0.1:{}", port), Some(Duration::from_secs(5))).unwrap();
+    let mut client = Client::connect(format!("127.0.0.1:{}", port), Some(Duration::from_secs(5)))?;
 
-    client.ping().unwrap();
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.ping()?;
+    client.recv(Some(Duration::from_secs(5)))?;
 
-    let config = std::fs::read_to_string("tests/configs/reduce_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/reduce_config.toml")?;
 
-    client.upload_configuration(config.as_bytes()).unwrap();
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.upload_configuration(config.as_bytes())?;
+    client.recv(Some(Duration::from_secs(5)))?;
 
-    client
-        .upload_module(
-            "reduce",
-            &std::fs::read("tests/functions/basic_reduce.wasm").unwrap(),
-        )
-        .unwrap();
+    client.upload_module(
+        "reduce",
+        &std::fs::read("tests/functions/basic_reduce.wasm")?,
+    )?;
 
-    client.recv(Some(Duration::from_mins(1))).unwrap();
+    client.recv(Some(Duration::from_mins(1)))?;
 
-    client
-        .produce_json(
-            "amount",
-            r#"
+    client.produce_json(
+        "amount",
+        r#"
                 {
                     "id": "1",
                     "data": 1,
                 }
             "#
-            .as_bytes(),
-            std::sync::Arc::new(amount_schema()),
-        )
-        .unwrap();
+        .as_bytes(),
+        std::sync::Arc::new(amount_schema()),
+    )?;
 
     std::thread::sleep(Duration::from_secs(1));
 
-    client.recv(Some(Duration::from_secs(5))).unwrap(); // await initial produce.
+    client.recv(Some(Duration::from_secs(5)))?; // await initial produce.
 
-    client
-        .query_at(b"result", &PartitionName::try_from("1").unwrap(), 0)
-        .unwrap();
+    client.query_at(b"result", &PartitionName::try_from("1")?, 0)?;
 
-    let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+    let result = match client.recv(Some(Duration::from_secs(5)))?.body {
         ResponseBody::GetIndex(response) => response,
         _ => panic!("Unexpected response returned."),
     }; // Get the result.
 
-    let arrow = read_arrow(&result.records.first().unwrap().data.clone())
-        .next()
-        .unwrap()
-        .unwrap();
+    let arrow = read_arrow(&result.records.first()?.data.clone()).next()??;
+
+    assert_eq!(arrow.column_by_name("id")?.as_string::<i32>().value(0), "1");
 
     assert_eq!(
         arrow
-            .column_by_name("id")
-            .unwrap()
-            .as_string::<i32>()
-            .value(0),
-        "1"
-    );
-
-    assert_eq!(
-        arrow
-            .column_by_name("data")
-            .unwrap()
+            .column_by_name("data")?
             .as_primitive::<Int32Type>()
             .value(0),
         1
     );
 
-    client
-        .produce_json(
-            "amount",
-            r#"
+    client.produce_json(
+        "amount",
+        r#"
                 {
                     "id": "1",
                     "data": 1,
                 }
             "#
-            .as_bytes(),
-            std::sync::Arc::new(amount_schema()),
-        )
-        .unwrap();
+        .as_bytes(),
+        std::sync::Arc::new(amount_schema()),
+    )?;
 
-    client.recv(Some(Duration::from_secs(5))).unwrap();
+    client.recv(Some(Duration::from_secs(5)))?;
 
     std::thread::sleep(Duration::from_secs(1));
 
-    client
-        .query_at(b"result", &PartitionName::try_from("1").unwrap(), 1)
-        .unwrap();
+    client.query_at(b"result", &PartitionName::try_from("1")?, 1)?;
 
-    let result = match client.recv(Some(Duration::from_secs(10))).unwrap().body {
+    let result = match client.recv(Some(Duration::from_secs(10)))?.body {
         ResponseBody::GetIndex(response) => response,
         _ => panic!("Unexpected response returned."),
     };
 
-    let arrow = read_arrow(&result.records.first().unwrap().data.clone())
-        .next()
-        .unwrap()
-        .unwrap();
+    let arrow = read_arrow(&result.records.first()?.data.clone()).next()??;
+
+    assert_eq!(arrow.column_by_name("id")?.as_string::<i32>().value(0), "1");
 
     assert_eq!(
         arrow
-            .column_by_name("id")
-            .unwrap()
-            .as_string::<i32>()
-            .value(0),
-        "1"
-    );
-
-    assert_eq!(
-        arrow
-            .column_by_name("data")
-            .unwrap()
+            .column_by_name("data")?
             .as_primitive::<Int32Type>()
             .value(0),
         2
@@ -166,30 +133,30 @@ pub fn can_implement_basic_reduce() {
     //         "#
     //         .as_bytes(),
     //     )
-    //     .unwrap();
+    //     ?;
 
-    // client.recv(Some(Duration::from_secs(5))).unwrap();
+    // client.recv(Some(Duration::from_secs(5)))?;
 
     // std::thread::sleep(Duration::from_secs(1));
 
     // client
-    //     .query_latest(b"result", &PartitionName::try_from("1").unwrap())
-    //     .unwrap();
+    //     .query_latest(b"result", &PartitionName::try_from("1")?)
+    //     ?;
 
-    // let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+    // let result = match client.recv(Some(Duration::from_secs(5)))?.body {
     //     ResponseBody::GetIndex(response) => response,
     //     _ => panic!("Unexpected response returned."),
     // };
 
-    // let arrow = read_arrow(&result.records.first().unwrap().data.clone())
+    // let arrow = read_arrow(&result.records.first()?.data.clone())
     //     .next()
-    //     .unwrap()
-    //     .unwrap();
+    //     ?
+    //     ?;
 
     // assert_eq!(
     //     arrow
     //         .column_by_name("id")
-    //         .unwrap()
+    //         ?
     //         .as_string::<i32>()
     //         .value(0),
     //     "1"
@@ -198,7 +165,7 @@ pub fn can_implement_basic_reduce() {
     // assert_eq!(
     //     arrow
     //         .column_by_name("data")
-    //         .unwrap()
+    //         ?
     //         .as_primitive::<Int32Type>()
     //         .value(0),
     //     3
@@ -216,15 +183,15 @@ pub fn can_implement_basic_reduce() {
     //     .as_bytes(),
     //     &mut socket,
     // )
-    // .unwrap();
+    // ?;
 
-    // let result = query_latest(b"result", b"1", &mut socket).unwrap();
+    // let result = query_latest(b"result", b"1", &mut socket)?;
 
-    // let result: serde_json::Value = serde_json::from_slice(&result.first().unwrap().data).unwrap();
+    // let result: serde_json::Value = serde_json::from_slice(&result.first()?.data)?;
     // let expected_result = json!(
     //     {"id":"1","data":3}
     // );
 
     // assert_eq!(result, expected_result);
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }

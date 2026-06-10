@@ -70,12 +70,7 @@ impl TaskHandler {
                                 tasks: None,
                             });
 
-                            current_task_ptr
-                                .tasks
-                                .as_mut()
-                                .unwrap()
-                                .get_mut(index)
-                                .unwrap()
+                            current_task_ptr.tasks.as_mut()?.get_mut(index)?
                         }
                         // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
                         (false, _) => {
@@ -85,21 +80,14 @@ impl TaskHandler {
                                 tasks: None,
                             });
 
-                            current_task_ptr
-                                .tasks
-                                .as_mut()
-                                .unwrap()
-                                .first_mut()
-                                .unwrap()
+                            current_task_ptr.tasks.as_mut()?.first_mut()?
                         }
                         // If there already exists a task, make that task the one we are pointing to.
                         (true, true) => current_task_ptr
                             .tasks
-                            .as_mut()
-                            .unwrap()
+                            .as_mut()?
                             .iter_mut()
-                            .find(|val| val.name == next_layer)
-                            .unwrap(),
+                            .find(|val| val.name == next_layer)?,
                     };
                 }
                 None => {
@@ -225,11 +213,10 @@ impl TaskHandler {
                             if description_layers.is_empty() {
                                 return Ok(current_task_ptr);
                             } else {
-                                current_task_ptr = current_task_ptr
-                                    .tasks
-                                    .as_mut()
-                                    .and_then(|v| v.iter_mut().find(|task| task.name == next_layer))
-                                    .unwrap();
+                                current_task_ptr =
+                                    current_task_ptr.tasks.as_mut().and_then(|v| {
+                                        v.iter_mut().find(|task| task.name == next_layer)
+                                    })?;
                             }
                         }
                         false => return Err(HigginsTaskError::TaskHierarchyDoesNotExist),
@@ -251,7 +238,7 @@ impl TaskHandler {
             task.name.clone()
         };
 
-        let container_task = self.get_container_task(task_description).unwrap();
+        let container_task = self.get_container_task(task_description)?;
 
         if let Some(sub_tasks) = container_task.tasks.as_mut() {
             let index = sub_tasks
@@ -455,9 +442,7 @@ mod test {
         dbg!(&task_handler);
 
         assert_eq!(
-            task_handler
-                .get_task_handle_vec(&&TaskDescription("some::hierarchy".to_string()))
-                .unwrap(),
+            task_handler.get_task_handle_vec(&&TaskDescription("some::hierarchy".to_string()))?,
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
                 handle: Some(tokio::spawn(async move {})),
@@ -482,9 +467,7 @@ mod test {
 
         dbg!(&task_handler);
 
-        let task_ptr = task_handler
-            .get_task_handle_vec(&TaskDescription("some".to_string()))
-            .unwrap();
+        let task_ptr = task_handler.get_task_handle_vec(&TaskDescription("some".to_string()))?;
 
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
@@ -499,16 +482,14 @@ mod test {
 
         assert!(result.is_ok());
 
-        let some_handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some".to_string()))
-            .unwrap();
+        let some_handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some".to_string()))?;
 
         assert_eq!(some_handler.name, "some".to_string());
         assert!(some_handler.handle.is_some());
 
-        let handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
-            .unwrap();
+        let handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))?;
 
         assert_eq!(handler.name, "hierarchy".to_string());
         assert!(handler.handle.is_some());
@@ -528,9 +509,7 @@ mod test {
 
         assert!(result.is_ok());
 
-        let task_ptr = task_handler
-            .get_task_handle_vec(&TaskDescription("some".to_string()))
-            .unwrap();
+        let task_ptr = task_handler.get_task_handle_vec(&TaskDescription("some".to_string()))?;
 
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
@@ -557,30 +536,26 @@ mod test {
 
         dbg!(&task_handler);
 
-        let some_handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some".to_string()))
-            .unwrap();
+        let some_handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some".to_string()))?;
 
         assert_eq!(some_handler.name, "some".to_string());
         assert!(some_handler.handle.is_none());
 
-        let handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
-            .unwrap();
+        let handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))?;
 
         assert_eq!(handler.name, "hierarchy".to_string());
         assert!(handler.handle.is_some());
 
-        let handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some::thing".to_string()))
-            .unwrap();
+        let handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some::thing".to_string()))?;
 
         assert_eq!(handler.name, "thing".to_string());
         assert!(handler.handle.is_some());
 
-        let handler = task_handler
-            .get_task_handle_vec(&TaskDescription("some::thingelse".to_string()))
-            .unwrap();
+        let handler =
+            task_handler.get_task_handle_vec(&TaskDescription("some::thingelse".to_string()))?;
 
         assert_eq!(handler.name, "thingelse".to_string());
         assert!(handler.handle.is_some());
@@ -602,9 +577,7 @@ mod test {
 
         assert!(result.is_ok());
 
-        let task_ptr = task_handler
-            .get_task_handle_vec(&TaskDescription("some".to_string()))
-            .unwrap();
+        let task_ptr = task_handler.get_task_handle_vec(&TaskDescription("some".to_string()))?;
 
         assert_eq!(task_ptr.name, "some".to_string());
         assert!(task_ptr.handle.is_none());
@@ -641,9 +614,7 @@ mod test {
 
         dbg!(&task_handler);
 
-        task_handler
-            .abort(&TaskDescription("some".to_string()))
-            .unwrap();
+        task_handler.abort(&TaskDescription("some".to_string()))?;
 
         dbg!(&task_handler);
 
@@ -652,9 +623,8 @@ mod test {
             Err(HigginsTaskError::TaskHierarchyDoesNotExist)
         ));
 
-        let other_thing_task = task_handler
-            .get_task_handle_vec(&TaskDescription("other::thing".to_string()))
-            .unwrap();
+        let other_thing_task =
+            task_handler.get_task_handle_vec(&TaskDescription("other::thing".to_string()))?;
 
         assert!(other_thing_task.handle.is_some());
         assert_eq!(other_thing_task.name, "thing".to_string());
@@ -679,9 +649,7 @@ mod test {
         };
 
         assert_eq!(
-            task_handler
-                .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
-                .unwrap(),
+            task_handler.get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))?,
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
                 handle: Some(tokio::spawn(async move {})),
@@ -709,9 +677,7 @@ mod test {
         };
 
         assert_eq!(
-            task_handler
-                .get_container_task(&TaskDescription("some::hierarchy".to_string()))
-                .unwrap(),
+            task_handler.get_container_task(&TaskDescription("some::hierarchy".to_string()))?,
             &mut TaskPtr {
                 name: "some".to_string(),
                 handle: Some(tokio::spawn(async move {})),
@@ -720,9 +686,7 @@ mod test {
         );
 
         assert_eq!(
-            task_handler
-                .get_container_task(&TaskDescription("some".to_string()))
-                .unwrap(),
+            task_handler.get_container_task(&TaskDescription("some".to_string()))?,
             &mut TaskPtr {
                 name: "root".to_string(),
                 handle: Some(tokio::spawn(async move {})),
@@ -753,27 +717,24 @@ mod test {
 
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
 
-        task_handler
-            .spawn(
-                &SpawnTaskConfig {
-                    description: TaskDescription("some::".to_string()),
-                    unique: false,
-                },
-                async move {
-                    tx.send(()).unwrap(); // send to this channel so we know that this was executed.
-                },
-            )
-            .unwrap();
+        task_handler.spawn(
+            &SpawnTaskConfig {
+                description: TaskDescription("some::".to_string()),
+                unique: false,
+            },
+            async move {
+                tx.send(())?; // send to this channel so we know that this was executed.
+            },
+        )?;
 
         // Pause this task so that the spawned one can operate.
-        rx.await.unwrap(); // Await the spawn.
+        rx.await?; // Await the spawn.
 
         // Assert that the task handle vec for this hierarchy has
         // an empty task (the "what" task ptr has removed itself.)
         assert_eq!(
             task_handler
-                .get_task_handle_vec(&TaskDescription("some".to_string()))
-                .unwrap()
+                .get_task_handle_vec(&TaskDescription("some".to_string()))?
                 .tasks,
             Some(vec![])
         );
@@ -858,7 +819,7 @@ mod test {
         );
 
         // Remove a task.
-        task_ptr.tasks.as_mut().unwrap().remove(1);
+        task_ptr.tasks.as_mut()?.remove(1);
 
         assert_eq!(
             task_ptr.tasks,

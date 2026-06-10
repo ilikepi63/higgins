@@ -19,57 +19,41 @@ pub fn query_latest_arrow(
 pub fn assert_customer_data(arrow: RecordBatch) {
     assert_eq!(
         arrow
-            .column_by_name("age")
-            .unwrap()
+            .column_by_name("age")?
             .as_any()
-            .downcast_ref::<arrow::array::Int32Array>()
-            .unwrap()
+            .downcast_ref::<arrow::array::Int32Array>()?
             .iter()
-            .next()
-            .unwrap()
-            .unwrap(),
+            .next()??,
         21
     );
 
     assert_eq!(
         arrow
-            .column_by_name("first_name")
-            .unwrap()
+            .column_by_name("first_name")?
             .as_any()
-            .downcast_ref::<arrow::array::StringArray>()
-            .unwrap()
+            .downcast_ref::<arrow::array::StringArray>()?
             .iter()
-            .next()
-            .unwrap()
-            .unwrap(),
+            .next()??,
         "John"
     );
 
     assert_eq!(
         arrow
-            .column_by_name("id")
-            .unwrap()
+            .column_by_name("id")?
             .as_any()
-            .downcast_ref::<arrow::array::StringArray>()
-            .unwrap()
+            .downcast_ref::<arrow::array::StringArray>()?
             .iter()
-            .next()
-            .unwrap()
-            .unwrap(),
+            .next()??,
         "1"
     );
 
     assert_eq!(
         arrow
-            .column_by_name("last_name")
-            .unwrap()
+            .column_by_name("last_name")?
             .as_any()
-            .downcast_ref::<arrow::array::StringArray>()
-            .unwrap()
+            .downcast_ref::<arrow::array::StringArray>()?
             .iter()
-            .next()
-            .unwrap()
-            .unwrap(),
+            .next()??,
         "Doe"
     );
 }

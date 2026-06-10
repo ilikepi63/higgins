@@ -58,7 +58,7 @@ fn log_error(s: &str) {
 fn to_batch(rb_ptr: *const u8) -> RecordBatch {
     let buffer: Vec<u8> = ArbitraryLengthBuffer::from(rb_ptr).into_inner();
 
-    let record_batch = read_arrow(&buffer).nth(0).unwrap().unwrap();
+    let record_batch = read_arrow(&buffer).nth(0)??;
 
     record_batch
 }
@@ -90,15 +90,14 @@ fn reduce(record_batch: &RecordBatch, prev_record_batch: &RecordBatch) -> Record
             col_name_to_field_and_col(&record_batch, "id").0,
             Arc::new(arr),
         ],
-    )
-    .unwrap();
+    )?;
 
     batch
 }
 
 #[unsafe(no_mangle)]
 pub unsafe fn _malloc(len: u32) -> *mut u8 {
-    let mut buf = Vec::with_capacity(len.try_into().unwrap());
+    let mut buf = Vec::with_capacity(len.try_into()?);
     let ptr = buf.as_mut_ptr();
     std::mem::forget(buf);
     ptr
@@ -134,7 +133,7 @@ pub unsafe fn run(prev_rb_ptr: *const u8, rb_ptr: *const u8) -> *const u8 {
 pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
     let schema = batch.schema();
 
-    let schema_index = schema.index_of(col_name).unwrap();
+    let schema_index = schema.index_of(col_name)?;
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
@@ -147,11 +146,11 @@ use arrow::ipc::{reader::StreamReader, writer::StreamWriter};
 pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
     let mut buf = Vec::new();
 
-    let mut writer = StreamWriter::try_new(&mut buf, &batch.schema()).unwrap();
+    let mut writer = StreamWriter::try_new(&mut buf, &batch.schema())?;
 
-    writer.write(batch).unwrap();
+    writer.write(batch)?;
 
-    writer.finish().unwrap();
+    writer.finish()?;
 
     buf
 }
@@ -159,7 +158,7 @@ pub fn write_arrow(batch: &RecordBatch) -> Vec<u8> {
 pub fn read_arrow(bytes: &[u8]) -> StreamReader<&[u8]> {
     let projection = None; // read all columns
 
-    StreamReader::try_new(bytes, projection).unwrap()
+    StreamReader::try_new(bytes, projection)?
 }
 
 #[cfg(test)]
@@ -229,21 +228,18 @@ mod test {
 
     #[test]
     pub fn reduce_function_test() {
-        let record_batch = read_arrow(&CURR_RECOR).nth(0).unwrap().unwrap();
+        let record_batch = read_arrow(&CURR_RECOR).nth(0)??;
 
-        let prev_record_batch = read_arrow(&PREV_RECORD).nth(0).unwrap().unwrap();
+        let prev_record_batch = read_arrow(&PREV_RECORD).nth(0)??;
 
         let batch = reduce(&record_batch, &prev_record_batch);
 
         assert!(
             batch
-                .column_by_name("data")
-                .unwrap()
+                .column_by_name("data")?
                 .as_primitive::<Int32Type>()
                 .iter()
-                .next()
-                .unwrap()
-                .unwrap()
+                .next()??
                 == 2
         );
     }

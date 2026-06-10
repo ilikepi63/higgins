@@ -28,6 +28,9 @@ pub enum HigginsError {
     #[error("ArrowError")]
     ArrowError(#[from] ArrowError),
 
+    #[error("Stream Definition not found")]
+    StreamDefinitionNotFound(String),
+
     #[error("Attempted to place data at a null reference. ")]
     UnableToPlaceDataAtNullReference,
 
@@ -58,6 +61,9 @@ pub enum HigginsError {
 
     #[error("TryFromIntError")]
     TryFromIntError(#[from] TryFromIntError),
+
+    #[error("TaskError")]
+    TaskError(#[from] HigginsTaskError),
 }
 
 use std::array::TryFromSliceError;
@@ -99,8 +105,12 @@ pub enum SubscriptionError {
 pub enum TopographyError {
     #[error("The entry at the designated key is already occupied: {0}")]
     Occupied(String),
+    #[error("Attempted to retrieve a stream that doesn't exist: {0}")]
+    StreamNotFound(String),
     #[error("Derivative stream not found in topography: {0}")]
     DerivativeNotFound(String),
+    #[error("No base key defined for derivative stream: {0}")]
+    NoBaseKeyDefinedForDerivativeStream(String),
     #[error("Incorrect Stream definition: {0}")]
     IncorrectStreamDefinition(String),
     #[error("Schema not found in topography: {0}")]

@@ -58,10 +58,9 @@ pub async fn handle_get_subscription(
             }),
             ..Default::default()
         }
-        .encode(&mut result)
-        .unwrap();
+        .encode(&mut result)?;
 
-        writer_tx.send(result).await.unwrap();
+        writer_tx.send(result).await?;
     };
 }
 
@@ -82,10 +81,10 @@ pub async fn handle_acknowledge(
             .iter()
             .map(|Offset { key, range }| {
                 (
-                    PartitionName::try_from(key.as_bytes()).unwrap(),
+                    PartitionName::try_from(key.as_bytes())?,
                     std::ops::Range {
-                        start: range.unwrap().start,
-                        end: range.unwrap().end,
+                        start: range?.start,
+                        end: range?.end,
                     },
                 )
             })
@@ -123,9 +122,8 @@ pub async fn handle_acknowledge(
             }),
             ..Default::default()
         }
-        .encode(&mut result)
-        .unwrap();
+        .encode(&mut result)?;
 
-        writer_tx.send(result).await.unwrap();
+        writer_tx.send(result).await?;
     }
 }

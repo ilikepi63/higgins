@@ -22,7 +22,7 @@ pub fn can_retrieve_data_from_subscription() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -30,41 +30,40 @@ pub fn can_retrieve_data_from_subscription() {
     // This will make the above server more likely to be instantiated.
     std::thread::sleep(Duration::from_millis(100));
 
-    let mut client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+    let mut client = higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
-    client.upload_configuration(config.as_bytes()).unwrap();
+    client.upload_configuration(config.as_bytes())?;
 
-    match client.recv(None).unwrap().body {
+    match client.recv(None)?.body {
         ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        } //create_subscription_response.subscription_id?,
         _ => panic!("Retrieved unexpected result."),
     };
 
     // Start a subscription on that stream.
-    client.create_subscription(STREAM_NAME.as_bytes()).unwrap();
+    client.create_subscription(STREAM_NAME.as_bytes())?;
 
-    let sub_id = match client.recv(None).unwrap().body {
+    let sub_id = match client.recv(None)?.body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
-            create_subscription_response.subscription_id.unwrap()
+            create_subscription_response.subscription_id?
         }
         _ => panic!("Retrieved unexpected result."),
     };
 
-    client.get_subscription(STREAM_NAME, &sub_id).unwrap();
+    client.get_subscription(STREAM_NAME, &sub_id)?;
 
     // Basically asserts that a Getsubscription request was returned
-    match client.recv(None).unwrap().body {
+    match client.recv(None)?.body {
         ResponseBody::GetSubscription(_) => {}
         _ => panic!("Retrieved unexpected result."),
     };
 
     // Concurrently take from the socket.
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }
 
 use super::data::assert_customer_data;
@@ -95,7 +94,7 @@ pub fn subscription_works_with_multiple_clients() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -104,20 +103,14 @@ pub fn subscription_works_with_multiple_clients() {
     std::thread::sleep(Duration::from_millis(100));
 
     let mut produce_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
-    produce_client
-        .upload_configuration(config.as_bytes())
-        .unwrap();
+    produce_client.upload_configuration(config.as_bytes())?;
 
-    match produce_client
-        .recv(Some(Duration::from_secs(1)))
-        .unwrap()
-        .body
-    {
+    match produce_client.recv(Some(Duration::from_secs(1)))?.body {
         ResponseBody::CreateConfiguration(_) => {
             tracing::info!("Retrieved create configuration!");
         }
@@ -125,10 +118,10 @@ pub fn subscription_works_with_multiple_clients() {
     };
 
     let mut consume_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     let mut second_consume_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     let sub_id = create_subscription(&mut consume_client, STREAM_NAME);
 
@@ -189,11 +182,11 @@ pub fn subscription_works_with_multiple_clients() {
 
     let response = recv_until_take(&mut consume_client);
 
-    let data = &response.records.get(0).unwrap().data;
+    let data = &response.records.get(0)?.data;
 
-    let data = read_arrow(data).next().unwrap();
+    let data = read_arrow(data).next()?;
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.get(0)?;
 
     assert_eq!(record.offset, 0);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -204,7 +197,7 @@ pub fn subscription_works_with_multiple_clients() {
             0, 0, 0
         ],
     );
-    assert_customer_data(data.unwrap());
+    assert_customer_data(data?);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
@@ -246,7 +239,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     let response = recv_until_take(&mut second_consume_client);
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.get(0)?;
 
     assert_eq!(record.offset, 1);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -258,7 +251,7 @@ pub fn subscription_works_with_multiple_clients() {
         ],
     );
 
-    let data = read_arrow(&record.data).next().unwrap().unwrap();
+    let data = read_arrow(&record.data).next()??;
 
     assert_customer_data(data);
 
@@ -294,7 +287,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     assert_eq!(subscription, expected);
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }
 
 use colored::Colorize;
@@ -324,7 +317,7 @@ pub fn can_update_subscription_with_multiple_values() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -333,28 +326,22 @@ pub fn can_update_subscription_with_multiple_values() {
     std::thread::sleep(Duration::from_millis(100));
 
     let mut produce_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
-    produce_client
-        .upload_configuration(config.as_bytes())
-        .unwrap();
+    produce_client.upload_configuration(config.as_bytes())?;
 
-    match produce_client
-        .recv(Some(Duration::from_secs(1)))
-        .unwrap()
-        .body
-    {
+    match produce_client.recv(Some(Duration::from_secs(1)))?.body {
         ResponseBody::CreateConfiguration(_) => {
             tracing::info!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        } //create_subscription_response.subscription_id?,
         _ => panic!("Retrieved unexpected result."),
     };
 
     let mut consume_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     tracing::debug!("{}", "CREATE SUBSCRIPTION".blue());
 
@@ -404,7 +391,7 @@ pub fn can_update_subscription_with_multiple_values() {
 
     let response = recv_until_take(&mut consume_client);
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.get(0)?;
 
     assert_eq!(record.offset, 0);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -416,10 +403,7 @@ pub fn can_update_subscription_with_multiple_values() {
         ],
     );
 
-    let data = higgins_shared::read_arrow(&record.data)
-        .next()
-        .unwrap()
-        .unwrap();
+    let data = higgins_shared::read_arrow(&record.data).next()??;
 
     assert_customer_data(data);
 
@@ -457,7 +441,7 @@ pub fn can_update_subscription_with_multiple_values() {
             .iter()
             .map(|record| {
                 (
-                    PartitionName::try_from(record.partition.as_bytes()).unwrap(),
+                    PartitionName::try_from(record.partition.as_bytes())?,
                     std::ops::Range {
                         start: record.offset,
                         end: record.offset,
@@ -526,10 +510,7 @@ pub fn can_update_subscription_with_multiple_values() {
         ],
     );
 
-    let data = higgins_shared::read_arrow(&record.data)
-        .next()
-        .unwrap()
-        .unwrap();
+    let data = higgins_shared::read_arrow(&record.data).next()??;
 
     assert_customer_data(data);
 
@@ -570,7 +551,7 @@ pub fn can_update_subscription_with_multiple_values() {
             .iter()
             .map(|record| {
                 (
-                    PartitionName::try_from(record.partition.as_bytes()).unwrap(),
+                    PartitionName::try_from(record.partition.as_bytes())?,
                     std::ops::Range {
                         start: record.offset,
                         end: record.offset + 1,
@@ -591,7 +572,7 @@ pub fn can_update_subscription_with_multiple_values() {
         }
     );
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }
 
 use std::{env::temp_dir, time::Duration};
@@ -617,7 +598,7 @@ pub fn can_update_subscription_after_created() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -626,30 +607,26 @@ pub fn can_update_subscription_after_created() {
     std::thread::sleep(Duration::from_millis(100));
 
     let mut produce_client =
-        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
-    produce_client
-        .upload_configuration(config.as_bytes())
-        .unwrap();
+    produce_client.upload_configuration(config.as_bytes())?;
 
-    match produce_client.recv(None).unwrap().body {
+    match produce_client.recv(None)?.body {
         ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        } //create_subscription_response.subscription_id?,
         _ => panic!("Retrieved unexpected result."),
     };
 
     // Start a subscription on that stream.
-    produce_client
-        .create_subscription("update_customer".as_bytes())
-        .unwrap();
+    produce_client.create_subscription("update_customer".as_bytes())?;
 
-    let sub_id = match produce_client.recv(None).unwrap().body {
+    let sub_id = match produce_client.recv(None)?.body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
-            create_subscription_response.subscription_id.unwrap()
+            create_subscription_response.subscription_id?
         }
         _ => panic!("Retrieved unexpected result."),
     };
@@ -661,7 +638,7 @@ pub fn can_update_subscription_after_created() {
     // Concurrently take from the socket.
     let handle_consume = std::thread::spawn(move || {
         let mut consume_client =
-            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
 
         let result = consume_client.take(sub_id, "update_customer".as_bytes(), 100);
 
@@ -672,14 +649,14 @@ pub fn can_update_subscription_after_created() {
         loop {
             tracing::trace!("Consuming from stream..");
 
-            let response = consume_client.recv(None).unwrap();
+            let response = consume_client.recv(None)?;
 
             match response.body {
                 ResponseBody::TakeRecords(response) => {
-                    //let mut result_vec = result_vec.lock().unwrap();
+                    //let mut result_vec = result_vec.lock()?;
 
                     for _ in response.records.iter() {
-                        //result_vec.push(String::from_utf8(record.data.clone()).unwrap());
+                        //result_vec.push(String::from_utf8(record.data.clone())?);
                         count += 1;
 
                         if count >= NUMBER_OF_MESSAGES {
@@ -703,19 +680,17 @@ pub fn can_update_subscription_after_created() {
 
     // Produce to the stream.
     // tracing::trace!("Producing to stream..");
-    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
+    let payload = std::fs::read_to_string("tests/customer.json")?;
 
     for _ in 0..NUMBER_OF_MESSAGES {
-        produce_client
-            .produce_json(
-                "update_customer",
-                payload.as_bytes(),
-                std::sync::Arc::new(customer_schema()),
-            )
-            .unwrap();
+        produce_client.produce_json(
+            "update_customer",
+            payload.as_bytes(),
+            std::sync::Arc::new(customer_schema()),
+        )?;
     }
 
-    handle_consume.join().unwrap();
+    handle_consume.join()?;
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }

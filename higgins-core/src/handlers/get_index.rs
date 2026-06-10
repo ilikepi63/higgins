@@ -21,7 +21,7 @@ pub async fn handle_get_index(
 
     tracing::trace!("Retrieved the GetIndexRequest");
 
-    let request = message.get_index_request.unwrap(); // TODO: error response here.
+    let request = message.get_index_request?; // TODO: error response here.
     tracing::trace!("Retrieved the GetIndexRequest: {:#?}", request);
 
     for index in request.indexes {
@@ -32,11 +32,10 @@ pub async fn handle_get_index(
                 let values = broker_lock
                     .get_by_timestamp(
                         &StreamName::from(index.stream.clone()),
-                        &PartitionName::try_from(&index.partition[..]).unwrap(),
+                        &PartitionName::try_from(&index.partition[..])?,
                         index.timestamp(),
                     )
-                    .await
-                    .unwrap();
+                    .await?;
 
                 let response = GetIndexResponse {
                     records: values
@@ -48,7 +47,7 @@ pub async fn handle_get_index(
                             let batches =
                                 stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            let batch_refs = batches.first().unwrap();
+                            let batch_refs = batches.first()?;
 
                             let data = higgins_shared::write_arrow(batch_refs);
 
@@ -70,21 +69,20 @@ pub async fn handle_get_index(
                     get_index_response: Some(response),
                     ..Default::default()
                 }
-                .encode(&mut result)
-                .unwrap();
+                .encode(&mut result)?;
 
-                writer_tx.send(result).await.unwrap();
+                writer_tx.send(result).await?;
                 // }
             }
             higgins_codec::index::Type::Latest => {
                 tracing::trace!("Retrieved a Latest GetIndexRequest",);
 
-                let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
+                let partition = &PartitionName::try_from(&index.partition[..])?;
                 let stream = StreamName::from(index.stream.clone());
 
                 let response = broker_lock.get_latest(&stream, partition).await;
 
-                let response = response.unwrap().await.unwrap();
+                let response = response?.await?;
 
                 tracing::trace!("Response for GetIndexRequest: {:#?}", response);
 
@@ -105,24 +103,22 @@ pub async fn handle_get_index(
                     get_index_response: Some(index_response),
                     ..Default::default()
                 }
-                .encode(&mut result)
-                .unwrap();
+                .encode(&mut result)?;
 
-                writer_tx.send(result).await.unwrap();
+                writer_tx.send(result).await?;
             }
             higgins_codec::index::Type::Offset => {
                 tracing::trace!("Retrieved a At Offset GetIndexRequest",);
 
-                let offset = index.index.unwrap();
+                let offset = index.index?;
 
-                let partition = &PartitionName::try_from(&index.partition[..]).unwrap();
+                let partition = &PartitionName::try_from(&index.partition[..])?;
 
                 let response = broker_lock
                     .get_at(&StreamName::from(index.stream.clone()), partition, offset)
                     .await
                     .ok()
-                    .flatten()
-                    .unwrap();
+                    .flatten()?;
 
                 let index_response = GetIndexResponse {
                     records: vec![Record {
@@ -141,10 +137,9 @@ pub async fn handle_get_index(
                     get_index_response: Some(index_response),
                     ..Default::default()
                 }
-                .encode(&mut result)
-                .unwrap();
+                .encode(&mut result)?;
 
-                writer_tx.send(result).await.unwrap();
+                writer_tx.send(result).await?;
             }
         }
     }

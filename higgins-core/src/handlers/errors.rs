@@ -15,8 +15,7 @@ pub async fn handle_incorrect_message_received(message: Message, writer_tx: Send
         correlation_id: message.correlation_id,
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx.send(result).await?;
 }

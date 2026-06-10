@@ -85,13 +85,13 @@ pub fn run_basic_join_test() {
     };
 
     if dir.exists() {
-        std::fs::remove_dir_all(dir.clone()).unwrap();
+        std::fs::remove_dir_all(dir.clone())?;
     }
 
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()?;
 
         rt.block_on(run_server(dir, port));
     });
@@ -99,20 +99,19 @@ pub fn run_basic_join_test() {
     std::thread::sleep(Duration::from_millis(200)); // Sleep to allow
 
     let result = catch_unwind(|| {
-        let mut client = Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
+        let mut client = Client::connect(format!("127.0.0.1:{port}"), None)?;
 
-        client.ping().unwrap();
+        client.ping()?;
 
-        client.recv(None).unwrap();
+        client.recv(None)?;
 
-        client.upload_configuration(CONFIG.as_bytes()).unwrap();
+        client.upload_configuration(CONFIG.as_bytes())?;
 
-        client.recv(None).unwrap();
+        client.recv(None)?;
 
-        client
-            .produce_json(
-                "customer",
-                r#"
+        client.produce_json(
+            "customer",
+            r#"
             {
                 "id": "1",
                 "first_name": "TestFirstName",
@@ -120,34 +119,30 @@ pub fn run_basic_join_test() {
                 "age": 30
             }
         "#
-                .as_bytes(),
-                std::sync::Arc::new(customer_schema()),
-            )
-            .unwrap();
+            .as_bytes(),
+            std::sync::Arc::new(customer_schema()),
+        )?;
 
-        client.recv(None).unwrap();
+        client.recv(None)?;
 
         std::thread::sleep(Duration::from_secs(1));
 
-        let _ = client
-            .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
-            .unwrap();
+        let _ = client.query_latest(b"customer_address", &PartitionName::try_from("1")?)?;
 
-        let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+        let bytes = match client.recv(Some(Duration::from_secs(5)))?.body {
+            ResponseBody::GetIndex(get_index) => get_index.records.get(0)?.data.clone(),
             _ => panic!("Incorrect response received"),
         };
 
-        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+        let record_batch = read_arrow(&bytes).nth(0)??;
 
         // dbg!(record_batch);
 
         assert_eq!(record_batch, create_batch_with_nulled_values_in_address());
 
-        client
-            .produce_json(
-                "address",
-                r#"
+        client.produce_json(
+            "address",
+            r#"
             {
                 "customer_id": "1",
                 "address_line_1": "12 Tennatn Avenut",
@@ -156,32 +151,29 @@ pub fn run_basic_join_test() {
                 "province": "Western Cape"
             }
         "#
-                .as_bytes(),
-                std::sync::Arc::new(address_schema()),
-            )
-            .unwrap();
+            .as_bytes(),
+            std::sync::Arc::new(address_schema()),
+        )?;
 
         std::thread::sleep(Duration::from_secs(1));
 
-        client.recv(None).unwrap();
+        client.recv(None)?;
 
-        client
-            .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
-            .unwrap();
+        client.query_latest(b"customer_address", &PartitionName::try_from("1")?)?;
 
-        let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+        let bytes = match client.recv(Some(Duration::from_secs(5)))?.body {
+            ResponseBody::GetIndex(get_index) => get_index.records.get(0)?.data.clone(),
             _ => panic!("Incorrect response received"),
         };
 
-        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+        let record_batch = read_arrow(&bytes).nth(0)??;
 
         assert_eq!(record_batch, create_test_customer_address_data());
     });
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 
-    result.unwrap()
+    result?
 }
 
 pub fn create_test_customer_address_data() -> RecordBatch {
@@ -221,8 +213,7 @@ pub fn create_test_customer_address_data() -> RecordBatch {
             customer_last_name,
             province,
         ],
-    )
-    .unwrap()
+    )?
 }
 
 pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
@@ -262,6 +253,5 @@ pub fn create_batch_with_nulled_values_in_address() -> RecordBatch {
             customer_last_name,
             province,
         ],
-    )
-    .unwrap()
+    )?
 }

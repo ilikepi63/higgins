@@ -69,7 +69,7 @@ impl BackingStore for ObjectBackingStore {
         let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
         let collection_ref = self.collection.clone();
-        let flush_tx = self.flush_tx.as_ref().unwrap().clone();
+        let flush_tx = self.flush_tx.as_ref()?.clone();
 
         tokio::spawn(async move {
             let mut buffer_lock = collection_ref.write().await;
@@ -129,9 +129,9 @@ impl BackingStore for ObjectBackingStore {
                                 // TODO: O(n^2) here
                                 let res = iter
                                     .find(|r| r.inner().request_id == response.request.request_id)
-                                    .unwrap();
+                                    ?;
 
-                                res.respond(response).unwrap();
+                                res.respond(response)?;
                             }
                         }
                         Err(err) => {
