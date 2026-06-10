@@ -5,18 +5,18 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
 };
 use higgins_functions::{clone_record_batch, record_batch_to_wasm, utils::WasmAllocator};
+use higgins_shared::HigginsError;
 use wasmtime::{Config, Engine, Linker, Module, OptLevel, Store};
 
 /*** */
 // #[test]
 #[allow(unused)]
-fn simple_record_batch() {
+fn simple_record_batch() -> Result<(), HigginsError> {
     let current_dir = std::env::current_dir();
 
     println!("{current_dir:#?}");
 
-    let wasm = std::fs::read("../target/wasm32-unknown-unknown/release/example_record_batch.wasm")
-        .unwrap();
+    let wasm = std::fs::read("../target/wasm32-unknown-unknown/release/example_record_batch.wasm")?;
 
     let engine = Engine::new(
         Config::new()
@@ -24,41 +24,52 @@ fn simple_record_batch() {
             .coredump_on_trap(true)
             .cranelift_opt_level(OptLevel::None),
     )
-    .unwrap();
+    .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
-    let module = Module::new(&engine, wasm).unwrap();
+    let module =
+        Module::new(&engine, wasm).map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     let linker = Linker::new(&engine);
 
     let mut store: Store<u32> = Store::new(&engine, 4);
 
-    let instance = linker.instantiate(&mut store, &module).unwrap();
+    let instance = linker
+        .instantiate(&mut store, &module)
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     let mut wasm_malloc_fn = instance
         .get_typed_func::<u32, u32>(&mut store, "_malloc")
-        .unwrap();
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
-    let mut memory = instance.get_memory(&mut store, "memory").unwrap();
+    let mut memory = instance
+        .get_memory(&mut store, "memory")
+        .ok_or(HigginsError::Arbitrary(
+            "No memory found for module.".to_string(),
+        ))?;
 
     let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
     let schema = Schema::new(vec![Field::new("id", DataType::Int32, false)]);
 
-    let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)]).unwrap();
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id_array)])?;
 
     let mut allocator = WasmAllocator::from(&mut store, &mut wasm_malloc_fn, &mut memory);
 
-    let ptr = record_batch_to_wasm(batch, &mut allocator);
+    let ptr = record_batch_to_wasm(batch, &mut allocator)?;
 
-    let ptr = clone_record_batch(ptr, &mut allocator);
+    let ptr = clone_record_batch(ptr, &mut allocator)?;
 
     let wasm_run_fn = instance
         .get_typed_func::<u32, u32>(&mut store, "run")
-        .unwrap();
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
-    let _result = wasm_run_fn.call(&mut store, ptr).unwrap();
+    let _result = wasm_run_fn
+        .call(&mut store, ptr)
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     // TODO: this test basically just makes sure this does not panic.
     // We need some more tests for this.
+    //
+    Ok(())
 }
 
 #[test]

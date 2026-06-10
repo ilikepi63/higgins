@@ -1,3 +1,4 @@
+use higgins_shared::HigginsError;
 use wasmtime::{Memory, Store, TypedFunc};
 
 /// A helper function to transmute a slice of u32's
@@ -41,22 +42,22 @@ impl<'a> WasmAllocator<'a> {
     }
 
     /// Copy directly from a slice.
-    pub fn copy(&mut self, buffer: &[u8]) -> u32 {
+    pub fn copy(&mut self, buffer: &[u8]) -> Result<u32, HigginsError> {
         let ptr = self
             .wasm_malloc_fn
-            .call(&mut self.store, buffer.len().try_into().unwrap())
-            .unwrap();
+            .call(&mut self.store, buffer.len().try_into()?)
+            .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
         self.memory
-            .write(&mut self.store, ptr.try_into().unwrap(), buffer)
-            .unwrap();
+            .write(&mut self.store, ptr.try_into()?, buffer)
+            .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
-        ptr
+        Ok(ptr)
     }
 }
 
 /// Clone a generic struct.
-pub fn clone_struct<T>(array: T, allocator: &mut WasmAllocator) -> u32 {
+pub fn clone_struct<T>(array: T, allocator: &mut WasmAllocator) -> Result<u32, HigginsError> {
     let buffer: &[u8] = unsafe {
         std::slice::from_raw_parts(&array as *const _ as *const u8, std::mem::size_of::<T>())
     };
@@ -70,12 +71,13 @@ pub mod test {
         array::{Array, Int32Array},
         ffi::{FFI_ArrowArray, to_ffi},
     };
+    use higgins_shared::HigginsError;
 
     #[test]
-    fn can_dereference_pt_clone_struct() {
+    fn can_dereference_pt_clone_struct() -> Result<(), HigginsError> {
         let array = Int32Array::from(vec![Some(1), None, Some(3)]);
 
-        let (array, _) = to_ffi(&array.to_data()).unwrap();
+        let (array, _) = to_ffi(&array.to_data())?;
 
         let test_array = array.buffer(0);
 
@@ -91,6 +93,8 @@ pub mod test {
         unsafe {
             assert_eq!(p.as_ref().unwrap().buffer(0), test_array);
         }
+
+        Ok(())
     }
 
     /// A test to ensure the transmutation of different structs to byte arrays.

@@ -4,6 +4,7 @@ use arrow::{
     datatypes::{DataType, Field, IntervalUnit, TimeUnit, UnionMode},
     error::ArrowError,
 };
+use higgins_shared::HigginsError;
 
 use crate::{
     types::{WasmArrowSchema, WasmPtr},
@@ -30,7 +31,7 @@ bitflags::bitflags! {
 fn children_from_datatype(
     dtype: &DataType,
     allocator: &mut WasmAllocator,
-) -> Result<Vec<WasmArrowSchema>, ArrowError> {
+) -> Result<Vec<WasmArrowSchema>, HigginsError> {
     let children = match dtype {
         DataType::List(child)
         | DataType::LargeList(child)
@@ -41,11 +42,11 @@ fn children_from_datatype(
         DataType::Union(fields, _) => fields
             .iter()
             .map(|(_, f)| try_from_field(f.as_ref(), allocator))
-            .collect::<Result<Vec<_>, ArrowError>>()?,
+            .collect::<Result<Vec<_>, _>>()?,
         DataType::Struct(fields) => fields
             .iter()
             .map(|f| try_from_field(f.as_ref(), allocator))
-            .collect::<Result<Vec<_>, ArrowError>>()?,
+            .collect::<Result<Vec<_>, _>>()?,
         DataType::RunEndEncoded(run_ends, values) => vec![
             try_from_field(run_ends.as_ref(), allocator)?,
             try_from_field(values.as_ref(), allocator)?,
@@ -60,10 +61,10 @@ pub fn copy_schema(
     dtype: &DataType,
     field: Arc<Field>,
     allocator: &mut WasmAllocator,
-) -> Result<WasmPtr<WasmArrowSchema>, ArrowError> {
+) -> Result<WasmPtr<WasmArrowSchema>, HigginsError> {
     let format = get_format_string(dtype)?;
 
-    let format_ptr = allocator.copy(format.as_bytes());
+    let format_ptr = allocator.copy(format.as_bytes())?;
 
     // allocate and hold the children
     let children = children_from_datatype(dtype, allocator)?;
@@ -87,24 +88,24 @@ pub fn copy_schema(
     let children_box = children
         .into_iter()
         .map(|child_schema| clone_struct(child_schema, allocator))
-        .collect::<Box<_>>();
+        .collect::<Result<Box<[_]>, HigginsError>>()?;
 
     let n_children = children_box.len() as i64;
 
     // Malloc for the children pointers.
-    let children_ptr = allocator.copy(u32_to_u8(&children_box));
+    let children_ptr = allocator.copy(u32_to_u8(&children_box))?;
 
-    let dictionary_ptr = dictionary
-        .map(|d| {
-            let ptr = clone_struct(d, allocator);
+    let dictionary_ptr = if let Some(d) = dictionary {
+        let ptr = clone_struct(d, allocator)?;
 
-            WasmPtr::new(ptr)
-        })
-        .unwrap_or(WasmPtr::null());
+        WasmPtr::new(ptr)
+    } else {
+        WasmPtr::null()
+    };
 
     let dictionary = dictionary_ptr;
 
-    let name = allocator.copy(field.name().as_bytes());
+    let name = allocator.copy(field.name().as_bytes())?;
 
     let schema = WasmArrowSchema {
         format: WasmPtr::new(format_ptr),
@@ -124,7 +125,7 @@ pub fn copy_schema(
         )
     };
 
-    let ptr = allocator.copy(buffer);
+    let ptr = allocator.copy(buffer)?;
 
     println!("Copying Schema to ptr {ptr:#?}");
 
@@ -134,9 +135,9 @@ pub fn copy_schema(
 pub fn try_from(
     dtype: &DataType,
     allocator: &mut WasmAllocator,
-) -> Result<WasmArrowSchema, ArrowError> {
+) -> Result<WasmArrowSchema, HigginsError> {
     let format = get_format_string(dtype)?;
-    let format_ptr = allocator.copy(format.as_bytes());
+    let format_ptr = allocator.copy(format.as_bytes())?;
 
     // allocate and hold the children
     let children = match dtype {
@@ -149,11 +150,11 @@ pub fn try_from(
         DataType::Union(fields, _) => fields
             .iter()
             .map(|(_, f)| try_from_field(f.as_ref(), allocator))
-            .collect::<Result<Vec<_>, ArrowError>>()?,
+            .collect::<Result<Vec<_>, _>>()?,
         DataType::Struct(fields) => fields
             .iter()
             .map(|f| try_from_field(f.as_ref(), allocator))
-            .collect::<Result<Vec<_>, ArrowError>>()?,
+            .collect::<Result<Vec<_>, _>>()?,
         DataType::RunEndEncoded(run_ends, values) => vec![
             try_from_field(run_ends.as_ref(), allocator)?,
             try_from_field(values.as_ref(), allocator)?,
@@ -174,15 +175,19 @@ pub fn try_from(
     let children_box = children
         .into_iter()
         .map(|schema| clone_struct(schema, allocator))
-        .collect::<Box<_>>();
+        .collect::<Result<Box<[_]>, HigginsError>>()?;
 
-    let children_ptr = allocator.copy(u32_to_u8(&children_box));
+    let children_ptr = allocator.copy(u32_to_u8(&children_box))?;
 
     let n_children = children_box.len() as i64;
 
-    let dictionary_ptr = dictionary
-        .map(|d| WasmPtr::new(clone_struct(d, allocator)))
-        .unwrap_or(WasmPtr::null());
+    let dictionary_ptr = if let Some(d) = dictionary {
+        let ptr = clone_struct(d, allocator)?;
+
+        WasmPtr::new(ptr)
+    } else {
+        WasmPtr::null()
+    };
 
     let dictionary = dictionary_ptr;
 
@@ -273,7 +278,7 @@ fn get_format_string(dtype: &DataType) -> Result<Cow<'static, str>, ArrowError> 
 fn try_from_field(
     field: &Field,
     allocator: &mut WasmAllocator,
-) -> Result<WasmArrowSchema, ArrowError> {
+) -> Result<WasmArrowSchema, HigginsError> {
     let mut flags = if field.is_nullable() {
         Flags::NULLABLE
     } else {
@@ -287,7 +292,7 @@ fn try_from_field(
     let mut schema = try_from(field.data_type(), allocator)?;
 
     // Copy the name from the field.
-    let name_ptr = allocator.copy(field.name().as_bytes());
+    let name_ptr = allocator.copy(field.name().as_bytes())?;
     schema.name = WasmPtr::new(name_ptr);
 
     // Copy the bits.

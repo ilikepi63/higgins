@@ -5,10 +5,11 @@ use arrow::{
     datatypes::{Field, Schema},
     ffi::{FFI_ArrowArray, FFI_ArrowSchema, from_ffi},
 };
+use higgins_shared::HigginsError;
 
 use super::FFIRecordBatch;
 
-pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
+pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> Result<RecordBatch, HigginsError> {
     let mut arrays = Vec::new();
     let mut fields = Vec::new();
 
@@ -42,5 +43,5 @@ pub fn record_batch_from_ffi(rb: FFIRecordBatch) -> RecordBatch {
 
     let schema = Schema::new(fields);
 
-    RecordBatch::try_new(Arc::new(schema), arrays).unwrap()
+    Ok(RecordBatch::try_new(Arc::new(schema), arrays)?)
 }

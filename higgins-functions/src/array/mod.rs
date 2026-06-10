@@ -4,13 +4,17 @@ use arrow::{
     datatypes::DataType,
     util::bit_mask::set_bits,
 };
+use higgins_shared::HigginsError;
 
 use crate::{
     types::{WasmArrowArray, WasmPtr},
     utils::{WasmAllocator, u32_to_u8},
 };
 
-pub fn clone_array(array: WasmArrowArray, allocator: &mut WasmAllocator) -> u32 {
+pub fn clone_array(
+    array: WasmArrowArray,
+    allocator: &mut WasmAllocator,
+) -> Result<u32, HigginsError> {
     let buffer: &[u8] = unsafe {
         &std::mem::transmute::<WasmArrowArray, [u8; std::mem::size_of::<WasmArrowArray>()]>(array)
     };
@@ -18,7 +22,10 @@ pub fn clone_array(array: WasmArrowArray, allocator: &mut WasmAllocator) -> u32 
     allocator.copy(buffer)
 }
 
-pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<WasmArrowArray> {
+pub fn copy_array(
+    data: &ArrayData,
+    allocator: &mut WasmAllocator,
+) -> Result<WasmPtr<WasmArrowArray>, HigginsError> {
     println!("Copying Array Data: {data:#?}");
 
     let data_layout = layout(data.data_type());
@@ -46,25 +53,27 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
         .iter()
         .flat_map(|maybe_buffer| match maybe_buffer {
             Some(b) => {
-                let ptr = allocator.copy(b.as_slice());
+                let ptr = allocator.copy(b.as_slice())?;
 
-                Some(ptr)
+                Ok(ptr)
             }
             // This is for null buffer. We only put a null pointer for
             // null buffer if by spec it can contain null mask.
-            None if data_layout.can_contain_null_mask => Some(0_u32),
-            None => None,
+            None if data_layout.can_contain_null_mask => Ok(0_u32),
+            None => Err(HigginsError::Arbitrary(
+                "No buffer found for struct.".to_string(),
+            )),
         })
         .collect::<Box<[_]>>();
 
     // Malloc for the children pointers.
-    let buf_ptr = allocator.copy(u32_to_u8(buffers_ptr.as_ref()));
+    let buf_ptr = allocator.copy(u32_to_u8(buffers_ptr.as_ref()))?;
 
     // Copy the children.
     let empty = vec![];
     let (child_data, dictionary) = match data.data_type() {
         DataType::Dictionary(_, _) => (empty.as_slice(), {
-            copy_array(&data.child_data()[0], allocator)
+            copy_array(&data.child_data()[0], allocator)?
         }),
         _ => (data.child_data(), WasmPtr::<WasmArrowArray>::null()),
     };
@@ -72,12 +81,12 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
     let children_box = child_data
         .iter()
         .map(|child| {
-            let arr = copy_array(child, allocator);
-            arr.inner()
+            let arr = copy_array(child, allocator)?;
+            Ok(arr.inner())
         })
-        .collect::<Box<_>>();
+        .collect::<Result<Box<_>, HigginsError>>()?;
 
-    let children_ptr = allocator.copy(u32_to_u8(&children_box));
+    let children_ptr = allocator.copy(u32_to_u8(&children_box))?;
 
     let n_children = child_data.len() as i64;
 
@@ -102,9 +111,9 @@ pub fn copy_array(data: &ArrayData, allocator: &mut WasmAllocator) -> WasmPtr<Wa
 
     // TODO: There might be some actual gnarly lifetime elision happening here. If you copy
     // over the inner logic of this function into this, the webassembly module will fail.
-    let ptr = clone_array(array, allocator);
+    let ptr = clone_array(array, allocator)?;
 
-    WasmPtr::new(ptr)
+    Ok(WasmPtr::new(ptr))
 }
 
 fn buffers_from_layout(data_layout: &DataTypeLayout, data: &ArrayData) -> Vec<Option<Buffer>> {

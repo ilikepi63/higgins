@@ -2,17 +2,18 @@ use arrow::{
     array::RecordBatch,
     ffi::{FFI_ArrowArray, FFI_ArrowSchema, to_ffi},
 };
+use higgins_shared::HigginsError;
 
 use super::{ArrowArray, ArrowSchema, FFIRecordBatch};
 
-pub fn record_batch_to_ffi(record_batch: RecordBatch) -> FFIRecordBatch {
+pub fn record_batch_to_ffi(record_batch: RecordBatch) -> Result<FFIRecordBatch, HigginsError> {
     let mut arrays_vec = vec![];
     let mut schema_vec = vec![];
 
     for columns in record_batch.columns().iter() {
         let data = columns.to_data();
 
-        let (array, schema) = to_ffi(&data).unwrap();
+        let (array, schema) = to_ffi(&data)?;
 
         let array = unsafe { std::mem::transmute::<FFI_ArrowArray, ArrowArray>(array) };
         let schema = unsafe { std::mem::transmute::<FFI_ArrowSchema, ArrowSchema>(schema) };
@@ -32,9 +33,9 @@ pub fn record_batch_to_ffi(record_batch: RecordBatch) -> FFIRecordBatch {
         .map(Box::into_raw)
         .collect::<Box<_>>();
 
-    FFIRecordBatch {
+    Ok(FFIRecordBatch {
         n_columns: record_batch.num_columns() as i64,
         schema: schema.as_mut_ptr(),
         columns: arrays.as_mut_ptr(),
-    }
+    })
 }

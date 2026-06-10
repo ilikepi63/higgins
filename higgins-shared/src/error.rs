@@ -49,11 +49,15 @@ pub enum HigginsError {
     #[error("Index Error")]
     IndexError(#[from] IndexError),
 
-    #[error("Unknown Error")]
-    Unknown,
+    /// Called when there is no class, but the error can be explained from the string.
+    #[error("{0}")]
+    Arbitrary(String),
 
     #[error("Too many clients, could not connect.")]
     TooManyClientsConnnectedToBroker,
+
+    #[error("TryFromIntError")]
+    TryFromIntError(#[from] TryFromIntError),
 }
 
 use std::array::TryFromSliceError;
