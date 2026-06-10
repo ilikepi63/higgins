@@ -3,16 +3,17 @@ use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use prost::Message as _;
 
+use crate::error::HigginsClientError;
+
 /// produce to a stream without waiting for the response.
 ///
 /// This is helpful in scenarios where you may want to produce concurrently.
-#[allow(dead_code)]
 pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
     stream: &[u8],
     payload: &[u8],
     request_id: u64,
     socket: &mut T,
-) {
+) -> Result<(), HigginsClientError> {
     let produce_request = ProduceRequest {
         payload: payload.to_vec(),
         stream_name: stream.to_vec(),
@@ -26,10 +27,11 @@ pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::mark
         correlation_id: Some(request_id),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write_async(socket).await.unwrap();
+    frame.try_write_async(socket).await?;
+
+    Ok(())
 }

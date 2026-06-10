@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use higgins_client::{Client, ResponseBody};
+use higgins_shared::HigginsError;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -40,105 +41,74 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true)
         .init();
 
-    let mut client = Client::connect("127.0.0.1:8080", Some(Duration::from_secs(3)))
-        .await
-        .unwrap();
+    let mut client = Client::connect("127.0.0.1:8080", Some(Duration::from_secs(3))).await?;
 
     let args = Args::parse();
 
     match args.command {
         Commands::Ping {} => {
-            client.ping().await.unwrap();
+            let result: Result<(), HigginsError> = {
+                client.ping().await?;
 
-            let result = client.recv(None).await.unwrap();
+                let result = client.recv(None).await?;
 
-            match result.body {
-                ResponseBody::Pong(_) => {
-                    println!("Pong!");
+                match result.body {
+                    ResponseBody::Pong(_) => {
+                        tracing::trace!("Pong!");
+                    }
+                    _ => {
+                        tracing::trace!("Didn't receive a pong response.");
+                    }
                 }
-                _ => {
-                    println!("Didn't receive a pong response.");
-                }
+
+                Ok(())
+            };
+
+            if let Err(err) = result {
+                tracing::error!("Error occurred when trying to ping: {:#?}", err);
             }
         }
 
         Commands::CreateConfiguration { file } => {
-            let configuration = std::fs::read_to_string(&file).unwrap();
+            let result: Result<(), HigginsError> = {
+                let configuration = std::fs::read_to_string(&file)?;
 
-            client
-                .upload_configuration(configuration.as_bytes())
-                .await
-                .unwrap();
+                client
+                    .upload_configuration(configuration.as_bytes())
+                    .await?;
 
-            client.recv(None).await.unwrap();
+                client.recv(None).await?;
 
-            println!("Successfully uploaded result!");
+                tracing::trace!("Successfully uploaded result!");
+
+                Ok(())
+            };
+
+            if let Err(err) = result {
+                tracing::error!(
+                    "Error occurred when trying to create configuration: {:#?}",
+                    err
+                );
+            }
         }
         Commands::Produce { topic, file_name } => {
-            let payload = std::fs::read(&file_name).unwrap();
+            let result: Result<(), HigginsError> = {
+                let payload = std::fs::read(&file_name)?;
 
-            client.produce(&topic, &payload).await.unwrap();
+                client.produce(&topic, &payload).await?;
 
-            let result = client.recv(None).await.unwrap();
+                let result = client.recv(None).await?;
 
-            println!("Result: {:#?}", result);
+                tracing::trace!("Result: {:#?}", result);
 
-            println!("Successfully Produced!");
+                tracing::trace!("Successfully Produced!");
 
-            // let data = std::fs::read_to_string(&file_name).unwrap();
+                Ok(())
+            };
 
-            // let request = ProduceRequest {
-            //     stream_name: topic.as_bytes().to_vec(),
-            //     partition_key: key,
-            //     payload: data.as_bytes().to_vec(),
-            // };
-
-            // let mut write_buf = BytesMut::new();
-            // let mut read_buf = BytesMut::new();
-
-            // Message {
-            //     r#type: Type::Producerequest as i32,
-            //     produce_request: Some(request),
-            //     ..Default::default()
-            // }
-            // .encode(&mut write_buf)
-            // .unwrap();
-
-            // tracing::info!("Writing: {:#?}", write_buf);
-
-            // socket.write_all(&write_buf).await.unwrap();
-
-            // let n = socket.read(&mut read_buf).await.unwrap();
-
-            // let slice = &read_buf[0..n];
-
-            // let message = Message::decode(slice).unwrap();
-
-            // match Type::try_from(message.r#type).unwrap() {
-            //     Type::Ping => {}
-            //     Type::Createsubscriptionrequest => {
-            //         tracing::info!("Received Consume Response!");
-            //     }
-            //     Type::Createsubscriptionresponse => todo!(),
-            //     Type::Producerequest => {}
-            //     Type::Produceresponse => {
-            //         tracing::info!("Received Produce Response!");
-            //     }
-            //     Type::Metadatarequest => todo!(),
-            //     Type::Metadataresponse => todo!(),
-            //     Type::Pong => {}
-            //     Type::Takerecordsrequest => todo!(),
-            //     Type::Takerecordsresponse => todo!(),
-            //     Type::Createconfigurationrequest => todo!(),
-            //     Type::Createconfigurationresponse => todo!(),
-            //     Type::Deleteconfigurationrequest => todo!(),
-            //     Type::Deleteconfigurationresponse => todo!(),
-            //     Type::Getindexrequest => todo!(),
-            //     Type::Getindexresponse => todo!(),
-            //     Type::Uploadmodulerequest => todo!(),
-            //     Type::Uploadmoduleresponse => todo!(),
-            //     Type::Error => todo!(),
-            // }
+            if let Err(err) = result {
+                tracing::error!("Error occurred when trying to produce: {:#?}", err);
+            }
         }
         _ => todo!(),
     }

@@ -52,7 +52,7 @@ impl Client {
             ),
             self.1
         )
-        .await?;
+        .await??;
         Ok(())
     }
 
@@ -66,9 +66,18 @@ impl Client {
 
         let mut reader = arrow_json::ReaderBuilder::new(schema.clone())
             .build(cursor)
-            .unwrap();
+            .map_err(|err| {
+                tracing::error!("Error occurred attempting to produce json: {:#?}", err);
+                HigginsClientError::MissingPayload
+            })?;
 
-        let batch = reader.next().unwrap().unwrap();
+        let batch = reader
+            .next()
+            .ok_or(HigginsClientError::MissingPayload)?
+            .map_err(|err| {
+                tracing::error!("Produce failed due to {:#?}", err);
+                HigginsClientError::MissingPayload
+            })?;
 
         let payload = higgins_shared::write_arrow(&batch);
 
@@ -83,7 +92,7 @@ impl Client {
             ),
             self.1
         )
-        .await?;
+        .await??;
 
         Ok(())
     }

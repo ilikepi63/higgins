@@ -1,5 +1,5 @@
 use higgins_codec::errors::HigginsCodecError;
-use prost::EncodeError;
+use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,6 +12,8 @@ pub enum HigginsClientError {
     CodecError(#[from] HigginsCodecError),
     #[error("Encoding Error")]
     EncodeError(#[from] EncodeError),
+    #[error("Decoding protobuf Error")]
+    DecodeError(#[from] DecodeError),
     #[error("Missing Payload")]
     MissingPayload,
     #[error("Too Many Concurrent Requests")]

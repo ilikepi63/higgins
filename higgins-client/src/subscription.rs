@@ -61,12 +61,11 @@ pub async fn take<T: tokio::io::AsyncReadExt + tokio::io::AsyncWriteExt + std::m
         correlation_id: Some(request_id),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write_async(socket).await.unwrap();
+    frame.try_write_async(socket).await?;
 
     Ok(())
 }
@@ -92,12 +91,11 @@ pub async fn get_subscription<
         correlation_id: Some(request_id),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write_async(socket).await.unwrap();
+    frame.try_write_async(socket).await?;
 
     Ok(())
 }
@@ -134,12 +132,11 @@ pub async fn acknowledge<
         correlation_id: Some(request_id),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write_async(socket).await.unwrap();
+    frame.try_write_async(socket).await?;
 
     Ok(())
 }
