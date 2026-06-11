@@ -32,7 +32,7 @@ impl ReduceOperation {
                     .flatten()
                     .map(|arrow_bytes| {
                         // tracing::trace!("bytes: {:#?}", arrow_bytes);
-                        let mut batches = read_arrow(&arrow_bytes);
+                        let mut batches = read_arrow(&arrow_bytes).ok()?;
                         tracing::trace!("batches: {:#?}", batches);
                         batches
                             .next()
@@ -67,11 +67,24 @@ impl ReduceOperation {
                 Some(prev_record) => {
                     tracing::info!("Using previous record..");
 
-                    let module = broker_lock
+                    let function_name = match self.0.definition.function_name.as_ref() {
+                        Some(fn_name) => fn_name,
+                        None => {
+                            continue;
+                        }
+                    };
+
+                    let module = match broker_lock
                         .wasm_modules
                         .iter()
-                        .find(|(n, _)| n == self.0.definition.function_name.as_ref()?)
-                        .map(|(_, m)| m)?;
+                        .find(|(n, _)| n == function_name)
+                        .map(|(_, m)| m)
+                    {
+                        Some(module) => module,
+                        None => {
+                            continue;
+                        }
+                    };
 
                     tracing::trace!("Applying the function..");
 

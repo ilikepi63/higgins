@@ -5,7 +5,7 @@ use higgins_codec::{
     AcknowledgeSubscriptionOffsetsRequest, AcknowledgeSubscriptionOffsetsResponse, ClientCount,
     GetSubscriptionRequest, GetSubscriptionResponse, KeyOffset, Message, Offset, message::Type,
 };
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 use prost::Message as _;
 use tokio::sync::RwLock;
 use zerocopy::IntoBytes;
@@ -17,7 +17,7 @@ pub async fn handle_get_subscription(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     let broker = broker.read().await;
 
     if let Some(GetSubscriptionRequest {
@@ -60,15 +60,20 @@ pub async fn handle_get_subscription(
         }
         .encode(&mut result)?;
 
-        writer_tx.send(result).await?;
+        writer_tx
+            .send(result)
+            .await
+            .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
     };
+
+    Ok(())
 }
 
 pub async fn handle_acknowledge(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     let broker = broker.read().await;
 
     if let Some(AcknowledgeSubscriptionOffsetsRequest {
@@ -80,15 +85,18 @@ pub async fn handle_acknowledge(
         let offsets = offsets
             .iter()
             .map(|Offset { key, range }| {
-                (
-                    PartitionName::try_from(key.as_bytes())?,
+                Ok((PartitionName::try_from(key.as_bytes())?, {
+                    let range = range.ok_or(HigginsError::Arbitrary(
+                        "No range found in acknowledgement.".to_string(),
+                    ))?;
+
                     std::ops::Range {
-                        start: range?.start,
-                        end: range?.end,
-                    },
-                )
+                        start: range.start,
+                        end: range.end,
+                    }
+                }))
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, HigginsError>>()?;
 
         let stream = StreamName::from(stream);
 
@@ -124,6 +132,11 @@ pub async fn handle_acknowledge(
         }
         .encode(&mut result)?;
 
-        writer_tx.send(result).await?;
+        writer_tx
+            .send(result)
+            .await
+            .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
     }
+
+    Ok(())
 }

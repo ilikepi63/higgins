@@ -28,15 +28,28 @@ impl MapOperation {
             for _ in 0..record_batch.num_rows() {
                 let partition_val = get_partition_key_from_record_batch(
                     &record_batch,
-                    &ColumnName::from(&self.0.definition),
-                );
+                    &ColumnName::try_from(&self.0.definition)?,
+                )?;
+
+                let function_name = match self.0.definition.function_name.as_ref() {
+                    Some(fn_name) => fn_name,
+                    None => {
+                        continue;
+                    }
+                };
 
                 let engine = &broker_lock.wasm_engine;
-                let module = broker_lock
+                let module = match broker_lock
                     .wasm_modules
                     .iter()
-                    .find(|(n, _)| n == self.0.definition.function_name.as_ref()?)
-                    .map(|(_, m)| m)?;
+                    .find(|(n, _)| n == function_name)
+                    .map(|(_, m)| m)
+                {
+                    Some(module) => module,
+                    None => {
+                        continue;
+                    }
+                };
 
                 tracing::trace!("[MAP] We have fetched the module.");
 
@@ -88,11 +101,13 @@ impl MapOperation {
                 )
                 .await?;
 
-                let mut lock = self.0.subscription.as_mut()?.write().await;
+                if let Some(subscription) = self.0.subscription.as_mut() {
+                    let mut lock = subscription.write().await;
 
-                lock.acknowledge(&self.0.partition, &offsets)?;
+                    lock.acknowledge(&self.0.partition, &offsets)?;
 
-                drop(lock);
+                    drop(lock);
+                }
 
                 Ok(())
             }

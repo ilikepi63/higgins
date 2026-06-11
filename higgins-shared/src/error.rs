@@ -5,6 +5,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum HigginsError {
+    #[error("No message body was sent")]
+    MissingPayload,
+
     #[error("Encoding Error")]
     EncodeError(#[from] EncodeError),
 

@@ -142,21 +142,21 @@ mod tests {
 
     #[test]
     fn parse_time_unit_seconds() {
-        let (rest, unit) = parse_window_time_unit("s")?;
+        let (rest, unit) = parse_window_time_unit("s").unwrap();
         assert!(rest.is_empty());
         assert!(matches!(unit, WindowedTimeUnit::Sec));
     }
 
     #[test]
     fn parse_time_unit_milliseconds() {
-        let (rest, unit) = parse_window_time_unit("ms")?;
+        let (rest, unit) = parse_window_time_unit("ms").unwrap();
         assert!(rest.is_empty());
         assert!(matches!(unit, WindowedTimeUnit::Ms));
     }
 
     #[test]
     fn parse_time_unit_microseconds() {
-        let (rest, unit) = parse_window_time_unit("us")?;
+        let (rest, unit) = parse_window_time_unit("us").unwrap();
         assert!(rest.is_empty());
         assert!(matches!(unit, WindowedTimeUnit::Us));
     }
@@ -172,28 +172,28 @@ mod tests {
     #[test]
     fn parse_time_unit_minutes_with_trailing() {
         // With trailing content the parser can disambiguate "m" from "ms".
-        let (rest, unit) = parse_window_time_unit("mx")?;
+        let (rest, unit) = parse_window_time_unit("mx").unwrap();
         assert_eq!(rest, "x");
         assert!(matches!(unit, WindowedTimeUnit::Min));
     }
 
     #[test]
     fn parse_time_unit_hours() {
-        let (rest, unit) = parse_window_time_unit("h")?;
+        let (rest, unit) = parse_window_time_unit("h").unwrap();
         assert!(rest.is_empty());
         assert!(matches!(unit, WindowedTimeUnit::Hour));
     }
 
     #[test]
     fn parse_time_unit_days() {
-        let (rest, unit) = parse_window_time_unit("d")?;
+        let (rest, unit) = parse_window_time_unit("d").unwrap();
         assert!(rest.is_empty());
         assert!(matches!(unit, WindowedTimeUnit::Day));
     }
 
     #[test]
     fn parse_time_unit_leaves_trailing_input() {
-        let (rest, unit) = parse_window_time_unit("sxyz")?;
+        let (rest, unit) = parse_window_time_unit("sxyz").unwrap();
         assert_eq!(rest, "xyz");
         assert!(matches!(unit, WindowedTimeUnit::Sec));
     }
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn interval_parser_timed_seconds() {
-        let result = window_interval_parser("30s")?;
+        let result = window_interval_parser("30s").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((30, WindowedTimeUnit::Sec))
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn interval_parser_timed_milliseconds() {
-        let result = window_interval_parser("500ms")?;
+        let result = window_interval_parser("500ms").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((500, WindowedTimeUnit::Ms))
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn interval_parser_timed_microseconds() {
-        let result = window_interval_parser("200us")?;
+        let result = window_interval_parser("200us").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((200, WindowedTimeUnit::Us))
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn interval_parser_timed_hours() {
-        let result = window_interval_parser("2h")?;
+        let result = window_interval_parser("2h").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((2, WindowedTimeUnit::Hour))
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn interval_parser_timed_days() {
-        let result = window_interval_parser("7d")?;
+        let result = window_interval_parser("7d").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((7, WindowedTimeUnit::Day))
@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn interval_parser_large_timed_value() {
-        let result = window_interval_parser("86400s")?;
+        let result = window_interval_parser("86400s").unwrap();
         assert!(matches!(
             result,
             WindowValue::Timed((86400, WindowedTimeUnit::Sec))
@@ -320,9 +320,9 @@ mod tests {
     #[test]
     fn windowed_stream_type_from_window_definition_returns_count() {
         let wd: WindowDefinition =
-            serde_json::from_str(r#"{"type": "tumbling", "interval": "10s"}"#)?;
+            serde_json::from_str(r#"{"type": "tumbling", "interval": "10s"}"#).unwrap();
         // Current implementation always returns Count(5)
-        let wst = WindowValue::try_from(wd.interval.as_str())?;
+        let wst = WindowValue::try_from(wd.interval.as_str()).unwrap();
         assert!(matches!(
             wst,
             WindowValue::Timed((10, WindowedTimeUnit::Sec))

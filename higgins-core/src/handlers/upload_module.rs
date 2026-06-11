@@ -3,6 +3,7 @@ use std::sync::Arc;
 use bytes::BytesMut;
 use higgins_codec::{Message, UploadModuleRequest, UploadModuleResponse, message::Type};
 use higgins_functions::wasmtime::Module;
+use higgins_shared::HigginsError;
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -13,7 +14,7 @@ pub async fn handle_upload_module(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     tracing::trace!("Received Upload Module Request.");
 
     let UploadModuleRequest { name, value } = message
@@ -22,7 +23,8 @@ pub async fn handle_upload_module(
 
     let mut broker_lock = broker.write().await;
 
-    let module = Module::new(&broker_lock.wasm_engine, value.clone())?;
+    let module = Module::new(&broker_lock.wasm_engine, value.clone())
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     broker_lock.wasm_modules.push((name.to_owned(), module));
     broker_lock.functions.put_function(&name, value).await;
@@ -37,8 +39,12 @@ pub async fn handle_upload_module(
         upload_module_response: Some(response),
         ..Default::default()
     }
-    .encode(&mut result)
-    ?;
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await?;
+    writer_tx
+        .send(result)
+        .await
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
+
+    Ok(())
 }

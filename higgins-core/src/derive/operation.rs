@@ -281,7 +281,7 @@ pub async fn generate_relation_tasks_from_stream(
 
                     let stream_type = definition.stream_type.clone();
 
-                    let mut operation = Operation::try_new(
+                    match Operation::try_new(
                         broker.clone(),
                         offsets.clone(),
                         None,
@@ -295,38 +295,47 @@ pub async fn generate_relation_tasks_from_stream(
                         join_index,
                     )
                     .await
-                    .inspect_err(|err| tracing::error!("{:#?}", err))?;
-                    tracing::debug!("Awaiting prepare step.");
+                    {
+                        Ok(mut operation) => {
+                            producer_step_sync.await_step(Step::Prepare).await;
+                            tracing::debug!("Preparing..");
+                            match stream_type {
+                                Some(FunctionType::Window | FunctionType::Join) => {}
+                                _ => {
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.init().await.unwrap();
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.prepare().await.unwrap();
 
-                    producer_step_sync.await_step(Step::Prepare).await;
-                    tracing::debug!("Preparing..");
-                    match stream_type {
-                        Some(FunctionType::Window | FunctionType::Join) => {}
-                        _ => {
-                            operation.init().await?;
-                            operation.prepare().await?;
+                                    consumer_step_sync.set_step(Step::Prepare);
+                                }
+                            }
 
-                            consumer_step_sync.set_step(Step::Prepare);
+                            tracing::debug!("Awaiting Commit step..");
+
+                            producer_step_sync.await_step(Step::Commit).await;
+                            tracing::debug!(" Committing..");
+
+                            match stream_type {
+                                Some(FunctionType::Window | FunctionType::Join) => {
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.init().await.unwrap();
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.prepare().await.unwrap();
+                                }
+                                _ => {}
+                            }
+
+                            #[allow(clippy::unwrap_used)]
+                            operation.commit().await.unwrap();
+                            tracing::debug!("Committed..");
+
+                            consumer_step_sync.set_step(Step::Commit);
+                        }
+                        Err(err) => {
+                            tracing::error!("{:#?}", err)
                         }
                     }
-
-                    tracing::debug!("Awaiting Commit step..");
-
-                    producer_step_sync.await_step(Step::Commit).await;
-                    tracing::debug!(" Committing..");
-
-                    match stream_type {
-                        Some(FunctionType::Window | FunctionType::Join) => {
-                            operation.init().await?;
-                            operation.prepare().await?;
-                        }
-                        _ => {}
-                    }
-
-                    operation.commit().await?;
-                    tracing::debug!("Committed..");
-
-                    consumer_step_sync.set_step(Step::Commit);
                 });
             }
         } else {

@@ -87,7 +87,8 @@ impl Broker {
                         let stream_name = StreamName::from(derived_stream_key.clone());
 
                         let (_client_id, subscription) =
-                            create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                            create_derived_stream_subscription_ref(stream_name.clone(), self)
+                                .await?;
 
                         let relation = Relation {
                             stream_name,
@@ -112,7 +113,7 @@ impl Broker {
                     let stream_name = StreamName::from(derived_stream_key.clone());
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,
@@ -139,7 +140,7 @@ impl Broker {
                     let stream_name = StreamName::from(derived_stream_key.clone());
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,
@@ -166,7 +167,7 @@ impl Broker {
                     let stream_name = StreamName::from(derived_stream_key.clone());
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,

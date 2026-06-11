@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::BytesMut;
 use higgins_codec::{Error, GetCurrentTopographyResponse, Message, message::Type};
+use higgins_shared::HigginsError;
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -12,7 +13,7 @@ pub async fn handle_get_topography(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     tracing::info!("We're trying to get the lock.");
 
     let broker = broker.read().await;
@@ -35,7 +36,10 @@ pub async fn handle_get_topography(
             }
             .encode(&mut result)?;
 
-            let _ = writer_tx.send(result).await;
+            let _ = writer_tx
+                .send(result)
+                .await
+                .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
         }
         Err(err) => {
             tracing::error!("Error occurred when trying to get topography: {:#?}", err);
@@ -50,4 +54,6 @@ pub async fn handle_get_topography(
             let _ = writer_tx.send(result).await;
         }
     }
+
+    Ok(())
 }

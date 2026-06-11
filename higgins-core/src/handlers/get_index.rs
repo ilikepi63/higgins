@@ -21,7 +21,9 @@ pub async fn handle_get_index(
 
     tracing::trace!("Retrieved the GetIndexRequest");
 
-    let request = message.get_index_request?; // TODO: error response here.
+    let request = message
+        .get_index_request
+        .ok_or(HigginsError::MissingPayload)?; // TODO: error response here.
     tracing::trace!("Retrieved the GetIndexRequest: {:#?}", request);
 
     for index in request.indexes {
@@ -42,23 +44,25 @@ pub async fn handle_get_index(
                         .batches
                         .iter()
                         .map(|batch| {
-                            let stream_reader = read_arrow(&batch.data);
+                            let stream_reader = read_arrow(&batch.data)?;
 
                             let batches =
                                 stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                            let batch_refs = batches.first()?;
+                            let batch_refs = batches.first().ok_or(HigginsError::Arbitrary(
+                                "No batches returnd for GetIndexResponse".to_string(),
+                            ))?;
 
                             let data = higgins_shared::write_arrow(batch_refs)?;
 
-                            Record {
+                            Ok(Record {
                                 data,
                                 stream: batch.topic.as_bytes().to_vec(),
                                 offset: batch.offset,
                                 partition: batch.partition.clone(),
-                            }
+                            })
                         })
-                        .collect::<Vec<_>>(),
+                        .collect::<Result<Vec<_>, HigginsError>>()?,
                 };
 
                 let mut result = BytesMut::new();
@@ -71,7 +75,10 @@ pub async fn handle_get_index(
                 }
                 .encode(&mut result)?;
 
-                writer_tx.send(result).await?;
+                writer_tx
+                    .send(result)
+                    .await
+                    .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
                 // }
             }
             higgins_codec::index::Type::Latest => {
@@ -105,12 +112,15 @@ pub async fn handle_get_index(
                 }
                 .encode(&mut result)?;
 
-                writer_tx.send(result).await?;
+                writer_tx
+                    .send(result)
+                    .await
+                    .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
             }
             higgins_codec::index::Type::Offset => {
                 tracing::trace!("Retrieved a At Offset GetIndexRequest",);
 
-                let offset = index.index?;
+                let offset = index.index.ok_or(HigginsError::MissingPayload)?;
 
                 let partition = &PartitionName::try_from(&index.partition[..])?;
 
@@ -118,7 +128,10 @@ pub async fn handle_get_index(
                     .get_at(&StreamName::from(index.stream.clone()), partition, offset)
                     .await
                     .ok()
-                    .flatten()?;
+                    .flatten()
+                    .ok_or(HigginsError::Arbitrary(
+                        "Did not retrieve anything from the get_at query.".to_string(),
+                    ))?;
 
                 let index_response = GetIndexResponse {
                     records: vec![Record {
@@ -139,7 +152,10 @@ pub async fn handle_get_index(
                 }
                 .encode(&mut result)?;
 
-                writer_tx.send(result).await?;
+                writer_tx
+                    .send(result)
+                    .await
+                    .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
             }
         }
     }
