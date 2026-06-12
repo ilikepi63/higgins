@@ -117,9 +117,7 @@ impl Topography {
             Some(
                 self.schema
                     .iter()
-                    .map(|(key, definition)| {
-                        (key.clone(), arrow_schema_to_schema(definition))
-                    })
+                    .map(|(key, definition)| (key.clone(), arrow_schema_to_schema(definition)))
                     .collect::<BTreeMap<String, config::Schema>>(),
             )
         } else {

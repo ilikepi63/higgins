@@ -216,9 +216,7 @@ impl<'a> JoinedIndex<'a> {
 
     /// Retrieve the reference of this Index.
     pub fn reference(&self) -> Result<Reference, HigginsError> {
-        Reference::from_bytes(
-            &self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()],
-        )
+        Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
 
     /// Update the reference for this.

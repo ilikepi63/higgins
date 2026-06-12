@@ -122,11 +122,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base.clone()
-                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
-                        ))?;
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -147,11 +147,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base.clone()
-                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
-                        ))?;
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -172,11 +172,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base.clone()
-                        .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
-                        ))?;
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
