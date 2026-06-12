@@ -88,8 +88,7 @@ impl TaskHandler {
                             current_task_ptr
                                 .tasks
                                 .as_mut()
-                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)
-                                .unwrap()
+                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                                 .first_mut()
                                 .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                         }

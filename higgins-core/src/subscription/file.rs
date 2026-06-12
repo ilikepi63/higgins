@@ -136,7 +136,7 @@ impl SubscriptionFile {
         // nulled out as both need to be null.
         let header_buffer = [0_u8; HEADER_SIZE];
 
-        handle.write(&header_buffer)?;
+        handle.write_all(&header_buffer)?;
 
         let mut path_buf = std::path::PathBuf::new();
         path_buf.push(path);
@@ -151,7 +151,7 @@ impl SubscriptionFile {
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
 
-        handle.write(&buffer)?;
+        handle.write_all(&buffer)?;
 
         handle.flush()?;
 
@@ -262,7 +262,7 @@ impl SubscriptionFile {
 
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
 
-        file.read(&mut buffer)?;
+        file.read_exact(&mut buffer)?;
 
         PartitionOffsetsOwned::of(&buffer)
     }
@@ -279,7 +279,7 @@ impl SubscriptionFile {
 
         file.seek(SeekFrom::Start(offset))?;
 
-        file.write(&partition.0)?;
+        file.write_all(&partition.0)?;
 
         file.flush()?;
 

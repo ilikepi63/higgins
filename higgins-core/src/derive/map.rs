@@ -27,7 +27,7 @@ impl MapOperation {
 
             for _ in 0..record_batch.num_rows() {
                 let partition_val = get_partition_key_from_record_batch(
-                    &record_batch,
+                    record_batch,
                     &ColumnName::try_from(&self.0.definition)?,
                 )?;
 
@@ -53,7 +53,7 @@ impl MapOperation {
 
                 tracing::trace!("[MAP] We have fetched the module.");
 
-                let mapped_record_batch = run_map_function(&record_batch, engine, module)?;
+                let mapped_record_batch = run_map_function(record_batch, engine, module)?;
 
                 tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
 

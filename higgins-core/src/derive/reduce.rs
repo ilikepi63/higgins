@@ -89,8 +89,8 @@ impl ReduceOperation {
                     tracing::trace!("Applying the function..");
 
                     let reduced_record_batch = run_reduce_function(
-                        &batch,
-                        &prev_record,
+                        batch,
+                        prev_record,
                         &broker_lock.wasm_engine,
                         module,
                     )?;

@@ -92,9 +92,8 @@ pub fn parse_time_unit(input: &str) -> IResult<&str, TimeUnit> {
 }
 
 fn parse_time(input: &str) -> IResult<&str, DataType> {
-    let (_, (_, _, timeunit, _)) = (tag("time"), tag("["), parse_time_unit, tag("]"))
-        .parse(input)
-        .unwrap();
+    let (_, (_, _, timeunit, _)) =
+        (tag("time"), tag("["), parse_time_unit, tag("]")).parse(input)?;
 
     let data_type = match timeunit {
         TimeUnit::Second | TimeUnit::Millisecond => DataType::Time32(timeunit),
@@ -123,8 +122,7 @@ fn parse_timestamp(input: &str) -> IResult<&str, DataType> {
             char(']'),
         ),
     )
-        .parse(input)
-        .unwrap();
+        .parse(input)?;
 
     let time_unit = match time_unit {
         "ns" => TimeUnit::Nanosecond,

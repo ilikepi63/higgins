@@ -7,9 +7,9 @@
 //! The semantics of a Subscription file are as such:
 //!
 //! - For each partition p that has a range of values already published to it, you will have a PartitionOffsets value inside
-//! of the subscription.
+//!   of the subscription.
 //! - Each PartitionOffsets holds a range, which the `start` of the range denotes the already queried values whilst
-//! the `end` of the range denotes the values that are still to be read.
+//!   the `end` of the range denotes the values that are still to be read.
 //!
 //! An example is as such:
 //!
@@ -35,9 +35,9 @@ impl From<Vec<u8>> for SubscriptionId {
     }
 }
 
-impl Into<Vec<u8>> for SubscriptionId {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<SubscriptionId> for Vec<u8> {
+    fn from(val: SubscriptionId) -> Self {
+        val.0
     }
 }
 
@@ -62,6 +62,7 @@ impl PartialEq for PartitionOffsets {
 
 impl Eq for PartitionOffsets {}
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for PartitionOffsets {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.amount_to_take().cmp(&other.amount_to_take()))
@@ -351,11 +352,7 @@ impl Subscription {
                     continue;
                 }
 
-                let end = if offset_count < (partition_offset.end - partition_offset.end) {
-                    partition_offset.start + offset_count
-                } else {
-                    partition_offset.end
-                };
+                let end = partition_offset.end;
 
                 tracing::info!("{}", end);
 

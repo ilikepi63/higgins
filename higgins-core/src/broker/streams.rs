@@ -32,7 +32,7 @@ impl Broker {
             .map(|stream_def| (key.clone(), stream_def))
     }
 
-    pub fn get_schema(&self, key: &String) -> Option<&Arc<arrow::datatypes::Schema>> {
-        self.topography.get_schema_by_key(key.clone())
+    pub fn get_schema(&self, key: &str) -> Option<&Arc<arrow::datatypes::Schema>> {
+        self.topography.get_schema_by_key(key.to_owned())
     }
 }

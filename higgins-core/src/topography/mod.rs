@@ -118,7 +118,7 @@ impl Topography {
                 self.schema
                     .iter()
                     .map(|(key, definition)| {
-                        (key.clone().into(), arrow_schema_to_schema(definition))
+                        (key.clone(), arrow_schema_to_schema(definition))
                     })
                     .collect::<BTreeMap<String, config::Schema>>(),
             )
@@ -146,7 +146,7 @@ impl Topography {
         match entry {
             Entry::Vacant(vacant_entry) => {
                 self.file
-                    .add_item(TopographyUnit::Schema((key.into(), (*schema).clone())))?;
+                    .add_item(TopographyUnit::Schema((key, (*schema).clone())))?;
                 vacant_entry.insert(schema);
                 Ok(())
             }

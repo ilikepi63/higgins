@@ -220,7 +220,7 @@ impl IndexDirectory {
                 tracing::error!("No Index found at offset {}", offset);
 
                 Err(HigginsError::IndexNotFoundError(
-                    StreamName::from(stream),
+                    stream,
                     partition.clone(),
                     offset,
                 ))
@@ -229,7 +229,7 @@ impl IndexDirectory {
     }
 
     /// Retrieves the offset by its offset number.
-    pub async fn get_by_offset<'a>(
+    pub async fn get_by_offset(
         &self,
         stream: StreamName,
         partition: &PartitionName,
@@ -270,7 +270,7 @@ impl IndexDirectory {
                 tracing::error!("No Index found at offset {}", offset);
 
                 Err(HigginsError::IndexNotFoundError(
-                    StreamName::from(stream),
+                    stream,
                     partition.clone(),
                     offset,
                 ))
@@ -279,7 +279,7 @@ impl IndexDirectory {
     }
 
     /// Retrieves the offset by its offset number.
-    pub async fn get_by_range<'a>(
+    pub async fn get_by_range(
         &self,
         stream: StreamName,
         partition: &PartitionName,

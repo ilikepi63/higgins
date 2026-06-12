@@ -77,8 +77,7 @@ impl IndexFile {
         bytes: &mut [u8],
     ) -> Result<(), IndexError> {
         // Normalize the buffer, so that you can write the entirety of it.
-        let buffer_to_put =
-            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+        let buffer_to_put = &bytes[0..(offset.end - offset.start) * self.element_size];
 
         if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
@@ -116,8 +115,7 @@ impl IndexFile {
         }
 
         // Normalize the buffer, so that you can write the entirety of it.
-        let buffer_to_put =
-            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+        let buffer_to_put = &bytes[0..(offset.end - offset.start) * self.element_size];
 
         if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
@@ -145,6 +143,7 @@ impl IndexFile {
     }
 
     /// Retrieves the length of this index file in indexes.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Result<usize, IndexError> {
         Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
     }

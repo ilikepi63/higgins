@@ -124,8 +124,7 @@ impl TryFrom<(StreamName, StreamDefinition)> for WindowedStreamDefinition {
         let window_value = WindowValue::try_from(window.interval.as_str())?;
         let slide = window
             .slide
-            .map(|val| WindowValue::try_from(val.as_str()).ok())
-            .flatten()
+            .and_then(|val| WindowValue::try_from(val.as_str()).ok())
             .unwrap_or(window_value.clone());
 
         Ok(Self {

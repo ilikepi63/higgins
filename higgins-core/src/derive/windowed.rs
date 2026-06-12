@@ -42,7 +42,7 @@ impl WindowOperation {
 
                 let mut new_ranges = assign_sliding_windows_range(
                     offsets.clone(),
-                    count.clone(),
+                    *count,
                     definition.slide.normalize(),
                     0,
                 );
@@ -97,5 +97,5 @@ async fn get_index_file_handle(
     broker_ref: Arc<RwLock<Broker>>,
 ) -> Result<BrokerIndexFile, HigginsError> {
     let mut broker = broker_ref.write().await;
-    Ok(broker.get_index_file(stream.clone(), key)?)
+    broker.get_index_file(stream.clone(), key)
 }

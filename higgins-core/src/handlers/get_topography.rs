@@ -36,7 +36,7 @@ pub async fn handle_get_topography(
             }
             .encode(&mut result)?;
 
-            let _ = writer_tx
+            writer_tx
                 .send(result)
                 .await
                 .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;

@@ -13,12 +13,12 @@ pub fn run_map_function(
     engine: &Engine,
     module: &Module,
 ) -> Result<RecordBatch, HigginsError> {
-    let linker = Linker::new(&engine);
+    let linker = Linker::new(engine);
 
-    let mut store: Store<u32> = Store::new(&engine, 4);
+    let mut store: Store<u32> = Store::new(engine, 4);
 
     let instance = linker
-        .instantiate(&mut store, &module)
+        .instantiate(&mut store, module)
         .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     let mut wasm_malloc_fn = instance

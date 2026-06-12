@@ -13,6 +13,8 @@ use uuid::Uuid;
 
 use crate::subscription::{Subscription, SubscriptionId};
 
+type SubscriptionCollection = BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>;
+
 impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(
@@ -41,7 +43,7 @@ impl Broker {
     pub fn get_subscriptions_for_stream(
         &self,
         stream: &StreamName,
-    ) -> Option<BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>> {
+    ) -> Option<SubscriptionCollection> {
         self.subscriptions.get(stream).cloned()
     }
 

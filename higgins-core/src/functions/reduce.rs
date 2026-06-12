@@ -13,12 +13,12 @@ pub fn run_reduce_function(
     engine: &Engine,
     module: &Module,
 ) -> Result<RecordBatch, HigginsError> {
-    let linker = Linker::new(&engine);
+    let linker = Linker::new(engine);
 
-    let mut store: Store<u32> = Store::new(&engine, 4);
+    let mut store: Store<u32> = Store::new(engine, 4);
 
     let instance = linker
-        .instantiate(&mut store, &module)
+        .instantiate(&mut store, module)
         .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     let mut wasm_malloc_fn = instance
@@ -81,8 +81,6 @@ pub fn run_reduce_function(
             tracing::info!("{:#?}", s);
         }
     }
-
-    let record_batch_ptr = record_batch_ptr;
 
     tracing::trace!("Received Record batch PTR: {record_batch_ptr}");
 

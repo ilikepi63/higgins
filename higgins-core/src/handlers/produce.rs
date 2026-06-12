@@ -37,7 +37,9 @@ pub async fn handle_produce(
 
     let (schema, _tx, _rx) = broker
         .get_stream(&stream_name)
-        .expect("Could not find stream for stream_name.");
+        .ok_or(HigginsError::Arbitrary(
+            "Stream not found for stream name.".to_string(),
+        ))?;
 
     let batch = read_arrow(&payload)?
         .next()

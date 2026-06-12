@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::topography::FunctionType;
 use crate::topography::config::from_toml;
-use higgins_shared::{HigginsError, StreamName, TopographyError};
+use higgins_shared::{HigginsError, TopographyError};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
@@ -46,7 +46,7 @@ impl Broker {
                 if !self.streams.contains_key(stream_key) {
                     let schema = self
                         .topography
-                        .get_schema_by_key(def.schema.clone().into())?
+                        .get_schema_by_key(def.schema.clone())?
                         .clone();
 
                     return Some((stream_key.clone(), schema));
@@ -84,7 +84,7 @@ impl Broker {
                     };
 
                     for (i, join) in join_definition.joins.iter().enumerate() {
-                        let stream_name = StreamName::from(derived_stream_key.clone());
+                        let stream_name = derived_stream_key.clone();
 
                         let (_client_id, subscription) =
                             create_derived_stream_subscription_ref(stream_name.clone(), self)
@@ -97,7 +97,7 @@ impl Broker {
                             join_index: Some(i as u64),
                         };
 
-                        let base_key = StreamName::from(join.stream.0.clone());
+                        let base_key = join.stream.0.clone();
                         tracing::debug!(
                             "Creating Relation {:#?} with key {}",
                             relation,
@@ -110,7 +110,7 @@ impl Broker {
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
                         create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
@@ -123,9 +123,7 @@ impl Broker {
                     };
 
                     let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
+                        .base.clone()
                         .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
                         ))?;
@@ -137,7 +135,7 @@ impl Broker {
                 Some(FunctionType::Reduce) => {
                     tracing::trace!("Creating Mapped stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
                         create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
@@ -150,9 +148,7 @@ impl Broker {
                     };
 
                     let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
+                        .base.clone()
                         .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
                         ))?;
@@ -164,7 +160,7 @@ impl Broker {
                 Some(FunctionType::Window) => {
                     tracing::trace!("Creating Window stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
                         create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
@@ -177,9 +173,7 @@ impl Broker {
                     };
 
                     let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
+                        .base.clone()
                         .ok_or(TopographyError::NoBaseKeyDefinedForDerivativeStream(
                             derived_stream_key.to_string(),
                         ))?;
@@ -199,7 +193,7 @@ impl Broker {
     }
 
     pub fn get_topography_as_config_string(&self) -> Result<String, HigginsError> {
-        Ok(self.topography.to_config_toml()?)
+        self.topography.to_config_toml()
     }
 }
 

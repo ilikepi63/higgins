@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 use std::{path::PathBuf, sync::Arc};
 
 use higgins_codec::{Message, frame::Frame, message::Type};

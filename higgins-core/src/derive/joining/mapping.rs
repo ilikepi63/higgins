@@ -56,9 +56,9 @@ impl JoinMapping {
         let batches_row_count = batches
             .iter()
             .filter_map(|batch| batch.as_ref().map(|batch| batch.1.num_rows()))
-            .fold(Some(0), |acc, curr| match acc {
-                Some(0) => Some(curr),
-                Some(v) if v == curr => Some(curr),
+            .try_fold(0, |acc, curr| match acc {
+                0 => Some(curr),
+                v if v == curr => Some(curr),
                 _ => None,
             });
 

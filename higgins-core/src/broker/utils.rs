@@ -40,10 +40,10 @@ pub async fn get_arrow_data_at(
 
     // Retrieve the first record, as there should be only one record.
 
-    Ok(read_arrow(&data)?
+    read_arrow(&data)?
         .next()
         .and_then(|r| r.ok())
         .ok_or(HigginsError::Arbitrary(
             "Couldn't get data at stream.".to_string(),
-        ))?)
+        ))
 }

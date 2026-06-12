@@ -19,7 +19,7 @@ pub async fn handle_upload_module(
 
     let UploadModuleRequest { name, value } = message
         .upload_module_request
-        .expect("Marked Upload Module Request without a body.");
+        .ok_or(HigginsError::MissingPayload)?;
 
     let mut broker_lock = broker.write().await;
 

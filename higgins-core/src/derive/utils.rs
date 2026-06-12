@@ -112,14 +112,14 @@ pub async fn put_default_index_at_range(
     buf.chunks_mut(DefaultIndex::size_of())
         .zip(offset.start..=offset.end)
         .zip(references)
-        .map(|((mut chunk, offset), reference)| {
+        .map(|((chunk, offset), reference)| {
             DefaultIndex::put(
                 offset,
                 reference.clone(),
                 0,
                 crate::utils::epoch(),
                 0,
-                &mut chunk,
+                chunk,
             )
         })
         .collect::<Result<Vec<()>, std::io::Error>>()?;

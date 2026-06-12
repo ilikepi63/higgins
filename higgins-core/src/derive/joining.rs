@@ -67,7 +67,6 @@ impl JoinOperation {
             Reference::Null,
             epoch(),
             &(0..n_offsets)
-                .into_iter()
                 .map(|i| {
                     if i == self.data.join_index? as usize {
                         Some(offsets.start)
@@ -153,21 +152,18 @@ impl JoinOperation {
             self.optimistic_index.as_mut(),
             self.optimistic_offset.as_ref(),
         ) {
-            (Some(mut optimistic_index), Some(optimistic_offset)) => {
+            (Some(optimistic_index), Some(optimistic_offset)) => {
                 index_file_guard
                     .try_range_put_at(
-                        optimistic_offset.clone()..optimistic_offset.saturating_add(1),
-                        &mut optimistic_index,
+                        *optimistic_offset..optimistic_offset.saturating_add(1),
+                        optimistic_index,
                     )
                     .inspect_err(|err| {
                         tracing::error!("{:#?}", err);
                     })?;
                 self.data
                     .offsets_setter
-                    .set(
-                        optimistic_offset.clone() as u64
-                            ..optimistic_offset.saturating_add(1) as u64,
-                    )
+                    .set(*optimistic_offset as u64..optimistic_offset.saturating_add(1) as u64)
                     .await;
 
                 tracing::debug!("Completed join. Length: {:#?}", index_file_guard.len());
