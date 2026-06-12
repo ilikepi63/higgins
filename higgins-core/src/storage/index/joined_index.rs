@@ -291,6 +291,9 @@ impl<'a> JoinedIndexOffset<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::utils::test::{ByteInterval, Interval, print_bytes_coloured};
     use colored::Color;

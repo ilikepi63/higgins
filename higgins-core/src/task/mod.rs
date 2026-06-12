@@ -462,7 +462,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_task_handle_vec(&&TaskDescription("some::hierarchy".to_string()))
+                .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "hierarchy".to_string(),

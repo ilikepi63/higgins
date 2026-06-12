@@ -135,7 +135,9 @@ mod tests {
 
     #[test]
     pub fn basic_sliding_windows() {
-        assert_eq!(assign_sliding_windows(0, 5, 1, 0), &[0..5]);
+        #[allow(clippy::single_range_in_vec_init)]
+        let range = &[0..5];
+        assert_eq!(assign_sliding_windows(0, 5, 1, 0), range);
 
         assert_eq!(assign_sliding_windows(1, 5, 1, 0), &[1..6, 0..5]);
 

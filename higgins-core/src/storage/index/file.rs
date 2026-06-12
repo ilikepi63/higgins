@@ -548,8 +548,7 @@ mod tests {
 
         let length = file.len().unwrap();
 
-        let _ = file
-            .range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
+        file.range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
             .unwrap();
 
         assert_eq!(file.len().unwrap(), length);
@@ -558,7 +557,7 @@ mod tests {
 
         file.read_at(0, &mut buffer).unwrap();
 
-        let start = 1 * DefaultIndex::size_of();
+        let start = DefaultIndex::size_of();
         let end = 4 * DefaultIndex::size_of();
 
         for chunk in buffer[start..end].chunks(DefaultIndex::size_of()) {
@@ -727,15 +726,12 @@ mod tests {
         let mut shard = file.shard(0..50);
 
         while let Some(range) = shard.next(&mut buffer) {
-            let mut i = 0;
-            for val in range {
+            for (i, val) in range.enumerate() {
                 let index = i * DefaultIndex::size_of();
 
                 let end = index + DefaultIndex::size_of();
 
                 let index = DefaultIndex::of(&buffer[index..end]);
-
-                i += 1;
 
                 assert_eq!(val as u64, index.offset());
             }

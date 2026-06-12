@@ -352,6 +352,8 @@ pub async fn write_offsets_to_client(
 mod tests {
 
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use bytes::BytesMut;
     use higgins_shared::write_arrow;

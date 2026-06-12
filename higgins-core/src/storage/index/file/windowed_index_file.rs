@@ -109,6 +109,9 @@ impl<'a> WindowedIndexFile<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::storage::index::{
         IndexFile, IndexType, file::windowed_index_file::WindowedIndexFile,

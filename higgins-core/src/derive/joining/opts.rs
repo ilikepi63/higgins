@@ -150,7 +150,7 @@ mod test {
         let partition = &PartitionName::try_from("1")?;
         let mut guard = subscription.write().await;
 
-        guard.add_partition(&partition, 0, 0).unwrap();
+        guard.add_partition(partition, 0, 0).unwrap();
 
         drop(guard);
 
@@ -161,7 +161,7 @@ mod test {
             for record in value.1.start..=value.1.end {
                 let mut guard = subscription.write().await;
 
-                guard.acknowledge(&partition, &(record..record))?; // acknowledging the entire range
+                guard.acknowledge(partition, &(record..record))?; // acknowledging the entire range
 
                 dbg!(&guard.partitions);
             }

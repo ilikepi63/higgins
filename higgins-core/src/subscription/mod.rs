@@ -446,6 +446,7 @@ impl Subscription {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use std::panic::catch_unwind;
 

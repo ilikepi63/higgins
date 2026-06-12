@@ -274,7 +274,7 @@ impl S3Reference {
 
 #[cfg(test)]
 mod tests {
-    #[allow(clippy::unwrap_used)]
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
@@ -354,11 +354,7 @@ mod tests {
 
     #[test]
     fn test_reference_s3_roundtrip() {
-        let object_key = uuid::Uuid::new_v4()
-            .as_bytes()
-            .to_owned()
-            .try_into()
-            .unwrap(); // Use a real UUID for variety
+        let object_key = *uuid::Uuid::new_v4().as_bytes(); // Use a real UUID for variety
         let position = 123u64;
         let size = 456u64;
         let original = Reference::S3(S3Reference {

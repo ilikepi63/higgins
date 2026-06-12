@@ -189,11 +189,11 @@ pub fn subscription_works_with_multiple_clients() {
 
     let response = recv_until_take(&mut consume_client);
 
-    let data = &response.records.get(0).unwrap().data;
+    let data = &response.records.first().unwrap().data;
 
     let data = read_arrow(data).unwrap().next().unwrap();
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.first().unwrap();
 
     assert_eq!(record.offset, 0);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -246,7 +246,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     let response = recv_until_take(&mut second_consume_client);
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.first().unwrap();
 
     assert_eq!(record.offset, 1);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -404,7 +404,7 @@ pub fn can_update_subscription_with_multiple_values() {
 
     let response = recv_until_take(&mut consume_client);
 
-    let record = response.records.get(0).unwrap();
+    let record = response.records.first().unwrap();
 
     assert_eq!(record.offset, 0);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());
@@ -667,7 +667,7 @@ pub fn can_update_subscription_after_created() {
 
         let result = consume_client.take(sub_id, "update_customer".as_bytes(), 100);
 
-        assert!(matches!(result, Ok(_)));
+        assert!(result.is_ok());
 
         let mut count = 0;
 

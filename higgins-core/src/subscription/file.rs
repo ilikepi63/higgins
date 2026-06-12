@@ -768,9 +768,9 @@ mod test {
                         .unwrap();
                 });
 
-            let partitions = sub_file.get_partition_indexes().unwrap();
+            
 
-            partitions
+            sub_file.get_partition_indexes().unwrap()
         });
 
         std::fs::remove_file(&path).unwrap();

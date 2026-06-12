@@ -1,5 +1,5 @@
-#[deny(clippy::unwrap_used)]
-#[deny(clippy::expect_used)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 pub mod broker;
 pub mod client;
 mod derive;
