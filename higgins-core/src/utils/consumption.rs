@@ -1,12 +1,13 @@
 use higgins_codec::GetIndexResponse;
 use higgins_codec::Record;
+use higgins_shared::HigginsError;
 use higgins_shared::read_arrow;
 use riskless::messages::ConsumeResponse;
 use tokio::sync::mpsc::Receiver;
 
 pub async fn collect_consume_responses(
     mut consumption: Receiver<ConsumeResponse>,
-) -> Vec<GetIndexResponse> {
+) -> Result<Vec<GetIndexResponse>, HigginsError> {
     let mut return_vec = vec![];
 
     while let Some(val) = consumption.recv().await {
@@ -15,24 +16,26 @@ pub async fn collect_consume_responses(
                 .batches
                 .iter()
                 .map(|batch| {
-                    let stream_reader = read_arrow(&batch.data);
+                    let stream_reader = read_arrow(&batch.data)?;
 
                     let batches = stream_reader.filter_map(|val| val.ok()).collect::<Vec<_>>();
 
-                    let data = higgins_shared::write_arrow(batches.first()?);
+                    let data = higgins_shared::write_arrow(
+                        batches.first().ok_or(HigginsError::MissingPayload)?,
+                    )?;
 
-                    Record {
+                    Ok(Record {
                         data,
                         stream: batch.topic.as_bytes().to_vec(),
                         offset: batch.offset,
                         partition: batch.partition.clone(),
-                    }
+                    })
                 })
-                .collect::<Vec<_>>(),
+                .collect::<Result<Vec<_>, HigginsError>>()?,
         };
 
         return_vec.push(resp);
     }
 
-    return_vec
+    Ok(return_vec)
 }

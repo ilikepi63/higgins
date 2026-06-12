@@ -28,7 +28,7 @@ pub fn can_achieve_basic_broker_functionality() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new()?;
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(run_server(dir, port));
     });
@@ -37,47 +37,54 @@ pub fn can_achieve_basic_broker_functionality() {
 
     let result = catch_unwind(|| {
         let mut client =
-            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
+            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
         // 1. Do a basic Ping test.
-        client.ping()?;
+        client.ping().unwrap();
 
-        match client.recv(None)?.body {
+        match client.recv(None).unwrap().body {
             ResponseBody::Pong(_) => {
                 println!("Retrieved Pong!");
-            } //create_subscription_response.subscription_id?,
+            } //create_subscription_response.subscription_id.unwrap(),
             _ => panic!("Retrieved unexpected result."),
         };
 
         // Upload a basic configuration with one stream.
-        let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
-        client.upload_configuration(config.as_bytes())?;
+        let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+        client.upload_configuration(config.as_bytes()).unwrap();
 
-        match client.recv(None)?.body {
+        match client.recv(None).unwrap().body {
             ResponseBody::CreateConfiguration(_) => {
                 println!("Retrieved create configuration!");
-            } //create_subscription_response.subscription_id?,
+            } //create_subscription_response.subscription_id.unwrap(),
             _ => panic!("Retrieved unexpected result."),
         };
 
         // Produce to the stream.
-        let payload = std::fs::read_to_string("tests/customer.json")?;
+        let payload = std::fs::read_to_string("tests/customer.json").unwrap();
 
-        client.produce_json(
-            STREAM,
-            payload.as_bytes(),
-            std::sync::Arc::new(customer_schema()),
-        )?;
+        client
+            .produce_json(
+                STREAM,
+                payload.as_bytes(),
+                std::sync::Arc::new(customer_schema()),
+            )
+            .unwrap();
 
-        match client.recv(Some(Duration::from_secs(1)))?.body {
+        match client.recv(Some(Duration::from_secs(1))).unwrap().body {
             ResponseBody::Produce(_) => {
                 println!("Retrieved Produce!");
-            } //create_subscription_response.subscription_id?,
+            } //create_subscription_response.subscription_id.unwrap(),
             _ => panic!("Retrieved unexpected result."),
         };
 
         // Consume from the stream.
-        client.query_latest(STREAM.as_bytes(), &PartitionName::try_from(PARTITION)?)?;
+        client
+            .query_latest(
+                STREAM.as_bytes(),
+                &PartitionName::try_from(PARTITION).unwrap(),
+            )
+            .unwrap();
 
         let result = client
             .recv(Some(Duration::from_secs(1)))
@@ -86,56 +93,77 @@ pub fn can_achieve_basic_broker_functionality() {
                 _ => panic!("Got an unexpect result."),
             });
 
-        let arrow_data = result?.into_iter().next()?;
+        let arrow_data = result.unwrap().into_iter().next().unwrap();
 
-        let arrow = read_arrow(&arrow_data.data).next()?.inspect_err(|err| {
-            dbg!(err);
-        })?;
+        let arrow = read_arrow(&arrow_data.data)
+            .unwrap()
+            .next()
+            .unwrap()
+            .inspect_err(|err| {
+                dbg!(err);
+            })
+            .unwrap();
 
         tracing::trace!("Data: {:#?}", arrow);
 
         assert_eq!(
             arrow
-                .column_by_name("age")?
+                .column_by_name("age")
+                .unwrap()
                 .as_any()
-                .downcast_ref::<arrow::array::Int32Array>()?
+                .downcast_ref::<arrow::array::Int32Array>()
+                .unwrap()
                 .iter()
-                .next()??,
+                .next()
+                .unwrap()
+                .unwrap(),
             21
         );
 
         assert_eq!(
             arrow
-                .column_by_name("first_name")?
+                .column_by_name("first_name")
+                .unwrap()
                 .as_any()
-                .downcast_ref::<arrow::array::StringArray>()?
+                .downcast_ref::<arrow::array::StringArray>()
+                .unwrap()
                 .iter()
-                .next()??,
+                .next()
+                .unwrap()
+                .unwrap(),
             "John"
         );
 
         assert_eq!(
             arrow
-                .column_by_name("id")?
+                .column_by_name("id")
+                .unwrap()
                 .as_any()
-                .downcast_ref::<arrow::array::StringArray>()?
+                .downcast_ref::<arrow::array::StringArray>()
+                .unwrap()
                 .iter()
-                .next()??,
+                .next()
+                .unwrap()
+                .unwrap(),
             "1"
         );
 
         assert_eq!(
             arrow
-                .column_by_name("last_name")?
+                .column_by_name("last_name")
+                .unwrap()
                 .as_any()
-                .downcast_ref::<arrow::array::StringArray>()?
+                .downcast_ref::<arrow::array::StringArray>()
+                .unwrap()
                 .iter()
-                .next()??,
+                .next()
+                .unwrap()
+                .unwrap(),
             "Doe"
         );
     });
 
-    std::fs::remove_dir_all(dir_remove)?;
+    std::fs::remove_dir_all(dir_remove).unwrap();
 
-    result?;
+    result.unwrap();
 }

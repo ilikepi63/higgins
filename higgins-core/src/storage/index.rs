@@ -16,7 +16,7 @@ use crate::storage::index::default::DefaultIndex;
 use crate::storage::index::joined_index::JoinedIndex;
 use crate::storage::index::windowed_index::WindowedIndex;
 use crate::topography::{FunctionType, StreamDefinition};
-use higgins_shared::IndexError;
+use higgins_shared::{HigginsError, IndexError};
 
 /// The high-level type of index that all indexes could possibly be.
 ///
@@ -88,7 +88,7 @@ impl<'a> Index<'a> {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn reference(&self) -> Reference {
+    pub fn reference(&self) -> Result<Reference, HigginsError> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).reference(),
             IndexType::Join => JoinedIndex::of(self.data).reference(),
@@ -98,7 +98,7 @@ impl<'a> Index<'a> {
 
     /// Returns a new byte array representing a reference that is encoded to a
     /// vector of bytes.
-    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
+    pub fn put_reference(&mut self, r: Reference) -> Result<Vec<u8>, IndexError> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(self.data).put_reference(r),
             IndexType::Join => JoinedIndex::of(self.data).put_reference(r),
@@ -135,7 +135,7 @@ impl OwnedIndex {
     }
 
     /// Retrieve the underlying Reference data of this index.
-    pub fn reference(&self) -> Reference {
+    pub fn reference(&self) -> Result<Reference, HigginsError> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(&self.data).reference(),
             IndexType::Join => JoinedIndex::of(&self.data).reference(),
@@ -145,7 +145,7 @@ impl OwnedIndex {
 
     /// Returns a new byte array representing a reference that is encoded to a
     /// vector of bytes.
-    pub fn put_reference(&mut self, r: Reference) -> Vec<u8> {
+    pub fn put_reference(&mut self, r: Reference) -> Result<Vec<u8>, IndexError> {
         match self.index_type {
             IndexType::Default => DefaultIndex::of(&self.data).put_reference(r),
             IndexType::Join => JoinedIndex::of(&self.data).put_reference(r),
@@ -157,24 +157,27 @@ impl OwnedIndex {
 pub fn index_size_from_index_type_and_definition(
     index_type: &IndexType,
     stream_definition: &StreamDefinition,
-) -> usize {
-    match index_type {
-        IndexType::Join => JoinedIndex::size_of(stream_definition.join.as_ref()?.len()),
+) -> Result<usize, HigginsError> {
+    Ok(match index_type {
+        IndexType::Join => JoinedIndex::size_of(
+            stream_definition
+                .join
+                .as_ref()
+                .ok_or(HigginsError::Arbitrary(
+                    "Failed to retrieve join index. This should be infallible actually."
+                        .to_string(),
+                ))?
+                .len(),
+        ),
         IndexType::Default => DefaultIndex::size_of(),
         IndexType::Window => WindowedIndex::size_of(),
-    }
+    })
 }
 
 /// Returns the index size indicated by the stream definition. Each Stream definition will
 /// decide which index to use, and therefore will decide how large each
-pub fn index_size_from_stream_definition(def: &StreamDefinition) -> usize {
-    match IndexType::try_from(def) {
-        Ok(ty) => index_size_from_index_type_and_definition(&ty, def),
-        Err(err) => panic!(
-            "Unexpected Error when retrieving a IndexType from a StreamDefinition: {:#?}",
-            err
-        ),
-    }
+pub fn index_size_from_stream_definition(def: &StreamDefinition) -> Result<usize, HigginsError> {
+    IndexType::try_from(def).map(|ty| index_size_from_index_type_and_definition(&ty, def))?
 }
 
 /// A container for binary-encoded index data.
@@ -297,6 +300,7 @@ impl<'a> Deref for IndexesView<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use crate::storage::index::{IndexType, joined_index::JoinedIndex};
 
     use crate::storage::{
@@ -322,14 +326,14 @@ mod test {
 
         let mut reference_bytes = [0_u8; Reference::size_of()];
 
-        reference.to_bytes(&mut reference_bytes)?;
+        reference.to_bytes(&mut reference_bytes).unwrap();
 
         tracing::trace!("Reference: {:#?}", reference_bytes);
 
-        let index = index.put_reference(reference);
+        let index = index.put_reference(reference).unwrap();
 
         let index = Index::of(&index, IndexType::Join);
 
-        assert!(matches!(index.reference(), Reference::S3(_)));
+        assert!(matches!(index.reference().unwrap(), Reference::S3(_)));
     }
 }

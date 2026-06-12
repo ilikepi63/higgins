@@ -35,7 +35,7 @@ impl IndexDirectory {
         Ok(Self(directory))
     }
 
-    pub fn create_topic_dir(&self, topic: &str) -> PathBuf {
+    pub fn create_topic_dir(&self, topic: &str) -> Result<PathBuf, IndexError> {
         let mut topic_path = self.0.clone();
         topic_path.push(topic);
 
@@ -47,7 +47,7 @@ impl IndexDirectory {
             std::fs::create_dir_all(&topic_path)?;
         }
 
-        topic_path
+        Ok(topic_path)
     }
 
     pub fn index_file_path_from_partition(partition_key: &PartitionName) -> String {
@@ -65,14 +65,14 @@ impl IndexDirectory {
         &self,
         stream: StreamName,
         partition: &PartitionName,
-    ) -> String {
-        let mut topic_dir = self.create_topic_dir(stream.as_str());
+    ) -> Result<String, IndexError> {
+        let mut topic_dir = self.create_topic_dir(stream.as_str())?;
 
         let index_file_path = Self::index_file_path_from_partition(partition);
 
         topic_dir.push(index_file_path);
 
-        topic_dir.to_string_lossy().to_string()
+        Ok(topic_dir.to_string_lossy().to_string())
     }
 
     /// Retrieves an index file instance given a stream and partition.
@@ -83,7 +83,7 @@ impl IndexDirectory {
         element_size: usize,
         index_type: IndexType,
     ) -> Result<IndexFile, IndexError> {
-        let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition);
+        let index_file_name = self.index_file_name_from_stream_and_partition(stream, partition)?;
 
         tracing::trace!("Index file: {index_file_name}");
 
@@ -105,7 +105,7 @@ impl IndexDirectory {
         partition: &PartitionName,
         timestamp: u64,
         index_type: IndexType,
-    ) -> Vec<FindBatchResponse> {
+    ) -> Result<Vec<FindBatchResponse>, IndexError> {
         todo!();
         let mut responses = vec![];
 
@@ -130,7 +130,10 @@ impl IndexDirectory {
             Some(index) => {
                 let index_reference = index.reference();
 
-                let index_reference = match index_reference {
+                let index_reference = match index_reference.map_err(|err| {
+                    tracing::error!("Error: {:#?}", err);
+                    IndexError::Infallible
+                })? {
                     Reference::S3(r) => r,
                     _ => unimplemented!(),
                 };
@@ -179,7 +182,7 @@ impl IndexDirectory {
             }
         }
 
-        responses
+        Ok(responses)
     }
 
     /// Retrieves the latest value to be placed on this partition.
@@ -193,13 +196,13 @@ impl IndexDirectory {
         let index_file = self.index_file_from_stream_and_partition(
             stream.clone(),
             partition,
-            index_size_from_index_type_and_definition(index_type, stream_definition),
+            index_size_from_index_type_and_definition(index_type, stream_definition)?,
             index_type.clone(),
         )?;
 
         let indexes: IndexesView = IndexesView {
             buffer: index_file.as_slice(),
-            element_size: index_size_from_index_type_and_definition(index_type, stream_definition),
+            element_size: index_size_from_index_type_and_definition(index_type, stream_definition)?,
             index_type: index_type.clone(),
         };
 
@@ -236,7 +239,7 @@ impl IndexDirectory {
     ) -> Result<OwnedIndex, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
-        let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition);
+        let index_size = index_size_from_index_type_and_definition(&index_type, stream_definition)?;
 
         let index_file = self.index_file_from_stream_and_partition(
             stream.clone(),
@@ -286,7 +289,7 @@ impl IndexDirectory {
     ) -> Result<Vec<OwnedIndex>, HigginsError> {
         tracing::debug!("Reading index {:#?}", index_type);
 
-        let index_size = stream_definition.index_size();
+        let index_size = stream_definition.index_size()?;
 
         let mut index_file = self.index_file_from_stream_and_partition(
             stream,
@@ -323,7 +326,7 @@ impl IndexDirectory {
         _size: u32,
         index_type: &IndexType,
         stream_definition: &StreamDefinition,
-    ) -> Vec<OwnedIndex> {
+    ) -> Result<Vec<OwnedIndex>, HigginsError> {
         let mut responses = vec![];
 
         for batch_request in batch_requests {
@@ -340,7 +343,7 @@ impl IndexDirectory {
             let index_file = self.index_file_from_stream_and_partition(
                 stream,
                 &PartitionName::try_from(&partition[..])?,
-                index_size_from_index_type_and_definition(index_type, stream_definition),
+                index_size_from_index_type_and_definition(index_type, stream_definition)?,
                 index_type.clone(),
             )?;
 
@@ -349,7 +352,7 @@ impl IndexDirectory {
                 element_size: index_size_from_index_type_and_definition(
                     index_type,
                     stream_definition,
-                ),
+                )?,
                 index_type: index_type.clone(),
             };
 
@@ -374,7 +377,7 @@ impl IndexDirectory {
             }
         }
 
-        responses
+        Ok(responses)
     }
 
     /// Adds a default index to the given type, returning the offset at which it was put.
@@ -386,11 +389,11 @@ impl IndexDirectory {
         batch_coord: BatchCoordinate,
         index_type: &IndexType,
         stream_def: &StreamDefinition,
-    ) -> u64 {
+    ) -> Result<u64, HigginsError> {
         let mut index_file = self.index_file_from_stream_and_partition(
             stream,
             partition,
-            index_size_from_index_type_and_definition(index_type, stream_def),
+            index_size_from_index_type_and_definition(index_type, stream_def)?,
             index_type.clone(),
         )?;
 
@@ -404,11 +407,11 @@ impl IndexDirectory {
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs();
 
-        let mut val = vec![0; index_size_from_index_type_and_definition(index_type, stream_def)];
+        let mut val = vec![0; index_size_from_index_type_and_definition(index_type, stream_def)?];
 
         tracing::trace!(
             "Size: {}, expected: {}",
-            index_size_from_index_type_and_definition(index_type, stream_def),
+            index_size_from_index_type_and_definition(index_type, stream_def)?,
             DefaultIndex::size_of()
         );
 
@@ -434,7 +437,7 @@ impl IndexDirectory {
         );
 
         tracing::info!("Successfully saved Index: {:#?}", index);
-        offset
+        Ok(offset)
     }
 
     /// Commit this file to the ObjectStore.
@@ -443,7 +446,7 @@ impl IndexDirectory {
         object_key: [u8; 16],
         batches: Vec<CommitBatchRequest>,
         broker: std::sync::Arc<tokio::sync::RwLock<Broker>>,
-    ) -> Vec<CommitBatchResponse> {
+    ) -> Result<Vec<CommitBatchResponse>, HigginsError> {
         let mut responses = vec![];
 
         for batch in batches {
@@ -454,7 +457,10 @@ impl IndexDirectory {
             let (index_type, stream_def) = {
                 let broker = broker.write().await;
 
-                let (_, stream_def) = broker.get_topography_stream(&stream)?;
+                let (_, stream_def) = broker.get_topography_stream(&stream).map_err(|err| {
+                    tracing::error!("Failed to retrieve topography stream: {:#?}", err);
+                    IndexError::Infallible
+                })?;
 
                 (IndexType::try_from(stream_def)?, stream_def.to_owned())
             };
@@ -462,7 +468,7 @@ impl IndexDirectory {
             let mut index_file = self.index_file_from_stream_and_partition(
                 stream,
                 &PartitionName::try_from(&partition[..])?,
-                index_size_from_index_type_and_definition(&index_type, &stream_def),
+                index_size_from_index_type_and_definition(&index_type, &stream_def)?,
                 index_type.clone(),
             )?;
 
@@ -513,6 +519,6 @@ impl IndexDirectory {
             });
         }
 
-        responses
+        Ok(responses)
     }
 }

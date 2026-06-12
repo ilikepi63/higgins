@@ -123,7 +123,7 @@ impl JoinOperation {
 
         tracing::trace!("Created the Reference: {:#?}", reference);
 
-        JoinedIndex::put_reference_static(reference, &mut optimistic_index);
+        JoinedIndex::put_reference_static(reference, &mut optimistic_index)?;
 
         self.optimistic_index = Some(optimistic_index);
         self.optimistic_offset = Some(optimistic_offset);

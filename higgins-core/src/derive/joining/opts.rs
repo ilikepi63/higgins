@@ -136,6 +136,7 @@ pub async fn amalgamate_join(
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use std::time::Duration;
 
     use super::*;
@@ -145,7 +146,7 @@ mod test {
         let sub_path = "sub_take_eager_range";
         let notify = Arc::new(tokio::sync::Notify::new());
         let client_id = 1;
-        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path)));
+        let subscription = Arc::new(RwLock::new(Subscription::new(sub_path).unwrap()));
         let partition = &PartitionName::try_from("1")?;
         let mut guard = subscription.write().await;
 

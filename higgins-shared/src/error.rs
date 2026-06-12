@@ -8,6 +8,15 @@ pub enum HigginsError {
     #[error("No message body was sent")]
     MissingPayload,
 
+    #[error("TryFromSliceError")]
+    TryFromSliceError(#[from] TryFromSliceError),
+    #[error("System Time Error")]
+    SystemTimeError(#[from] SystemTimeError),
+    #[error("TOML deserializer error.")]
+    TomlDeserializerError(#[from] toml::de::Error),
+    #[error("TOML serialize error.")]
+    TomlSerializerError(#[from] toml::ser::Error),
+
     #[error("Encoding Error")]
     EncodeError(#[from] EncodeError),
 
@@ -78,6 +87,7 @@ pub enum HigginsError {
 
 use std::array::TryFromSliceError;
 use std::num::TryFromIntError;
+use std::time::SystemTimeError;
 
 #[derive(Error, Debug)]
 pub enum SubscriptionError {
@@ -147,6 +157,12 @@ pub enum IndexError {
     IndexFileIsNotADirectory,
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
+    #[error("Partition Name Error")]
+    PartitionNameError(#[from] PartitionNameError),
+    #[error("System Time Error")]
+    SystemTimeError(#[from] SystemTimeError),
+    #[error("TryFromSliceError")]
+    TryFromSliceError(#[from] TryFromSliceError),
     #[error("Attempt to swap out index with incorrectly sized byte array.")]
     IndexSwapSizeError,
     #[error("TryFromInt Error")]
@@ -161,6 +177,8 @@ pub enum IndexError {
     PutIndexOutOfRange,
     #[error("Attempted to overwrite an index that already exists.")]
     IndexAlreadyExists(u64, u64),
+    #[error("Infallible")]
+    Infallible,
     #[error("Unknown Index Error")]
     Unknown,
 }

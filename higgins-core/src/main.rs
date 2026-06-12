@@ -44,7 +44,9 @@ async fn main() {
 
     match dir {
         Ok(dir) => {
-            run_server(dir, port).await;
+            if let Err(err) = run_server(dir, port).await {
+                tracing::error!("Error running server: {:#?}", err);
+            };
         }
         Err(_) => {
             tracing::error!("Incorrect directory name given.");

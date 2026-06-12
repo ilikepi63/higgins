@@ -92,8 +92,9 @@ pub fn parse_time_unit(input: &str) -> IResult<&str, TimeUnit> {
 }
 
 fn parse_time(input: &str) -> IResult<&str, DataType> {
-    let (_, (_, _, timeunit, _)) =
-        (tag("time"), tag("["), parse_time_unit, tag("]")).parse(input)?;
+    let (_, (_, _, timeunit, _)) = (tag("time"), tag("["), parse_time_unit, tag("]"))
+        .parse(input)
+        .unwrap();
 
     let data_type = match timeunit {
         TimeUnit::Second | TimeUnit::Millisecond => DataType::Time32(timeunit),
@@ -122,7 +123,8 @@ fn parse_timestamp(input: &str) -> IResult<&str, DataType> {
             char(']'),
         ),
     )
-        .parse(input)?;
+        .parse(input)
+        .unwrap();
 
     let time_unit = match time_unit {
         "ns" => TimeUnit::Nanosecond,
@@ -165,6 +167,7 @@ pub fn parse(input: &str) -> IResult<&str, DataType> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use arrow_schema::DataType;
@@ -208,33 +211,35 @@ mod test {
     #[test]
     fn can_parse() {
         for (input, output) in VALUES {
-            assert_eq!(parse(input)?.1, *output)
+            assert_eq!(parse(input).unwrap().1, *output)
         }
     }
 
     #[test]
     fn can_parse_decimal() {
-        let (_, result) = parse_decimal("decimal[1,3]").inspect_err(|err| {
-            dbg!(err);
-        })?;
+        let (_, result) = parse_decimal("decimal[1,3]")
+            .inspect_err(|err| {
+                dbg!(err);
+            })
+            .unwrap();
 
         assert_eq!(result, DataType::Decimal128(1, 3));
     }
 
     #[test]
     fn can_parse_timestamp() {
-        let (_, result) = parse_timestamp("timestamp[s]")?;
+        let (_, result) = parse_timestamp("timestamp[s]").unwrap();
 
         assert_eq!(result, DataType::Timestamp(TimeUnit::Second, None));
 
-        let (_, result) = parse_timestamp("timestamp[ms, America/New_York]")?;
+        let (_, result) = parse_timestamp("timestamp[ms, America/New_York]").unwrap();
 
         assert_eq!(
             result,
             DataType::Timestamp(TimeUnit::Millisecond, Some("America/New_York".into()))
         );
 
-        let (_, result) = parse_timestamp("timestamp[ms, +07:30]")?;
+        let (_, result) = parse_timestamp("timestamp[ms, +07:30]").unwrap();
 
         assert_eq!(
             result,

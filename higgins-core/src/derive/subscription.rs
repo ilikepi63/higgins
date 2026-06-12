@@ -15,7 +15,7 @@ pub async fn create_derived_stream_subscription_ref(
         .ok_or(HigginsError::Arbitrary(
             "Failed to insert a client into the shared client structure.".to_string(),
         ))?;
-    let (_, sub) = broker.create_non_reactive_subscription(&stream);
+    let (_, sub) = broker.create_non_reactive_subscription(&stream)?;
     tracing::debug!("Created the subscription, returning.");
 
     Ok((client_id, sub))

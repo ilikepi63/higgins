@@ -24,7 +24,7 @@ pub trait BackingStore: Send + Sync + std::fmt::Debug {
     fn get_object_store(&self) -> Arc<dyn ObjectStore>;
 
     /// Put data into this data store.
-    fn put(&self, request: ProduceRequest) -> Response<BatchCoordinate>;
+    fn put(&self, request: ProduceRequest) -> Result<Response<BatchCoordinate>, Self::Error>;
 }
 
 pub struct Flusher(pub tokio::sync::mpsc::Sender<()>);
@@ -65,11 +65,17 @@ impl BackingStore for ObjectBackingStore {
         self.object_store.clone()
     }
 
-    fn put(&self, request: ProduceRequest) -> Response<BatchCoordinate> {
+    fn put(&self, request: ProduceRequest) -> Result<Response<BatchCoordinate>, Self::Error> {
         let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
         let collection_ref = self.collection.clone();
-        let flush_tx = self.flush_tx.as_ref()?.clone();
+        let flush_tx = self
+            .flush_tx
+            .as_ref()
+            .ok_or(HigginsError::Arbitrary(
+                "No flush task found for this backing store.".to_string(),
+            ))?
+            .clone();
 
         tokio::spawn(async move {
             let mut buffer_lock = collection_ref.write().await;
@@ -86,7 +92,7 @@ impl BackingStore for ObjectBackingStore {
             drop(buffer_lock);
         });
 
-        response
+        Ok(response)
     }
 
     fn start_task(&mut self) -> Result<(), Self::Error> {
@@ -127,11 +133,22 @@ impl BackingStore for ObjectBackingStore {
                             // We need to fix riskless here.
                             for response in responses {
                                 // TODO: O(n^2) here
-                                let res = iter
+                                let res = match iter
                                     .find(|r| r.inner().request_id == response.request.request_id)
-                                    ?;
+                                {
+                                    Some(res) => res,
+                                    None => {
+                                        continue;
+                                    }
+                                };
 
-                                res.respond(response)?;
+                                if let Err(err) = res.respond(response) {
+                                    tracing::error!(
+                                        "Failed to respond to storage input: {:#?}",
+                                        err
+                                    );
+                                    continue;
+                                };
                             }
                         }
                         Err(err) => {

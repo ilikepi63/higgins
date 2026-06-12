@@ -31,7 +31,7 @@ pub fn basic_windowing() {
     let dir_remove = dir.clone();
 
     let _ = std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new()?;
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(run_server(dir, port));
     });
@@ -40,50 +40,62 @@ pub fn basic_windowing() {
 
     let result = catch_unwind(|| {
         let mut client =
-            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None)?;
+            higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
         client_sync_ping_test(&mut client);
 
         tracing::info!("Uploading the config..");
 
         upload_configuration_sync(
-            &std::fs::read_to_string("tests/configs/basic_window.toml")?,
+            &std::fs::read_to_string("tests/configs/basic_window.toml").unwrap(),
             &mut client,
         );
         tracing::info!("Uploaded the config..");
 
         // first produce
-        client.produce_json(
-            STREAM,
-            PAYLOAD.as_bytes(),
-            std::sync::Arc::new(value_schema()),
-        )?;
+        client
+            .produce_json(
+                STREAM,
+                PAYLOAD.as_bytes(),
+                std::sync::Arc::new(value_schema()),
+            )
+            .unwrap();
 
         let produce_result = client.recv(Some(Duration::from_secs(1)));
 
-        assert!(matches!(produce_result?.body, ResponseBody::Produce(_)));
+        assert!(matches!(
+            produce_result.unwrap().body,
+            ResponseBody::Produce(_)
+        ));
 
         std::thread::sleep(Duration::from_secs(2));
 
-        client.query_at(
-            WINDOWED_STREAM.as_bytes(),
-            &PartitionName::try_from("1")?,
-            0,
-        )?;
+        client
+            .query_at(
+                WINDOWED_STREAM.as_bytes(),
+                &PartitionName::try_from("1").unwrap(),
+                0,
+            )
+            .unwrap();
 
-        let response = client.recv(Some(Duration::from_secs(1)))?;
+        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
 
         match response.body {
             ResponseBody::GetIndex(index_data) => {
-                let record = index_data.records.first()?;
+                let record = index_data.records.first().unwrap();
 
                 // assert_eq!(record.offset, 0);
                 // assert_eq!(record.partition, "1".as_bytes());
                 // assert_eq!(record.stream, WINDOWED_STREAM.as_bytes());
 
-                let arrow = read_arrow(&record.data).next()?.inspect_err(|err| {
-                    dbg!(err);
-                })?;
+                let arrow = read_arrow(&record.data)
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .inspect_err(|err| {
+                        dbg!(err);
+                    })
+                    .unwrap();
 
                 tracing::debug!("{:#?}", arrow);
             }
@@ -91,37 +103,49 @@ pub fn basic_windowing() {
         }
 
         // second produce
-        client.produce_json(
-            STREAM,
-            PAYLOAD.as_bytes(),
-            std::sync::Arc::new(value_schema()),
-        )?;
+        client
+            .produce_json(
+                STREAM,
+                PAYLOAD.as_bytes(),
+                std::sync::Arc::new(value_schema()),
+            )
+            .unwrap();
 
         let produce_result = client.recv(Some(Duration::from_secs(1)));
 
-        assert!(matches!(produce_result?.body, ResponseBody::Produce(_)));
+        assert!(matches!(
+            produce_result.unwrap().body,
+            ResponseBody::Produce(_)
+        ));
 
         std::thread::sleep(Duration::from_secs(2));
 
-        client.query_at(
-            WINDOWED_STREAM.as_bytes(),
-            &PartitionName::try_from("1")?,
-            0,
-        )?;
+        client
+            .query_at(
+                WINDOWED_STREAM.as_bytes(),
+                &PartitionName::try_from("1").unwrap(),
+                0,
+            )
+            .unwrap();
 
-        let response = client.recv(Some(Duration::from_secs(1)))?;
+        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
 
         match response.body {
             ResponseBody::GetIndex(index_data) => {
-                let record = index_data.records.first()?;
+                let record = index_data.records.first().unwrap();
 
                 // assert_eq!(record.offset, 0);
                 // assert_eq!(record.partition, "1".as_bytes());
                 // assert_eq!(record.stream, WINDOWED_STREAM.as_bytes());
 
-                let arrow = read_arrow(&record.data).next()?.inspect_err(|err| {
-                    dbg!(err);
-                })?;
+                let arrow = read_arrow(&record.data)
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .inspect_err(|err| {
+                        dbg!(err);
+                    })
+                    .unwrap();
 
                 assert_eq!(arrow.num_rows(), 2);
             }
@@ -129,9 +153,9 @@ pub fn basic_windowing() {
         }
     });
 
-    std::fs::remove_dir_all(dir_remove)?;
+    std::fs::remove_dir_all(dir_remove).unwrap();
 
-    result?;
+    result.unwrap();
 }
 
 use arrow_schema::{DataType, Field, Schema};

@@ -175,7 +175,7 @@ impl Broker {
             .backing_store
             .as_ref()
             .ok_or(HigginsError::ObjectStoreNotConfigured)?
-            .put(request);
+            .put(request)?;
 
         let response = response
             .recv()
@@ -218,7 +218,7 @@ impl Broker {
             .backing_store
             .as_ref()
             .ok_or(HigginsError::ObjectStoreNotConfigured)?
-            .put(request);
+            .put(request)?;
 
         let response = response
             .recv()
@@ -241,7 +241,7 @@ impl Broker {
             object_key: response.object_key,
             position: response.offset,
             size: response.size.into(),
-        }));
+        }))?;
 
         tracing::trace!(
             "Successfully written to the index: {:#?}",

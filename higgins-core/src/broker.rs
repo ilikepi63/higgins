@@ -1,6 +1,5 @@
 mod configuration;
 mod consume;
-mod default;
 mod indexes;
 mod instantiate;
 mod produce;

@@ -204,8 +204,15 @@ impl SubscriptionFile {
     {
         let mut current_buffer_index = 0;
         let mut buffer = [0_u8; ITER_SIZE];
-        let mut handle = OpenOptions::new().read(true).open(&self.path)?;
-        handle.seek(SeekFrom::Start(HEADER_SIZE as u64))?;
+        let mut handle = OpenOptions::new()
+            .read(true)
+            .open(&self.path)
+            .inspect_err(|err| tracing::error!("{:#?}", err))
+            .ok()?;
+        handle
+            .seek(SeekFrom::Start(HEADER_SIZE as u64))
+            .inspect_err(|err| tracing::error!("{:#?}", err))
+            .ok()?;
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
 
         let mut index = 0;
@@ -285,8 +292,15 @@ impl SubscriptionFile {
         partition_name: &PartitionName,
         offsets: &Range<u64>,
     ) -> Result<(), SubscriptionError> {
-        let index =
-            self.find_index(|partition| partition.get_partition_name()? == *partition_name)?;
+        let index = self
+            .find_index(|partition| {
+                partition
+                    .get_partition_name()
+                    .ok()
+                    .map(|p_name| p_name == *partition_name)
+                    .unwrap_or(false)
+            })
+            .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
 
@@ -304,7 +318,13 @@ impl SubscriptionFile {
         max_offset: &u64,
     ) -> Result<(), SubscriptionError> {
         let index = self
-            .find_index(|partition| partition.get_partition_name()? == *partition_name)
+            .find_index(|partition| {
+                partition
+                    .get_partition_name()
+                    .ok()
+                    .map(|p_name| p_name == *partition_name)
+                    .unwrap_or(false)
+            })
             .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
@@ -329,6 +349,7 @@ static ITER_SIZE: usize = PARTITION_OFFSET_SERDE_LEN * PARTITION_COUNT_PER_BUFFE
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use std::panic::catch_unwind;
     use std::{io::Read, ops::Range, path::PathBuf, str::FromStr};
 
@@ -379,21 +400,21 @@ mod test {
 
     #[test]
     fn can_add_partition_to_file() {
-        let path = PathBuf::from_str("partition_add_test")?;
+        let path = PathBuf::from_str("partition_add_test").unwrap();
 
-        let sub_file = SubscriptionFile::new(&path)?;
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two"].iter().for_each(|name| {
-            let partition_name = PartitionName::try_from(*name)?;
+            let partition_name = PartitionName::try_from(*name).unwrap();
 
-            sub_file.add_partition(&partition_name)?;
+            sub_file.add_partition(&partition_name).unwrap();
         });
 
         let mut buf = Vec::new();
 
-        let mut file = std::fs::File::open(&path)?;
+        let mut file = std::fs::File::open(&path).unwrap();
 
-        file.read_to_end(&mut buf)?;
+        file.read_to_end(&mut buf).unwrap();
 
         let mut expected = vec![0_u8; 16];
 
@@ -405,7 +426,7 @@ mod test {
             0, 0, 0, 0, 0, 0,
         ]);
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
 
         assert_eq!(buf, expected);
     }
@@ -413,173 +434,173 @@ mod test {
     fn print_file_contents<P: AsRef<std::path::Path>>(path: P) {
         let mut buf = Vec::new();
 
-        let mut file = std::fs::File::open(&path)?;
+        let mut file = std::fs::File::open(&path).unwrap();
 
-        file.read_to_end(&mut buf)?;
+        file.read_to_end(&mut buf).unwrap();
 
         dbg!(buf);
     }
 
     #[test]
     fn iterate_subscription_file() {
-        let path = PathBuf::from_str("subscription_test")?;
+        let path = PathBuf::from_str("subscription_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path)?;
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
         let mut buf = Vec::new();
 
-        let mut file = std::fs::File::open(&path)?;
+        let mut file = std::fs::File::open(&path).unwrap();
 
-        file.read_to_end(&mut buf)?;
+        file.read_to_end(&mut buf).unwrap();
 
         let partition = sub_file.find_index(|partition| {
-            partition.get_partition_name()? == PartitionName::try_from("test_one")?
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_one").unwrap()
         });
 
-        let partition = sub_file.get_at(partition?)?;
+        let partition = sub_file.get_at(partition.unwrap()).unwrap();
 
-        let partition_name = partition.get_partition_name()?;
+        let partition_name = partition.get_partition_name().unwrap();
 
-        assert_eq!(partition_name, PartitionName::try_from("test_one")?);
-        std::fs::remove_file(&path)?;
+        assert_eq!(partition_name, PartitionName::try_from("test_one").unwrap());
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn can_get_data_at() {
-        let path = PathBuf::from_str("get_at_test")?;
+        let path = PathBuf::from_str("get_at_test").unwrap();
 
-        let sub_file = SubscriptionFile::new(&path)?;
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
-        let partition = sub_file.get_at(0)?;
+        let partition = sub_file.get_at(0).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_one")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_one").unwrap()
         );
 
-        let partition = sub_file.get_at(1)?;
+        let partition = sub_file.get_at(1).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_two")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_two").unwrap()
         );
 
-        let partition = sub_file.get_at(2)?;
+        let partition = sub_file.get_at(2).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_three")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_three").unwrap()
         );
 
-        let partition = sub_file.get_at(3)?;
+        let partition = sub_file.get_at(3).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_four")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_four").unwrap()
         );
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn can_put_data_at() {
-        let path = PathBuf::from_str("put_at_data_test")?;
+        let path = PathBuf::from_str("put_at_data_test").unwrap();
 
-        let sub_file = SubscriptionFile::new(&path)?;
+        let sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
         let mut buffer = [0; PARTITION_OFFSET_SERDE_LEN];
 
         PartitionOffsetsSerde::write_to(
-            PartitionName::try_from("replacement")?,
+            PartitionName::try_from("replacement").unwrap(),
             1,
             2,
             3,
             &mut buffer,
         );
 
-        let partition = PartitionOffsetsOwned::of(&buffer)?;
+        let partition = PartitionOffsetsOwned::of(&buffer).unwrap();
 
-        sub_file.put_at(0, partition)?;
+        sub_file.put_at(0, partition).unwrap();
 
-        let partition = sub_file.get_at(0)?;
+        let partition = sub_file.get_at(0).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("replacement")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("replacement").unwrap()
         );
 
         PartitionOffsetsSerde::write_to(
-            PartitionName::try_from("replacement")?,
+            PartitionName::try_from("replacement").unwrap(),
             1,
             2,
             3,
             &mut buffer,
         );
 
-        let partition = PartitionOffsetsOwned::of(&buffer)?;
+        let partition = PartitionOffsetsOwned::of(&buffer).unwrap();
 
-        sub_file.put_at(1, partition)?;
+        sub_file.put_at(1, partition).unwrap();
 
-        let partition = sub_file.get_at(1)?;
+        let partition = sub_file.get_at(1).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("replacement")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("replacement").unwrap()
         );
 
-        let partition = sub_file.get_at(2)?;
+        let partition = sub_file.get_at(2).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_three")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_three").unwrap()
         );
 
-        let partition = sub_file.get_at(3)?;
+        let partition = sub_file.get_at(3).unwrap();
         assert_eq!(
-            partition.get_partition_name()?,
-            PartitionName::try_from("test_four")?
+            partition.get_partition_name().unwrap(),
+            PartitionName::try_from("test_four").unwrap()
         );
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn iterate_subscription_file_find_index() {
-        let path = PathBuf::from_str("find_index_test")?;
+        let path = PathBuf::from_str("find_index_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path)?;
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
         print_file_contents(&path);
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
         print_file_contents(&path);
 
         let partition = sub_file.find_index(|partition| {
-            partition.get_partition_name()? == PartitionName::try_from("test_one")?
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_one").unwrap()
         });
 
         dbg!(&partition);
@@ -587,13 +608,14 @@ mod test {
         assert!(matches!(partition, Some(0)));
 
         let partition = sub_file.find_index(|partition| {
-            partition.get_partition_name()? == PartitionName::try_from("test_two")?
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_two").unwrap()
         });
 
         assert!(matches!(partition, Some(1)));
 
         let partition = sub_file.find_index(|partition| {
-            partition.get_partition_name()? == PartitionName::try_from("test_three")?
+            partition.get_partition_name().unwrap()
+                == PartitionName::try_from("test_three").unwrap()
         });
 
         dbg!(&partition);
@@ -601,86 +623,90 @@ mod test {
         assert!(matches!(partition, Some(2)));
 
         let partition = sub_file.find_index(|partition| {
-            partition.get_partition_name()? == PartitionName::try_from("test_four")?
+            partition.get_partition_name().unwrap() == PartitionName::try_from("test_four").unwrap()
         });
 
         dbg!(&partition);
 
         assert!(matches!(partition, Some(3)));
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn can_successfully_acknowledge_partition() {
-        let path = PathBuf::from_str("acknowledge_test")?;
+        let path = PathBuf::from_str("acknowledge_test").unwrap();
 
         let result = catch_unwind(|| {
-            let mut sub_file = SubscriptionFile::new(&path)?;
+            let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
             ["test_one", "test_two", "test_three", "test_four"]
                 .iter()
                 .for_each(|name| {
-                    let partition_name = PartitionName::try_from(*name)?;
+                    let partition_name = PartitionName::try_from(*name).unwrap();
 
-                    sub_file.add_partition(&partition_name)?;
+                    sub_file.add_partition(&partition_name).unwrap();
                 });
 
-            sub_file.acknowledge(
-                &PartitionName::try_from("test_three")?,
-                &Range { start: 0, end: 3 },
-            )?;
+            sub_file
+                .acknowledge(
+                    &PartitionName::try_from("test_three").unwrap(),
+                    &Range { start: 0, end: 3 },
+                )
+                .unwrap();
 
-            let partition = sub_file.get_at(2)?;
+            let partition = sub_file.get_at(2).unwrap();
 
-            assert_eq!(partition.get_last_completed_offset()?, 4);
+            assert_eq!(partition.get_last_completed_offset().unwrap(), 4);
         });
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
 
-        result?;
+        result.unwrap();
     }
 
     #[test]
     fn can_successfully_set_max_position() {
-        let path = PathBuf::from_str("set_max_position_test")?;
+        let path = PathBuf::from_str("set_max_position_test").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path)?;
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
-        sub_file.set_max_offset(&PartitionName::try_from("test_three")?, &5)?;
+        sub_file
+            .set_max_offset(&PartitionName::try_from("test_three").unwrap(), &5)
+            .unwrap();
 
-        let partition = sub_file.get_at(2)?;
+        let partition = sub_file.get_at(2).unwrap();
 
-        assert_eq!(partition.get_max_offset()?, 5);
+        assert_eq!(partition.get_max_offset().unwrap(), 5);
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn can_read_partitions_to_memory() {
-        let path = PathBuf::from_str("can_read_partitions_to_memory")?;
+        let path = PathBuf::from_str("can_read_partitions_to_memory").unwrap();
 
-        let mut sub_file = SubscriptionFile::new(&path)?;
+        let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
         print_file_contents(&path);
 
         ["test_one", "test_two", "test_three", "test_four"]
             .iter()
             .for_each(|name| {
-                let partition_name = PartitionName::try_from(*name)?;
+                let partition_name = PartitionName::try_from(*name).unwrap();
 
-                sub_file.add_partition(&partition_name)?;
+                sub_file.add_partition(&partition_name).unwrap();
             });
 
-        let partitions = sub_file.get_partition_indexes()?;
+        let partitions = sub_file.get_partition_indexes().unwrap();
 
         assert_eq!(
             vec![
@@ -708,15 +734,16 @@ mod test {
             partitions
         );
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
     fn can_read_partitions_to_memory_with_correctly_placed_data() {
-        let path = PathBuf::from_str("can_read_partitions_to_memory_with_correctly_placed_data")?;
+        let path =
+            PathBuf::from_str("can_read_partitions_to_memory_with_correctly_placed_data").unwrap();
 
         let result = catch_unwind(|| {
-            let mut sub_file = SubscriptionFile::new(&path)?;
+            let mut sub_file = SubscriptionFile::new(&path).unwrap();
 
             print_file_contents(&path);
 
@@ -724,33 +751,40 @@ mod test {
                 .iter()
                 .enumerate()
                 .for_each(|(i, name)| {
-                    let partition_name = PartitionName::try_from(*name)?;
+                    let partition_name = PartitionName::try_from(*name).unwrap();
 
-                    sub_file.add_partition(&partition_name)?;
-                    sub_file.acknowledge(
-                        &partition_name,
-                        &Range {
-                            start: 0,
-                            end: (i as u64 * 2),
-                        },
-                    )?;
-                    sub_file.set_max_offset(&partition_name, &(i as u64 * 10))?;
+                    sub_file.add_partition(&partition_name).unwrap();
+                    sub_file
+                        .acknowledge(
+                            &partition_name,
+                            &Range {
+                                start: 0,
+                                end: (i as u64 * 2),
+                            },
+                        )
+                        .unwrap();
+                    sub_file
+                        .set_max_offset(&partition_name, &(i as u64 * 10))
+                        .unwrap();
                 });
 
-            let partitions = sub_file.get_partition_indexes()?;
+            let partitions = sub_file.get_partition_indexes().unwrap();
 
             partitions
         });
 
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(&path).unwrap();
 
-        let partitions = result?;
+        let partitions = result.unwrap();
 
         for (i, partition) in partitions.iter().enumerate() {
             debug_subscription_bytes(&partition.0);
 
-            assert_eq!(partition.get_last_completed_offset()?, ((i as u64) * 2) + 1);
-            assert_eq!(partition.get_max_offset()?, (i as u64 * 10));
+            assert_eq!(
+                partition.get_last_completed_offset().unwrap(),
+                ((i as u64) * 2) + 1
+            );
+            assert_eq!(partition.get_max_offset().unwrap(), (i as u64 * 10));
         }
     }
 }

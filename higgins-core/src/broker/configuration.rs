@@ -21,7 +21,7 @@ impl Broker {
         tracing::trace!("{:#?}", String::from_utf8(config.to_vec()));
 
         // Deserialize configuration from TOML.
-        let config = from_toml(config);
+        let config = from_toml(config)?;
         tracing::trace!("Retrieved the config: {:#?}.", config);
 
         // Apply the configuration to the topography.

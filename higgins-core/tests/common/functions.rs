@@ -16,11 +16,12 @@ pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) 
         upload_module_request: Some(request),
         ..Default::default()
     }
-    .encode(&mut write_buf)?;
+    .encode(&mut write_buf)
+    .unwrap();
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket)?;
+    frame.try_write(socket).unwrap();
 }
 
 #[allow(unused)]
@@ -29,13 +30,13 @@ pub fn upload_module_sync(name: &str, wasm: &[u8], socket: &mut std::net::TcpStr
 
     upload_module(name, wasm, socket);
 
-    let frame = Frame::try_read(socket)?;
+    let frame = Frame::try_read(socket).unwrap();
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice)?;
+    let message = Message::decode(slice).unwrap();
 
-    match Type::try_from(message.r#type)? {
+    match Type::try_from(message.r#type).unwrap() {
         Type::Uploadmoduleresponse => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }

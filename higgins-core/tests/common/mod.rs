@@ -41,11 +41,11 @@ pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], payload: &[u8],
         ..Default::default()
     }
     .encode(&mut write_buf)
-    ?;
+    .unwrap();
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket)?;
+    frame.try_write(socket).unwrap();
 }
 
 /// Produce synchronously to a listener awaiting the response.
@@ -59,14 +59,14 @@ pub fn produce_sync<T: std::io::Read + std::io::Write>(
 
     let mut read_buf = BytesMut::zeroed(1024);
 
-    let frame = Frame::try_read(socket)?;
+    let frame = Frame::try_read(socket).unwrap();
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice)?;
+    let message = Message::decode(slice).unwrap();
 
-    let result = match Type::try_from(message.r#type)? {
-        Type::Produceresponse => message.produce_response?,
+    let result = match Type::try_from(message.r#type).unwrap() {
+        Type::Produceresponse => message.produce_response.unwrap(),
         _ => panic!("Received incorrect response from server for Create Subscription request."),
     };
 
@@ -93,28 +93,27 @@ pub fn consume<T: std::io::Read + std::io::Write>(
         take_records_request: Some(take_request),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    ?;
+    .encode(&mut write_buf)?;
 
     let frame = Frame::new(write_buf.to_vec());
 
-    frame.try_write(socket)?;
+    frame.try_write(socket).unwrap();
 
-    let frame = Frame::try_read(socket)?;
+    let frame = Frame::try_read(socket).unwrap();
 
     let slice = frame.inner();
 
-    let message = Message::decode(slice)?;
+    let message = Message::decode(slice).unwrap();
 
-    let result = match Type::try_from(message.r#type)? {
+    let result = match Type::try_from(message.r#type).unwrap() {
         Type::Takerecordsresponse => {
             tracing::info!("Receieved a take records response!");
 
-            let take_records_response = message.take_records_response?;
+            let take_records_response = message.take_records_response.unwrap();
 
             tracing::info!("Records_Response: {:#?}", take_records_response);
 
-            let record = take_records_response.records.first()?;
+            let record = take_records_response.records.first().unwrap();
 
             record.data.clone()
         }

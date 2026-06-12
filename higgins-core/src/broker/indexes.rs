@@ -82,7 +82,7 @@ impl Broker {
             .topography
             .get_stream_definition_by_key(stream.clone())?;
 
-        let element_size = stream_def.index_size();
+        let element_size = stream_def.index_size()?;
 
         let index_file_get_result = self.indexes.index_file_from_stream_and_partition(
             stream.clone(),

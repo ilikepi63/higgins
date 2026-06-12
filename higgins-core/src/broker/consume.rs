@@ -47,7 +47,7 @@ impl Broker {
                 &index_type,
                 &stream_definition,
             )
-            .await;
+            .await?;
 
         let mut result = vec![];
         for index in batch_responses {
@@ -75,7 +75,7 @@ impl Broker {
                 timestamp,
                 IndexType::try_from(stream_def)?,
             )
-            .await;
+            .await?;
 
         self.dereference_find_batch_responses(find_batch_responses)
             .await?

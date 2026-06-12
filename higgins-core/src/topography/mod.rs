@@ -4,7 +4,7 @@
 //! and how they are partitioned.
 
 use arrow::datatypes::Schema;
-use higgins_shared::{StreamName, TopographyError};
+use higgins_shared::{HigginsError, StreamName, TopographyError};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
@@ -91,23 +91,23 @@ impl Topography {
     }
 
     /// Converst this to TOML-represented Config.
-    pub fn to_config_toml(&self) -> Result<String, TopographyError> {
-        Ok(toml::to_string(&self.to_config())?)
+    pub fn to_config_toml(&self) -> Result<String, HigginsError> {
+        Ok(toml::to_string(&self.to_config()?)?)
     }
 
     /// Converts this Topography into a configuration.
-    pub fn to_config(&self) -> Configuration {
+    pub fn to_config(&self) -> Result<Configuration, HigginsError> {
         let streams = if !self.streams.is_empty() {
             Some(
                 self.streams
                     .iter()
                     .map(|(key, definition)| {
-                        (
+                        Ok((
                             key.clone().into(),
-                            ConfigurationStreamDefinition::from(definition.clone()),
-                        )
+                            ConfigurationStreamDefinition::try_from(definition.clone())?,
+                        ))
                     })
-                    .collect::<BTreeMap<String, ConfigurationStreamDefinition>>(),
+                    .collect::<Result<BTreeMap<String, ConfigurationStreamDefinition>, HigginsError>>()?,
             )
         } else {
             None
@@ -131,11 +131,11 @@ impl Topography {
             .clone()
             .map(|storage| BTreeMap::from([storage]));
 
-        Configuration {
+        Ok(Configuration {
             streams,
             schema,
             storage,
-        }
+        })
     }
 
     pub fn add_schema(&mut self, key: String, schema: Arc<Schema>) -> Result<(), TopographyError> {
@@ -232,7 +232,7 @@ impl Topography {
     pub fn apply_configuration_to_topography(
         &mut self,
         configuration: &Configuration,
-    ) -> Result<(), TopographyError> {
+    ) -> Result<(), HigginsError> {
         tracing::info!(
             "Applying configuration {:#?} to Topography: {:#?}",
             configuration,
@@ -247,55 +247,56 @@ impl Topography {
         }
 
         if let Some(schema) = configuration.schema.as_ref() {
-            schema
-                .iter()
-                .map(|(name, schema)| (name.clone(), Arc::new(schema_to_arrow_schema(schema))))
-                .for_each(|(key, schema)| {
-                    let _ = self.add_schema(key, schema); // TODO: perhaps this should be a warning?.
-                });
+            for schema in schema.iter().map(|(name, schema)| {
+                Ok::<(_, _), HigginsError>((
+                    name.clone(),
+                    Arc::new(schema_to_arrow_schema(schema)?),
+                ))
+            }) {
+                let (key, schema) = schema?;
+                self.add_schema(key, schema)?;
+            }
         }
 
-        // Create the non-derived streams first.
-        for (stream_name, topic_defintion) in configuration
-            .streams
-            .as_ref()?
-            .iter()
-            .filter(|(_, def)| def.base.is_none())
-        {
-            match &topic_defintion.base {
-                Some(_derived_from) => {
-                    unreachable!()
-                }
-                None => {
-                    tracing::trace!("Applying stream {}", stream_name);
-                    let result = self.add_stream(
-                        StreamName::from(stream_name.as_str()),
-                        topic_defintion.into(),
-                    );
+        if let Some(streams) = configuration.streams.as_ref() {
+            // Create the non-derived streams first.
+            for (stream_name, topic_defintion) in
+                streams.iter().filter(|(_, def)| def.base.is_none())
+            {
+                match &topic_defintion.base {
+                    Some(_derived_from) => {
+                        unreachable!()
+                    }
+                    None => {
+                        tracing::trace!("Applying stream {}", stream_name);
+                        let result = self.add_stream(
+                            StreamName::from(stream_name.as_str()),
+                            topic_defintion.try_into()?,
+                        );
 
-                    tracing::trace!("Result from applying stream: {:#?}", result);
+                        tracing::trace!("Result from applying stream: {:#?}", result);
+                    }
                 }
             }
         }
 
-        for (stream_name, stream_definition) in configuration
-            .streams
-            .as_ref()?
-            .iter()
-            .filter(|(_, def)| def.base.is_some())
-        {
-            match &stream_definition.base {
-                Some(_derived_from) => {
-                    tracing::trace!("Applying a derived stream: {stream_name}..");
+        if let Some(streams) = configuration.streams.as_ref() {
+            for (stream_name, stream_definition) in
+                streams.iter().filter(|(_, def)| def.base.is_some())
+            {
+                match &stream_definition.base {
+                    Some(_derived_from) => {
+                        tracing::trace!("Applying a derived stream: {stream_name}..");
 
-                    let _ = self.add_stream(
-                        StreamName::from(stream_name.as_str()),
-                        StreamDefinition::from(stream_definition),
-                    );
-                }
-                None => {
-                    tracing::error!("Unreachable code.");
-                    unreachable!()
+                        let _ = self.add_stream(
+                            StreamName::from(stream_name.as_str()),
+                            StreamDefinition::try_from(stream_definition)?,
+                        );
+                    }
+                    None => {
+                        tracing::error!("Unreachable code.");
+                        unreachable!()
+                    }
                 }
             }
         }
@@ -349,6 +350,7 @@ pub struct SubscriptionDeclaration {
 
 #[cfg(test)]
 pub mod test {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use crate::topography::config::from_toml;
@@ -381,19 +383,21 @@ pub mod test {
         let destroy_file_name = file_name.clone();
 
         let result = catch_unwind(|| {
-            let config = from_toml(BASIC_CONFIG.as_bytes());
+            let config = from_toml(BASIC_CONFIG.as_bytes()).unwrap();
 
-            let mut topography = Topography::from_file(file_name)?;
+            let mut topography = Topography::from_file(file_name).unwrap();
 
-            topography.apply_configuration_to_topography(&config)?;
+            topography
+                .apply_configuration_to_topography(&config)
+                .unwrap();
 
-            let config_from_topography = topography.to_config();
+            let config_from_topography = topography.to_config().unwrap();
 
             assert_eq!(config, config_from_topography);
         });
 
-        std::fs::remove_dir_all(destroy_file_name)?;
+        std::fs::remove_dir_all(destroy_file_name).unwrap();
 
-        result?;
+        result.unwrap();
     }
 }

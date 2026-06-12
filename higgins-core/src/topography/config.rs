@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use arrow::datatypes::{DataType, Field};
-use higgins_shared::StreamName;
+use higgins_shared::{HigginsError, StreamName};
 use serde::{Deserialize, Serialize};
 
 use crate::topography::{FunctionType, StreamDefinition};
@@ -50,12 +50,18 @@ pub struct WindowDefinition {
     pub slide: Option<String>, // defaults to interval if no available.
 }
 
-impl From<StreamDefinition> for ConfigurationStreamDefinition {
-    fn from(value: StreamDefinition) -> Self {
-        ConfigurationStreamDefinition {
+impl TryFrom<StreamDefinition> for ConfigurationStreamDefinition {
+    type Error = HigginsError;
+    fn try_from(value: StreamDefinition) -> Result<Self, Self::Error> {
+        Ok(ConfigurationStreamDefinition {
             base: value.base.map(StreamName::into),
             stream_type: value.stream_type.map(FunctionType::into),
-            partition_key: value.partition_key.to_string()?,
+            partition_key: value
+                .partition_key
+                .to_string()
+                .ok_or(HigginsError::Arbitrary(
+                    "Failed to convert partition key to string.".to_string(),
+                ))?,
             schema: value.schema.into(),
             join: value.join.map(|join| {
                 join.iter()
@@ -65,23 +71,24 @@ impl From<StreamDefinition> for ConfigurationStreamDefinition {
             map: value.map,
             function_name: value.function_name,
             window: value.window,
-        }
+        })
     }
 }
 
 pub type Schema = BTreeMap<String, String>;
 
-pub fn schema_to_arrow_schema(schema: &Schema) -> arrow::datatypes::Schema {
+pub fn schema_to_arrow_schema(schema: &Schema) -> Result<arrow::datatypes::Schema, HigginsError> {
     let fields = schema
         .iter()
         .map(|(key, value)| {
-            let (_, data_type) = super::data_type_parser::parse(value)?;
+            let (_, data_type) = super::data_type_parser::parse(value)
+                .map_err(|err| HigginsError::Arbitrary(format!("{:#?}", err)))?;
             tracing::debug!("Converted input {value} to output {data_type}");
-            Field::new(key, data_type, true) // TODO: how do we handle nullable here? OR how do we actually determine them?
+            Ok(Field::new(key, data_type, true)) // TODO: how do we handle nullable here? OR how do we actually determine them?
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, HigginsError>>()?;
 
-    arrow::datatypes::Schema::new(fields)
+    Ok(arrow::datatypes::Schema::new(fields))
 }
 
 pub fn arrow_schema_to_schema(schema: &arrow::datatypes::Schema) -> Schema {
@@ -139,22 +146,21 @@ pub struct AwsS3Storage {
 }
 
 /// Deserializes the given byte array into a configuration.
-pub fn from_toml(config: &[u8]) -> Configuration {
+pub fn from_toml(config: &[u8]) -> Result<Configuration, HigginsError> {
     tracing::trace!("{:#?}", config);
 
-    let config: Configuration = toml::from_slice(config)
-        .inspect(|val| {
-            tracing::info!("{:#?}", val);
-        })
-        ?;
+    let config: Configuration = toml::from_slice(config).inspect(|val| {
+        tracing::info!("{:#?}", val);
+    })?;
 
     tracing::trace!("Deserialized toml: {:#?}", config);
 
-    config
+    Ok(config)
 }
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use crate::topography::config::from_toml;
@@ -185,7 +191,7 @@ mod test {
             schema = "customer"
             "#;
 
-        let config = from_toml(example_config.as_bytes());
+        let config = from_toml(example_config.as_bytes()).unwrap();
 
         // Assert entire struct equality with inline expected values
         assert_eq!(
@@ -244,31 +250,31 @@ mod test {
         );
 
         // Assert individual fields
-        let config_streams = config.streams?;
-        let config_schema = config.schema?;
+        let config_streams = config.streams.unwrap();
+        let config_schema = config.schema.unwrap();
         assert_eq!(
             config_streams.len(),
             2,
             "Should have two stream definitions"
         );
         assert_eq!(
-            config_streams.get("customer")?.partition_key,
+            config_streams.get("customer").unwrap().partition_key,
             "id",
             "Customer stream partition key should be id"
         );
         assert_eq!(
-            config_streams.get("customer")?.stream_type,
+            config_streams.get("customer").unwrap().stream_type,
             Some("reduce".to_string()),
             "Customer stream type should be reduce"
         );
         assert_eq!(
-            config_streams.get("update_customer")?.base,
+            config_streams.get("update_customer").unwrap().base,
             None,
             "Update_customer stream base should be None"
         );
         assert_eq!(config_schema.len(), 2, "Should have two schema definitions");
         assert_eq!(
-            config_schema.get("customer")?.get("age")?,
+            config_schema.get("customer").unwrap().get("age").unwrap(),
             "int32",
             "Customer schema age field should be int32"
         );
@@ -328,7 +334,7 @@ mod test {
             province = "address.province"
             "#;
 
-        let config = from_toml(example_config.as_bytes());
+        let config = from_toml(example_config.as_bytes()).unwrap();
 
         // Define the expected Configuration struct
         let expected = Configuration {
@@ -437,8 +443,8 @@ mod test {
         );
 
         assert_eq!(config.schema, expected.schema);
-        let config_streams = config.streams?;
-        let expected_streams = expected.streams?;
+        let config_streams = config.streams.unwrap();
+        let expected_streams = expected.streams.unwrap();
 
         assert_eq!(
             config_streams.get("address"),
@@ -465,7 +471,7 @@ mod test {
             aws_region = "EU_WEST_1"
             "#;
 
-        let config = from_toml(example_config.as_bytes());
+        let config = from_toml(example_config.as_bytes()).unwrap();
 
         dbg!(&config);
 
@@ -526,7 +532,7 @@ mod test {
             }
             "#;
 
-        let config = from_toml(example_config.as_bytes());
+        let config = from_toml(example_config.as_bytes()).unwrap();
 
         // Define the expected Configuration struct
         let expected = Configuration {
@@ -593,8 +599,8 @@ mod test {
         assert_eq!(config, expected,);
 
         assert_eq!(config.schema, expected.schema);
-        let config_streams = config.streams?;
-        let expected_streams = expected.streams?;
+        let config_streams = config.streams.unwrap();
+        let expected_streams = expected.streams.unwrap();
 
         assert_eq!(
             config_streams.get("address"),

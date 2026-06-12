@@ -192,14 +192,32 @@ impl IndexFile {
     /// Unsafe: Ideally this should only be available to JoinIndex/completed value
     /// type indexes. Perhaps a refactor will do to make this a little better.
     pub fn binary_search_completed(&mut self) -> CompletedBinarySearchResult {
-        let file_size = self.len()?;
+        let file_size = match self.len() {
+            Ok(l) => l,
+            Err(err) => {
+                tracing::error!(
+                    "Error returned when attempting to retrieve file length: {:#?}",
+                    err
+                );
+                return CompletedBinarySearchResult::None;
+            }
+        };
 
         // Logic to handle 0..1 indexes.
         match file_size {
             0 => return CompletedBinarySearchResult::All,
             1 => {
                 let mut buffer = vec![0_u8; self.element_size];
-                self.read_at(0, &mut buffer)?;
+                match self.read_at(0, &mut buffer) {
+                    Ok(l) => l,
+                    Err(err) => {
+                        tracing::error!(
+                            "Error returned when attempting to retrieve file length: {:#?}",
+                            err
+                        );
+                        return CompletedBinarySearchResult::None;
+                    }
+                };
                 let index = JoinedIndex::of(&buffer);
                 if index.completed() {
                     return CompletedBinarySearchResult::All;
@@ -271,7 +289,8 @@ impl IndexFile {
     #[cfg(test)]
     pub fn read_contents(&mut self) -> Vec<u8> {
         let mut result = vec![];
-        self.file_handle.read_to_end(&mut result)?;
+        #[allow(clippy::unwrap_used)]
+        self.file_handle.read_to_end(&mut result).unwrap();
         result
     }
 }
@@ -370,6 +389,7 @@ impl<'a> ReverseIndexFileShard<'a> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use uuid::Uuid;
 
     use super::*;
@@ -393,13 +413,13 @@ mod tests {
     fn new_creates_empty_file_when_not_exists() {
         let path = new_file();
 
-        let file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         assert_eq!(file.element_size, DefaultIndex::size_of());
         assert_eq!(file.index_type, IndexType::Default);
         assert_eq!(file.as_slice().len(), 0);
 
-        fs::remove_file(path)?;
+        fs::remove_file(path).unwrap();
     }
 
     #[test]
@@ -407,11 +427,12 @@ mod tests {
         let path = new_file();
 
         if path.exists() {
-            fs::remove_file(&path)?;
+            fs::remove_file(&path).unwrap();
         }
 
         let result = catch_unwind(|| {
-            let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+            let mut file =
+                IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
             let mut bytes = [0_u8; DefaultIndex::size_of()];
 
@@ -422,15 +443,16 @@ mod tests {
                 1,
                 1,
                 &mut bytes,
-            )?;
+            )
+            .unwrap();
 
-            file.try_range_put_at(0..1, &mut bytes)?;
+            file.try_range_put_at(0..1, &mut bytes).unwrap();
 
-            assert_eq!(file.len()?, 1);
+            assert_eq!(file.len().unwrap(), 1);
 
-            file.try_range_put_at(1..2, &mut bytes)?;
+            file.try_range_put_at(1..2, &mut bytes).unwrap();
 
-            assert_eq!(file.len()?, 2);
+            assert_eq!(file.len().unwrap(), 2);
 
             assert!(matches!(
                 file.try_range_put_at(1..2, &mut bytes),
@@ -438,16 +460,16 @@ mod tests {
             ));
         });
 
-        fs::remove_file(path)?;
+        fs::remove_file(path).unwrap();
 
-        result?;
+        result.unwrap();
     }
 
     #[test]
     fn append_grows_file_and_remaps() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
@@ -458,34 +480,35 @@ mod tests {
             1,
             100,
             &mut val,
-        )?;
+        )
+        .unwrap();
 
-        file.append(&val)?;
+        file.append(&val).unwrap();
 
         assert_eq!(file.as_view().count(), 1);
 
-        assert_eq!(file.as_view().get(0)?, val);
+        assert_eq!(file.as_view().get(0).unwrap(), val);
 
-        file.append(&val)?;
+        file.append(&val).unwrap();
 
         assert_eq!(file.as_view().count(), 2);
 
-        assert_eq!(file.as_view().get(1)?, val);
+        assert_eq!(file.as_view().get(1).unwrap(), val);
 
-        file.append(&val)?;
+        file.append(&val).unwrap();
 
         assert_eq!(file.as_view().count(), 3);
 
-        assert_eq!(file.as_view().get(2)?, val);
+        assert_eq!(file.as_view().get(2).unwrap(), val);
 
-        fs::remove_file(path)?;
+        fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn put_at_works_correctly() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
@@ -497,14 +520,15 @@ mod tests {
                 1,
                 100,
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
-        file.read_at(0, &mut buffer)?;
+        file.read_at(0, &mut buffer).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of() * 3];
 
@@ -519,18 +543,21 @@ mod tests {
                 12,
                 142,
                 &mut val[start..end],
-            )?;
+            )
+            .unwrap();
         }
 
-        let length = file.len()?;
+        let length = file.len().unwrap();
 
-        let _ = file.range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)?;
+        let _ = file
+            .range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
+            .unwrap();
 
-        assert_eq!(file.len()?, length);
+        assert_eq!(file.len().unwrap(), length);
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
-        file.read_at(0, &mut buffer)?;
+        file.read_at(0, &mut buffer).unwrap();
 
         let start = 1 * DefaultIndex::size_of();
         let end = 4 * DefaultIndex::size_of();
@@ -548,7 +575,7 @@ mod tests {
     fn read_at_works_correctly() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
@@ -560,14 +587,15 @@ mod tests {
                 1,
                 100,
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
 
-        file.read_at(40, &mut buffer)?;
+        file.read_at(40, &mut buffer).unwrap();
 
         const DEFAULT_INDEX_SIZE: usize = DefaultIndex::size_of();
 
@@ -589,7 +617,7 @@ mod tests {
 
         let index_size = JoinedIndex::size_of(2);
 
-        let mut file = IndexFile::new(&path, index_size, IndexType::Join)?;
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
 
         let mut val = vec![0; index_size];
 
@@ -600,13 +628,14 @@ mod tests {
                 1,
                 &[Some(1), Some(1)],
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
             if i < 50 {
                 JoinedIndex::set_completed(&mut val);
             }
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let index = file.binary_search_completed();
@@ -620,7 +649,7 @@ mod tests {
 
         let index_size = JoinedIndex::size_of(2);
 
-        let mut file = IndexFile::new(&path, index_size, IndexType::Join)?;
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
 
         let mut val = vec![0; index_size];
 
@@ -631,9 +660,10 @@ mod tests {
                 1,
                 &[Some(1), Some(1)],
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let index = file.binary_search_completed();
@@ -647,7 +677,7 @@ mod tests {
 
         let index_size = JoinedIndex::size_of(2);
 
-        let mut file = IndexFile::new(&path, index_size, IndexType::Join)?;
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
 
         let mut val = vec![0; index_size];
 
@@ -658,11 +688,12 @@ mod tests {
                 1,
                 &[Some(1), Some(1)],
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
             JoinedIndex::set_completed(&mut val);
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let index = file.binary_search_completed();
@@ -674,7 +705,7 @@ mod tests {
     fn can_fold_from_specified_index() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
@@ -686,9 +717,10 @@ mod tests {
                 1,
                 100,
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let mut buffer = vec![0_u8; DefaultIndex::size_of() * 10];
@@ -717,7 +749,7 @@ mod tests {
 
         let index_size = JoinedIndex::size_of(2);
 
-        let mut file = IndexFile::new(&path, index_size, IndexType::Join)?;
+        let mut file = IndexFile::new(&path, index_size, IndexType::Join).unwrap();
 
         let index = file.binary_search_completed();
 
@@ -731,9 +763,10 @@ mod tests {
             1,
             &[Some(1), Some(1)],
             &mut val,
-        )?;
+        )
+        .unwrap();
 
-        file.append(&val)?;
+        file.append(&val).unwrap();
 
         let index = file.binary_search_completed();
 
@@ -741,7 +774,7 @@ mod tests {
 
         JoinedIndex::set_completed(&mut val);
 
-        file.put_at(0, &mut val)?;
+        file.put_at(0, &mut val).unwrap();
 
         let index = file.binary_search_completed();
 
@@ -752,7 +785,7 @@ mod tests {
     fn test_file_sharding_works() {
         let path = new_file();
 
-        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default)?;
+        let mut file = IndexFile::new(&path, DefaultIndex::size_of(), IndexType::Default).unwrap();
 
         let mut val = vec![0; DefaultIndex::size_of()];
 
@@ -764,9 +797,10 @@ mod tests {
                 1,
                 i * 2,
                 &mut val,
-            )?;
+            )
+            .unwrap();
 
-            file.append(&val)?;
+            file.append(&val).unwrap();
         }
 
         let mut val = vec![0; DefaultIndex::size_of() * 3];

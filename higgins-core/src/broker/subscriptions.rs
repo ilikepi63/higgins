@@ -108,7 +108,7 @@ impl Broker {
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)?));
         let notify = Arc::new(Notify::new());
 
         // How do we get the list of partitions for a stream?
@@ -127,14 +127,14 @@ impl Broker {
     pub fn create_non_reactive_subscription(
         &mut self,
         stream: &StreamName,
-    ) -> (SubscriptionId, Arc<RwLock<Subscription>>) {
+    ) -> Result<(SubscriptionId, Arc<RwLock<Subscription>>), HigginsError> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)?));
 
         let sub = SubscriptionId::from(uuid.as_bytes().to_vec());
 
@@ -152,7 +152,7 @@ impl Broker {
             }
         }
 
-        (sub, subscription)
+        Ok((sub, subscription))
     }
 
     /// A function to extract the current subscription indexes from the
@@ -263,7 +263,14 @@ impl Broker {
                                     results
                                 };
 
-                                write_offsets_to_client(consumption, client_ref.clone()).await;
+                                if let Err(err) =
+                                    write_offsets_to_client(consumption, client_ref.clone()).await
+                                {
+                                    tracing::error!(
+                                        "Error occurred when trying to write offsets to client: {:#?}",
+                                        err
+                                    );
+                                };
                             }
                         };
 
@@ -342,6 +349,7 @@ pub async fn write_offsets_to_client(
 #[cfg(test)]
 mod tests {
 
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use bytes::BytesMut;
     use higgins_shared::write_arrow;
@@ -375,7 +383,7 @@ mod tests {
         ];
 
         // Run the function under test
-        write_offsets_to_client(payloads, tx).await;
+        write_offsets_to_client(payloads, tx).await.unwrap();
 
         // Collect sent messages
         let mut sent = vec![];

@@ -7,5 +7,6 @@ pub fn get_random_port() -> u16 {
             min: 2000,
             max: 25000,
         },
-    )?
+    )
+    .unwrap()
 }

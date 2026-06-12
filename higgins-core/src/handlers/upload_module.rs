@@ -27,7 +27,7 @@ pub async fn handle_upload_module(
         .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     broker_lock.wasm_modules.push((name.to_owned(), module));
-    broker_lock.functions.put_function(&name, value).await;
+    broker_lock.functions.put_function(&name, value).await?;
 
     let mut result = BytesMut::new();
 

@@ -1,3 +1,6 @@
+//! Module for holding some test utilities. Only available on tests with the cfg(test) flag set.
+
+#![allow(clippy::unwrap_used)]
 use colored::Color;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -25,9 +28,9 @@ pub fn print_bytes_coloured(bytes: &[u8], colours: &mut [Interval]) {
 
     // ensure that the intervals don't overlap.
     for window in colours.windows(3) {
-        let first = window.first()?;
-        let second = window.get(1)?;
-        let third = window.get(2)?;
+        let first = window.first().unwrap();
+        let second = window.get(1).unwrap();
+        let third = window.get(2).unwrap();
 
         assert!(first.0.1 <= second.0.0);
         assert!(second.0.1 <= third.0.0);
@@ -40,7 +43,7 @@ pub fn print_bytes_coloured(bytes: &[u8], colours: &mut [Interval]) {
     for colour in colours {
         // For each colour, we want to iterate over the bytes basically
         while i < colour.0.0 {
-            println!(" {}", bytes.get(i)?);
+            println!(" {}", bytes.get(i).unwrap());
             i += 1;
         }
 
@@ -48,13 +51,17 @@ pub fn print_bytes_coloured(bytes: &[u8], colours: &mut [Interval]) {
             if i == colour.0.0 {
                 println!(
                     " {} {}",
-                    format!("{}", bytes.get(i)?).to_string().color(colour.1),
+                    format!("{}", bytes.get(i).unwrap())
+                        .to_string()
+                        .color(colour.1),
                     colour.2
                 );
             } else {
                 println!(
                     " {}",
-                    format!("{}", bytes.get(i)?).to_string().color(colour.1)
+                    format!("{}", bytes.get(i).unwrap())
+                        .to_string()
+                        .color(colour.1)
                 );
             }
 
@@ -63,7 +70,7 @@ pub fn print_bytes_coloured(bytes: &[u8], colours: &mut [Interval]) {
     }
 
     while i < bytes.len() {
-        println!(" {}", bytes.get(i)?);
+        println!(" {}", bytes.get(i).unwrap());
         i += 1;
     }
 
