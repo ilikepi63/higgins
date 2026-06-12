@@ -19,8 +19,7 @@ async fn can_write_multiple_produce_requests() {
             min: 2000,
             max: 25000,
         },
-    )
-    .unwrap();
+    )?;
 
     tracing::info!("Running on port: {port}");
 
@@ -42,9 +41,7 @@ async fn can_write_multiple_produce_requests() {
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}"))
-        .await
-        .unwrap();
+    let mut socket = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
 
     // 1. Do a basic Ping test.
     let ping = Ping::default();
@@ -54,31 +51,27 @@ async fn can_write_multiple_produce_requests() {
         ping: Some(ping),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
     tracing::info!("Writing: {:#?}", write_buf);
 
-    socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await?;
 
-    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf))
-        .await
-        .unwrap()
-        .unwrap();
+    let n = tokio::time::timeout(Duration::from_secs(5), socket.read(&mut read_buf)).await??;
 
     assert_ne!(n, 0);
 
     let slice = &read_buf[0..n];
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    match Type::try_from(message.r#type).unwrap() {
+    match Type::try_from(message.r#type)? {
         Type::Pong => {}
         _ => panic!("Received incorrect response from server for ping request."),
     }
 
     // Upload a basic configuration with one stream.
-    let config = std::fs::read_to_string("tests/configs/basic_config.toml").unwrap();
+    let config = std::fs::read_to_string("tests/configs/basic_config.toml")?;
 
     let create_config_req = CreateConfigurationRequest {
         data: config.into_bytes(),
@@ -89,23 +82,19 @@ async fn can_write_multiple_produce_requests() {
         create_configuration_request: Some(create_config_req),
         ..Default::default()
     }
-    .encode(&mut write_buf)
-    .unwrap();
+    .encode(&mut write_buf)?;
 
-    socket.write_all(&write_buf).await.unwrap();
+    socket.write_all(&write_buf).await?;
 
-    let n = tokio::time::timeout(Duration::from_secs(1), socket.read(&mut read_buf))
-        .await
-        .unwrap()
-        .unwrap();
+    let n = tokio::time::timeout(Duration::from_secs(1), socket.read(&mut read_buf)).await??;
 
     assert_ne!(n, 0);
 
     let slice = &read_buf[0..n];
 
-    let message = Message::decode(slice).unwrap();
+    let message = Message::decode(slice)?;
 
-    match Type::try_from(message.r#type).unwrap() {
+    match Type::try_from(message.r#type)? {
         Type::Createconfigurationresponse => {
             tracing::info!("Received response from server for configuration request.")
         }
@@ -113,7 +102,7 @@ async fn can_write_multiple_produce_requests() {
     }
 
     // Produce to the stream.
-    let payload = std::fs::read_to_string("tests/customer.json").unwrap();
+    let payload = std::fs::read_to_string("tests/customer.json")?;
 
     for _ in 1..100 {
         let produce_request = ProduceRequest {
@@ -130,23 +119,19 @@ async fn can_write_multiple_produce_requests() {
             produce_request: Some(produce_request),
             ..Default::default()
         }
-        .encode(&mut write_buf)
-        .unwrap();
+        .encode(&mut write_buf)?;
 
-        socket.write_all(&write_buf).await.unwrap();
+        socket.write_all(&write_buf).await?;
 
-        let n = tokio::time::timeout(Duration::from_secs(1), socket.read(&mut read_buf))
-            .await
-            .unwrap()
-            .unwrap();
+        let n = tokio::time::timeout(Duration::from_secs(1), socket.read(&mut read_buf)).await??;
 
         assert_ne!(n, 0);
 
         let slice = &read_buf[0..n];
 
-        let message = Message::decode(slice).unwrap();
+        let message = Message::decode(slice)?;
 
-        match Type::try_from(message.r#type).unwrap() {
+        match Type::try_from(message.r#type)? {
             Type::Produceresponse => {
                 let message = message.produce_response;
 
@@ -158,5 +143,5 @@ async fn can_write_multiple_produce_requests() {
 
     handle.abort();
 
-    std::fs::remove_dir_all(dir_remove).unwrap();
+    std::fs::remove_dir_all(dir_remove)?;
 }

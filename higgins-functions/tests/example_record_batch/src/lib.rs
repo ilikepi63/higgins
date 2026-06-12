@@ -2,7 +2,7 @@ use higgins_functions::{FFIRecordBatch, record_batch_from_ffi, record_batch_to_f
 
 #[unsafe(no_mangle)]
 pub unsafe fn _malloc(len: u32) -> *mut u8 {
-    let mut buf = Vec::with_capacity(len.try_into().unwrap());
+    let mut buf = Vec::with_capacity(len.try_into()?);
     let ptr = buf.as_mut_ptr();
     std::mem::forget(buf);
     ptr

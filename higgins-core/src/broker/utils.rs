@@ -2,7 +2,7 @@
 
 use crate::broker::Broker;
 use arrow::record_batch::RecordBatch;
-use higgins_shared::read_arrow;
+use higgins_shared::{HigginsError, read_arrow};
 use higgins_shared::{PartitionName, StreamName};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -13,7 +13,7 @@ pub async fn get_arrow_data_at(
     partition: &PartitionName,
     offset: u64,
     broker: Arc<RwLock<Broker>>,
-) -> RecordBatch {
+) -> Result<RecordBatch, HigginsError> {
     let mut broker_lock = broker.write().await;
     tracing::trace!("[FOURTH HANDLE] We have successfully locked the broker. ");
 
@@ -25,9 +25,10 @@ pub async fn get_arrow_data_at(
                 "Retrieved an error when trying to unwrap this value: {:#?}",
                 err
             )
-        })
-        .unwrap()
-        .unwrap();
+        })?
+        .ok_or(HigginsError::Arbitrary(
+            "Couldn't get data at stream.".to_string(),
+        ))?;
 
     tracing::trace!("[FOURTH HANDLE] We are dropping the broker. ");
     drop(broker_lock); // Explicitly drop the lock here.
@@ -39,5 +40,10 @@ pub async fn get_arrow_data_at(
 
     // Retrieve the first record, as there should be only one record.
 
-    read_arrow(&data).next().and_then(|r| r.ok()).unwrap()
+    read_arrow(&data)?
+        .next()
+        .and_then(|r| r.ok())
+        .ok_or(HigginsError::Arbitrary(
+            "Couldn't get data at stream.".to_string(),
+        ))
 }

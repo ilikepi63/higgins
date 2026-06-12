@@ -42,7 +42,6 @@ impl TryFrom<(StreamName, StreamDefinition, &Broker)> for JoinDefinition {
                     broker
                         .get_topography_stream(&stream_name)
                         .map(JoinWithStream::from)
-                        .ok_or(TopographyError::JoinStreamDoesNotExist)
                 })
             })
             .ok_or(TopographyError::NoJoinsInJoinDefinition)?
@@ -79,7 +78,6 @@ impl TryFrom<(StreamName, StreamDefinition, &mut Broker)> for JoinDefinition {
                     broker
                         .get_topography_stream(&stream_name)
                         .map(JoinWithStream::from)
-                        .ok_or(TopographyError::JoinStreamDoesNotExist)
                 })
             })
             .ok_or(TopographyError::NoJoinsInJoinDefinition)?

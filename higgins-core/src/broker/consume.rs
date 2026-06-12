@@ -26,16 +26,15 @@ impl Broker {
         partition: &PartitionName,
         offset: u64,
         _max_partition_fetch_bytes: u32,
-    ) -> Vec<Result<Vec<u8>, HigginsError>> {
+    ) -> Result<Vec<Result<Vec<u8>, HigginsError>>, HigginsError> {
         let indexes = self.indexes.clone();
 
         let stream_definition = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .cloned()
-            .unwrap();
+            .get_stream_definition_by_key(stream.clone())?
+            .clone();
 
-        let index_type = IndexType::try_from(&stream_definition).unwrap();
+        let index_type = IndexType::try_from(&stream_definition)?;
 
         let batch_responses = indexes
             .find_batches(
@@ -48,7 +47,7 @@ impl Broker {
                 &index_type,
                 &stream_definition,
             )
-            .await;
+            .await?;
 
         let mut result = vec![];
         for index in batch_responses {
@@ -56,18 +55,17 @@ impl Broker {
                 .push(dereference(index, stream_definition.clone(), partition.clone(), self).await);
         }
 
-        result
+        Ok(result)
     }
     pub async fn get_by_timestamp(
         &mut self,
         stream: &StreamName,
         partition: &PartitionName,
         timestamp: u64,
-    ) -> Option<ConsumeResponse> {
+    ) -> Result<ConsumeResponse, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .unwrap();
+            .get_stream_definition_by_key(stream.clone())?;
 
         let find_batch_responses = self
             .indexes
@@ -75,15 +73,15 @@ impl Broker {
                 stream.clone(),
                 partition,
                 timestamp,
-                IndexType::try_from(stream_def).unwrap(),
+                IndexType::try_from(stream_def)?,
             )
-            .await;
+            .await?;
 
         self.dereference_find_batch_responses(find_batch_responses)
-            .await
-            .unwrap()
+            .await?
             .recv()
             .await
+            .ok_or(HigginsError::NullDereferenceError)
     }
 
     pub async fn get_latest(
@@ -98,15 +96,14 @@ impl Broker {
         );
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .unwrap();
+            .get_stream_definition_by_key(stream.clone())?;
 
         let index = self
             .indexes
             .get_latest_offset(
                 stream.clone(),
                 partition,
-                &IndexType::try_from(stream_def).unwrap(),
+                &IndexType::try_from(stream_def)?,
                 stream_def,
             )
             .await?;
@@ -128,8 +125,7 @@ impl Broker {
     ) -> Result<Vec<Option<Vec<u8>>>, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .unwrap()
+            .get_stream_definition_by_key(stream.clone())?
             .clone();
 
         tracing::debug!("Stream def: {:#?}", stream_def);
@@ -140,7 +136,7 @@ impl Broker {
                 stream.clone(),
                 partition,
                 offset,
-                IndexType::try_from(&stream_def.clone()).unwrap(),
+                IndexType::try_from(&stream_def.clone())?,
                 &stream_def.clone(),
             )
             .await?;
@@ -176,14 +172,10 @@ impl Broker {
     ) -> Result<Option<Vec<u8>>, HigginsError> {
         let stream_def = self
             .topography
-            .get_stream_definition_by_key(stream.clone())
-            .unwrap();
+            .get_stream_definition_by_key(stream.clone())?;
 
         tracing::debug!("Stream def: {:#?}", stream_def);
-        tracing::debug!(
-            "index type: {:#?}",
-            IndexType::try_from(stream_def).unwrap(),
-        );
+        tracing::debug!("index type: {:#?}", IndexType::try_from(stream_def)?,);
 
         let index = self
             .indexes
@@ -191,7 +183,7 @@ impl Broker {
                 stream.clone(),
                 partition,
                 offset,
-                IndexType::try_from(stream_def).unwrap(),
+                IndexType::try_from(stream_def)?,
                 stream_def,
             )
             .await
@@ -299,7 +291,7 @@ impl Broker {
                 } else {
                     tracing::trace!("No ConsumeBatches found for query.");
                 };
-            }).unwrap();
+            })?;
         }
 
         Ok(batch_reponse_rx)

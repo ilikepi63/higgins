@@ -77,8 +77,7 @@ impl IndexFile {
         bytes: &mut [u8],
     ) -> Result<(), IndexError> {
         // Normalize the buffer, so that you can write the entirety of it.
-        let buffer_to_put =
-            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+        let buffer_to_put = &bytes[0..(offset.end - offset.start) * self.element_size];
 
         if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
@@ -116,8 +115,7 @@ impl IndexFile {
         }
 
         // Normalize the buffer, so that you can write the entirety of it.
-        let buffer_to_put =
-            &bytes[(offset.start - offset.start)..(offset.end - offset.start) * self.element_size];
+        let buffer_to_put = &bytes[0..(offset.end - offset.start) * self.element_size];
 
         if buffer_to_put.len() != (offset.end - offset.start) * self.element_size {
             return Err(IndexError::PutIndexOutOfRange);
@@ -145,6 +143,7 @@ impl IndexFile {
     }
 
     /// Retrieves the length of this index file in indexes.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Result<usize, IndexError> {
         Ok(self.file_handle.metadata()?.size() as usize / self.element_size)
     }
@@ -192,14 +191,32 @@ impl IndexFile {
     /// Unsafe: Ideally this should only be available to JoinIndex/completed value
     /// type indexes. Perhaps a refactor will do to make this a little better.
     pub fn binary_search_completed(&mut self) -> CompletedBinarySearchResult {
-        let file_size = self.len().unwrap();
+        let file_size = match self.len() {
+            Ok(l) => l,
+            Err(err) => {
+                tracing::error!(
+                    "Error returned when attempting to retrieve file length: {:#?}",
+                    err
+                );
+                return CompletedBinarySearchResult::None;
+            }
+        };
 
         // Logic to handle 0..1 indexes.
         match file_size {
             0 => return CompletedBinarySearchResult::All,
             1 => {
                 let mut buffer = vec![0_u8; self.element_size];
-                self.read_at(0, &mut buffer).unwrap();
+                match self.read_at(0, &mut buffer) {
+                    Ok(l) => l,
+                    Err(err) => {
+                        tracing::error!(
+                            "Error returned when attempting to retrieve file length: {:#?}",
+                            err
+                        );
+                        return CompletedBinarySearchResult::None;
+                    }
+                };
                 let index = JoinedIndex::of(&buffer);
                 if index.completed() {
                     return CompletedBinarySearchResult::All;
@@ -271,6 +288,7 @@ impl IndexFile {
     #[cfg(test)]
     pub fn read_contents(&mut self) -> Vec<u8> {
         let mut result = vec![];
+        #[allow(clippy::unwrap_used)]
         self.file_handle.read_to_end(&mut result).unwrap();
         result
     }
@@ -370,6 +388,7 @@ impl<'a> ReverseIndexFileShard<'a> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use uuid::Uuid;
 
     use super::*;
@@ -529,8 +548,7 @@ mod tests {
 
         let length = file.len().unwrap();
 
-        let _ = file
-            .range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
+        file.range_put_at(std::ops::Range { start: 1, end: 4 }, &mut val)
             .unwrap();
 
         assert_eq!(file.len().unwrap(), length);
@@ -539,7 +557,7 @@ mod tests {
 
         file.read_at(0, &mut buffer).unwrap();
 
-        let start = 1 * DefaultIndex::size_of();
+        let start = DefaultIndex::size_of();
         let end = 4 * DefaultIndex::size_of();
 
         for chunk in buffer[start..end].chunks(DefaultIndex::size_of()) {
@@ -708,15 +726,12 @@ mod tests {
         let mut shard = file.shard(0..50);
 
         while let Some(range) = shard.next(&mut buffer) {
-            let mut i = 0;
-            for val in range {
+            for (i, val) in range.enumerate() {
                 let index = i * DefaultIndex::size_of();
 
                 let end = index + DefaultIndex::size_of();
 
                 let index = DefaultIndex::of(&buffer[index..end]);
-
-                i += 1;
 
                 assert_eq!(val as u64, index.offset());
             }

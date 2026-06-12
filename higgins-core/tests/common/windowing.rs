@@ -89,6 +89,7 @@ pub fn basic_windowing() {
                 // assert_eq!(record.stream, WINDOWED_STREAM.as_bytes());
 
                 let arrow = read_arrow(&record.data)
+                    .unwrap()
                     .next()
                     .unwrap()
                     .inspect_err(|err| {
@@ -138,6 +139,7 @@ pub fn basic_windowing() {
                 // assert_eq!(record.stream, WINDOWED_STREAM.as_bytes());
 
                 let arrow = read_arrow(&record.data)
+                    .unwrap()
                     .next()
                     .unwrap()
                     .inspect_err(|err| {

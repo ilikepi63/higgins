@@ -32,7 +32,7 @@ impl<'a> WindowedIndexFile<'a> {
         ranges.sort_by(|a, b| a.0.clone().cmp(b.0.clone())); // TODO: There is probably a more sensible way than a clone here.
 
         // Find the current first range. Ranges should always be sorted.
-        let first_range = ranges.first().unwrap().0.clone(); // TODO: unwrap not necessary here, should always exist
+        let first_range = ranges.first().ok_or(IndexError::Infallible)?.0.clone(); // TODO: unwrap not necessary here, should always exist
 
         let offset = self.index_of_range_rev(first_range).unwrap_or(0);
 
@@ -40,14 +40,12 @@ impl<'a> WindowedIndexFile<'a> {
 
         // Pull the first offset from the file, this will then be aggregated into the first range of
         // the put range.
-        if self.0.len().unwrap() > 0 {
+        if self.0.len()? > 0 {
             let mut first_range_buffer = vec![0_u8; WindowedIndex::size_of()];
 
-            self.0
-                .read_at(offset as usize, &mut first_range_buffer)
-                .unwrap();
+            self.0.read_at(offset as usize, &mut first_range_buffer)?;
             let index = WindowedIndex::of(&first_range_buffer);
-            let first_current_range = ranges.first_mut().unwrap();
+            let first_current_range = ranges.first_mut().ok_or(IndexError::Infallible)?;
 
             if index.inclusive_range() == first_current_range.0 {
                 first_current_range.1.start = index.derivative_range().start;
@@ -111,6 +109,9 @@ impl<'a> WindowedIndexFile<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::storage::index::{
         IndexFile, IndexType, file::windowed_index_file::WindowedIndexFile,

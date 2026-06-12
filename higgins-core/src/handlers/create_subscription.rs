@@ -4,7 +4,7 @@ use bytes::BytesMut;
 use higgins_codec::{
     CreateSubscriptionRequest, CreateSubscriptionResponse, Message, message::Type,
 };
-use higgins_shared::StreamName;
+use higgins_shared::{HigginsError, StreamName};
 use prost::Message as _;
 use tokio::sync::RwLock;
 
@@ -15,20 +15,21 @@ pub async fn handle_create_subscription(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     tracing::trace!(
         "Received CreateSubscriptionRequest: {:#?}",
         message.create_subscription_request
     );
 
-    let CreateSubscriptionRequest { stream_name, .. } =
-        message.create_subscription_request.unwrap();
+    let CreateSubscriptionRequest { stream_name, .. } = message
+        .create_subscription_request
+        .ok_or(HigginsError::MissingPayload)?;
 
     let stream_name = StreamName::from(stream_name);
 
     let mut broker = broker.write().await;
 
-    let subscription_id = broker.create_subscription(&stream_name);
+    let subscription_id = broker.create_subscription(&stream_name)?;
 
     let resp = CreateSubscriptionResponse {
         errors: vec![],
@@ -43,8 +44,12 @@ pub async fn handle_create_subscription(
         create_subscription_response: Some(resp),
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx
+        .send(result)
+        .await
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
+
+    Ok(())
 }

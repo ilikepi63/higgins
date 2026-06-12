@@ -40,6 +40,7 @@ impl<T> UniqueCollection<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     fn dummy() -> Vec<u8> {

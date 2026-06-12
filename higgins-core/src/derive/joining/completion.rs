@@ -17,7 +17,7 @@ pub fn complete_from(
         match (offset, completed_offset) {
             (None, Some(value)) => {
                 // Update the offset with the value from the above vec.
-                JoinedIndex::put_offset(index, i, value).unwrap();
+                JoinedIndex::put_offset(index, i, value)?;
             }
             _ => {
                 // no op -> leave the current joined index as is.

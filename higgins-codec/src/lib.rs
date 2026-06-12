@@ -2,7 +2,7 @@ mod codec {
     include!(concat!(env!("OUT_DIR"), "/higgins.rs"));
 }
 
-pub use codec::*; // TODO: everything visible in codec here? 
+pub use codec::*; // TODO: everything visible in codec here?
 pub mod errors;
 pub mod frame;
 
@@ -15,10 +15,7 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn can_serde_correctly() {
-        // Send a ping command to the server;
-
+    fn test_serde() -> Result<(), errors::HigginsCodecError> {
         let mut buf = Vec::new();
 
         let ping = Ping::default();
@@ -31,11 +28,20 @@ mod test {
 
         buf.reserve(message.encoded_len());
 
-        message.encode(&mut buf).unwrap();
+        message.encode(&mut buf)?;
 
-        let decode = Message::decode(buf.as_ref()).unwrap();
+        let decode = Message::decode(buf.as_ref())?;
 
         assert_eq!(decode.r#type, Type::Ping as i32);
         assert!(decode.ping.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn can_serde_correctly() {
+        // Send a ping command to the server;
+
+        #[allow(clippy::expect_used)]
+        test_serde().expect("Failed serde test.");
     }
 }

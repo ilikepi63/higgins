@@ -28,6 +28,11 @@ impl PartitionName {
         Some(cstr.to_str().ok()?.to_string())
     }
 
+    /// Equality comparison between bytes and these inner bytes.
+    pub fn eq_bytes(&self, bytes: &[u8]) -> bool {
+        self.0.iter().eq(bytes)
+    }
+
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
@@ -73,6 +78,7 @@ pub enum PartitionNameError {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

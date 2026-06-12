@@ -1,3 +1,5 @@
+use higgins_shared::{HigginsError, IndexError};
+
 use crate::storage::dereference::Reference;
 use std::{fmt::Debug, ops::Range};
 
@@ -60,40 +62,51 @@ impl<'a> WindowedIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(
-            self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
-                .try_into()
-                .unwrap(),
-        )
+        match <[u8; 8]>::try_from(&self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+
+        // u64::from_be_bytes(self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()].try_into()?)
     }
 
     /// Retrieve the reference of this Index.
-    pub fn reference(&self) -> Reference {
+    pub fn reference(&self) -> Result<Reference, HigginsError> {
         Reference::from_bytes(&self.0[REFERENCE_INDEX..REFERENCE_INDEX + Reference::size_of()])
     }
 
     /// Update the reference for this.
-    pub fn put_reference(&mut self, reference: Reference) -> Vec<u8> {
+    pub fn put_reference(&mut self, reference: Reference) -> Result<Vec<u8>, IndexError> {
         let mut cloned = self.0.to_vec();
-        reference
-            .to_bytes(&mut cloned[REFERENCE_INDEX..REFERENCE_INDEX + Reference::size_of()])
-            .unwrap();
+        reference.to_bytes(&mut cloned[REFERENCE_INDEX..REFERENCE_INDEX + Reference::size_of()])?;
 
-        cloned
+        Ok(cloned)
     }
 
     pub fn inclusive_range(&self) -> Range<u64> {
-        let start = u64::from_be_bytes(
-            self.0[INCLUSIVE_RANGE_OFFSET..INCLUSIVE_RANGE_OFFSET + size_of::<u64>()]
-                .try_into()
-                .unwrap(),
-        );
-        let end = u64::from_be_bytes(
-            self.0[INCLUSIVE_RANGE_OFFSET + size_of::<u64>()
-                ..INCLUSIVE_RANGE_OFFSET + size_of::<u64>() * 2]
-                .try_into()
-                .unwrap(),
-        );
+        let start = match <[u8; 8]>::try_from(
+            &self.0[INCLUSIVE_RANGE_OFFSET..INCLUSIVE_RANGE_OFFSET + size_of::<u64>()],
+        ) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        };
+
+        let end = match <[u8; 8]>::try_from(
+            &self.0[INCLUSIVE_RANGE_OFFSET + size_of::<u64>()
+                ..INCLUSIVE_RANGE_OFFSET + size_of::<u64>() * 2],
+        ) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        };
+
+        // let start = u64::from_be_bytes(
+        //     self.0[INCLUSIVE_RANGE_OFFSET..INCLUSIVE_RANGE_OFFSET + size_of::<u64>()].try_into()?,
+        // );
+        // let end = u64::from_be_bytes(
+        //     self.0[INCLUSIVE_RANGE_OFFSET + size_of::<u64>()
+        //         ..INCLUSIVE_RANGE_OFFSET + size_of::<u64>() * 2]
+        //         .try_into()?,
+        // );
         start..end
     }
 
@@ -106,17 +119,30 @@ impl<'a> WindowedIndex<'a> {
     }
 
     pub fn derivative_range(&self) -> Range<u64> {
-        let start = u64::from_be_bytes(
-            self.0[DERIVATIVE_RANGE_OFFSET..DERIVATIVE_RANGE_OFFSET + size_of::<u64>()]
-                .try_into()
-                .unwrap(),
-        );
-        let end = u64::from_be_bytes(
-            self.0[DERIVATIVE_RANGE_OFFSET + size_of::<u64>()
-                ..DERIVATIVE_RANGE_OFFSET + size_of::<u64>() * 2]
-                .try_into()
-                .unwrap(),
-        );
+        let start = match <[u8; 8]>::try_from(
+            &self.0[DERIVATIVE_RANGE_OFFSET..DERIVATIVE_RANGE_OFFSET + size_of::<u64>()],
+        ) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        };
+
+        let end = match <[u8; 8]>::try_from(
+            &self.0[DERIVATIVE_RANGE_OFFSET + size_of::<u64>()
+                ..DERIVATIVE_RANGE_OFFSET + size_of::<u64>() * 2],
+        ) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        };
+
+        // let start = u64::from_be_bytes(
+        //     self.0[DERIVATIVE_RANGE_OFFSET..DERIVATIVE_RANGE_OFFSET + size_of::<u64>()]
+        //         .try_into()?,
+        // );
+        // let end = u64::from_be_bytes(
+        //     self.0[DERIVATIVE_RANGE_OFFSET + size_of::<u64>()
+        //         ..DERIVATIVE_RANGE_OFFSET + size_of::<u64>() * 2]
+        //         .try_into()?,
+        // );
         start..end
     }
 
@@ -142,6 +168,9 @@ impl<'a> Debug for WindowedIndex<'a> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use crate::storage::dereference::S3Reference;
 
     use super::*;
@@ -166,7 +195,7 @@ mod tests {
         let index = WindowedIndex::of(&buffer);
 
         assert_eq!(index.timestamp(), timestamp);
-        assert!(matches!(index.reference(), Reference::Null));
+        assert!(matches!(index.reference().unwrap(), Reference::Null));
         assert_eq!(index.inclusive_range(), inclusive_range);
         assert_eq!(index.derivative_range(), derivative_range);
     }
@@ -209,7 +238,7 @@ mod tests {
             position: 1,
             size: 1,
         });
-        let updated_bytes = index.put_reference(new_ref.clone());
+        let updated_bytes = index.put_reference(new_ref.clone()).unwrap();
 
         let updated_index = WindowedIndex::of(&updated_bytes);
 
@@ -219,7 +248,7 @@ mod tests {
             "Timestamp should be preserved"
         );
         assert_eq!(
-            updated_index.reference(),
+            updated_index.reference().unwrap(),
             new_ref,
             "Reference should be updated"
         );
@@ -244,6 +273,6 @@ mod tests {
         WindowedIndex::put(original_ref.clone(), 100, 50..150, 50..150, &mut buffer).unwrap();
 
         let index = WindowedIndex::of(&buffer);
-        assert_eq!(index.reference(), original_ref);
+        assert_eq!(index.reference().unwrap(), original_ref);
     }
 }

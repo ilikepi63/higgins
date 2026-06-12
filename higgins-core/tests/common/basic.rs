@@ -96,6 +96,7 @@ pub fn can_achieve_basic_broker_functionality() {
         let arrow_data = result.unwrap().into_iter().next().unwrap();
 
         let arrow = read_arrow(&arrow_data.data)
+            .unwrap()
             .next()
             .unwrap()
             .inspect_err(|err| {

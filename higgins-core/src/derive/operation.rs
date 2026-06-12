@@ -60,9 +60,9 @@ impl From<&AtomicU8> for Step {
     }
 }
 
-impl Into<u8> for Step {
-    fn into(self) -> u8 {
-        self as u8
+impl From<Step> for u8 {
+    fn from(val: Step) -> Self {
+        val as u8
     }
 }
 
@@ -143,7 +143,7 @@ pub async fn produce_operation(
         records_eventual.clone(),
         offsets_setter,
         eventual::eventual().1, // This shouldn't matter. It is not writing to this value.
-        StreamName::from(stream.clone()),
+        stream.clone(),
         definition.clone(),
         partition.clone(),
         None,
@@ -214,7 +214,7 @@ pub async fn generate_relation_tasks_from_stream(
                 (
                     broker.clone(),
                     relation.definition.clone(),
-                    relation.join_index.clone(),
+                    relation.join_index,
                     relation.stream_name.clone(),
                     relation.subscription.clone(),
                     partition.clone(),
@@ -250,7 +250,7 @@ pub async fn generate_relation_tasks_from_stream(
                             (
                                 broker.clone(),
                                 relation.definition.clone(),
-                                relation.join_index.clone(),
+                                relation.join_index,
                                 relation.stream_name.clone(),
                                 relation.subscription.clone(),
                                 partition.clone(),
@@ -281,7 +281,7 @@ pub async fn generate_relation_tasks_from_stream(
 
                     let stream_type = definition.stream_type.clone();
 
-                    let mut operation = Operation::try_new(
+                    match Operation::try_new(
                         broker.clone(),
                         offsets.clone(),
                         None,
@@ -295,39 +295,44 @@ pub async fn generate_relation_tasks_from_stream(
                         join_index,
                     )
                     .await
-                    .inspect_err(|err| tracing::error!("{:#?}", err))
-                    .unwrap();
-                    tracing::debug!("Awaiting prepare step.");
+                    {
+                        Ok(mut operation) => {
+                            producer_step_sync.await_step(Step::Prepare).await;
+                            tracing::debug!("Preparing..");
+                            match stream_type {
+                                Some(FunctionType::Window | FunctionType::Join) => {}
+                                _ => {
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.init().await.unwrap();
+                                    #[allow(clippy::unwrap_used)]
+                                    operation.prepare().await.unwrap();
 
-                    producer_step_sync.await_step(Step::Prepare).await;
-                    tracing::debug!("Preparing..");
-                    match stream_type {
-                        Some(FunctionType::Window | FunctionType::Join) => {}
-                        _ => {
-                            operation.init().await.unwrap();
-                            operation.prepare().await.unwrap();
+                                    consumer_step_sync.set_step(Step::Prepare);
+                                }
+                            }
 
-                            consumer_step_sync.set_step(Step::Prepare);
+                            tracing::debug!("Awaiting Commit step..");
+
+                            producer_step_sync.await_step(Step::Commit).await;
+                            tracing::debug!(" Committing..");
+
+                            if let Some(FunctionType::Window | FunctionType::Join) = stream_type {
+                                #[allow(clippy::unwrap_used)]
+                                operation.init().await.unwrap();
+                                #[allow(clippy::unwrap_used)]
+                                operation.prepare().await.unwrap();
+                            }
+
+                            #[allow(clippy::unwrap_used)]
+                            operation.commit().await.unwrap();
+                            tracing::debug!("Committed..");
+
+                            consumer_step_sync.set_step(Step::Commit);
+                        }
+                        Err(err) => {
+                            tracing::error!("{:#?}", err)
                         }
                     }
-
-                    tracing::debug!("Awaiting Commit step..");
-
-                    producer_step_sync.await_step(Step::Commit).await;
-                    tracing::debug!(" Committing..");
-
-                    match stream_type {
-                        Some(FunctionType::Window | FunctionType::Join) => {
-                            operation.init().await.unwrap();
-                            operation.prepare().await.unwrap();
-                        }
-                        _ => {}
-                    }
-
-                    operation.commit().await.unwrap();
-                    tracing::debug!("Committed..");
-
-                    consumer_step_sync.set_step(Step::Commit);
                 });
             }
         } else {
@@ -338,6 +343,7 @@ pub async fn generate_relation_tasks_from_stream(
     Ok(())
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum Operation {
     Map(MapOperation),
     Reduce(ReduceOperation),
@@ -350,6 +356,7 @@ pub enum Operation {
 
 #[allow(unused)]
 impl Operation {
+    #[allow(clippy::too_many_arguments)]
     pub async fn try_new(
         // passed in dynamically.
         broker: Arc<RwLock<Broker>>,
@@ -371,13 +378,13 @@ impl Operation {
                 tracing::debug!("Spawning window operation..");
                 Operation::Window(WindowOperation(OperationData {
                     broker,
-                    stream: stream_name.into(),
-                    definition: definition,
+                    stream: stream_name,
+                    definition,
                     partition,
-                    offsets: offsets,
+                    offsets,
                     references,
-                    subscription: subscription,
-                    records: records,
+                    subscription,
+                    records,
                     join_index: None,
                     offsets_setter,
                     records_setter,
@@ -388,13 +395,13 @@ impl Operation {
                 tracing::debug!("Spawning map operation..");
                 Operation::Map(MapOperation(OperationData {
                     broker,
-                    stream: stream_name.into(),
-                    definition: definition,
+                    stream: stream_name,
+                    definition,
                     partition,
-                    offsets: offsets,
+                    offsets,
                     references,
-                    subscription: subscription,
-                    records: records,
+                    subscription,
+                    records,
                     join_index: None,
                     offsets_setter,
                     records_setter,
@@ -402,13 +409,13 @@ impl Operation {
             }
             Some(FunctionType::Reduce) => Operation::Reduce(ReduceOperation(OperationData {
                 broker,
-                stream: stream_name.into(),
-                definition: definition,
+                stream: stream_name,
+                definition,
                 partition,
-                offsets: offsets,
+                offsets,
                 references,
-                subscription: subscription,
-                records: records,
+                subscription,
+                records,
                 join_index: None,
                 offsets_setter,
                 records_setter,
@@ -418,7 +425,7 @@ impl Operation {
                     let broker_guard = broker.write().await;
 
                     JoinDefinition::try_from((
-                        stream_name.clone().into(),
+                        stream_name.clone(),
                         definition.clone(),
                         &*broker_guard,
                     ))?
@@ -427,13 +434,13 @@ impl Operation {
                 Operation::Join(JoinOperation {
                     data: OperationData {
                         broker,
-                        stream: stream_name.into(),
+                        stream: stream_name,
                         definition: definition.clone(),
                         partition,
-                        offsets: offsets,
+                        offsets,
                         references,
-                        subscription: subscription,
-                        records: records,
+                        subscription,
+                        records,
                         join_index,
                         offsets_setter,
                         records_setter,
@@ -446,12 +453,12 @@ impl Operation {
             // Some(FunctionType::Aggregate) => todo!(),
             None => Operation::Produce(ProduceOperation(OperationData {
                 broker,
-                stream: stream_name.into(),
-                definition: definition,
+                stream: stream_name,
+                definition,
                 partition,
                 offsets,
                 references,
-                subscription: subscription,
+                subscription,
                 records,
                 join_index: None,
                 offsets_setter,

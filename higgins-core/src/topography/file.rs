@@ -85,6 +85,9 @@ impl TopographyFile {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::TopographyFile;
     use serde_json::json;
     use std::path::PathBuf;

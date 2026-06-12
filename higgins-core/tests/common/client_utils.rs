@@ -39,9 +39,9 @@ pub fn get_subscription_data(
     // Basically asserts that a Getsubscription request was returned
     let result = client.recv(None).unwrap();
     match result.body {
-        ResponseBody::GetSubscription(response) => return response,
+        ResponseBody::GetSubscription(response) => response,
         _ => panic!("Retrieved unexpected result: {:#?}", result),
-    };
+    }
 }
 
 pub fn create_subscription(
@@ -50,14 +50,12 @@ pub fn create_subscription(
 ) -> Vec<u8> {
     client.create_subscription(stream_name.as_bytes()).unwrap();
 
-    let sub_id = match client.recv(None).unwrap().body {
+    match client.recv(None).unwrap().body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
         }
         _ => panic!("Retrieved unexpected result."),
-    };
-
-    sub_id
+    }
 }
 
 pub fn produce(
@@ -71,9 +69,7 @@ pub fn produce(
     client.produce_json(stream, payload, schema).unwrap();
 
     match client.recv(None).unwrap().body {
-        ResponseBody::Produce(response) => {
-            return response;
-        }
+        ResponseBody::Produce(response) => response,
         _ => {
             tracing::error!("Received unexpected response message.");
             panic!();
@@ -87,12 +83,10 @@ pub fn acknowledge(
     offsets: Vec<(PartitionName, std::ops::Range<u64>)>,
     client: &mut higgins_client::blocking::Client,
 ) -> higgins_codec::AcknowledgeSubscriptionOffsetsResponse {
-    client.acknowledge(stream, &sub_id, offsets).unwrap();
+    client.acknowledge(stream, sub_id, offsets).unwrap();
 
     match client.recv(None).unwrap().body {
-        ResponseBody::Acknowledge(response) => {
-            return response;
-        }
+        ResponseBody::Acknowledge(response) => response,
         _ => {
             tracing::error!("Received unexpected response message.");
             panic!();

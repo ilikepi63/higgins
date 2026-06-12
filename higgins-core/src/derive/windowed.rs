@@ -27,15 +27,14 @@ impl WindowOperation {
 
         match &definition.window_type {
             WindowValue::Count(count) => {
-                let resultant_stream =
-                    String::from_utf8(self.0.stream.as_bytes().to_vec()).unwrap();
+                let resultant_stream = self.0.stream.to_string();
 
                 tracing::info!("Retrieving index file for stream {resultant_stream}");
 
                 // TODO: maybe paralellize these?
                 let mut resultant_index_file =
                     get_index_file_handle(&self.0.stream, &self.0.partition, self.0.broker.clone())
-                        .await;
+                        .await?;
 
                 tracing::info!("Retrieved index file..");
 
@@ -43,7 +42,7 @@ impl WindowOperation {
 
                 let mut new_ranges = assign_sliding_windows_range(
                     offsets.clone(),
-                    count.clone(),
+                    *count,
                     definition.slide.normalize(),
                     0,
                 );
@@ -55,7 +54,7 @@ impl WindowOperation {
 
                 tracing::info!("Applying ranges {:#?} to windowed index file.", new_ranges);
 
-                windowed_index_file.put_ranges(&mut new_ranges).unwrap();
+                windowed_index_file.put_ranges(&mut new_ranges)?;
 
                 // acknowledge me!
                 {
@@ -63,11 +62,14 @@ impl WindowOperation {
                         .0
                         .subscription
                         .as_ref()
-                        .ok_or(HigginsError::Unknown)?
+                        .ok_or(HigginsError::Arbitrary(
+                            "Failed to retrieve subscription for given acknoweledgement"
+                                .to_string(),
+                        ))?
                         .write()
                         .await;
                     tracing::info!("Acknowledging ranges {:#?}.", offsets);
-                    guard.acknowledge(&self.0.partition, &offsets).unwrap();
+                    guard.acknowledge(&self.0.partition, &offsets)?;
                 }
 
                 tracing::info!("Successfully applied ranges to windowed function.");
@@ -93,7 +95,7 @@ async fn get_index_file_handle(
     stream: &StreamName,
     key: &PartitionName,
     broker_ref: Arc<RwLock<Broker>>,
-) -> BrokerIndexFile {
+) -> Result<BrokerIndexFile, HigginsError> {
     let mut broker = broker_ref.write().await;
-    broker.get_index_file(stream.clone(), key).unwrap()
+    broker.get_index_file(stream.clone(), key)
 }

@@ -15,7 +15,7 @@ pub fn setup_server(
     dir: PathBuf,
     port: u16,
 ) -> (higgins::ServerHandle, higgins_client::blocking::Client) {
-    let server_handle = run_server_returning(dir, port);
+    let server_handle = run_server_returning(dir, port).unwrap();
 
     std::thread::sleep(Duration::from_millis(100));
 
@@ -42,7 +42,7 @@ pub fn can_achieve_basic_topography_retrieval() {
     match client.recv(None).unwrap().body {
         ResponseBody::CreateConfiguration(_) => {
             println!("Retrieved create configuration!");
-        } //create_subscription_response.subscription_id.unwrap(),
+        } //create_subscription_response.subscription_id?,
         _ => panic!("Retrieved unexpected result."),
     };
 

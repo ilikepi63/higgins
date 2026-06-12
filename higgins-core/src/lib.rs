@@ -1,6 +1,9 @@
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 use std::{path::PathBuf, sync::Arc};
 
 use higgins_codec::{Message, frame::Frame, message::Type};
+use higgins_shared::HigginsError;
 use prost::Message as _;
 use task::SpawnTaskConfig;
 use tokio::{
@@ -22,7 +25,10 @@ pub mod task;
 pub mod topography;
 pub mod utils;
 
-async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
+async fn process_socket(
+    tcp_socket: TcpStream,
+    broker: Arc<RwLock<Broker>>,
+) -> Result<(), HigginsError> {
     let (mut read_socket, mut write_socket) = tcp_socket.into_split();
 
     let (writer_tx, mut writer_rx) = tokio::sync::mpsc::channel(100);
@@ -34,7 +40,9 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
     let client_id = broker_lock
         .clients
         .insert(ClientRef::AsyncTcpSocket(writer_tx.clone()))
-        .unwrap();
+        .ok_or(HigginsError::Arbitrary(
+            "Unable to create client ref for socket".to_string(),
+        ))?;
 
     let _read_handle = broker_lock.task_handler.spawn(
         &SpawnTaskConfig::new(
@@ -50,28 +58,38 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                     }
                 };
 
-                let message = Message::decode(&mut frame.inner()).unwrap();
+                let message = match Message::decode(&mut frame.inner()) {
+                    Ok(message) => message,
+                    Err(err) => {
+                        tracing::error!("{:#?}", err);
+                        continue;
+                    }
+                };
 
                 tracing::info!("Received a message {:#?}, responding.", message);
 
-                let t = Type::try_from(message.r#type);
+                let t = match Type::try_from(message.r#type) {
+                    Ok(t) => t,
+                    Err(err) => {
+                        tracing::error!("{:#?}", err);
+                        continue;
+                    }
+                };
 
                 tracing::info!("Request Type: {:#?}", t);
 
-                match Type::try_from(message.r#type).unwrap() {
-                    Type::Ping => {
-                        handlers::handle_ping(message, writer_tx.clone()).await;
-                    }
+                if let Err(err) = match t {
+                    Type::Ping => handlers::handle_ping(message, writer_tx.clone()).await,
                     Type::Createsubscriptionrequest => {
                         handlers::handle_create_subscription(
                             message,
                             broker.clone(),
                             writer_tx.clone(),
                         )
-                        .await;
+                        .await
                     }
                     Type::Producerequest => {
-                        handlers::handle_produce(message, broker.clone(), writer_tx.clone()).await;
+                        handlers::handle_produce(message, broker.clone(), writer_tx.clone()).await
                     }
                     Type::Createconfigurationrequest => {
                         handlers::handle_create_configuration(
@@ -79,7 +97,7 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             message,
                             writer_tx.clone(),
                         )
-                        .await;
+                        .await
                     }
                     Type::Takerecordsrequest => {
                         handlers::handle_take_records(
@@ -88,20 +106,19 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             client_id,
                             writer_tx.clone(),
                         )
-                        .await;
+                        .await
                     }
                     Type::Getindexrequest => {
-                        handlers::handle_get_index(message, broker.clone(), writer_tx.clone())
-                            .await;
+                        handlers::handle_get_index(message, broker.clone(), writer_tx.clone()).await
                     }
                     Type::Uploadmodulerequest => {
                         handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
-                            .await;
+                            .await
                     }
                     Type::Metadatarequest => todo!(),
                     Type::Getcurrenttopographyrequest => {
                         handlers::handle_get_topography(message, broker.clone(), writer_tx.clone())
-                            .await;
+                            .await
                     }
                     Type::Getsubscriptionrequest => {
                         handlers::handle_get_subscription(
@@ -109,11 +126,11 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             broker.clone(),
                             writer_tx.clone(),
                         )
-                        .await;
+                        .await
                     }
                     Type::Acknowledgerequest => {
                         handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
-                            .await;
+                            .await
                     }
                     Type::Produceresponse
                     | Type::Metadataresponse
@@ -133,8 +150,10 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                             message,
                             writer_tx.clone(),
                         )
-                        .await;
+                        .await
                     }
+                } {
+                    tracing::error!("{:#?}", err);
                 }
             }
         },
@@ -149,78 +168,88 @@ async fn process_socket(tcp_socket: TcpStream, broker: Arc<RwLock<Broker>>) {
                 while let Some(val) = writer_rx.recv().await {
                     tracing::info!("Received: {:#?} on the writing side", val);
 
-                    Frame::new(val.to_vec())
+                    if let Err(err) = Frame::new(val.to_vec())
                         .try_write_async(&mut write_socket)
                         .await
-                        .unwrap();
+                    {
+                        tracing::error!("{:#?}", err);
+                    };
                     // let _result = write_socket.write_all(&val).await;
-                    write_socket.flush().await.unwrap();
+                    if let Err(err) = write_socket.flush().await {
+                        tracing::error!("{:#?}", err);
+                    };
                 }
             });
 
     drop(broker_lock);
+
+    Ok(())
 }
 
 pub struct ServerHandle(tokio::sync::oneshot::Sender<()>);
 
 impl ServerHandle {
     pub fn close(self) {
-        self.0.send(()).unwrap();
+        if let Err(err) = self.0.send(()) {
+            tracing::trace!("{:#?}", err);
+        };
     }
 }
 
-pub async fn run_server(dir: PathBuf, port: u16) {
-    let broker = Arc::new(RwLock::new(Broker::new(dir)));
+pub async fn run_server(dir: PathBuf, port: u16) -> Result<(), HigginsError> {
+    let broker = Arc::new(RwLock::new(Broker::new(dir)?));
 
-    let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
-        .await
-        .unwrap();
+    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
 
     tracing::info!("Connected on {}", port);
 
     loop {
-        let (socket, addr) = listener.accept().await.unwrap();
+        let (socket, addr) = listener.accept().await?;
         tracing::info!("Received connection from: {addr}");
 
-        process_socket(socket, broker.clone()).await;
+        process_socket(socket, broker.clone()).await?;
     }
 }
 
 // #[cfg(test)]
-pub fn run_server_returning(dir: PathBuf, port: u16) -> ServerHandle {
-    let broker = Arc::new(RwLock::new(Broker::new(dir)));
+pub fn run_server_returning(dir: PathBuf, port: u16) -> Result<ServerHandle, HigginsError> {
+    let broker = Arc::new(RwLock::new(Broker::new(dir)?));
 
     let (tx, mut rx) = tokio::sync::oneshot::channel();
 
     std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        if let Ok(rt) = tokio::runtime::Runtime::new() {
+            rt.block_on(async move {
+                if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{port}")).await {
+                    tracing::info!("Connected on {}", port);
 
-        rt.block_on(async move {
-            let listener = TcpListener::bind(format!("127.0.0.1:{port}"))
-                .await
-                .unwrap();
+                    loop {
+                        tokio::select! {
+                            socket = listener.accept() => {
 
-            tracing::info!("Connected on {}", port);
+                                if let Ok(socket) = socket {
+                                    let (socket, addr) = socket;
+                                    tracing::info!("Received connection from: {addr}");
 
-            loop {
-                tokio::select! {
-                    socket = listener.accept() => {
-                        let (socket, addr) = socket.unwrap();
-                        tracing::info!("Received connection from: {addr}");
+                                    if let Err(err) = process_socket(socket, broker.clone()).await{
+                                        tracing::error!("{:#?}", err);
+                                    };
 
-                        process_socket(socket, broker.clone()).await;
+                                };
 
-                    },
-                    _ = &mut rx => {
-                        tracing::info!("Received close, will stop the server.");
-                        break;
+                            },
+                            _ = &mut rx => {
+                                tracing::info!("Received close, will stop the server.");
+                                break;
+                            }
+                        }
                     }
                 }
-            }
-        });
+            });
+        };
 
         tracing::info!("Thread is no longer blocked.. terminating");
     });
 
-    ServerHandle(tx)
+    Ok(ServerHandle(tx))
 }

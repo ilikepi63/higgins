@@ -23,7 +23,7 @@ pub async fn dereference(
     partition: PartitionName,
     broker: &mut Broker,
 ) -> Result<Vec<u8>, HigginsError> {
-    match index.reference() {
+    match index.reference()? {
         Reference::S3(reference_object_store) => {
             // Retrieve the object store reference.
             let object_store = {
@@ -44,11 +44,10 @@ pub async fn dereference(
                 Ok(get_result) => {
                     if let Ok(b) = get_result.bytes().await {
                         // index into the bytes.
-                        let start: usize = (reference_object_store.position).try_into().unwrap();
+                        let start: usize = (reference_object_store.position).try_into()?;
                         let end: usize = (reference_object_store.position
                             + reference_object_store.size)
-                            .try_into()
-                            .unwrap();
+                            .try_into()?;
 
                         let data = b.slice(start..end);
 
@@ -97,21 +96,21 @@ pub async fn dereference(
 
                     // Retrieve the base stream - the stream that this windowed stream is based off of.
                     let base_stream_def = broker
-                        .get_topography_stream(&base_stream)
-                        .map(|(_, stream_def)| stream_def.clone())
-                        .unwrap();
+                        .get_topography_stream(base_stream)
+                        .map(|(_, stream_def)| stream_def.clone())?;
 
                     // Retrieve the base schema.
                     let base_stream_schema = broker
                         .get_stream(base_stream)
                         .map(|(schema, _, _)| schema.clone())
-                        .unwrap();
+                        .ok_or(HigginsError::StreamDefinitionNotFound(
+                            base_stream.to_string(),
+                        ))?;
 
                     // Create and read the buffer for this index file.
                     let buffer = {
-                        let mut derivative_index_file = broker
-                            .get_index_file(base_stream.clone(), &partition)
-                            .unwrap();
+                        let mut derivative_index_file =
+                            broker.get_index_file(base_stream.clone(), &partition)?;
 
                         let mut guard = derivative_index_file.lock().await;
 
@@ -126,12 +125,10 @@ pub async fn dereference(
 
                         tracing::debug!("Buffer size in indexes: {}", buffer_size);
 
-                        let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()];
+                        let mut buffer = vec![0_u8; buffer_size * base_stream_def.index_size()?];
 
                         // Read all of the indexes.
-                        guard
-                            .read_at(index.derivative_range().start as usize, &mut buffer)
-                            .unwrap();
+                        guard.read_at(index.derivative_range().start as usize, &mut buffer)?;
 
                         buffer
                     };
@@ -139,7 +136,7 @@ pub async fn dereference(
                     let mut combined = RecordBatch::new_empty(base_stream_schema.clone());
 
                     for index in buffer
-                        .chunks(base_stream_def.index_size())
+                        .chunks(base_stream_def.index_size()?)
                         .map(|data| OwnedIndex::from(Index::of(data, base_stream_def.index_type())))
                     {
                         tracing::debug!("Dereferencing index: {:#?}", index);
@@ -149,10 +146,9 @@ pub async fn dereference(
                             partition.clone(),
                             broker,
                         ))
-                        .await
-                        .unwrap();
+                        .await?;
 
-                        for rb in read_arrow(&data) {
+                        for rb in read_arrow(&data)? {
                             if let Ok(rb) = rb {
                                 tracing::debug!(
                                     "BATCHES: schema: {:#?} combined: {:#?}, rb: {:#?}",
@@ -167,15 +163,18 @@ pub async fn dereference(
                                         .fields
                                         .iter()
                                         .map(|field| {
-                                            rb.column_by_name(field.name()).unwrap().clone() // TODO: this unwrap should actually be unchecked, considering these schema should always match.
+                                            Ok(rb
+                                                .column_by_name(field.name())
+                                                .ok_or(HigginsError::Arbitrary(
+                                                    "Could not retrieve column by name".to_string(),
+                                                ))?
+                                                .clone()) // TODO: this unwrap should actually be unchecked, considering these schema should always match.
                                         })
-                                        .collect::<Vec<_>>(),
-                                )
-                                .unwrap();
+                                        .collect::<Result<Vec<_>, HigginsError>>()?,
+                                )?;
 
                                 combined =
-                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])
-                                        .unwrap();
+                                    concat_batches(&base_stream_schema, &[combined, reordered_rb])?;
                             } else {
                                 tracing::error!(
                                     "Failed to read the record batch from the stream reader."
@@ -184,7 +183,7 @@ pub async fn dereference(
                         }
                     }
 
-                    Ok(write_arrow(&combined))
+                    Ok(write_arrow(&combined)?)
                 }
                 _ => Err(HigginsError::DereferenceError(format!(
                     "Attempted to dereference a null value that has no resolution logic. Stream type: {:#?}",
@@ -224,24 +223,24 @@ impl Reference {
     }
 
     /// Read this struct from bytes.
-    pub fn from_bytes(data: &[u8]) -> Self {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, HigginsError> {
         tracing::debug!("Data: {:#?}", data);
-        let t = u16::from_be_bytes(data[0..2].try_into().unwrap());
+        let t = u16::from_be_bytes(data[0..2].try_into()?);
         tracing::debug!("u16 data: {:#?}", &data[0..2]);
         tracing::debug!("u16: {t}",);
 
         match t {
-            0 => Self::Null,
+            0 => Ok(Self::Null),
             1 => {
-                let object_key: [u8; 16] = data[2..(2 + 16)].try_into().unwrap();
-                let position: u64 = u64::from_be_bytes(data[18..26].try_into().unwrap());
-                let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into().unwrap());
+                let object_key: [u8; 16] = data[2..(2 + 16)].try_into()?;
+                let position: u64 = u64::from_be_bytes(data[18..26].try_into()?);
+                let size: u64 = u64::from_be_bytes(data[26..(26 + 8)].try_into()?);
 
-                Self::S3(S3Reference {
+                Ok(Self::S3(S3Reference {
                     object_key,
                     position,
                     size,
-                })
+                }))
             }
             _ => {
                 tracing::error!("Unable to interpret byte array for Dereferencable. ");
@@ -275,6 +274,7 @@ impl S3Reference {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
         let original = Reference::Null;
         original.to_bytes(&mut buffer).unwrap();
 
-        let deserialized = Reference::from_bytes(&buffer);
+        let deserialized = Reference::from_bytes(&buffer).unwrap();
         assert!(matches!(deserialized, Reference::Null));
     }
 
@@ -341,7 +341,7 @@ mod tests {
         let mut buffer = [0u8; Reference::size_of()];
         original.to_bytes(&mut buffer).unwrap();
 
-        let deserialized = Reference::from_bytes(&buffer);
+        let deserialized = Reference::from_bytes(&buffer).unwrap();
         match deserialized {
             Reference::S3(s3_ref) => {
                 assert_eq!(s3_ref.object_key, object_key);
@@ -354,11 +354,7 @@ mod tests {
 
     #[test]
     fn test_reference_s3_roundtrip() {
-        let object_key = uuid::Uuid::new_v4()
-            .as_bytes()
-            .to_owned()
-            .try_into()
-            .unwrap(); // Use a real UUID for variety
+        let object_key = *uuid::Uuid::new_v4().as_bytes(); // Use a real UUID for variety
         let position = 123u64;
         let size = 456u64;
         let original = Reference::S3(S3Reference {
@@ -370,7 +366,7 @@ mod tests {
         let mut buffer = [0u8; Reference::size_of()];
         original.to_bytes(&mut buffer).unwrap();
 
-        let deserialized = Reference::from_bytes(&buffer);
+        let deserialized = Reference::from_bytes(&buffer).unwrap();
         match deserialized {
             Reference::S3(s3_ref) => {
                 assert_eq!(s3_ref.object_key, object_key);

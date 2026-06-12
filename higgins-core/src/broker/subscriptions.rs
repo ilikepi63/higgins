@@ -13,6 +13,8 @@ use uuid::Uuid;
 
 use crate::subscription::{Subscription, SubscriptionId};
 
+type SubscriptionCollection = BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>;
+
 impl Broker {
     /// Retrieves the subscription for this specific key.
     pub fn get_subscription_by_key(
@@ -41,7 +43,7 @@ impl Broker {
     pub fn get_subscriptions_for_stream(
         &self,
         stream: &StreamName,
-    ) -> Option<BTreeMap<Vec<u8>, (Arc<Notify>, Arc<RwLock<Subscription>>)>> {
+    ) -> Option<SubscriptionCollection> {
         self.subscriptions.get(stream).cloned()
     }
 
@@ -101,24 +103,23 @@ impl Broker {
         Ok(())
     }
 
-    pub fn create_subscription(&mut self, stream: &StreamName) -> Vec<u8> {
+    pub fn create_subscription(&mut self, stream: &StreamName) -> Result<Vec<u8>, HigginsError> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)?));
         let notify = Arc::new(Notify::new());
 
         // How do we get the list of partitions for a stream?
         // We need to also be able to update the subscriptions for every stream.
 
         // TODO: This also needs to be done atomically.
-        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription))
-            .unwrap();
+        self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription))?;
 
-        uuid.as_bytes().to_vec()
+        Ok(uuid.as_bytes().to_vec())
     }
 
     /// Creates a `non-reactive` subscription.
@@ -128,14 +129,14 @@ impl Broker {
     pub fn create_non_reactive_subscription(
         &mut self,
         stream: &StreamName,
-    ) -> (SubscriptionId, Arc<RwLock<Subscription>>) {
+    ) -> Result<(SubscriptionId, Arc<RwLock<Subscription>>), HigginsError> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Arc::new(RwLock::new(Subscription::new(&path)));
+        let subscription = Arc::new(RwLock::new(Subscription::new(&path)?));
 
         let sub = SubscriptionId::from(uuid.as_bytes().to_vec());
 
@@ -153,7 +154,7 @@ impl Broker {
             }
         }
 
-        (sub, subscription)
+        Ok((sub, subscription))
     }
 
     /// A function to extract the current subscription indexes from the
@@ -205,69 +206,89 @@ impl Broker {
             // The runner for this subscription.
             tokio::task::spawn(async move {
                 loop {
-                    let mut lock = task_subscription.write().await;
+                    let result: Result<(), HigginsError> = {
+                        let mut lock = task_subscription.write().await;
 
-                    let n = match lock
-                        .client_counts
-                        .binary_search_by(|(id, _)| client_id.cmp(id))
-                        .map(|index| lock.client_counts.get(index))
-                        .ok()
-                        .flatten()
-                    {
-                        Some(c) => c.1.load(Ordering::Relaxed),
-                        None => continue,
-                    };
+                        let n = match lock
+                            .client_counts
+                            .binary_search_by(|(id, _)| client_id.cmp(id))
+                            .map(|index| lock.client_counts.get(index))
+                            .ok()
+                            .flatten()
+                        {
+                            Some(c) => c.1.load(Ordering::Relaxed),
+                            None => continue,
+                        };
 
-                    tracing::trace!("[TAKE] Taking the amount: {n}");
+                        tracing::trace!("[TAKE] Taking the amount: {n}");
 
-                    let offsets = lock.take(n);
+                        let offsets = lock.take(n);
 
-                    tracing::trace!("{:#?}", &offsets);
+                        tracing::trace!("{:#?}", &offsets);
 
-                    if let Ok(offsets) = offsets.as_ref() {
-                        lock.remove_client_count(&client_id, offsets.len() as u64);
-                    }
-
-                    drop(lock);
-
-                    if let Ok(offsets) = offsets {
-                        //Get payloads from offsets.
-                        for (partition, offset) in offsets {
-                            let consumption = {
-                                let mut broker_lock = broker.write().await;
-
-                                let mut results = vec![];
-
-                                for result in broker_lock
-                                    .consume(&task_stream_name, &partition, offset, 50_000)
-                                    .await
-                                {
-                                    tracing::trace!(
-                                        "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
-                                        result
-                                    );
-
-                                    results.push(OffsetPayload {
-                                        stream: task_stream_name.clone(),
-                                        key: partition.clone(),
-                                        offset,
-                                        bytes: result.unwrap(), // TODO: wrap this in a conversion function and filter out errors.
-                                    });
-                                }
-
-                                results
-                            };
-
-                            write_offsets_to_client(consumption, client_ref.clone()).await;
+                        if let Ok(offsets) = offsets.as_ref() {
+                            lock.remove_client_count(&client_id, offsets.len() as u64);
                         }
+
+                        drop(lock);
+
+                        if let Ok(offsets) = offsets {
+                            //Get payloads from offsets.
+                            for (partition, offset) in offsets {
+                                let consumption = {
+                                    let mut broker_lock = broker.write().await;
+
+                                    let mut results = vec![];
+
+                                    let consumption = broker_lock
+                                        .consume(&task_stream_name, &partition, offset, 50_000)
+                                        .await;
+
+                                    if let Ok(consumption) = consumption {
+                                        for result in consumption {
+                                            tracing::trace!(
+                                                "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
+                                                result
+                                            );
+
+                                            if let Ok(result) = result {
+                                                results.push(OffsetPayload {
+                                                    stream: task_stream_name.clone(),
+                                                    key: partition.clone(),
+                                                    offset,
+                                                    bytes: result, // TODO: wrap this in a conversion function and filter out errors.
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    results
+                                };
+
+                                if let Err(err) =
+                                    write_offsets_to_client(consumption, client_ref.clone()).await
+                                {
+                                    tracing::error!(
+                                        "Error occurred when trying to write offsets to client: {:#?}",
+                                        err
+                                    );
+                                };
+                            }
+                        };
+
+                        tracing::trace!("[TAKE] Awaiting the condvar.");
+
+                        // await the condvar.
+                        task_notify.notified().await;
+
+                        tracing::trace!("[TAKE] Condvar has been notified, retrieving the amount.");
+
+                        Ok(())
                     };
 
-                    tracing::trace!("[TAKE] Awaiting the condvar.");
-
-                    // await the condvar.
-                    task_notify.notified().await;
-
-                    tracing::trace!("[TAKE] Condvar has been notified, retrieving the amount.");
+                    if let Err(e) = result {
+                        tracing::error!("Error taking: {:#?}", e);
+                    }
                 }
             });
         }
@@ -302,7 +323,7 @@ impl From<OffsetPayload> for Record {
 pub async fn write_offsets_to_client(
     consumption: Vec<OffsetPayload>,
     client_ref: tokio::sync::mpsc::Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     for val in consumption {
         let resp = TakeRecordsResponse {
             records: vec![{ val.into() }],
@@ -315,17 +336,23 @@ pub async fn write_offsets_to_client(
             take_records_response: Some(resp),
             ..Default::default()
         }
-        .encode(&mut result)
-        .unwrap();
+        .encode(&mut result)?;
 
         tracing::trace!("[TAKE] Writing the amount back to client.");
 
-        client_ref.send(result).await.unwrap();
+        client_ref.send(result).await.map_err(|err| {
+            HigginsError::Arbitrary(format!("Failed to write offsets to client: {:#?}", err))
+        })?;
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
 
     use super::*;
     use bytes::BytesMut;
@@ -335,35 +362,32 @@ mod tests {
     use tokio::sync::mpsc::Sender;
 
     #[tokio::test]
-    async fn write_offsets_sends_one_message_per_payload() {
-        let test_json = write_arrow(
-            &arrow::array::record_batch!(
-                ("a", Int32, [1, 2, 3]),
-                ("b", Float64, [Some(4.0), None, Some(5.0)]),
-                ("c", Utf8, ["alpha", "beta", "gamma"])
-            )
-            .unwrap(),
-        );
+    async fn write_offsets_sends_one_message_per_payload() -> Result<(), HigginsError> {
+        let test_json = write_arrow(&arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)]),
+            ("c", Utf8, ["alpha", "beta", "gamma"])
+        )?)?;
 
         let (tx, mut rx): (Sender<BytesMut>, _) = mpsc::channel(16);
 
         let payloads = vec![
             OffsetPayload {
                 stream: StreamName::from("stream-a"),
-                key: PartitionName::try_from("part-1").unwrap(),
+                key: PartitionName::try_from("part-1")?,
                 offset: 100,
                 bytes: test_json.clone(),
             },
             OffsetPayload {
                 stream: StreamName::from("stream-b"),
-                key: PartitionName::try_from("part-2").unwrap(),
+                key: PartitionName::try_from("part-2")?,
                 offset: 200,
                 bytes: test_json,
             },
         ];
 
         // Run the function under test
-        write_offsets_to_client(payloads, tx).await;
+        write_offsets_to_client(payloads, tx).await.unwrap();
 
         // Collect sent messages
         let mut sent = vec![];
@@ -379,10 +403,7 @@ mod tests {
         assert_eq!(resp1.records.len(), 1);
         let rec1 = &resp1.records[0];
         assert_eq!(rec1.stream, b"stream-a".to_vec());
-        assert_eq!(
-            rec1.partition,
-            PartitionName::try_from("part-1").unwrap().to_vec()
-        );
+        assert_eq!(rec1.partition, PartitionName::try_from("part-1")?.to_vec());
         assert_eq!(rec1.offset, 100);
 
         // Decode second
@@ -390,10 +411,9 @@ mod tests {
         let resp2 = msg2.take_records_response.expect("has response");
         let rec2 = &resp2.records[0];
         assert_eq!(rec2.stream, b"stream-b".to_vec());
-        assert_eq!(
-            rec2.partition,
-            PartitionName::try_from("part-2").unwrap().to_vec()
-        );
+        assert_eq!(rec2.partition, PartitionName::try_from("part-2")?.to_vec());
         assert_eq!(rec2.offset, 200);
+
+        Ok(())
     }
 }

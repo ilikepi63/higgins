@@ -9,25 +9,25 @@ use tokio::sync::RwLockWriteGuard;
 
 /// Helper function to retrieve the field and array given a column name.
 #[allow(unused)]
-pub fn col_name_to_field_and_col(batch: &RecordBatch, col_name: &str) -> (ArrayRef, Field) {
+pub fn col_name_to_field_and_col(
+    batch: &RecordBatch,
+    col_name: &str,
+) -> Result<(ArrayRef, Field), HigginsError> {
     tracing::info!("Attempting to retrieve data from RecordBatch: {:#?}", batch);
 
     let schema = batch.schema();
 
-    let schema_index = schema
-        .index_of(col_name)
-        .inspect(|err| {
-            tracing::error!(
-                "Unexpected error not being able to retrieve partition key by name: {:#?}",
-                err
-            );
-        })
-        .unwrap();
+    let schema_index = schema.index_of(col_name).inspect(|err| {
+        tracing::error!(
+            "Unexpected error not being able to retrieve partition key by name: {:#?}",
+            err
+        );
+    })?;
 
     let col = batch.column(schema_index);
     let field = schema.field(schema_index);
 
-    (col.clone(), field.clone())
+    Ok((col.clone(), field.clone()))
 }
 
 /// Represents a column name of an apache arrow record batch.
@@ -39,13 +39,19 @@ impl ColumnName {
     }
 }
 
-impl From<&StreamDefinition> for ColumnName {
-    fn from(value: &StreamDefinition) -> Self {
-        Self(value.partition_key.to_string().unwrap()) // TODO: Remove this when we enforce stream keys to be strings.
+impl TryFrom<&StreamDefinition> for ColumnName {
+    type Error = HigginsError;
+    fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
+        Ok(Self(value.partition_key.to_string().ok_or(
+            HigginsError::Arbitrary("Could not convert key to a ColumnName".to_string()),
+        )?)) // TODO: Remove this when we enforce stream keys to be strings.
     }
 }
 
-pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &ColumnName) -> Vec<u8> {
+pub fn get_partition_key_from_record_batch(
+    batch: &RecordBatch,
+    col_name: &ColumnName,
+) -> Result<Vec<u8>, HigginsError> {
     let schema_index = batch
         .schema()
         .index_of(col_name.as_str())
@@ -54,14 +60,13 @@ pub fn get_partition_key_from_record_batch(batch: &RecordBatch, col_name: &Colum
                 "Unexpected error not being able to retrieve partition key by name: {:#?}",
                 err
             );
-        })
-        .unwrap();
+        })?;
 
     let col = batch.column(schema_index);
 
     let value = array_value_to_string(col, 0);
 
-    value.unwrap().as_bytes().to_vec()
+    Ok(value?.as_bytes().to_vec())
 }
 
 use crate::{broker::Broker, storage::dereference::Reference, topography::StreamDefinition};
@@ -88,10 +93,12 @@ pub async fn put_default_index_at_range(
     // References and offsets need to be the same length.
     let offsets_len = (offset.end - offset.start + 1) as usize;
     if offsets_len != references.len() {
-        return Err(HigginsError::Unknown);
+        return Err(HigginsError::Arbitrary(
+            "Range size does not match size of references put.".to_string(),
+        ));
     }
 
-    let mut index_file = broker.get_index_file(stream.clone(), partition).unwrap();
+    let mut index_file = broker.get_index_file(stream.clone(), partition)?;
 
     let mut index_file_guard = index_file.lock().await;
 
@@ -105,14 +112,14 @@ pub async fn put_default_index_at_range(
     buf.chunks_mut(DefaultIndex::size_of())
         .zip(offset.start..=offset.end)
         .zip(references)
-        .map(|((mut chunk, offset), reference)| {
+        .map(|((chunk, offset), reference)| {
             DefaultIndex::put(
                 offset,
                 reference.clone(),
                 0,
                 crate::utils::epoch(),
                 0,
-                &mut chunk,
+                chunk,
             )
         })
         .collect::<Result<Vec<()>, std::io::Error>>()?;

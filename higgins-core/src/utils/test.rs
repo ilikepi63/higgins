@@ -1,3 +1,6 @@
+//! Module for holding some test utilities. Only available on tests with the cfg(test) flag set.
+
+#![allow(clippy::unwrap_used)]
 use colored::Color;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -12,6 +15,7 @@ impl Ord for Interval {
     }
 }
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for Interval {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.0.cmp(&other.0))

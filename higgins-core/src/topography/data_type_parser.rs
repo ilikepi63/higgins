@@ -165,6 +165,7 @@ pub fn parse(input: &str) -> IResult<&str, DataType> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
     use arrow_schema::DataType;

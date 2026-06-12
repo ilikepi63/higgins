@@ -4,6 +4,8 @@ use std::{
     path::PathBuf,
 };
 
+use higgins_shared::HigginsError;
+
 #[derive(Debug)]
 pub struct FunctionCollection {
     base_dir: PathBuf,
@@ -14,7 +16,7 @@ impl FunctionCollection {
         Self { base_dir: path }
     }
 
-    pub async fn put_function(&self, name: &str, module: Vec<u8>) {
+    pub async fn put_function(&self, name: &str, module: Vec<u8>) -> Result<(), HigginsError> {
         let path = {
             let mut path = self.base_dir.clone();
             path.push(name);
@@ -26,13 +28,14 @@ impl FunctionCollection {
             .create(true)
             .write(true)
             .truncate(true)
-            .open(path)
-            .unwrap();
+            .open(path)?;
 
-        file.write_all(&module).unwrap();
+        file.write_all(&module)?;
+
+        Ok(())
     }
 
-    pub async fn get_function(&self, name: &str) -> Vec<u8> {
+    pub async fn get_function(&self, name: &str) -> Result<Vec<u8>, HigginsError> {
         let path = {
             let mut path = self.base_dir.clone();
             path.push(name);
@@ -42,14 +45,14 @@ impl FunctionCollection {
 
         tracing::info!("Reading function: {:#?}", path);
 
-        let mut file = std::fs::OpenOptions::new().read(true).open(path).unwrap();
+        let mut file = std::fs::OpenOptions::new().read(true).open(path)?;
 
-        tracing::trace!("File Metadata: {:#?}", file.metadata().unwrap().size());
+        tracing::trace!("File Metadata: {:#?}", file.metadata()?.size());
 
-        let mut buffer = vec![0; file.metadata().unwrap().size().try_into().unwrap()];
+        let mut buffer = vec![0; file.metadata()?.size().try_into()?];
 
-        file.read_exact(&mut buffer).unwrap();
+        file.read_exact(&mut buffer)?;
 
-        buffer
+        Ok(buffer)
     }
 }

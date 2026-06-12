@@ -43,32 +43,62 @@ impl TryFrom<Message> for ResponseBody {
             HigginsClientError::UnexpectedMessageReceived(value.r#type)
         })? {
             Type::Createconfigurationresponse => Ok(ResponseBody::CreateConfiguration(
-                value.create_configuration_response.unwrap(),
+                value
+                    .create_configuration_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Createsubscriptionresponse => Ok(ResponseBody::CreateSubscription(
-                value.create_subscription_response.unwrap(),
+                value
+                    .create_subscription_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Deleteconfigurationresponse => Ok(ResponseBody::DeleteConfiguration(
-                value.delete_configuration_response.unwrap(),
+                value
+                    .delete_configuration_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
-            Type::Getindexresponse => Ok(ResponseBody::GetIndex(value.get_index_response.unwrap())),
-            Type::Metadataresponse => Ok(ResponseBody::Metadata(value.metadata_response.unwrap())),
-            Type::Pong => Ok(ResponseBody::Pong(value.pong.unwrap())),
-            Type::Produceresponse => Ok(ResponseBody::Produce(value.produce_response.unwrap())),
+            Type::Getindexresponse => Ok(ResponseBody::GetIndex(
+                value
+                    .get_index_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
+            )),
+            Type::Metadataresponse => Ok(ResponseBody::Metadata(
+                value
+                    .metadata_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
+            )),
+            Type::Pong => Ok(ResponseBody::Pong(
+                value.pong.ok_or(HigginsClientError::MissingPayload)?,
+            )),
+            Type::Produceresponse => Ok(ResponseBody::Produce(
+                value
+                    .produce_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
+            )),
             Type::Takerecordsresponse => Ok(ResponseBody::TakeRecords(
-                value.take_records_response.unwrap(),
+                value
+                    .take_records_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Uploadmoduleresponse => Ok(ResponseBody::UploadModule(
-                value.upload_module_response.unwrap(),
+                value
+                    .upload_module_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Getcurrenttopographyresponse => Ok(ResponseBody::GetCurrentTopography(
-                value.get_current_topography_response.unwrap(),
+                value
+                    .get_current_topography_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Getsubscriptionresponse => Ok(ResponseBody::GetSubscription(
-                value.get_subscription_response.unwrap(),
+                value
+                    .get_subscription_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             Type::Acknowledgeresponse => Ok(ResponseBody::Acknowledge(
-                value.acknowledge_response.unwrap(),
+                value
+                    .acknowledge_response
+                    .ok_or(HigginsClientError::MissingPayload)?,
             )),
             _ => Err(HigginsClientError::UnexpectedMessageReceived(value.r#type)),
         }
@@ -91,7 +121,7 @@ impl Client {
 
         let slice = frame.inner();
 
-        let message = Message::decode(slice).unwrap();
+        let message = Message::decode(slice)?;
 
         if let Some(id) = message.correlation_id {
             self.2.remove(id);

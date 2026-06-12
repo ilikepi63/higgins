@@ -1,8 +1,28 @@
 use crate::{PartitionName, PartitionNameError, StreamName};
+use arrow::error::ArrowError;
+use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum HigginsError {
+    #[error("No message body was sent")]
+    MissingPayload,
+
+    #[error("TryFromSliceError")]
+    TryFromSliceError(#[from] TryFromSliceError),
+    #[error("System Time Error")]
+    SystemTimeError(#[from] SystemTimeError),
+    #[error("TOML deserializer error.")]
+    TomlDeserializerError(#[from] toml::de::Error),
+    #[error("TOML serialize error.")]
+    TomlSerializerError(#[from] toml::ser::Error),
+
+    #[error("Encoding Error")]
+    EncodeError(#[from] EncodeError),
+
+    #[error("Decoding protobuf Error")]
+    DecodeError(#[from] DecodeError),
+
     #[error("Stream/Subscription does not exist: {0} {1}")]
     SubscriptionForStreamDoesNotExist(String, String),
 
@@ -23,6 +43,12 @@ pub enum HigginsError {
 
     #[error("PartitionNameError")]
     PartitionNameError(#[from] PartitionNameError),
+
+    #[error("ArrowError")]
+    ArrowError(#[from] ArrowError),
+
+    #[error("Stream Definition not found")]
+    StreamDefinitionNotFound(String),
 
     #[error("Attempted to place data at a null reference. ")]
     UnableToPlaceDataAtNullReference,
@@ -45,15 +71,23 @@ pub enum HigginsError {
     #[error("Index Error")]
     IndexError(#[from] IndexError),
 
-    #[error("Unknown Error")]
-    Unknown,
+    /// Called when there is no class, but the error can be explained from the string.
+    #[error("{0}")]
+    Arbitrary(String),
 
     #[error("Too many clients, could not connect.")]
     TooManyClientsConnnectedToBroker,
+
+    #[error("TryFromIntError")]
+    TryFromIntError(#[from] TryFromIntError),
+
+    #[error("TaskError")]
+    TaskError(#[from] HigginsTaskError),
 }
 
 use std::array::TryFromSliceError;
 use std::num::TryFromIntError;
+use std::time::SystemTimeError;
 
 #[derive(Error, Debug)]
 pub enum SubscriptionError {
@@ -91,8 +125,12 @@ pub enum SubscriptionError {
 pub enum TopographyError {
     #[error("The entry at the designated key is already occupied: {0}")]
     Occupied(String),
+    #[error("Attempted to retrieve a stream that doesn't exist: {0}")]
+    StreamNotFound(String),
     #[error("Derivative stream not found in topography: {0}")]
     DerivativeNotFound(String),
+    #[error("No base key defined for derivative stream: {0}")]
+    NoBaseKeyDefinedForDerivativeStream(String),
     #[error("Incorrect Stream definition: {0}")]
     IncorrectStreamDefinition(String),
     #[error("Schema not found in topography: {0}")]
@@ -119,6 +157,12 @@ pub enum IndexError {
     IndexFileIsNotADirectory,
     #[error("IO Error")]
     IOError(#[from] std::io::Error),
+    #[error("Partition Name Error")]
+    PartitionNameError(#[from] PartitionNameError),
+    #[error("System Time Error")]
+    SystemTimeError(#[from] SystemTimeError),
+    #[error("TryFromSliceError")]
+    TryFromSliceError(#[from] TryFromSliceError),
     #[error("Attempt to swap out index with incorrectly sized byte array.")]
     IndexSwapSizeError,
     #[error("TryFromInt Error")]
@@ -133,6 +177,8 @@ pub enum IndexError {
     PutIndexOutOfRange,
     #[error("Attempted to overwrite an index that already exists.")]
     IndexAlreadyExists(u64, u64),
+    #[error("Infallible")]
+    Infallible,
     #[error("Unknown Index Error")]
     Unknown,
 }

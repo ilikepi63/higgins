@@ -136,7 +136,7 @@ impl SubscriptionFile {
         // nulled out as both need to be null.
         let header_buffer = [0_u8; HEADER_SIZE];
 
-        handle.write(&header_buffer)?;
+        handle.write_all(&header_buffer)?;
 
         let mut path_buf = std::path::PathBuf::new();
         path_buf.push(path);
@@ -151,7 +151,7 @@ impl SubscriptionFile {
 
         PartitionOffsetsSerde::write_to(partition.clone(), 0, 0, 0, &mut buffer);
 
-        handle.write(&buffer)?;
+        handle.write_all(&buffer)?;
 
         handle.flush()?;
 
@@ -164,8 +164,8 @@ impl SubscriptionFile {
         &mut self,
     ) -> Result<Vec<PartitionOffsetsOwned>, SubscriptionError> {
         let mut buffer = [0_u8; ITER_SIZE];
-        let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
-        handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
+        let mut handle = OpenOptions::new().read(true).open(&self.path)?;
+        handle.seek(SeekFrom::Start(HEADER_SIZE as u64))?;
         let mut current_buffer_len = handle.read(&mut buffer)?;
 
         let mut result = vec![];
@@ -187,9 +187,7 @@ impl SubscriptionFile {
             // file could be larger than our buffer size.
             if length >= ITER_SIZE {
                 // Read the contents of a file, we likely only want to do this if we have exhausted the current buffer.
-                handle
-                    .seek(SeekFrom::Start((HEADER_SIZE + current_buffer_len) as u64))
-                    .unwrap();
+                handle.seek(SeekFrom::Start((HEADER_SIZE + current_buffer_len) as u64))?;
                 current_buffer_len = handle.read(&mut buffer)?;
                 length = (current_buffer_len) / PARTITION_OFFSET_SERDE_LEN;
             } else {
@@ -206,8 +204,15 @@ impl SubscriptionFile {
     {
         let mut current_buffer_index = 0;
         let mut buffer = [0_u8; ITER_SIZE];
-        let mut handle = OpenOptions::new().read(true).open(&self.path).unwrap();
-        handle.seek(SeekFrom::Start(HEADER_SIZE as u64)).unwrap();
+        let mut handle = OpenOptions::new()
+            .read(true)
+            .open(&self.path)
+            .inspect_err(|err| tracing::error!("{:#?}", err))
+            .ok()?;
+        handle
+            .seek(SeekFrom::Start(HEADER_SIZE as u64))
+            .inspect_err(|err| tracing::error!("{:#?}", err))
+            .ok()?;
         let mut current_buffer_len = handle.read(&mut buffer).ok()?;
 
         let mut index = 0;
@@ -257,7 +262,7 @@ impl SubscriptionFile {
 
         let mut buffer = [0_u8; PARTITION_OFFSET_SERDE_LEN];
 
-        file.read(&mut buffer)?;
+        file.read_exact(&mut buffer)?;
 
         PartitionOffsetsOwned::of(&buffer)
     }
@@ -274,7 +279,7 @@ impl SubscriptionFile {
 
         file.seek(SeekFrom::Start(offset))?;
 
-        file.write(&partition.0)?;
+        file.write_all(&partition.0)?;
 
         file.flush()?;
 
@@ -288,8 +293,14 @@ impl SubscriptionFile {
         offsets: &Range<u64>,
     ) -> Result<(), SubscriptionError> {
         let index = self
-            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
-            .unwrap();
+            .find_index(|partition| {
+                partition
+                    .get_partition_name()
+                    .ok()
+                    .map(|p_name| p_name == *partition_name)
+                    .unwrap_or(false)
+            })
+            .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
 
@@ -307,7 +318,13 @@ impl SubscriptionFile {
         max_offset: &u64,
     ) -> Result<(), SubscriptionError> {
         let index = self
-            .find_index(|partition| partition.get_partition_name().unwrap() == *partition_name)
+            .find_index(|partition| {
+                partition
+                    .get_partition_name()
+                    .ok()
+                    .map(|p_name| p_name == *partition_name)
+                    .unwrap_or(false)
+            })
             .ok_or(SubscriptionError::PartitionDoesNotExists)?;
 
         let mut partition = self.get_at(index)?;
@@ -332,6 +349,7 @@ static ITER_SIZE: usize = PARTITION_OFFSET_SERDE_LEN * PARTITION_COUNT_PER_BUFFE
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use std::panic::catch_unwind;
     use std::{io::Read, ops::Range, path::PathBuf, str::FromStr};
 
@@ -750,9 +768,7 @@ mod test {
                         .unwrap();
                 });
 
-            let partitions = sub_file.get_partition_indexes().unwrap();
-
-            partitions
+            sub_file.get_partition_indexes().unwrap()
         });
 
         std::fs::remove_file(&path).unwrap();

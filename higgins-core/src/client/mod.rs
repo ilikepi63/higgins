@@ -13,11 +13,16 @@ impl ClientRef {
     pub async fn send(&self, message: Message) -> Result<(), HigginsError> {
         let mut result = BytesMut::new();
 
-        message.encode(&mut result).unwrap(); // TODO: Make this catchable from HigginsError.
+        message.encode(&mut result)?; // TODO: Make this catchable from HigginsError.
 
         match self {
             ClientRef::AsyncTcpSocket(sender) => {
-                sender.send(result).await.unwrap();
+                sender.send(result).await.map_err(|err| {
+                    HigginsError::Arbitrary(format!(
+                        "Failed to write offsets to client: {:#?}",
+                        err
+                    ))
+                })?;
             }
             ClientRef::NoOp => {}
         }

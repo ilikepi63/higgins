@@ -7,7 +7,7 @@ license-file = "../LICENSE.md"
 [dependencies]
 higgins-codec = { path = "../higgins-codec" }
 higgins-shared = {path = "../higgins-shared"}
-prost = { version = "0.13" }
+prost = { workspace = true }
 tracing = {workspace = true}
 bytes = "1"
 tokio = { version = "1", features = ["net"] }

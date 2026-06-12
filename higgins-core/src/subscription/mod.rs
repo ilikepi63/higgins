@@ -7,9 +7,9 @@
 //! The semantics of a Subscription file are as such:
 //!
 //! - For each partition p that has a range of values already published to it, you will have a PartitionOffsets value inside
-//! of the subscription.
+//!   of the subscription.
 //! - Each PartitionOffsets holds a range, which the `start` of the range denotes the already queried values whilst
-//! the `end` of the range denotes the values that are still to be read.
+//!   the `end` of the range denotes the values that are still to be read.
 //!
 //! An example is as such:
 //!
@@ -23,7 +23,7 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Notify;
 
-use higgins_shared::{PartitionName, SubscriptionError};
+use higgins_shared::{HigginsError, PartitionName, SubscriptionError};
 
 /// Represents the unique ID for a subscription.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -35,9 +35,9 @@ impl From<Vec<u8>> for SubscriptionId {
     }
 }
 
-impl Into<Vec<u8>> for SubscriptionId {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<SubscriptionId> for Vec<u8> {
+    fn from(val: SubscriptionId) -> Self {
+        val.0
     }
 }
 
@@ -62,6 +62,7 @@ impl PartialEq for PartitionOffsets {
 
 impl Eq for PartitionOffsets {}
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for PartitionOffsets {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.amount_to_take().cmp(&other.amount_to_take()))
@@ -139,12 +140,11 @@ impl std::fmt::Debug for Subscription {
 type Offset = u64;
 
 impl Subscription {
-    pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Self {
-        let mut subscription_file = SubscriptionFile::new(path).unwrap();
+    pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Result<Self, HigginsError> {
+        let mut subscription_file = SubscriptionFile::new(path)?;
 
         let mut partitions = subscription_file
-            .get_partition_indexes()
-            .unwrap()
+            .get_partition_indexes()?
             .iter()
             .map(|partition_offsets| {
                 let partition_id = partition_offsets.get_partition_name()?;
@@ -157,18 +157,17 @@ impl Subscription {
                     end,
                 })
             })
-            .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()
-            .unwrap();
+            .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()?;
 
         partitions.sort();
 
-        Self {
+        Ok(Self {
             last_index: 0,
             condvar: Notify::new(),
             client_counts: vec![],
             partitions,
             file: subscription_file,
-        }
+        })
     }
 
     /// Add a partition to  this  Subscription, beginning at the given offset.
@@ -258,7 +257,7 @@ impl Subscription {
             }
             None => Err(
                 SubscriptionError::AttemptToAcknowledgePartitionThatDoesntExist(
-                    String::from_utf8(key.to_vec()).unwrap(), // TODO: Probably shouldn't try to do this?
+                    key.to_string().unwrap_or("NO KEY PRESENT".to_string()), // TODO: Probably shouldn't try to do this?
                     offsets.start,
                 ),
             ),
@@ -353,11 +352,7 @@ impl Subscription {
                     continue;
                 }
 
-                let end = if offset_count < (partition_offset.end - partition_offset.end) {
-                    partition_offset.start + offset_count
-                } else {
-                    partition_offset.end
-                };
+                let end = partition_offset.end;
 
                 tracing::info!("{}", end);
 
@@ -450,13 +445,15 @@ impl Subscription {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
     use super::*;
     use std::panic::catch_unwind;
 
     #[test]
     fn test_add_partition_success() {
         tracing_subscriber::fmt::init();
-        let mut sub = Subscription::new("add_partition_success");
+        let mut sub = Subscription::new("add_partition_success").unwrap();
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add a partition with offset and max_offset
@@ -479,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_add_partition_already_exists() {
-        let mut sub = Subscription::new("partition_exists");
+        let mut sub = Subscription::new("partition_exists").unwrap();
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition once
@@ -498,7 +495,7 @@ mod tests {
         let sub_name = "acknowledge_existing_partition";
 
         let result = catch_unwind(|| {
-            let mut sub = Subscription::new(sub_name);
+            let mut sub = Subscription::new(sub_name).unwrap();
             let key = PartitionName::try_from("partition1").unwrap();
 
             // Add partition
@@ -521,7 +518,7 @@ mod tests {
 
     #[test]
     fn test_acknowledge_nonexistent_partition() {
-        let mut sub = Subscription::new("test_acknowledge_nonexistent_partition");
+        let mut sub = Subscription::new("test_acknowledge_nonexistent_partition").unwrap();
         let key = PartitionName::try_from("nonexistent").unwrap();
 
         // Try acknowledging a partition that doesn't exist
@@ -534,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_take_offsets() {
-        let mut sub = Subscription::new("test_take_offsets");
+        let mut sub = Subscription::new("test_take_offsets").unwrap();
 
         let key = PartitionName::try_from("partition1").unwrap();
 
@@ -560,7 +557,7 @@ mod tests {
 
     #[test]
     fn test_take_no_offsets_available() {
-        let mut sub = Subscription::new("test_take_no_offsets_available");
+        let mut sub = Subscription::new("test_take_no_offsets_available").unwrap();
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition with no unacknowledged offsets (max_offset 0)
@@ -574,7 +571,7 @@ mod tests {
 
     #[test]
     fn test_set_max_offset_existing_partition() {
-        let mut sub = Subscription::new("test_set_max_offset_existing_partition");
+        let mut sub = Subscription::new("test_set_max_offset_existing_partition").unwrap();
         let key = PartitionName::try_from("partition1").unwrap();
 
         // Add partition
@@ -592,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_set_max_offset_nonexistent_partition() {
-        let mut sub = Subscription::new("test_set_max_offset_nonexistent_partition");
+        let mut sub = Subscription::new("test_set_max_offset_nonexistent_partition").unwrap();
         let key = PartitionName::try_from("nonexistent").unwrap();
 
         // Try setting max_offset for a non-existent partition
@@ -610,7 +607,7 @@ mod tests {
         let sub_name = "test_acknowledge_and_take_combination";
 
         let result = catch_unwind(|| {
-            let mut sub = Subscription::new(sub_name);
+            let mut sub = Subscription::new(sub_name).unwrap();
 
             let key = PartitionName::try_from("partition1").unwrap();
 
@@ -635,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_multiple_partitions() {
-        let mut sub = Subscription::new("test_multiple_partitions");
+        let mut sub = Subscription::new("test_multiple_partitions").unwrap();
         let key1 = PartitionName::try_from("partition1").unwrap();
         let key2 = PartitionName::try_from("partition2").unwrap();
 
@@ -657,7 +654,7 @@ mod tests {
         let sub_name = "test_can_read_subscription_from_file";
 
         let result = catch_unwind(|| {
-            let mut sub = Subscription::new(sub_name);
+            let mut sub = Subscription::new(sub_name).unwrap();
 
             [
                 "partition_one",
@@ -676,7 +673,7 @@ mod tests {
             // Drop the sub.
             drop(sub);
 
-            let sub = Subscription::new(sub_name);
+            let sub = Subscription::new(sub_name).unwrap();
 
             assert_eq!(sub.client_counts.len(), 0);
             assert_eq!(sub.partitions.len(), 4);
@@ -698,7 +695,7 @@ mod tests {
         let sub_name = "subscription_file_acknowledgement_works";
 
         let result = catch_unwind(|| {
-            let mut sub = Subscription::new(sub_name);
+            let mut sub = Subscription::new(sub_name).unwrap();
 
             let partition_name = PartitionName::try_from("1").unwrap();
 
@@ -730,7 +727,7 @@ mod tests {
         let sub_name = "test_acknowledge_and_take_combination_range";
 
         let result = catch_unwind(|| {
-            let mut sub = Subscription::new(sub_name);
+            let mut sub = Subscription::new(sub_name).unwrap();
 
             let key = PartitionName::try_from("partition1").unwrap();
 

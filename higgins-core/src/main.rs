@@ -1,5 +1,5 @@
-#[deny(clippy::unwrap_used)]
-#[deny(clippy::expect_used)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
 pub mod broker;
 pub mod client;
 mod derive;
@@ -44,7 +44,9 @@ async fn main() {
 
     match dir {
         Ok(dir) => {
-            run_server(dir, port).await;
+            if let Err(err) = run_server(dir, port).await {
+                tracing::error!("Error running server: {:#?}", err);
+            };
         }
         Err(_) => {
             tracing::error!("Incorrect directory name given.");

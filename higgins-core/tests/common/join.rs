@@ -129,16 +129,16 @@ pub fn run_basic_join_test() {
 
         std::thread::sleep(Duration::from_secs(1));
 
-        let _ = client
+        client
             .query_latest(b"customer_address", &PartitionName::try_from("1").unwrap())
             .unwrap();
 
         let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+            ResponseBody::GetIndex(get_index) => get_index.records.first().unwrap().data.clone(),
             _ => panic!("Incorrect response received"),
         };
 
-        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+        let record_batch = read_arrow(&bytes).unwrap().next().unwrap().unwrap();
 
         // dbg!(record_batch);
 
@@ -170,11 +170,11 @@ pub fn run_basic_join_test() {
             .unwrap();
 
         let bytes = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-            ResponseBody::GetIndex(get_index) => get_index.records.get(0).unwrap().data.clone(),
+            ResponseBody::GetIndex(get_index) => get_index.records.first().unwrap().data.clone(),
             _ => panic!("Incorrect response received"),
         };
 
-        let record_batch = read_arrow(&bytes).nth(0).unwrap().unwrap();
+        let record_batch = read_arrow(&bytes).unwrap().next().unwrap().unwrap();
 
         assert_eq!(record_batch, create_test_customer_address_data());
     });

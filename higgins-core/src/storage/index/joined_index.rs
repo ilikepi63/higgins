@@ -1,3 +1,5 @@
+use higgins_shared::HigginsError;
+
 use crate::storage::{dereference::Reference, index::IndexError};
 use std::fmt::Debug;
 
@@ -17,16 +19,22 @@ impl<'a> JoinedIndex<'a> {
     // Properties.
     /// Offset
     pub fn offset(&self) -> u64 {
-        u64::from_be_bytes(
-            self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]
-                .try_into()
-                .unwrap(),
-        )
+        match <[u8; 8]>::try_from(&self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+
+        // u64::from_be_bytes(self.0[OFFSET_INDEX..OFFSET_INDEX + size_of::<u64>()].try_into()?)
     }
 
     /// Retrieve whether or not this join is completed.
     pub fn completed(&self) -> bool {
-        u8::from_be_bytes(self.0[COMPLETED_RANGE].try_into().unwrap()) == 1
+        match <[u8; 1]>::try_from(&self.0[COMPLETED_RANGE]) {
+            Ok(buf) => u8::from_be_bytes(buf) == 1,
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+
+        // u8::from_be_bytes(self.0[COMPLETED_RANGE].try_into()?) == 1
     }
 
     // Constructors
@@ -99,10 +107,10 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at(1);
 
-                let result_value = u8::from_be_bytes(optional.try_into().unwrap());
+                let result_value = u8::from_be_bytes(optional.try_into().ok()?);
 
                 match result_value {
-                    1 => Some(u64::from_be_bytes(offset.try_into().unwrap())),
+                    1 => Some(u64::from_be_bytes(offset.try_into().ok()?)),
                     0 => None,
                     _ => {
                         tracing::error!(
@@ -131,8 +139,8 @@ impl<'a> JoinedIndex<'a> {
 
                 let (optional, offset) = offset.split_at_mut(1);
 
-                let optional: &mut [u8; 1] = optional.try_into().unwrap();
-                let offset: &mut [u8; 8] = offset.try_into().unwrap();
+                let optional: &mut [u8; 1] = optional.try_into()?;
+                let offset: &mut [u8; 8] = offset.try_into()?;
 
                 *optional = u8::to_be_bytes(1);
                 *offset = put_offset.to_be_bytes();
@@ -200,32 +208,30 @@ impl<'a> JoinedIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(
-            self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]
-                .try_into()
-                .unwrap(),
-        )
+        match <[u8; 8]>::try_from(&self.0[TIMESTAMP_INDEX..TIMESTAMP_INDEX + size_of::<u64>()]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
     }
 
     /// Retrieve the reference of this Index.
-    pub fn reference(&self) -> Reference {
+    pub fn reference(&self) -> Result<Reference, HigginsError> {
         Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
 
     /// Update the reference for this.
-    pub fn put_reference(&mut self, reference: Reference) -> Vec<u8> {
+    pub fn put_reference(&mut self, reference: Reference) -> Result<Vec<u8>, IndexError> {
         let mut cloned = self.0.to_vec();
 
-        Self::put_reference_static(reference, &mut cloned);
+        Self::put_reference_static(reference, &mut cloned)?;
 
-        cloned
+        Ok(cloned)
     }
 
     /// Update the reference for this.
-    pub fn put_reference_static(reference: Reference, data: &mut [u8]) {
-        reference
-            .to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
-            .unwrap();
+    pub fn put_reference_static(reference: Reference, data: &mut [u8]) -> Result<(), IndexError> {
+        reference.to_bytes(&mut data[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
+        Ok(())
     }
 }
 
@@ -265,7 +271,12 @@ impl<'a> JoinedIndexOffset<'a> {
     }
 
     /// Check if this value is Some or None.
+    ///
+    /// Panics if the bytes cannot be converted to a u64.
     pub fn get_unchecked(&self) -> u64 {
+        // Considering this is named unchecked, the assumption is that the programmer must force
+        // the invariants.
+        #[allow(clippy::unwrap_used)]
         u64::from_be_bytes(self.0[1..9].try_into().unwrap())
     }
 
@@ -280,6 +291,9 @@ impl<'a> JoinedIndexOffset<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::utils::test::{ByteInterval, Interval, print_bytes_coloured};
     use colored::Color;
@@ -360,7 +374,7 @@ mod test {
 
         assert_eq!(joined_index.offset(), 0);
         assert_eq!(joined_index.timestamp(), 2);
-        assert!(matches!(joined_index.reference(), Reference::Null));
+        assert!(matches!(joined_index.reference().unwrap(), Reference::Null));
 
         dbg!(&joined_index);
 
@@ -588,7 +602,7 @@ mod test {
 
         let new_ref = Reference::Null;
         // Simulate update
-        let updated = ji.put_reference(new_ref);
+        let updated = ji.put_reference(new_ref).unwrap();
         assert_eq!(updated.len(), total_size);
         // Check that object key bytes are updated (mock sets to 0s)
         assert!(

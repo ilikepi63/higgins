@@ -1,5 +1,6 @@
 #[allow(unused_imports)] // No idea why this is throwing a warning.
 use bytes::{BufMut as _, BytesMut};
+use higgins_shared::{HigginsError, IndexError};
 use std::{fmt::Debug, io::Write as _};
 
 use crate::storage::dereference::Reference;
@@ -32,24 +33,34 @@ impl<'a> DefaultIndex<'a> {
     }
 
     /// Returns the offset as a u64, converted from big-endian bytes.
-    #[allow(unused)]
     pub fn offset(&self) -> u64 {
-        u64::from_be_bytes(self.0[OFFSET_INDEX..OBJECT_KEY_INDEX].try_into().unwrap())
+        match <[u8; 8]>::try_from(&self.0[OFFSET_INDEX..OBJECT_KEY_INDEX]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
     }
 
     //TODO: This is deprecated, but I don't have the energy to make the change rn.
-    #[allow(unused)]
     /// Returns the position as a u32, converted from big-endian bytes.
     pub fn position(&self) -> u32 {
-        u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into().unwrap())
+        match <[u8; 4]>::try_from(&self.0[POSITION_INDEX..TIMESTAMP_INDEX]) {
+            Ok(buf) => u32::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+
+        // u32::from_be_bytes(self.0[POSITION_INDEX..TIMESTAMP_INDEX].try_into().unwrap())
     }
 
     //TODO: This is deprecated, but I don't have the energy to make the change rn.
-    #[allow(unused)]
     /// Returns the size as a u64, converted from big-endian bytes.
     pub fn size(&self) -> u64 {
         let end = SIZE_INDEX + size_of::<u64>();
-        u64::from_be_bytes(self.0[SIZE_INDEX..end].try_into().unwrap())
+        match <[u8; 8]>::try_from(&self.0[SIZE_INDEX..end]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+
+        // u64::from_be_bytes(self.0[SIZE_INDEX..end].try_into()?)
     }
 
     pub fn to_bytes(&self) -> BytesMut {
@@ -83,32 +94,38 @@ impl<'a> DefaultIndex<'a> {
     }
 
     pub fn timestamp(&self) -> u64 {
-        u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into().unwrap())
+        match <[u8; 8]>::try_from(&self.0[TIMESTAMP_INDEX..SIZE_INDEX]) {
+            Ok(buf) => u64::from_be_bytes(buf),
+            Err(_) => unreachable!(), // Invariants of this struct hold that this will always return.
+        }
+        // u64::from_be_bytes(self.0[TIMESTAMP_INDEX..SIZE_INDEX].try_into()?)
     }
 
     /// Retrieve the reference of this Index.
-    pub fn reference(&self) -> Reference {
+    pub fn reference(&self) -> Result<Reference, HigginsError> {
         Reference::from_bytes(&self.0[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
     }
 
     /// Update the reference for this.
-    pub fn put_reference(&self, reference: Reference) -> Vec<u8> {
+    pub fn put_reference(&self, reference: Reference) -> Result<Vec<u8>, IndexError> {
         let mut cloned = self.0.to_vec();
 
         let mut bytes = vec![0_u8; Reference::size_of()];
 
-        reference.to_bytes(&mut bytes).unwrap();
+        reference.to_bytes(&mut bytes)?;
 
         reference
-            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])
-            .unwrap();
+            .to_bytes(&mut cloned[OBJECT_KEY_INDEX..OBJECT_KEY_INDEX + Reference::size_of()])?;
 
-        cloned
+        Ok(cloned)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use crate::storage::dereference::{Reference, S3Reference};
 
@@ -278,7 +295,7 @@ mod tests {
             .expect("Failed to put data");
 
         let index = DefaultIndex::of(&buffer);
-        let retrieved_ref = index.reference();
+        let retrieved_ref = index.reference().unwrap();
 
         // Verify the reference matches
         assert!(references_equal(
@@ -313,7 +330,7 @@ mod tests {
             .expect("Failed to put data");
 
         let index = DefaultIndex::of(&buffer);
-        let retrieved_ref = index.reference();
+        let retrieved_ref = index.reference().unwrap();
 
         // Verify we get back a Null reference
         match retrieved_ref {
@@ -345,7 +362,7 @@ mod tests {
 
         // Create a new reference with different data
         let new_reference = create_alternate_s3_reference();
-        let updated_buffer = index.put_reference(new_reference);
+        let updated_buffer = index.put_reference(new_reference).unwrap();
 
         let updated_index = DefaultIndex::of(&updated_buffer);
 
@@ -356,7 +373,7 @@ mod tests {
         assert_eq!(updated_index.size(), size);
 
         // Verify reference was updated
-        let updated_ref = updated_index.reference();
+        let updated_ref = updated_index.reference().unwrap();
         match updated_ref {
             Reference::S3(s3_ref) => {
                 assert_eq!(
@@ -396,7 +413,7 @@ mod tests {
 
         // Update to Null reference
         let new_reference = create_null_reference();
-        let updated_buffer = index.put_reference(new_reference);
+        let updated_buffer = index.put_reference(new_reference).unwrap();
 
         let updated_index = DefaultIndex::of(&updated_buffer);
 
@@ -407,7 +424,7 @@ mod tests {
         assert_eq!(updated_index.size(), size);
 
         // Verify reference was updated to Null
-        match updated_index.reference() {
+        match updated_index.reference().unwrap() {
             Reference::Null => {} // Success
             Reference::S3(_) => panic!("Expected Null reference, got S3Reference"),
         }
@@ -436,7 +453,7 @@ mod tests {
         assert_eq!(index.size(), 0);
 
         // Verify reference fields are also zero
-        match index.reference() {
+        match index.reference().unwrap() {
             Reference::S3(s3_ref) => {
                 assert_eq!(s3_ref.object_key, [0u8; 16]);
                 assert_eq!(s3_ref.position, 0);
@@ -469,7 +486,7 @@ mod tests {
         assert_eq!(index.size(), u64::MAX);
 
         // Verify reference fields are also max
-        match index.reference() {
+        match index.reference().unwrap() {
             Reference::S3(s3_ref) => {
                 assert_eq!(s3_ref.object_key, [255u8; 16]);
                 assert_eq!(s3_ref.position, u64::MAX);
@@ -536,7 +553,7 @@ mod tests {
         assert_ne!(index1.offset(), index2.offset());
 
         // Verify references are different
-        match (index1.reference(), index2.reference()) {
+        match (index1.reference().unwrap(), index2.reference().unwrap()) {
             (Reference::S3(s3_1), Reference::S3(s3_2)) => {
                 assert_ne!(s3_1.object_key, s3_2.object_key);
                 assert_ne!(s3_1.position, s3_2.position);
@@ -567,7 +584,7 @@ mod tests {
             .expect("Failed to put data");
 
         let index = DefaultIndex::of(&buffer);
-        match index.reference() {
+        match index.reference().unwrap() {
             Reference::S3(s3_ref) => {
                 assert_eq!(s3_ref.object_key, object_key);
                 assert_eq!(s3_ref.position, 5000);

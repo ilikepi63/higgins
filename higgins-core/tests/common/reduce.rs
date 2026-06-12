@@ -83,6 +83,7 @@ pub fn can_implement_basic_reduce() {
     }; // Get the result.
 
     let arrow = read_arrow(&result.records.first().unwrap().data.clone())
+        .unwrap()
         .next()
         .unwrap()
         .unwrap();
@@ -133,6 +134,7 @@ pub fn can_implement_basic_reduce() {
     };
 
     let arrow = read_arrow(&result.records.first().unwrap().data.clone())
+        .unwrap()
         .next()
         .unwrap()
         .unwrap();
@@ -166,7 +168,7 @@ pub fn can_implement_basic_reduce() {
     //         "#
     //         .as_bytes(),
     //     )
-    //     .unwrap();
+    //     ?;
 
     // client.recv(Some(Duration::from_secs(5))).unwrap();
 
@@ -174,7 +176,7 @@ pub fn can_implement_basic_reduce() {
 
     // client
     //     .query_latest(b"result", &PartitionName::try_from("1").unwrap())
-    //     .unwrap();
+    //     ?;
 
     // let result = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
     //     ResponseBody::GetIndex(response) => response,
@@ -183,13 +185,13 @@ pub fn can_implement_basic_reduce() {
 
     // let arrow = read_arrow(&result.records.first().unwrap().data.clone())
     //     .next()
-    //     .unwrap()
-    //     .unwrap();
+    //     ?
+    //     ?;
 
     // assert_eq!(
     //     arrow
     //         .column_by_name("id")
-    //         .unwrap()
+    //         ?
     //         .as_string::<i32>()
     //         .value(0),
     //     "1"
@@ -198,7 +200,7 @@ pub fn can_implement_basic_reduce() {
     // assert_eq!(
     //     arrow
     //         .column_by_name("data")
-    //         .unwrap()
+    //         ?
     //         .as_primitive::<Int32Type>()
     //         .value(0),
     //     3
@@ -216,7 +218,7 @@ pub fn can_implement_basic_reduce() {
     //     .as_bytes(),
     //     &mut socket,
     // )
-    // .unwrap();
+    // ?;
 
     // let result = query_latest(b"result", b"1", &mut socket).unwrap();
 

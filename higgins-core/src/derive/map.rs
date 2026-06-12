@@ -27,21 +27,33 @@ impl MapOperation {
 
             for _ in 0..record_batch.num_rows() {
                 let partition_val = get_partition_key_from_record_batch(
-                    &record_batch,
-                    &ColumnName::from(&self.0.definition),
-                );
+                    record_batch,
+                    &ColumnName::try_from(&self.0.definition)?,
+                )?;
+
+                let function_name = match self.0.definition.function_name.as_ref() {
+                    Some(fn_name) => fn_name,
+                    None => {
+                        continue;
+                    }
+                };
 
                 let engine = &broker_lock.wasm_engine;
-                let module = broker_lock
+                let module = match broker_lock
                     .wasm_modules
                     .iter()
-                    .find(|(n, _)| n == self.0.definition.function_name.as_ref().unwrap())
+                    .find(|(n, _)| n == function_name)
                     .map(|(_, m)| m)
-                    .unwrap();
+                {
+                    Some(module) => module,
+                    None => {
+                        continue;
+                    }
+                };
 
                 tracing::trace!("[MAP] We have fetched the module.");
 
-                let mapped_record_batch = run_map_function(&record_batch, engine, module);
+                let mapped_record_batch = run_map_function(record_batch, engine, module)?;
 
                 tracing::trace!("[MAP] Result from mapping: {:#?}", mapped_record_batch);
 
@@ -89,15 +101,17 @@ impl MapOperation {
                 )
                 .await?;
 
-                let mut lock = self.0.subscription.as_mut().unwrap().write().await;
+                if let Some(subscription) = self.0.subscription.as_mut() {
+                    let mut lock = subscription.write().await;
 
-                lock.acknowledge(&self.0.partition, &offsets)?;
+                    lock.acknowledge(&self.0.partition, &offsets)?;
 
-                drop(lock);
+                    drop(lock);
+                }
 
                 Ok(())
             }
-            None => Err(HigginsError::Unknown),
+            None => Err(HigginsError::Arbitrary("No References found".to_string())),
         }
     }
 }

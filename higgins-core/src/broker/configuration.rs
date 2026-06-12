@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::topography::FunctionType;
 use crate::topography::config::from_toml;
-use higgins_shared::{HigginsError, StreamName};
+use higgins_shared::{HigginsError, TopographyError};
 
 impl Broker {
     // Ideally what should happen here is that configurations get applied to topographies,
@@ -21,7 +21,7 @@ impl Broker {
         tracing::trace!("{:#?}", String::from_utf8(config.to_vec()));
 
         // Deserialize configuration from TOML.
-        let config = from_toml(config);
+        let config = from_toml(config)?;
         tracing::trace!("Retrieved the config: {:#?}.", config);
 
         // Apply the configuration to the topography.
@@ -32,7 +32,7 @@ impl Broker {
         // Apply the storages.
         if let Some(storage) = self.topography.get_storage() {
             let backing_store = instantiate_storage_from_configuration(storage);
-            self.backing_store = Some(backing_store);
+            self.backing_store = Some(backing_store?);
         }
 
         tracing::trace!("Successfully instantiated the storage.");
@@ -46,7 +46,7 @@ impl Broker {
                 if !self.streams.contains_key(stream_key) {
                     let schema = self
                         .topography
-                        .get_schema_by_key(def.schema.clone().into())?
+                        .get_schema_by_key(def.schema.clone())?
                         .clone();
 
                     return Some((stream_key.clone(), schema));
@@ -84,10 +84,11 @@ impl Broker {
                     };
 
                     for (i, join) in join_definition.joins.iter().enumerate() {
-                        let stream_name = StreamName::from(derived_stream_key.clone());
+                        let stream_name = derived_stream_key.clone();
 
                         let (_client_id, subscription) =
-                            create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                            create_derived_stream_subscription_ref(stream_name.clone(), self)
+                                .await?;
 
                         let relation = Relation {
                             stream_name,
@@ -96,7 +97,7 @@ impl Broker {
                             join_index: Some(i as u64),
                         };
 
-                        let base_key = StreamName::from(join.stream.0.clone());
+                        let base_key = join.stream.0.clone();
                         tracing::debug!(
                             "Creating Relation {:#?} with key {}",
                             relation,
@@ -109,10 +110,10 @@ impl Broker {
                 Some(FunctionType::Map) => {
                     tracing::trace!("Creating Mapped stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,
@@ -121,11 +122,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -134,10 +135,10 @@ impl Broker {
                 Some(FunctionType::Reduce) => {
                     tracing::trace!("Creating Mapped stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,
@@ -146,11 +147,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -159,10 +160,10 @@ impl Broker {
                 Some(FunctionType::Window) => {
                     tracing::trace!("Creating Window stream definition.");
 
-                    let stream_name = StreamName::from(derived_stream_key.clone());
+                    let stream_name = derived_stream_key.clone();
 
                     let (_client_id, subscription) =
-                        create_derived_stream_subscription_ref(stream_name.clone(), self).await;
+                        create_derived_stream_subscription_ref(stream_name.clone(), self).await?;
 
                     let relation = Relation {
                         stream_name,
@@ -171,11 +172,11 @@ impl Broker {
                         join_index: None,
                     };
 
-                    let base_key = derived_stream_definition
-                        .base
-                        .as_ref()
-                        .map(|base_key| StreamName::from(base_key.clone()))
-                        .ok_or(HigginsError::Unknown)?;
+                    let base_key = derived_stream_definition.base.clone().ok_or(
+                        TopographyError::NoBaseKeyDefinedForDerivativeStream(
+                            derived_stream_key.to_string(),
+                        ),
+                    )?;
 
                     tracing::debug!("Creating Relation {:#?} with key {}", relation, base_key);
 
@@ -192,7 +193,7 @@ impl Broker {
     }
 
     pub fn get_topography_as_config_string(&self) -> Result<String, HigginsError> {
-        Ok(self.topography.to_config_toml()?)
+        self.topography.to_config_toml()
     }
 }
 
@@ -200,15 +201,15 @@ use crate::topography::config::AwsS3Storage;
 
 pub fn instantiate_storage_from_configuration(
     (_storage_config_name, storage_config): &(String, Storage),
-) -> Arc<dyn BackingStore<Error = HigginsError>> {
+) -> Result<Arc<dyn BackingStore<Error = HigginsError>>, HigginsError> {
     match storage_config.storage_type {
         StorageType::Memory => {
             let store = InMemory::new();
 
             let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
-            backing_store.start_task().unwrap();
+            backing_store.start_task()?;
 
-            Arc::new(backing_store) // TODO: magic number here.
+            Ok(Arc::new(backing_store)) // TODO: magic number here.
         }
         StorageType::File => {
             todo!()
@@ -269,12 +270,14 @@ pub fn instantiate_storage_from_configuration(
                 s3_builder,
             );
 
-            let store = s3_builder.build().unwrap();
+            let store = s3_builder
+                .build()
+                .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
             let mut backing_store = ObjectBackingStore::new(Arc::new(store), 250);
-            backing_store.start_task().unwrap();
+            backing_store.start_task()?;
 
-            Arc::new(backing_store) // TODO: magic number here.
+            Ok(Arc::new(backing_store)) // TODO: magic number here.
         }
     }
 }

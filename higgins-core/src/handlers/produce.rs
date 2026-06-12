@@ -4,6 +4,7 @@ use crate::broker::Broker;
 use arrow_schema::DataType;
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, ProduceResponse, message::Type};
+use higgins_shared::HigginsError;
 use higgins_shared::PartitionName;
 use higgins_shared::StreamName;
 use higgins_shared::read_arrow;
@@ -16,13 +17,15 @@ pub async fn handle_produce(
     message: Message,
     broker: Arc<RwLock<Broker>>,
     writer_tx: Sender<BytesMut>,
-) {
+) -> Result<(), HigginsError> {
     tracing::info!("[PRODUCE] Received produce request. Handling.");
 
     let ProduceRequest {
         stream_name,
         payload,
-    } = message.produce_request.unwrap();
+    } = message
+        .produce_request
+        .ok_or(HigginsError::MissingPayload)?;
 
     tracing::info!("[PRODUCE] Attempting to take the broker lock..");
 
@@ -34,30 +37,32 @@ pub async fn handle_produce(
 
     let (schema, _tx, _rx) = broker
         .get_stream(&stream_name)
-        .expect("Could not find stream for stream_name.");
+        .ok_or(HigginsError::Arbitrary(
+            "Stream not found for stream name.".to_string(),
+        ))?;
 
-    let batch = read_arrow(&payload).next().unwrap().unwrap();
+    let batch = read_arrow(&payload)?
+        .next()
+        .ok_or(HigginsError::Arbitrary(
+            "No batch found in payload.".to_string(),
+        ))??;
 
     tracing::info!("[PRODUCE] Retrieved the broker lock.");
 
-    let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone()).unwrap();
+    let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone())?;
 
     let key = &stream_definition.partition_key;
 
     tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
 
+    #[allow(clippy::unwrap_used)]
     let key = key.to_string().unwrap();
 
     tracing::trace!("[PRODUCE] Key for stream produce: {}", key);
 
-    let key_type = schema.field_with_name(&key).unwrap().data_type();
+    let key_type = schema.field_with_name(&key)?.data_type();
 
-    let array = batch.column(
-        batch
-            .schema()
-            .index_of(core::str::from_utf8(key.as_bytes()).unwrap())
-            .unwrap(),
-    );
+    let array = batch.column(batch.schema().index_of(&key)?);
 
     tracing::trace!("[PRODUCE] Array: {:#?}", array);
 
@@ -103,7 +108,7 @@ pub async fn handle_produce(
 
     let result = Broker::produce(
         &stream_name,
-        &PartitionName::try_from(key.as_bytes()).unwrap(),
+        &PartitionName::try_from(key.as_bytes())?,
         batch,
         broker_ref,
     )
@@ -121,8 +126,12 @@ pub async fn handle_produce(
         produce_response: Some(resp),
         ..Default::default()
     }
-    .encode(&mut result)
-    .unwrap();
+    .encode(&mut result)?;
 
-    writer_tx.send(result).await.unwrap();
+    writer_tx
+        .send(result)
+        .await
+        .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
+
+    Ok(())
 }

@@ -1,5 +1,5 @@
 use super::config::WindowDefinition;
-use higgins_shared::{PartitionName, StreamName};
+use higgins_shared::{HigginsError, PartitionName, StreamName};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt::Debug};
 
@@ -37,7 +37,7 @@ impl StreamDefinition {
     ///
     /// The index size should always be able to be calculated from the definition given
     /// the dynamic properties of some of the stream values.
-    pub fn index_size(&self) -> usize {
+    pub fn index_size(&self) -> Result<usize, HigginsError> {
         index_size_from_index_type_and_definition(&self.index_type(), self)
     }
 
@@ -67,12 +67,13 @@ impl Debug for StreamDefinition {
     }
 }
 
-impl From<&ConfigurationStreamDefinition> for StreamDefinition {
-    fn from(value: &ConfigurationStreamDefinition) -> Self {
-        StreamDefinition {
+impl TryFrom<&ConfigurationStreamDefinition> for StreamDefinition {
+    type Error = HigginsError;
+    fn try_from(value: &ConfigurationStreamDefinition) -> Result<Self, Self::Error> {
+        Ok(StreamDefinition {
             base: value.base.as_ref().map(|s| s.as_str().into()),
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
-            partition_key: PartitionName::try_from(value.partition_key.as_str()).unwrap(),
+            partition_key: PartitionName::try_from(value.partition_key.as_str())?,
             schema: value.schema.as_str().into(),
             join: value.join.as_ref().map(|s| {
                 s.iter()
@@ -82,6 +83,6 @@ impl From<&ConfigurationStreamDefinition> for StreamDefinition {
             map: value.map.clone(),
             function_name: value.function_name.clone(),
             window: value.window.clone(),
-        }
+        })
     }
 }

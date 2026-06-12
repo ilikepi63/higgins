@@ -72,6 +72,7 @@ pub fn can_implement_basic_map() {
     };
 
     let arrow = read_arrow(&result.records.first().unwrap().data.clone())
+        .unwrap()
         .next()
         .unwrap()
         .unwrap();

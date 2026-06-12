@@ -73,9 +73,9 @@ impl TaskHandler {
                             current_task_ptr
                                 .tasks
                                 .as_mut()
-                                .unwrap()
+                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                                 .get_mut(index)
-                                .unwrap()
+                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                         }
                         // or if there is no vec, create a vec and add a task to it, making the current pointer point to it.
                         (false, _) => {
@@ -88,18 +88,18 @@ impl TaskHandler {
                             current_task_ptr
                                 .tasks
                                 .as_mut()
-                                .unwrap()
+                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                                 .first_mut()
-                                .unwrap()
+                                .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                         }
                         // If there already exists a task, make that task the one we are pointing to.
                         (true, true) => current_task_ptr
                             .tasks
                             .as_mut()
-                            .unwrap()
+                            .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?
                             .iter_mut()
                             .find(|val| val.name == next_layer)
-                            .unwrap(),
+                            .ok_or(HigginsTaskError::TaskHierarchyDoesNotExist)?,
                     };
                 }
                 None => {
@@ -225,11 +225,16 @@ impl TaskHandler {
                             if description_layers.is_empty() {
                                 return Ok(current_task_ptr);
                             } else {
-                                current_task_ptr = current_task_ptr
+                                current_task_ptr = match current_task_ptr
                                     .tasks
                                     .as_mut()
                                     .and_then(|v| v.iter_mut().find(|task| task.name == next_layer))
-                                    .unwrap();
+                                {
+                                    Some(ptr) => ptr,
+                                    None => {
+                                        return Err(HigginsTaskError::TaskHierarchyDoesNotExist);
+                                    }
+                                };
                             }
                         }
                         false => return Err(HigginsTaskError::TaskHierarchyDoesNotExist),
@@ -251,7 +256,7 @@ impl TaskHandler {
             task.name.clone()
         };
 
-        let container_task = self.get_container_task(task_description).unwrap();
+        let container_task = self.get_container_task(task_description)?;
 
         if let Some(sub_tasks) = container_task.tasks.as_mut() {
             let index = sub_tasks
@@ -435,6 +440,7 @@ impl SpawnTaskConfig {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
 
     use super::*;
 
@@ -456,7 +462,7 @@ mod test {
 
         assert_eq!(
             task_handler
-                .get_task_handle_vec(&&TaskDescription("some::hierarchy".to_string()))
+                .get_task_handle_vec(&TaskDescription("some::hierarchy".to_string()))
                 .unwrap(),
             &mut TaskPtr {
                 name: "hierarchy".to_string(),
