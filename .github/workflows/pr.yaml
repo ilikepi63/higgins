@@ -5,6 +5,10 @@ on:
     branches:
       - "main"
 
+# Make sure CI fails on all warnings, including Clippy lints
+env:
+  RUSTFLAGS: "-Dwarnings"
+
 jobs:
   fmt:
     if: github.event.pull_request.draft == false
@@ -21,6 +25,12 @@ jobs:
           components: rustfmt
       - name: Run Format
         run: cargo fmt --check
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features
   test:
     if: github.event.pull_request.draft == false
     name: "Test"
