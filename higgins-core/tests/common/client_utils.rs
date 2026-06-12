@@ -50,8 +50,6 @@ pub fn create_subscription(
 ) -> Vec<u8> {
     client.create_subscription(stream_name.as_bytes()).unwrap();
 
-    
-
     match client.recv(None).unwrap().body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
             create_subscription_response.subscription_id.unwrap()
@@ -71,9 +69,7 @@ pub fn produce(
     client.produce_json(stream, payload, schema).unwrap();
 
     match client.recv(None).unwrap().body {
-        ResponseBody::Produce(response) => {
-            response
-        }
+        ResponseBody::Produce(response) => response,
         _ => {
             tracing::error!("Received unexpected response message.");
             panic!();
@@ -90,9 +86,7 @@ pub fn acknowledge(
     client.acknowledge(stream, sub_id, offsets).unwrap();
 
     match client.recv(None).unwrap().body {
-        ResponseBody::Acknowledge(response) => {
-            response
-        }
+        ResponseBody::Acknowledge(response) => response,
         _ => {
             tracing::error!("Received unexpected response message.");
             panic!();

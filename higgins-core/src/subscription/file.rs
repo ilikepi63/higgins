@@ -768,8 +768,6 @@ mod test {
                         .unwrap();
                 });
 
-            
-
             sub_file.get_partition_indexes().unwrap()
         });
 
