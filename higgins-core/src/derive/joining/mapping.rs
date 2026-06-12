@@ -458,7 +458,7 @@ mod tests {
         let batches = vec![Some(("address".to_string(), address_batch))];
 
         // This should panic due to unwrap() on missing stream
-        let _ = join_mapping.map_arrow(batches);
+        join_mapping.map_arrow(batches).unwrap();
     }
 
     #[test]
@@ -477,7 +477,7 @@ mod tests {
         let batches = vec![Some(("customer".to_string(), customer_batch))];
 
         // This should panic due to unwrap() on missing column
-        let _ = join_mapping.map_arrow(batches);
+        join_mapping.map_arrow(batches).unwrap();
     }
 
     #[test]
