@@ -21,13 +21,13 @@ enum Commands {
     Ping {},
     Produce {
         #[arg(long, require_equals = true)]
-        topic: String,
+        stream: String,
         #[arg(long, require_equals = true)]
         file_name: String,
     },
     CreateConsumer {
         #[arg(long, require_equals = true)]
-        topic: String,
+        stream: String,
         // partitions?
     },
     CreateConfiguration {
@@ -96,11 +96,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
-        Commands::Produce { topic, file_name } => {
+        Commands::Produce { stream, file_name } => {
             let result: Result<(), HigginsError> = {
                 let payload = std::fs::read(&file_name)?;
 
-                client.produce(&topic, &payload).await?;
+                client.produce(&stream, &payload).await?;
 
                 let result = client.recv(None).await?;
 
