@@ -10,6 +10,8 @@ use higgins_shared::HigginsError;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    #[arg(short, long)]
+    port: u16,
     #[command(subcommand)]
     command: Commands,
 }
@@ -41,9 +43,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_names(true)
         .init();
 
-    let mut client = Client::connect("127.0.0.1:8080", Some(Duration::from_secs(3))).await?;
-
     let args = Args::parse();
+
+    let port = args.port;
+
+    let mut client =
+        Client::connect(format!("127.0.0.1:{port}"), Some(Duration::from_secs(3))).await?;
 
     match args.command {
         Commands::Ping {} => {
