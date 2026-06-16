@@ -66,8 +66,6 @@ async fn process_socket(
                     }
                 };
 
-                tracing::info!("Received a message {:#?}, responding.", message);
-
                 let t = match Type::try_from(message.r#type) {
                     Ok(t) => t,
                     Err(err) => {

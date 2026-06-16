@@ -1352,6 +1352,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "higgins-tests"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-schema",
+ "bytes",
+ "clap",
+ "higgins-client",
+ "higgins-codec",
+ "higgins-shared",
+ "prost",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

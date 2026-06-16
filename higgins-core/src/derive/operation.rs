@@ -193,7 +193,6 @@ pub async fn generate_relation_tasks_from_stream(
 
     let current_relations = {
         let broker_guard = broker.write().await;
-        tracing::debug!("Broker state: {:#?}", broker_guard);
         broker_guard.get_relation_for_stream(&stream).clone()
     };
 
