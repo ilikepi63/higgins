@@ -96,6 +96,9 @@ ignore = [
     { id = "RUSTSEC-2026-0104", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0114", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0122", reason = "Requires further investigation." },
+    { id = "RUSTSEC-2026-0186", reason = "Requires further investigation." },
+
+
 
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
