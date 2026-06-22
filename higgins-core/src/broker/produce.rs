@@ -1,6 +1,6 @@
 use super::Broker;
 use crate::derive::operation::{OperationData, produce_operation};
-use crate::storage::backing_store::{self, BackingStore};
+use crate::storage::backing_store::BackingStore;
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
 use crate::utils::epoch;
