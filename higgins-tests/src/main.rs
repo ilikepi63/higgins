@@ -6,7 +6,6 @@ use arrow_schema::{DataType, Field, Schema};
 use clap::{Parser, Subcommand};
 use higgins_client::{Client, ResponseBody};
 use higgins_shared::HigginsError;
-use tracing_subscriber::fmt::time::SystemTime;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
