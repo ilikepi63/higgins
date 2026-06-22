@@ -1,5 +1,6 @@
 use super::Broker;
 use crate::derive::operation::{OperationData, produce_operation};
+use crate::storage::backing_store::{self, BackingStore};
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
 use crate::utils::epoch;
@@ -29,16 +30,24 @@ impl ProduceOperation {
 
         self.0.records_setter.set(records.clone()).await;
 
+        let backing_store = broker
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .clone();
+
+        drop(broker);
+
         for record in records {
             references.push(
-                broker
-                    .put_data_store(
-                        self.0.stream.to_string(),
-                        &self.0.partition.clone(),
-                        record.clone(),
-                    )
-                    .await
-                    .inspect_err(|err| tracing::error!("{:#?}", err))?,
+                Broker::put_data_store(
+                    backing_store.clone(),
+                    self.0.stream.to_string(),
+                    &self.0.partition.clone(),
+                    record.clone(),
+                )
+                .await
+                .inspect_err(|err| tracing::error!("{:#?}", err))?,
             );
         }
 
@@ -157,7 +166,7 @@ impl Broker {
 
     /// Places data in the backing store, returning a `Reference` to where it was placed.
     pub async fn put_data_store(
-        &self,
+        backing_store: Arc<dyn BackingStore<Error = HigginsError>>,
         stream: String,
         partition: &PartitionName,
         data: RecordBatch,
@@ -171,11 +180,7 @@ impl Broker {
             data,
         };
 
-        let response = self
-            .backing_store
-            .as_ref()
-            .ok_or(HigginsError::ObjectStoreNotConfigured)?
-            .put(request)?;
+        let response = backing_store.put(request)?;
 
         let response = response
             .recv()

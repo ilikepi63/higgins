@@ -29,9 +29,9 @@ struct Args {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .pretty()
-        .with_thread_names(true)
-        .with_max_level(tracing::Level::TRACE)
+        // .pretty()
+        // .with_thread_names(true)
+        // .with_max_level(tracing::Level::TRACE)
         .init();
 
     let args = Args::parse();

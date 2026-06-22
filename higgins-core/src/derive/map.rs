@@ -1,4 +1,5 @@
 use super::utils::ColumnName;
+use crate::broker::Broker;
 use crate::derive::operation::OperationData;
 use crate::{
     derive::utils::{get_partition_key_from_record_batch, put_default_index_at_range},
@@ -63,10 +64,19 @@ impl MapOperation {
                     let stream = self.0.stream.to_string();
                     let partition = &PartitionName::try_from(&partition_val[..])?;
 
+                    let backing_store = broker_lock
+                        .backing_store
+                        .as_ref()
+                        .ok_or(HigginsError::ObjectStoreNotConfigured)?
+                        .clone();
                     // CREATE REFERENCE
-                    let reference = broker_lock
-                        .put_data_store(stream.clone(), partition, mapped_record_batch)
-                        .await?;
+                    let reference = Broker::put_data_store(
+                        backing_store,
+                        stream,
+                        partition,
+                        mapped_record_batch,
+                    )
+                    .await?;
 
                     references.push(reference);
                 }

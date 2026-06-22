@@ -13,7 +13,7 @@ pub mod join;
 pub mod mapping;
 pub mod opts;
 
-use crate::broker::BrokerIndexFile;
+use crate::broker::{Broker, BrokerIndexFile};
 use crate::derive::joining::completion::complete_from;
 use crate::derive::joining::join::JoinDefinition;
 use crate::derive::operation::OperationData;
@@ -116,9 +116,14 @@ impl JoinOperation {
 
         let broker_guard = self.data.broker.write().await;
 
-        let reference = broker_guard
-            .put_data_store(stream.clone(), &self.data.partition, data)
-            .await?;
+        let backing_store = broker_guard
+            .backing_store
+            .as_ref()
+            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+            .clone();
+        // CREATE REFERENCE
+        let reference =
+            Broker::put_data_store(backing_store, stream, &self.data.partition, data).await?;
 
         tracing::trace!("Created the Reference: {:#?}", reference);
 

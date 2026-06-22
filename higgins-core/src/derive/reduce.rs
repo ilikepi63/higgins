@@ -1,4 +1,5 @@
 use super::utils::put_default_index_at_range;
+use crate::broker::Broker;
 use crate::derive::operation::OperationData;
 use crate::functions::reduce::run_reduce_function;
 use higgins_shared::{HigginsError, read_arrow};
@@ -94,14 +95,19 @@ impl ReduceOperation {
                     tracing::trace!("Reduced Record batch: {:#?}", reduced_record_batch);
 
                     {
+                        let backing_store = broker_lock
+                            .backing_store
+                            .as_ref()
+                            .ok_or(HigginsError::ObjectStoreNotConfigured)?
+                            .clone();
                         // CREATE REFERENCE
-                        let reference = broker_lock
-                            .put_data_store(
-                                self.0.stream.to_string(),
-                                &self.0.partition,
-                                reduced_record_batch,
-                            )
-                            .await?;
+                        let reference = Broker::put_data_store(
+                            backing_store,
+                            self.0.stream.to_string(),
+                            &self.0.partition,
+                            reduced_record_batch,
+                        )
+                        .await?;
 
                         references.push(reference);
                     }
@@ -114,9 +120,19 @@ impl ReduceOperation {
                     );
 
                     // CREATE REFERENCE
-                    let reference = broker_lock
-                        .put_data_store(self.0.stream.to_string(), &self.0.partition, batch.clone())
-                        .await?;
+                    let backing_store = broker_lock
+                        .backing_store
+                        .as_ref()
+                        .ok_or(HigginsError::ObjectStoreNotConfigured)?
+                        .clone();
+                    // CREATE REFERENCE
+                    let reference = Broker::put_data_store(
+                        backing_store,
+                        self.0.stream.to_string(),
+                        &self.0.partition,
+                        batch.clone(),
+                    )
+                    .await?;
 
                     references.push(reference);
                 }
