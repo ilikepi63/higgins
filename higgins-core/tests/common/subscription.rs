@@ -156,6 +156,8 @@ pub fn subscription_works_with_multiple_clients() {
         CONSUME_CLIENT_TWO_COUNT,
     );
 
+    std::thread::sleep(Duration::from_millis(200)); // Await a rough amount of time for subscription to propagate.
+
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
     assert_eq!(
@@ -376,6 +378,9 @@ pub fn can_update_subscription_with_multiple_values() {
     tracing::debug!("{}", "######## TAKE ########");
 
     let _ = consume_client.take(sub_id.clone(), STREAM_NAME.as_bytes(), 100);
+
+    // Enough time for this to propagate.
+    std::thread::sleep(Duration::from_millis(200));
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
