@@ -150,6 +150,7 @@ pub fn subscription_works_with_multiple_clients() {
         STREAM_NAME.as_bytes(),
         CONSUME_CLIENT_ONE_COUNT,
     );
+
     let _ = second_consume_client.take(
         sub_id.clone(),
         STREAM_NAME.as_bytes(),
@@ -189,7 +190,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
-    let response = recv_until_take(&mut consume_client);
+    let response = recv_until_take(&mut consume_client).unwrap();
 
     let data = &response.records.first().unwrap().data;
 
@@ -246,7 +247,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
-    let response = recv_until_take(&mut second_consume_client);
+    let response = recv_until_take(&mut second_consume_client).unwrap();
 
     let record = response.records.first().unwrap();
 
@@ -407,7 +408,7 @@ pub fn can_update_subscription_with_multiple_values() {
         std::sync::Arc::new(customer_schema()),
     );
 
-    let response = recv_until_take(&mut consume_client);
+    let response = recv_until_take(&mut consume_client).unwrap();
 
     let record = response.records.first().unwrap();
 
@@ -520,7 +521,7 @@ pub fn can_update_subscription_with_multiple_values() {
         std::sync::Arc::new(customer_schema()),
     );
 
-    let response = recv_until_take(&mut consume_client);
+    let response = recv_until_take(&mut consume_client).unwrap();
 
     assert_eq!(record.offset, 0);
     assert_eq!(record.stream, STREAM_NAME.as_bytes().to_owned());

@@ -113,7 +113,7 @@ impl ProduceOperation {
                         subscription.add_partition(&self.0.partition, 0, offset.end as u64)?;
                     };
 
-                    tracing::info!("SUBSCRIPTION{:#?}", subscription);
+                    tracing::info!("SUBSCRIPTION: {:#?}", subscription);
 
                     // Notify the tasks awaiting this subscription.
                     notify.notify_waiters();

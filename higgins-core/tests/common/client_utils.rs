@@ -1,25 +1,29 @@
 #![allow(unused)]
 
+use std::time::Duration;
+
 use arrow_schema::SchemaRef;
 use higgins_client::{Response, ResponseBody};
 use higgins_codec::{GetSubscriptionResponse, Record, TakeRecordsResponse};
-use higgins_shared::PartitionName;
+use higgins_shared::{HigginsError, PartitionName};
 
 /// Helper for receiving from a socket until it's taken.
 pub fn recv_until_take(
     consume_client: &mut higgins_client::blocking::Client,
-) -> TakeRecordsResponse {
+) -> Result<TakeRecordsResponse, Box<dyn std::error::Error>> {
     loop {
-        match consume_client.recv(None).unwrap().body {
+        match consume_client.recv(Some(Duration::from_secs(10)))?.body {
             ResponseBody::TakeRecords(response) => {
-                return response;
+                return Ok(response);
             }
             ResponseBody::Produce(response) => {
                 tracing::info!("Received produce response: {:#?}", response);
             }
             _ => {
                 tracing::error!("Received unexpected response message.");
-                panic!();
+                return Err(Box::new(HigginsError::Arbitrary(
+                    "Unexpected response message".to_string(),
+                )));
             }
         }
     }
