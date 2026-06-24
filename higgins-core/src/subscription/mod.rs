@@ -21,7 +21,6 @@ pub mod file;
 use file::SubscriptionFile;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::Notify;
 
 use higgins_shared::{HigginsError, PartitionName, SubscriptionError};
 

@@ -1,5 +1,5 @@
 use super::Broker;
-use crate::broker::subscriptions::{OffsetPayload, write_offsets_to_client};
+use crate::broker::subscriptions::OffsetPayload;
 use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::backing_store::BackingStore;
 use crate::storage::index::IndexType;
@@ -7,7 +7,7 @@ use crate::storage::index::default::DefaultIndex;
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
 use higgins_codec::message::Type;
-use higgins_codec::{Message, TakeRecordsRequest, TakeRecordsResponse};
+use higgins_codec::{Message, TakeRecordsResponse};
 use higgins_shared::{PartitionName, StreamName};
 use riskless::messages::ProduceRequest;
 
@@ -16,7 +16,6 @@ use crate::storage::{
     index::Index,
 };
 use higgins_shared::{HigginsError, write_arrow};
-use prost::Message as _;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tokio::sync::RwLock;
