@@ -1,10 +1,13 @@
 use super::Broker;
+use crate::broker::subscriptions::{OffsetPayload, write_offsets_to_client};
 use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::backing_store::BackingStore;
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
+use higgins_codec::message::Type;
+use higgins_codec::{Message, TakeRecordsRequest, TakeRecordsResponse};
 use higgins_shared::{PartitionName, StreamName};
 use riskless::messages::ProduceRequest;
 
@@ -13,7 +16,9 @@ use crate::storage::{
     index::Index,
 };
 use higgins_shared::{HigginsError, write_arrow};
+use prost::Message as _;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use tokio::sync::RwLock;
 
 pub struct ProduceOperation(pub OperationData);
@@ -68,7 +73,9 @@ impl ProduceOperation {
             broker.get_index_file(self.0.stream.clone(), &self.0.partition.clone())?;
 
         let mut index_file_guard = index_file_lock.lock().await;
+
         let file_len = index_file_guard.len()?;
+
         if let Some(references) = self.0.references.as_ref() {
             let offset = file_len..file_len;
             let setter_offset = file_len as u64..file_len as u64;
@@ -89,35 +96,136 @@ impl ProduceOperation {
 
             self.0.offsets_setter.set(setter_offset).await;
 
+            // get the subscriptions for the stream.
             let subscription = broker.get_subscriptions_for_stream(&self.0.stream);
 
-            if let Some(subscriptions) = subscription {
-                tracing::trace!("[PRODUCE] Found a subscription for this produce request.");
+            let stream_name = self.0.stream.clone();
 
-                for (notify, subscription) in subscriptions.values() {
-                    let mut subscription = subscription.write().await;
+            // If there are subscriptions, produce to them.
+            if let Some(subscriptions) = subscription {
+                for (_, subscription) in subscriptions.values() {
+                    let mut subscription_guard = subscription.write().await;
 
                     tracing::trace!(
-                        "[PRODUCE] Notifying the subscription. Offsets: {:#?}",
-                        offset
+                        "[PRODUCE] Found a subscription for this produce request: {:#?}",
+                        subscription_guard
                     );
 
-                    if subscription
+                    if subscription_guard
                         .partitions
                         .iter()
                         .find(|sub_key| sub_key.partition_id == self.0.partition)
                         .is_some()
                     {
-                        subscription.set_end(&self.0.partition, offset.end as u64)?;
+                        subscription_guard.set_end(&self.0.partition, offset.end as u64)?;
                     } else {
-                        subscription.add_partition(&self.0.partition, 0, offset.end as u64)?;
+                        subscription_guard.add_partition(
+                            &self.0.partition,
+                            0,
+                            offset.end as u64,
+                        )?;
                     };
 
-                    tracing::info!("SUBSCRIPTION: {:#?}", subscription);
+                    tracing::trace!(
+                        "Set the end of this given subscription: {:#?}",
+                        subscription_guard
+                    );
 
-                    // Notify the tasks awaiting this subscription.
-                    notify.notify_waiters();
-                    tracing::trace!("[PRODUCE] Notified the subscription.");
+                    let client_ids = subscription_guard
+                        .client_counts
+                        .iter()
+                        .map(|(client_id, _)| client_id.clone())
+                        .collect::<Vec<_>>();
+
+                    tracing::trace!("Clients: {:#?}", client_ids);
+
+                    for client_id in client_ids {
+                        let client_ref = if let Some(r) = broker.get_client_by_id(client_id.clone())
+                        {
+                            r
+                        } else {
+                            continue;
+                        };
+
+                        tracing::trace!("Retrieved client ref: {:#?}", client_ref);
+
+                        let n = match subscription_guard
+                            .client_counts
+                            .binary_search_by(|(id, _)| client_id.cmp(id))
+                            .map(|index| subscription_guard.client_counts.get(index))
+                            .ok()
+                            .flatten()
+                        {
+                            Some(c) => c.1.load(Ordering::Relaxed),
+                            None => continue,
+                        };
+
+                        tracing::trace!("[TAKE] Taking the amount: {n}");
+
+                        let offsets = subscription_guard.take(n);
+
+                        tracing::trace!("{:#?}", &offsets);
+
+                        if let Ok(offsets) = offsets.as_ref() {
+                            subscription_guard
+                                .remove_client_count(&client_id, offsets.len() as u64);
+                        }
+
+                        if let Ok(offsets) = offsets {
+                            //Get payloads from offsets.
+                            for (partition, offset) in offsets {
+                                let consumption = {
+                                    let mut results = vec![];
+
+                                    let consumption = broker
+                                        .consume(&stream_name, &partition, offset, 50_000)
+                                        .await;
+
+                                    if let Ok(consumption) = consumption {
+                                        for result in consumption {
+                                            // tracing::trace!(
+                                            //     "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
+                                            //     result
+                                            // );
+
+                                            if let Ok(result) = result {
+                                                results.push(OffsetPayload {
+                                                    stream: stream_name.clone(),
+                                                    key: partition.clone(),
+                                                    offset,
+                                                    bytes: result, // TODO: wrap this in a conversion function and filter out errors.
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    results
+                                };
+
+                                for val in consumption {
+                                    let resp = TakeRecordsResponse {
+                                        records: vec![{ val.into() }],
+                                    };
+
+                                    tracing::trace!("[TAKE] Writing the amount back to client.");
+
+                                    client_ref
+                                        .send(Message {
+                                            r#type: Type::Takerecordsresponse as i32,
+                                            take_records_response: Some(resp),
+                                            ..Default::default()
+                                        })
+                                        .await
+                                        .map_err(|err| {
+                                            HigginsError::Arbitrary(format!(
+                                                "Failed to write offsets to client: {:#?}",
+                                                err
+                                            ))
+                                        })?;
+                                }
+                            }
+                        };
+                    }
                 }
             }
         } else {

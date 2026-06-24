@@ -120,6 +120,7 @@ impl PartitionOffsetsOwned {
     }
 }
 
+#[derive(Debug)]
 pub struct SubscriptionFile {
     path: std::path::PathBuf,
 }

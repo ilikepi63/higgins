@@ -190,7 +190,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
-    let response = recv_until_take(&mut consume_client).unwrap();
+    let response = recv_until_take(&mut second_consume_client).unwrap();
 
     let data = &response.records.first().unwrap().data;
 
@@ -228,11 +228,11 @@ pub fn subscription_works_with_multiple_clients() {
             client_counts: vec![
                 ClientCount {
                     client_id: 2,
-                    count: CONSUME_CLIENT_TWO_COUNT
+                    count: CONSUME_CLIENT_TWO_COUNT - 1
                 },
                 ClientCount {
                     client_id: 1,
-                    count: CONSUME_CLIENT_ONE_COUNT - 1
+                    count: CONSUME_CLIENT_ONE_COUNT
                 }
             ]
         }
@@ -247,7 +247,7 @@ pub fn subscription_works_with_multiple_clients() {
 
     assert_eq!(produce_response, ProduceResponse { errors: vec![] });
 
-    let response = recv_until_take(&mut second_consume_client).unwrap();
+    let response = recv_until_take(&mut consume_client).unwrap();
 
     let record = response.records.first().unwrap();
 
