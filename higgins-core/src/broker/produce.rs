@@ -133,14 +133,13 @@ impl ProduceOperation {
                     let client_ids = subscription_guard
                         .client_counts
                         .iter()
-                        .map(|(client_id, _)| client_id.clone())
+                        .map(|(client_id, _)| *client_id)
                         .collect::<Vec<_>>();
 
                     tracing::trace!("Clients: {:#?}", client_ids);
 
                     for client_id in client_ids {
-                        let client_ref = if let Some(r) = broker.get_client_by_id(client_id.clone())
-                        {
+                        let client_ref = if let Some(r) = broker.get_client_by_id(client_id) {
                             r
                         } else {
                             continue;
@@ -181,20 +180,13 @@ impl ProduceOperation {
                                         .await;
 
                                     if let Ok(consumption) = consumption {
-                                        for result in consumption {
-                                            // tracing::trace!(
-                                            //     "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
-                                            //     result
-                                            // );
-
-                                            if let Ok(result) = result {
-                                                results.push(OffsetPayload {
-                                                    stream: stream_name.clone(),
-                                                    key: partition.clone(),
-                                                    offset,
-                                                    bytes: result, // TODO: wrap this in a conversion function and filter out errors.
-                                                });
-                                            }
+                                        for result in consumption.into_iter().flatten() {
+                                            results.push(OffsetPayload {
+                                                stream: stream_name.clone(),
+                                                key: partition.clone(),
+                                                offset,
+                                                bytes: result, // TODO: wrap this in a conversion function and filter out errors.
+                                            });
                                         }
                                     }
 
