@@ -7,7 +7,7 @@ members = [
     "higgins-core",
     "higgins-functions",
     "higgins-functions/tests/example_wasm"
-, "higgins-shared"]
+, "higgins-shared", "higgins-tests"]
 exclude = ["higgins-functions/tests/example_wasm"]
 
 [workspace.dependencies]
@@ -23,3 +23,7 @@ serde_json = "1.0.140"
 toml = "0.9.5"
 rkyv = "0.8.10"
 prost = { version = "0.13" }
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

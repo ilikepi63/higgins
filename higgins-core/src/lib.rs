@@ -58,103 +58,120 @@ async fn process_socket(
                     }
                 };
 
-                let message = match Message::decode(&mut frame.inner()) {
-                    Ok(message) => message,
-                    Err(err) => {
+                let broker = broker.clone();
+                let writer_tx = writer_tx.clone();
+                // Move this to task_handler.
+                tokio::spawn(async move {
+                    let message = match Message::decode(&mut frame.inner()) {
+                        Ok(message) => message,
+                        Err(err) => {
+                            tracing::error!("{:#?}", err);
+                            return;
+                        }
+                    };
+
+                    let t = match Type::try_from(message.r#type) {
+                        Ok(t) => t,
+                        Err(err) => {
+                            tracing::error!("{:#?}", err);
+                            return;
+                        }
+                    };
+
+                    tracing::info!("Request Type: {:#?}", t);
+
+                    if let Err(err) = match t {
+                        Type::Ping => handlers::handle_ping(message, writer_tx.clone()).await,
+                        Type::Createsubscriptionrequest => {
+                            handlers::handle_create_subscription(
+                                message,
+                                broker.clone(),
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Producerequest => {
+                            tokio::spawn(async move {
+                                handlers::handle_produce(message, broker.clone(), writer_tx.clone())
+                                    .await
+                            });
+
+                            Ok(())
+                        }
+                        Type::Createconfigurationrequest => {
+                            handlers::handle_create_configuration(
+                                broker.clone(),
+                                message,
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Takerecordsrequest => {
+                            handlers::handle_take_records(
+                                broker.clone(),
+                                message,
+                                client_id,
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Getindexrequest => {
+                            handlers::handle_get_index(message, broker.clone(), writer_tx.clone())
+                                .await
+                        }
+                        Type::Uploadmodulerequest => {
+                            handlers::handle_upload_module(
+                                message,
+                                broker.clone(),
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Metadatarequest => todo!(),
+                        Type::Getcurrenttopographyrequest => {
+                            handlers::handle_get_topography(
+                                message,
+                                broker.clone(),
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Getsubscriptionrequest => {
+                            handlers::handle_get_subscription(
+                                message,
+                                broker.clone(),
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                        Type::Acknowledgerequest => {
+                            handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
+                                .await
+                        }
+                        Type::Produceresponse
+                        | Type::Metadataresponse
+                        | Type::Pong
+                        | Type::Takerecordsresponse
+                        | Type::Createconfigurationresponse
+                        | Type::Deleteconfigurationrequest
+                        | Type::Deleteconfigurationresponse
+                        | Type::Createsubscriptionresponse
+                        | Type::Error
+                        | Type::Getindexresponse
+                        | Type::Uploadmoduleresponse
+                        | Type::Getcurrenttopographyresponse
+                        | Type::Getsubscriptionresponse
+                        | Type::Acknowledgeresponse => {
+                            handlers::errors::handle_incorrect_message_received(
+                                message,
+                                writer_tx.clone(),
+                            )
+                            .await
+                        }
+                    } {
                         tracing::error!("{:#?}", err);
-                        continue;
                     }
-                };
-
-                tracing::info!("Received a message {:#?}, responding.", message);
-
-                let t = match Type::try_from(message.r#type) {
-                    Ok(t) => t,
-                    Err(err) => {
-                        tracing::error!("{:#?}", err);
-                        continue;
-                    }
-                };
-
-                tracing::info!("Request Type: {:#?}", t);
-
-                if let Err(err) = match t {
-                    Type::Ping => handlers::handle_ping(message, writer_tx.clone()).await,
-                    Type::Createsubscriptionrequest => {
-                        handlers::handle_create_subscription(
-                            message,
-                            broker.clone(),
-                            writer_tx.clone(),
-                        )
-                        .await
-                    }
-                    Type::Producerequest => {
-                        handlers::handle_produce(message, broker.clone(), writer_tx.clone()).await
-                    }
-                    Type::Createconfigurationrequest => {
-                        handlers::handle_create_configuration(
-                            broker.clone(),
-                            message,
-                            writer_tx.clone(),
-                        )
-                        .await
-                    }
-                    Type::Takerecordsrequest => {
-                        handlers::handle_take_records(
-                            broker.clone(),
-                            message,
-                            client_id,
-                            writer_tx.clone(),
-                        )
-                        .await
-                    }
-                    Type::Getindexrequest => {
-                        handlers::handle_get_index(message, broker.clone(), writer_tx.clone()).await
-                    }
-                    Type::Uploadmodulerequest => {
-                        handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
-                            .await
-                    }
-                    Type::Metadatarequest => todo!(),
-                    Type::Getcurrenttopographyrequest => {
-                        handlers::handle_get_topography(message, broker.clone(), writer_tx.clone())
-                            .await
-                    }
-                    Type::Getsubscriptionrequest => {
-                        handlers::handle_get_subscription(
-                            message,
-                            broker.clone(),
-                            writer_tx.clone(),
-                        )
-                        .await
-                    }
-                    Type::Acknowledgerequest => {
-                        handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
-                            .await
-                    }
-                    Type::Produceresponse
-                    | Type::Metadataresponse
-                    | Type::Pong
-                    | Type::Takerecordsresponse
-                    | Type::Createconfigurationresponse
-                    | Type::Deleteconfigurationrequest
-                    | Type::Deleteconfigurationresponse
-                    | Type::Createsubscriptionresponse
-                    | Type::Error
-                    | Type::Getindexresponse
-                    | Type::Uploadmoduleresponse
-                    | Type::Getcurrenttopographyresponse
-                    | Type::Getsubscriptionresponse
-                    | Type::Acknowledgeresponse => {
-                        handlers::errors::handle_incorrect_message_received(
-                            message,
-                            writer_tx.clone(),
-                        )
-                        .await
-                    }
-                } {
-                    tracing::error!("{:#?}", err);
-                }
+                });
             }
         },
     );

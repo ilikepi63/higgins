@@ -21,7 +21,6 @@ pub mod file;
 use file::SubscriptionFile;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::sync::Notify;
 
 use higgins_shared::{HigginsError, PartitionName, SubscriptionError};
 
@@ -115,26 +114,13 @@ impl SubscriptionPartitionFile {
 }
 
 // TODO: should we make a lock per row?
+#[derive(Debug)]
 pub struct Subscription {
-    /// Path of the enclosing directory for this subscription.
-    last_index: u64,
-    #[allow(unused)]
-    // Allowing for now as we will need this for grabbing this condvar to make more jobs.
-    condvar: Notify,
     pub client_counts: Vec<(u64, AtomicU64)>,
 
     // TODO: This will need to be moved to the file, when we decide on a data structure.
     pub partitions: Vec<PartitionOffsets>,
     file: SubscriptionFile,
-}
-
-impl std::fmt::Debug for Subscription {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Subscription")
-            .field("last_index", &self.last_index)
-            .field("partitions", &self.partitions)
-            .finish()
-    }
 }
 
 type Offset = u64;
@@ -162,8 +148,6 @@ impl Subscription {
         partitions.sort();
 
         Ok(Self {
-            last_index: 0,
-            condvar: Notify::new(),
             client_counts: vec![],
             partitions,
             file: subscription_file,
@@ -311,6 +295,8 @@ impl Subscription {
 
             partition_offset_index += 1;
         }
+
+        tracing::debug!("returning offsets taken from subscription: {:#?}", results);
 
         Ok(results)
     }

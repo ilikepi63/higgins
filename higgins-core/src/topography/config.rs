@@ -147,13 +147,7 @@ pub struct AwsS3Storage {
 
 /// Deserializes the given byte array into a configuration.
 pub fn from_toml(config: &[u8]) -> Result<Configuration, HigginsError> {
-    tracing::trace!("{:#?}", config);
-
-    let config: Configuration = toml::from_slice(config).inspect(|val| {
-        tracing::info!("{:#?}", val);
-    })?;
-
-    tracing::trace!("Deserialized toml: {:#?}", config);
+    let config: Configuration = toml::from_slice(config)?;
 
     Ok(config)
 }
