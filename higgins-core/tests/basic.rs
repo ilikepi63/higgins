@@ -2,9 +2,16 @@ mod common;
 
 use crate::common::{
     basic::can_achieve_basic_broker_functionality,
-    invariant_tests::offsets_are_monotonically_increasing, join::run_basic_join_test,
-    map::can_implement_basic_map, reduce::can_implement_basic_reduce, subscription::*,
-    topography::can_achieve_basic_topography_retrieval, windowing::basic_windowing,
+    invariant_tests::{
+        offsets_are_monotonically_increasing,
+        records_in_different_partitions_do_not_cross_contaminate,
+    },
+    join::run_basic_join_test,
+    map::can_implement_basic_map,
+    reduce::can_implement_basic_reduce,
+    subscription::*,
+    topography::can_achieve_basic_topography_retrieval,
+    windowing::basic_windowing,
 };
 
 // Basic positive tests.
@@ -61,4 +68,9 @@ fn basic_subscription_update_after_creation() {
 #[test]
 fn monotonically_increasing_offsets() {
     offsets_are_monotonically_increasing();
+}
+
+#[test]
+fn partition_records_dont_cross() {
+    records_in_different_partitions_do_not_cross_contaminate();
 }

@@ -1,6 +1,6 @@
 use std::{panic::catch_unwind, sync::Arc, time::Duration};
 
-use arrow::array::Int32Array;
+use arrow::array::{Int32Array, StringArray};
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
@@ -76,4 +76,96 @@ pub fn offsets_are_monotonically_increasing() {
     });
 
     let _ = std::fs::remove_dir_all(close_dir_handle);
+}
+
+pub fn records_in_different_partitions_do_not_cross_contaminate() {
+    let port = get_random_port();
+    let dir = unique_dir().unwrap();
+
+    let result = catch_unwind(|| {
+        let (handle, mut client) = setup_server(dir.clone(), port);
+
+        upload_config(&mut client, BASIC_CONFIG);
+
+        produce_await(
+            &mut client,
+            "update_customer",
+            r#"{"id":"1","first_name":"Alice","last_name":"A","age":1}"#,
+            Arc::new(customer_schema()),
+        );
+        produce_await(
+            &mut client,
+            "update_customer",
+            r#"{"id":"2","first_name":"Bob","last_name":"B","age":2}"#,
+            Arc::new(customer_schema()),
+        );
+
+        client
+            .query_at(
+                b"update_customer",
+                &PartitionName::try_from("1").unwrap(),
+                0,
+            )
+            .unwrap();
+
+        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+
+        let b1 = match response.body {
+            ResponseBody::GetIndex(resp) => {
+                let record = resp
+                    .records
+                    .first()
+                    .expect("GetIndex response had no records");
+                read_arrow(&record.data).unwrap().next().unwrap().unwrap()
+            }
+            other => panic!("expected GetIndex response, got {:?}", other),
+        };
+
+        assert_eq!(
+            b1.column_by_name("first_name")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0)
+                .to_string(),
+            "Alice"
+        );
+
+        client
+            .query_at(
+                b"update_customer",
+                &PartitionName::try_from("2").unwrap(),
+                0,
+            )
+            .unwrap();
+
+        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+
+        let b2 = match response.body {
+            ResponseBody::GetIndex(resp) => {
+                let record = resp
+                    .records
+                    .first()
+                    .expect("GetIndex response had no records");
+                read_arrow(&record.data).unwrap().next().unwrap().unwrap()
+            }
+            other => panic!("expected GetIndex response, got {:?}", other),
+        };
+
+        assert_eq!(
+            b2.column_by_name("first_name")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0)
+                .to_string(),
+            "Bob"
+        );
+
+        handle.close();
+    });
+    let _ = std::fs::remove_dir_all(dir);
+    result.unwrap();
 }
