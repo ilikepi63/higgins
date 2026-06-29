@@ -1,6 +1,11 @@
 #![allow(unused)]
 
+use std::path::PathBuf;
+use std::time::Duration;
+
 use bytes::BytesMut;
+use higgins::{ServerHandle, run_server_returning};
+use higgins_client::blocking::Client;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_codec::{ProduceResponse, TakeRecordsRequest};
@@ -11,6 +16,7 @@ pub mod configuration;
 pub mod data;
 pub mod functions;
 pub mod harness;
+pub mod invariant_tests;
 pub mod join;
 pub mod ping;
 mod port;
@@ -122,4 +128,19 @@ pub fn consume<T: std::io::Read + std::io::Write>(
     };
 
     Ok(result)
+}
+
+// Utilities.
+pub fn setup_server(dir: PathBuf, port: u16) -> (ServerHandle, Client) {
+    let handle = run_server_returning(dir, port).unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    let client =
+        Client::connect(format!("127.0.0.1:{port}"), Some(Duration::from_secs(5))).unwrap();
+    (handle, client)
+}
+
+pub fn unique_dir() -> Option<PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    dir.push(format!("higgins-it-{}", uuid::Uuid::new_v4()));
+    Some(dir)
 }

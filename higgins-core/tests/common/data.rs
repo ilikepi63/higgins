@@ -1,6 +1,10 @@
 use arrow::array::RecordBatch;
 use higgins_shared::{PartitionName, read_arrow};
 
+pub fn customer_json_with_id_and_age(id: &str, age: i32) -> String {
+    format!(r#"{{"id":"{id}","first_name":"John","last_name":"Doe","age":{age}}}"#)
+}
+
 pub fn assert_customer_data(arrow: RecordBatch) {
     assert_eq!(
         arrow

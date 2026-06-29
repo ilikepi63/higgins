@@ -1,11 +1,13 @@
 mod common;
 
 use crate::common::{
-    basic::can_achieve_basic_broker_functionality, join::run_basic_join_test,
+    basic::can_achieve_basic_broker_functionality,
+    invariant_tests::offsets_are_monotonically_increasing, join::run_basic_join_test,
     map::can_implement_basic_map, reduce::can_implement_basic_reduce, subscription::*,
     topography::can_achieve_basic_topography_retrieval, windowing::basic_windowing,
 };
 
+// Basic positive tests.
 #[test]
 fn basic_test() {
     can_achieve_basic_broker_functionality();
@@ -53,4 +55,10 @@ fn basic_subscription_multiple_values() {
 #[test]
 fn basic_subscription_update_after_creation() {
     can_update_subscription_after_created();
+}
+
+// General Invariants.
+#[test]
+fn monotonically_increasing_offsets() {
+    offsets_are_monotonically_increasing();
 }
