@@ -3,7 +3,7 @@ mod common;
 use crate::common::{
     basic::can_achieve_basic_broker_functionality,
     invariant_tests::{
-        offsets_are_monotonically_increasing,
+        offsets_are_monotonically_increasing, partition_offsets_are_independent,
         records_in_different_partitions_do_not_cross_contaminate,
     },
     join::run_basic_join_test,
@@ -73,4 +73,9 @@ fn monotonically_increasing_offsets() {
 #[test]
 fn partition_records_dont_cross() {
     records_in_different_partitions_do_not_cross_contaminate();
+}
+
+#[test]
+fn independent_partition_offsets() {
+    partition_offsets_are_independent();
 }

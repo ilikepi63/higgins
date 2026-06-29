@@ -1,6 +1,9 @@
 use std::{panic::catch_unwind, sync::Arc, time::Duration};
 
-use arrow::array::{Int32Array, StringArray};
+use arrow::{
+    array::{Int32Array, StringArray},
+    ipc::RecordBatch,
+};
 use higgins::run_server;
 use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
@@ -168,4 +171,100 @@ pub fn records_in_different_partitions_do_not_cross_contaminate() {
     });
     let _ = std::fs::remove_dir_all(dir);
     result.unwrap();
+}
+
+pub fn partition_offsets_are_independent() {
+    let port = get_random_port();
+    let dir = unique_dir().unwrap();
+
+    let result = catch_unwind(|| {
+        let (handle, mut client) = setup_server(dir.clone(), port);
+
+        upload_config(&mut client, BASIC_CONFIG);
+
+        for age in 0..3 {
+            produce_await(
+                &mut client,
+                "update_customer",
+                &customer_json_with_id_and_age("A", age),
+                Arc::new(customer_schema()),
+            );
+        }
+        produce_await(
+            &mut client,
+            "update_customer",
+            &customer_json_with_id_and_age("B", 99),
+            Arc::new(customer_schema()),
+        );
+
+        client
+            .query_at(
+                b"update_customer",
+                &PartitionName::try_from("A").unwrap(),
+                2,
+            )
+            .unwrap();
+        let a2 = await_get_index(&mut client);
+        assert_eq!(
+            a2.column_by_name("age")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(0),
+            99,
+        );
+
+        client
+            .query_at(
+                b"update_customer",
+                &PartitionName::try_from("B").unwrap(),
+                0,
+            )
+            .unwrap();
+        let b0 = await_get_index(&mut client);
+
+        assert_eq!(
+            b0.column_by_name("age")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(0),
+            99,
+        );
+
+        client
+            .query_at(
+                b"update_customer",
+                &PartitionName::try_from("B").unwrap(),
+                1,
+            )
+            .unwrap();
+        assert!(
+            client.recv(Some(Duration::from_millis(1200))).is_err(),
+            "partition B must not have a record at offset 1"
+        );
+
+        handle.close();
+    });
+
+    let _ = std::fs::remove_dir_all(dir);
+
+    result.unwrap();
+}
+
+fn await_get_index(client: &mut higgins_client::blocking::Client) -> arrow::array::RecordBatch {
+    let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+
+    match response.body {
+        ResponseBody::GetIndex(resp) => {
+            let record = resp
+                .records
+                .first()
+                .expect("GetIndex response had no records");
+            read_arrow(&record.data).unwrap().next().unwrap().unwrap()
+        }
+        other => panic!("expected GetIndex response, got {:?}", other),
+    }
 }
