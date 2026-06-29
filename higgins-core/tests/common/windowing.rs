@@ -9,7 +9,7 @@ use super::get_random_port;
 fn get_dir() -> PathBuf {
     // let mut dir = temp_dir();
     let mut dir = PathBuf::new();
-    dir.push("basic");
+    dir.push("basic_windowing");
     dir
 }
 

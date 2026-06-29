@@ -8,17 +8,49 @@ use crate::common::{
 
 #[test]
 fn basic_test() {
-    tracing_subscriber::fmt::init();
-
     can_achieve_basic_broker_functionality();
+}
 
+#[test]
+fn basic_join() {
     run_basic_join_test();
+}
+
+#[test]
+fn basic_map() {
     can_implement_basic_map();
+}
+#[test]
+fn basic_reduce() {
     can_implement_basic_reduce();
+}
+
+#[test]
+fn basic_topography() {
     can_achieve_basic_topography_retrieval();
+}
+
+#[test]
+fn basic_window() {
     basic_windowing();
+}
+
+#[test]
+fn basic_subscription() {
     can_retrieve_data_from_subscription();
+}
+
+#[test]
+fn basic_subscription_multiple_clients() {
     subscription_works_with_multiple_clients();
+}
+
+#[test]
+fn basic_subscription_multiple_values() {
     can_update_subscription_with_multiple_values();
+}
+
+#[test]
+fn basic_subscription_update_after_creation() {
     can_update_subscription_after_created();
 }

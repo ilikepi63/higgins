@@ -10,6 +10,7 @@ pub mod client_utils;
 pub mod configuration;
 pub mod data;
 pub mod functions;
+pub mod harness;
 pub mod join;
 pub mod ping;
 mod port;
