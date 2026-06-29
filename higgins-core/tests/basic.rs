@@ -3,8 +3,10 @@ mod common;
 use crate::common::{
     basic::can_achieve_basic_broker_functionality,
     invariant_tests::{
-        offsets_are_monotonically_increasing, partition_offsets_are_independent,
+        acknowledge_out_of_order_is_rejected, offsets_are_monotonically_increasing,
+        partition_offsets_are_independent,
         records_in_different_partitions_do_not_cross_contaminate,
+        topography_is_idempotent_across_multiple_restarts,
     },
     join::run_basic_join_test,
     map::can_implement_basic_map,
@@ -78,4 +80,14 @@ fn partition_records_dont_cross() {
 #[test]
 fn independent_partition_offsets() {
     partition_offsets_are_independent();
+}
+
+#[test]
+fn reject_out_of_order_events() {
+    acknowledge_out_of_order_is_rejected();
+}
+
+#[test]
+fn idempotent_topography() {
+    topography_is_idempotent_across_multiple_restarts();
 }

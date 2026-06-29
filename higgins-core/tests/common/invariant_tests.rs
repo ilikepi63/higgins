@@ -9,6 +9,7 @@ use higgins_client::ResponseBody;
 use higgins_shared::{PartitionName, read_arrow};
 
 use crate::common::{
+    client_utils::{acknowledge, create_subscription, recv_until_take},
     data::customer_json_with_id_and_age,
     get_random_port,
     harness::{BASIC_CONFIG, produce_await, upload_config},
@@ -212,7 +213,7 @@ pub fn partition_offsets_are_independent() {
                 .downcast_ref::<Int32Array>()
                 .unwrap()
                 .value(0),
-            99,
+            2,
         );
 
         client
@@ -267,4 +268,89 @@ fn await_get_index(client: &mut higgins_client::blocking::Client) -> arrow::arra
         }
         other => panic!("expected GetIndex response, got {:?}", other),
     }
+}
+
+pub fn acknowledge_out_of_order_is_rejected() {
+    let port = get_random_port();
+    let dir = unique_dir().unwrap();
+
+    let result = catch_unwind(|| {
+        let (handle, mut client) = setup_server(dir.clone(), port);
+
+        upload_config(&mut client, BASIC_CONFIG);
+
+        let sub_id = create_subscription(&mut client, "update_customer");
+
+        produce_await(
+            &mut client,
+            "update_customer",
+            &customer_json_with_id_and_age("1", 0),
+            Arc::new(customer_schema()),
+        );
+        produce_await(
+            &mut client,
+            "update_customer",
+            &customer_json_with_id_and_age("1", 1),
+            Arc::new(customer_schema()),
+        );
+
+        client.take(sub_id.clone(), b"update_customer", 1).unwrap();
+        let _ = recv_until_take(&mut client).unwrap();
+
+        // Acknowledge a far-future offset (5) while earlier offsets remain
+        // unacknowledged — this skips offsets and must be rejected.
+        let response = acknowledge(
+            "update_customer",
+            &sub_id,
+            vec![(PartitionName::try_from("1").unwrap(), 5u64..5u64)],
+            &mut client,
+        );
+
+        assert!(
+            !response.error.is_empty(),
+            "out-of-order acknowledgement should be rejected with an error"
+        );
+
+        handle.close();
+    });
+    let _ = std::fs::remove_dir_all(dir);
+    result.unwrap();
+}
+
+pub fn topography_is_idempotent_across_multiple_restarts() {
+    let dir = unique_dir().unwrap();
+
+    let result = catch_unwind(|| {
+        let mut snapshots: Vec<Vec<u8>> = Vec::new();
+
+        for (i, _) in (0..3).enumerate() {
+            let port = get_random_port();
+            let (handle, mut client) = setup_server(dir.clone(), port);
+
+            if i == 0 {
+                upload_config(&mut client, BASIC_CONFIG);
+            }
+
+            client.get_current_topography().unwrap();
+            let data = match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+                ResponseBody::GetCurrentTopography(t) => t.data,
+                other => panic!("expected GetCurrentTopography response, got {:?}", other),
+            };
+            snapshots.push(data);
+
+            handle.close();
+            std::thread::sleep(Duration::from_millis(150));
+        }
+
+        assert_eq!(
+            snapshots[0], snapshots[1],
+            "topography changed after 1 restart"
+        );
+        assert_eq!(
+            snapshots[1], snapshots[2],
+            "topography changed after 2 restarts"
+        );
+    });
+    let _ = std::fs::remove_dir_all(dir);
+    result.unwrap();
 }
