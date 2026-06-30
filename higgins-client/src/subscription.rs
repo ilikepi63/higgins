@@ -14,6 +14,7 @@ pub async fn create_subscription<
 >(
     stream: &[u8],
     request_id: u64,
+    timeout_ms: Option<u64>,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let create_subscription = CreateSubscriptionRequest {
@@ -21,6 +22,7 @@ pub async fn create_subscription<
         offset_type: 0,
         timestamp: None,
         stream_name: stream.to_vec(),
+        timeout_ms,
     };
 
     let mut write_buf = BytesMut::new();

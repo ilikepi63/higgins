@@ -192,13 +192,18 @@ impl Client {
         .await?
     }
 
-    pub async fn create_subscription(&mut self, stream: &[u8]) -> Result<(), HigginsClientError> {
+    pub async fn create_subscription(
+        &mut self,
+        stream: &[u8],
+        timeout_ms: Option<u64>,
+    ) -> Result<(), HigginsClientError> {
         timeout!(
             create_subscription(
                 stream,
                 self.2
                     .insert(0)
                     .ok_or(HigginsClientError::TooManyConcurrentRequests)?,
+                timeout_ms,
                 &mut self.0
             ),
             self.1
