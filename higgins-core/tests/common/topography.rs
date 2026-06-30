@@ -5,9 +5,8 @@ use std::{path::PathBuf, time::Duration};
 use super::get_random_port;
 
 fn get_dir() -> PathBuf {
-    // let mut dir = temp_dir();
-    let mut dir = PathBuf::new();
-    dir.push("basic_topography");
+    let mut dir = std::env::temp_dir();
+    dir.push(uuid::Uuid::new_v4().to_string());
     dir
 }
 

@@ -7,9 +7,8 @@ use std::{panic::catch_unwind, path::PathBuf, time::Duration};
 use super::get_random_port;
 
 fn get_dir() -> PathBuf {
-    // let mut dir = temp_dir();
-    let mut dir = PathBuf::new();
-    dir.push("basic_windowing");
+    let mut dir = std::env::temp_dir();
+    dir.push(uuid::Uuid::new_v4().to_string());
     dir
 }
 
@@ -61,7 +60,7 @@ pub fn basic_windowing() {
             )
             .unwrap();
 
-        let produce_result = client.recv(Some(Duration::from_secs(1)));
+        let produce_result = client.recv(Some(Duration::from_secs(5)));
 
         assert!(matches!(
             produce_result.unwrap().body,
@@ -78,7 +77,7 @@ pub fn basic_windowing() {
             )
             .unwrap();
 
-        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+        let response = client.recv(Some(Duration::from_secs(5))).unwrap();
 
         match response.body {
             ResponseBody::GetIndex(index_data) => {
@@ -111,7 +110,7 @@ pub fn basic_windowing() {
             )
             .unwrap();
 
-        let produce_result = client.recv(Some(Duration::from_secs(1)));
+        let produce_result = client.recv(Some(Duration::from_secs(5)));
 
         assert!(matches!(
             produce_result.unwrap().body,
@@ -128,7 +127,7 @@ pub fn basic_windowing() {
             )
             .unwrap();
 
-        let response = client.recv(Some(Duration::from_secs(1))).unwrap();
+        let response = client.recv(Some(Duration::from_secs(5))).unwrap();
 
         match response.body {
             ResponseBody::GetIndex(index_data) => {

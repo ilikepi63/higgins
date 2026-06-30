@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use std::time::Duration;
+use std::time::{self, Duration};
 
 use arrow_schema::SchemaRef;
 use higgins_client::{Response, ResponseBody};
@@ -51,8 +51,11 @@ pub fn get_subscription_data(
 pub fn create_subscription(
     client: &mut higgins_client::blocking::Client,
     stream_name: &str,
+    timeout: Option<u64>,
 ) -> Vec<u8> {
-    client.create_subscription(stream_name.as_bytes()).unwrap();
+    client
+        .create_subscription(stream_name.as_bytes(), timeout)
+        .unwrap();
 
     match client.recv(None).unwrap().body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
