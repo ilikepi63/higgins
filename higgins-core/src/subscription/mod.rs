@@ -21,6 +21,12 @@ pub mod file;
 use file::SubscriptionFile;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+
+/// The default amount of time a batch of offsets that has been taken from a
+/// subscription stays "invisible" before, if it has not been acknowledged, it
+/// is reset and made available again for redelivery.
+pub const DEFAULT_VISIBILITY_TIMEOUT: Duration = Duration::from_secs(30);
 
 use higgins_shared::{HigginsError, PartitionName, SubscriptionError};
 
@@ -49,6 +55,17 @@ pub struct PartitionOffsets {
     pub start: u64,
     /// The max offset, or the largest offset that exists within this partition.
     pub end: u64,
+    /// The highest offset that has been durably acknowledged. This is the
+    /// watermark we roll `start` back to when an in-flight (taken but
+    /// unacknowledged) batch exceeds its visibility timeout.
+    pub committed: u64,
+    /// When the current in-flight batch of offsets for this partition was first
+    /// handed out to a consumer. `None` means there is nothing in flight.
+    pub inflight_since: Option<Instant>,
+    /// The client that most recently took the in-flight offsets, so that the
+    /// redelivery demand can be restored to it once the visibility timeout
+    /// elapses.
+    pub inflight_by: Option<u64>,
 }
 
 impl PartialEq for PartitionOffsets {
@@ -84,6 +101,9 @@ impl PartitionOffsets {
             partition_id: key.to_owned(),
             start,
             end,
+            committed: offset,
+            inflight_since: None,
+            inflight_by: None,
         }
     }
 
@@ -121,12 +141,24 @@ pub struct Subscription {
     // TODO: This will need to be moved to the file, when we decide on a data structure.
     pub partitions: Vec<PartitionOffsets>,
     file: SubscriptionFile,
+
+    /// How long a batch of taken-but-unacknowledged offsets stays invisible
+    /// before it is reset and made available for redelivery.
+    visibility_timeout: Duration,
 }
 
 type Offset = u64;
 
 impl Subscription {
     pub fn new<P: AsRef<std::path::Path> + ?Sized>(path: &P) -> Result<Self, HigginsError> {
+        Self::new_with_timeout(path, DEFAULT_VISIBILITY_TIMEOUT)
+    }
+
+    /// Like [`Subscription::new`], but with an explicit visibility timeout.
+    pub fn new_with_timeout<P: AsRef<std::path::Path> + ?Sized>(
+        path: &P,
+        visibility_timeout: Duration,
+    ) -> Result<Self, HigginsError> {
         let mut subscription_file = SubscriptionFile::new(path)?;
 
         let mut partitions = subscription_file
@@ -141,6 +173,9 @@ impl Subscription {
                     partition_id,
                     start,
                     end,
+                    committed: start,
+                    inflight_since: None,
+                    inflight_by: None,
                 })
             })
             .collect::<Result<Vec<PartitionOffsets>, SubscriptionError>>()?;
@@ -151,7 +186,13 @@ impl Subscription {
             client_counts: vec![],
             partitions,
             file: subscription_file,
+            visibility_timeout,
         })
+    }
+
+    /// Returns the visibility timeout configured for this subscription.
+    pub fn visibility_timeout(&self) -> Duration {
+        self.visibility_timeout
     }
 
     /// Add a partition to  this  Subscription, beginning at the given offset.
@@ -228,6 +269,13 @@ impl Subscription {
                 // to pull here.
                 tracing::trace!("offsets.end: {}", offsets.end);
                 partition.set_start(offsets.end.saturating_add(1));
+
+                partition.committed = offsets.end.saturating_add(1);
+
+                if partition.start <= partition.committed {
+                    partition.inflight_since = None;
+                    partition.inflight_by = None;
+                }
 
                 tracing::trace!("Partition after acknowledgement: {:#?}", partition);
 
@@ -376,6 +424,88 @@ impl Subscription {
         tracing::trace!("Returning: {:#?}", results);
 
         Ok(results)
+    }
+
+    /// Records that the given offsets have been handed out to `client_id` and
+    /// are now in flight (awaiting acknowledgement). This starts the
+    /// visibility-timeout clock for each affected partition.
+    ///
+    /// The clock for a partition is only (re)started when nothing was already in
+    /// flight for it, so that the deadline is measured from the *first*
+    /// unacknowledged delivery rather than being pushed out by every subsequent
+    /// take.
+    pub fn mark_inflight(&mut self, client_id: u64, offsets: &[(PartitionName, Offset)]) {
+        let now = Instant::now();
+
+        for partition in self.partitions.iter_mut() {
+            let was_taken = offsets
+                .iter()
+                .any(|(key, _)| *key == partition.partition_id);
+
+            if was_taken && partition.start > partition.committed {
+                if partition.inflight_since.is_none() {
+                    partition.inflight_since = Some(now);
+                }
+                partition.inflight_by = Some(client_id);
+            }
+        }
+    }
+
+    /// Resets any partition whose in-flight offsets have exceeded the visibility
+    /// timeout, rolling its read frontier (`start`) back to the last
+    /// acknowledged offset (`committed`) so the offsets become available for
+    /// redelivery. The redelivery demand is restored to the client that
+    /// originally took the offsets.
+    ///
+    /// Returns `true` if any partition was reset.
+    pub fn reset_expired(&mut self) -> bool {
+        let timeout = self.visibility_timeout;
+
+        let mut restorations: Vec<(u64, u64)> = vec![];
+        let mut did_reset = false;
+
+        for partition in self.partitions.iter_mut() {
+            let expired = partition
+                .inflight_since
+                .map(|since| since.elapsed() >= timeout)
+                .unwrap_or(false);
+
+            if expired && partition.start > partition.committed {
+                let count = partition.start - partition.committed;
+
+                tracing::trace!(
+                    "[VISIBILITY] Resetting partition {:#?} from {} back to {} for redelivery",
+                    partition.partition_id,
+                    partition.start,
+                    partition.committed
+                );
+
+                partition.set_start(partition.committed);
+
+                if let Some(client) = partition.inflight_by {
+                    restorations.push((client, count));
+                }
+
+                partition.inflight_since = None;
+                partition.inflight_by = None;
+                did_reset = true;
+            }
+        }
+
+        if !did_reset {
+            return false;
+        }
+
+        // Restore the redelivery demand for each affected client so the reactive
+        // take loop pushes the reset offsets again.
+        for (client, count) in restorations {
+            self.increment_amount_to_take(client, count);
+        }
+
+        // `amount_to_take` changed for the reset partitions, so re-sort.
+        self.partitions.sort();
+
+        true
     }
 
     /// Removes the client count for a specific set.
@@ -742,6 +872,82 @@ mod tests {
 
             assert_eq!(offsets.len(), 1);
             assert_eq!(offsets, vec![(key.clone(), 1..3)]);
+        });
+
+        std::fs::remove_file(sub_name).unwrap();
+
+        result.unwrap();
+    }
+
+    #[test]
+    fn visibility_timeout_resets_unacknowledged_offsets() {
+        let sub_name = "visibility_timeout_resets_unacknowledged_offsets";
+
+        let result = catch_unwind(|| {
+            let mut sub =
+                Subscription::new_with_timeout(sub_name, std::time::Duration::from_millis(50))
+                    .unwrap();
+            let key = PartitionName::try_from("p1").unwrap();
+
+            // Offset 0 is available.
+            sub.add_partition(&key, 0, 0).unwrap();
+
+            // Take it and mark it in flight for client 7.
+            let taken = sub.take(1).unwrap();
+            assert_eq!(taken, vec![(key.clone(), 0)]);
+            sub.mark_inflight(7, &taken);
+
+            // Before the timeout elapses nothing is reset.
+            assert!(!sub.reset_expired());
+            // ...and the offset is no longer available.
+            assert!(sub.take(1).unwrap().is_empty());
+
+            // After the timeout elapses the offset is reset for redelivery.
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            assert!(sub.reset_expired());
+
+            // The redelivery demand was restored to client 7.
+            let restored = sub
+                .client_counts
+                .iter()
+                .find(|(c, _)| *c == 7)
+                .map(|(_, n)| n.load(Ordering::Relaxed));
+            assert_eq!(restored, Some(1));
+
+            // The offset is available again.
+            assert_eq!(sub.take(1).unwrap(), vec![(key.clone(), 0)]);
+        });
+
+        std::fs::remove_file(sub_name).unwrap();
+
+        result.unwrap();
+    }
+
+    #[test]
+    fn visibility_timeout_does_not_reset_acknowledged_offsets() {
+        let sub_name = "visibility_timeout_does_not_reset_acknowledged_offsets";
+
+        let result = catch_unwind(|| {
+            let mut sub =
+                Subscription::new_with_timeout(sub_name, std::time::Duration::from_millis(50))
+                    .unwrap();
+            let key = PartitionName::try_from("p1").unwrap();
+
+            sub.add_partition(&key, 0, 0).unwrap();
+
+            let taken = sub.take(1).unwrap();
+            assert_eq!(taken, vec![(key.clone(), 0)]);
+            sub.mark_inflight(7, &taken);
+
+            // Acknowledge the offset before the timeout elapses.
+            sub.acknowledge(&key, &Range { start: 0, end: 0 }).unwrap();
+
+            // After the timeout, nothing is reset because it was acknowledged.
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            assert!(!sub.reset_expired());
+
+            // And the offset is not redelivered.
+            assert!(sub.take(1).unwrap().is_empty());
         });
 
         std::fs::remove_file(sub_name).unwrap();

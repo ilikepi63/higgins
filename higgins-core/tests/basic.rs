@@ -4,8 +4,11 @@ use crate::common::{
     basic::can_achieve_basic_broker_functionality,
     invariant_tests::{
         acknowledge_out_of_order_is_rejected, offsets_are_monotonically_increasing,
-        partition_offsets_are_independent,
+        partition_offsets_are_independent, produce_to_nonexistent_stream_does_not_crash_server,
+        query_nonexistent_offset_does_not_crash_server,
         records_in_different_partitions_do_not_cross_contaminate,
+        subscription_does_not_redeliver_after_acknowledge,
+        subscription_redelivers_after_visibility_timeout,
         topography_is_idempotent_across_multiple_restarts,
     },
     join::run_basic_join_test,
@@ -90,4 +93,20 @@ fn reject_out_of_order_events() {
 #[test]
 fn idempotent_topography() {
     topography_is_idempotent_across_multiple_restarts();
+}
+
+#[test]
+fn nonexistent_stream_produce_results_in_error() {
+    produce_to_nonexistent_stream_does_not_crash_server();
+}
+
+#[test]
+fn nonexistent_offset_query_results_in_error() {
+    query_nonexistent_offset_does_not_crash_server();
+}
+
+#[test]
+fn subscription_visibility() {
+    subscription_redelivers_after_visibility_timeout();
+    subscription_does_not_redeliver_after_acknowledge();
 }
