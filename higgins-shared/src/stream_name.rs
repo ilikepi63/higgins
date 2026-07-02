@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Eq, Ord, PartialOrd, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, Ord, PartialOrd, Clone, Serialize, Deserialize, Hash)]
 pub struct StreamName(String);
 
 impl StreamName {

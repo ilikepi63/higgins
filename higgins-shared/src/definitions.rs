@@ -8,7 +8,7 @@ use thiserror::Error;
 /// The reason for choosing 32 is because:
 /// - The need for a fixed size buffer.
 /// - A long enough buffer for users to be able to store human-readable names.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct PartitionName([u8; 32]);
 
 impl Display for PartitionName {
