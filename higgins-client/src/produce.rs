@@ -11,7 +11,7 @@ use crate::error::HigginsClientError;
 pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::marker::Unpin>(
     stream: &[u8],
     payload: &[u8],
-    request_id: u64,
+    correlation_id: u64,
     socket: &mut T,
 ) -> Result<(), HigginsClientError> {
     let produce_request = ProduceRequest {
@@ -24,7 +24,7 @@ pub async fn produce<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + std::mark
     Message {
         r#type: Type::Producerequest as i32,
         produce_request: Some(produce_request),
-        correlation_id: Some(request_id),
+        correlation_id: Some(correlation_id),
         ..Default::default()
     }
     .encode(&mut write_buf)?;

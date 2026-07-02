@@ -1,9 +1,6 @@
 use super::Broker;
 
-use crate::{
-    storage::{dereference::Reference, index::windowed_index::WindowedIndex},
-    task::SpawnTaskConfig,
-};
+use crate::storage::{dereference::Reference, index::windowed_index::WindowedIndex};
 use riskless::{
     batch_coordinator::{FindBatchRequest, FindBatchResponse, TopicIdPartition},
     messages::ConsumeResponse,
@@ -240,7 +237,7 @@ impl Broker {
             let object_store = object_storage.clone();
             let batch_responses = batch_responses.clone();
 
-            self.task_handler.spawn(&SpawnTaskConfig::new("consume", true), async move {
+            tokio::spawn(async move {
                 let get_object_result = object_store.get(&Path::from(object_name.as_str())).await;
 
                 let result = match get_object_result {
@@ -291,7 +288,7 @@ impl Broker {
                 } else {
                     tracing::trace!("No ConsumeBatches found for query.");
                 };
-            })?;
+            });
         }
 
         Ok(batch_reponse_rx)

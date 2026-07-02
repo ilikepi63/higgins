@@ -5,7 +5,6 @@ use std::{path::PathBuf, sync::Arc};
 use higgins_codec::{Message, frame::Frame, message::Type};
 use higgins_shared::HigginsError;
 use prost::Message as _;
-use task::SpawnTaskConfig;
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -44,159 +43,142 @@ async fn process_socket(
             "Unable to create client ref for socket".to_string(),
         ))?;
 
-    let _read_handle = broker_lock.task_handler.spawn(
-        &SpawnTaskConfig::new(
-            "tcp_read", true, // Needs to be unique as this is a socket per client.
-        ),
-        async move {
-            loop {
-                let frame = match Frame::try_read_async(&mut read_socket).await {
-                    Ok(frame) => frame,
-                    Err(_) => {
-                        // Usually means that EOF was received on the socket, terminating this.
-                        break;
+    let _read_handle = tokio::spawn(async move {
+        loop {
+            let frame = match Frame::try_read_async(&mut read_socket).await {
+                Ok(frame) => frame,
+                Err(_) => {
+                    // Usually means that EOF was received on the socket, terminating this.
+                    break;
+                }
+            };
+
+            let broker = broker.clone();
+            let writer_tx = writer_tx.clone();
+            // Move this to task_handler.
+            tokio::spawn(async move {
+                let message = match Message::decode(&mut frame.inner()) {
+                    Ok(message) => message,
+                    Err(err) => {
+                        tracing::error!("{:#?}", err);
+                        return;
                     }
                 };
 
-                let broker = broker.clone();
-                let writer_tx = writer_tx.clone();
-                // Move this to task_handler.
-                tokio::spawn(async move {
-                    let message = match Message::decode(&mut frame.inner()) {
-                        Ok(message) => message,
-                        Err(err) => {
-                            tracing::error!("{:#?}", err);
-                            return;
-                        }
-                    };
-
-                    let t = match Type::try_from(message.r#type) {
-                        Ok(t) => t,
-                        Err(err) => {
-                            tracing::error!("{:#?}", err);
-                            return;
-                        }
-                    };
-
-                    tracing::info!("Request Type: {:#?}", t);
-
-                    if let Err(err) = match t {
-                        Type::Ping => handlers::handle_ping(message, writer_tx.clone()).await,
-                        Type::Createsubscriptionrequest => {
-                            handlers::handle_create_subscription(
-                                message,
-                                broker.clone(),
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Producerequest => {
-                            tokio::spawn(async move {
-                                handlers::handle_produce(message, broker.clone(), writer_tx.clone())
-                                    .await
-                            });
-
-                            Ok(())
-                        }
-                        Type::Createconfigurationrequest => {
-                            handlers::handle_create_configuration(
-                                broker.clone(),
-                                message,
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Takerecordsrequest => {
-                            handlers::handle_take_records(
-                                broker.clone(),
-                                message,
-                                client_id,
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Getindexrequest => {
-                            handlers::handle_get_index(message, broker.clone(), writer_tx.clone())
-                                .await
-                        }
-                        Type::Uploadmodulerequest => {
-                            handlers::handle_upload_module(
-                                message,
-                                broker.clone(),
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Metadatarequest => todo!(),
-                        Type::Getcurrenttopographyrequest => {
-                            handlers::handle_get_topography(
-                                message,
-                                broker.clone(),
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Getsubscriptionrequest => {
-                            handlers::handle_get_subscription(
-                                message,
-                                broker.clone(),
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                        Type::Acknowledgerequest => {
-                            handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
-                                .await
-                        }
-                        Type::Produceresponse
-                        | Type::Metadataresponse
-                        | Type::Pong
-                        | Type::Takerecordsresponse
-                        | Type::Createconfigurationresponse
-                        | Type::Deleteconfigurationrequest
-                        | Type::Deleteconfigurationresponse
-                        | Type::Createsubscriptionresponse
-                        | Type::Error
-                        | Type::Getindexresponse
-                        | Type::Uploadmoduleresponse
-                        | Type::Getcurrenttopographyresponse
-                        | Type::Getsubscriptionresponse
-                        | Type::Acknowledgeresponse => {
-                            handlers::errors::handle_incorrect_message_received(
-                                message,
-                                writer_tx.clone(),
-                            )
-                            .await
-                        }
-                    } {
+                let t = match Type::try_from(message.r#type) {
+                    Ok(t) => t,
+                    Err(err) => {
                         tracing::error!("{:#?}", err);
+                        return;
                     }
-                });
-            }
-        },
-    );
+                };
 
-    let _write_handle =
-        broker_lock
-            .task_handler
-            .spawn(&SpawnTaskConfig::new("tcp_write", false), async move {
-                tracing::info!("Starting writing task..");
+                tracing::info!("Request Type: {:#?}", t);
 
-                while let Some(val) = writer_rx.recv().await {
-                    tracing::info!("Received: {:#?} on the writing side", val);
-
-                    if let Err(err) = Frame::new(val.to_vec())
-                        .try_write_async(&mut write_socket)
+                if let Err(err) = match t {
+                    Type::Ping => handlers::handle_ping(message, writer_tx.clone()).await,
+                    Type::Createsubscriptionrequest => {
+                        handlers::handle_create_subscription(
+                            message,
+                            broker.clone(),
+                            writer_tx.clone(),
+                        )
                         .await
-                    {
-                        tracing::error!("{:#?}", err);
-                    };
-                    // let _result = write_socket.write_all(&val).await;
-                    if let Err(err) = write_socket.flush().await {
-                        tracing::error!("{:#?}", err);
-                    };
+                    }
+                    Type::Producerequest => {
+                        tokio::spawn(async move {
+                            handlers::handle_produce(message, broker.clone(), writer_tx.clone())
+                                .await
+                        });
+
+                        Ok(())
+                    }
+                    Type::Createconfigurationrequest => {
+                        handlers::handle_create_configuration(
+                            broker.clone(),
+                            message,
+                            writer_tx.clone(),
+                        )
+                        .await
+                    }
+                    Type::Takerecordsrequest => {
+                        handlers::handle_take_records(
+                            broker.clone(),
+                            message,
+                            client_id,
+                            writer_tx.clone(),
+                        )
+                        .await
+                    }
+                    Type::Getindexrequest => {
+                        handlers::handle_get_index(message, broker.clone(), writer_tx.clone()).await
+                    }
+                    Type::Uploadmodulerequest => {
+                        handlers::handle_upload_module(message, broker.clone(), writer_tx.clone())
+                            .await
+                    }
+                    Type::Metadatarequest => todo!(),
+                    Type::Getcurrenttopographyrequest => {
+                        handlers::handle_get_topography(message, broker.clone(), writer_tx.clone())
+                            .await
+                    }
+                    Type::Getsubscriptionrequest => {
+                        handlers::handle_get_subscription(
+                            message,
+                            broker.clone(),
+                            writer_tx.clone(),
+                        )
+                        .await
+                    }
+                    Type::Acknowledgerequest => {
+                        handlers::handle_acknowledge(message, broker.clone(), writer_tx.clone())
+                            .await
+                    }
+                    Type::Produceresponse
+                    | Type::Metadataresponse
+                    | Type::Pong
+                    | Type::Takerecordsresponse
+                    | Type::Createconfigurationresponse
+                    | Type::Deleteconfigurationrequest
+                    | Type::Deleteconfigurationresponse
+                    | Type::Createsubscriptionresponse
+                    | Type::Error
+                    | Type::Getindexresponse
+                    | Type::Uploadmoduleresponse
+                    | Type::Getcurrenttopographyresponse
+                    | Type::Getsubscriptionresponse
+                    | Type::Acknowledgeresponse => {
+                        handlers::errors::handle_incorrect_message_received(
+                            message,
+                            writer_tx.clone(),
+                        )
+                        .await
+                    }
+                } {
+                    tracing::error!("{:#?}", err);
                 }
             });
+        }
+    });
+
+    let _write_handle = tokio::spawn(async move {
+        tracing::info!("Starting writing task..");
+
+        while let Some(val) = writer_rx.recv().await {
+            tracing::info!("Received: {:#?} on the writing side", val);
+
+            if let Err(err) = Frame::new(val.to_vec())
+                .try_write_async(&mut write_socket)
+                .await
+            {
+                tracing::error!("{:#?}", err);
+            };
+            // let _result = write_socket.write_all(&val).await;
+            if let Err(err) = write_socket.flush().await {
+                tracing::error!("{:#?}", err);
+            };
+        }
+    });
 
     drop(broker_lock);
 

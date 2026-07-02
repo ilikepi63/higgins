@@ -1,4 +1,4 @@
-use riskless::messages::ProduceRequest;
+use crate::storage::backing_store::ProduceRequest;
 
 /// A BatchCoordinate represents the metadata of a record inside of a file.
 #[derive(Debug, Clone)]

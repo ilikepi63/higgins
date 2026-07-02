@@ -23,6 +23,7 @@ pub async fn handle_produce(
     let ProduceRequest {
         stream_name,
         payload,
+        ..
     } = message
         .produce_request
         .ok_or(HigginsError::MissingPayload)?;

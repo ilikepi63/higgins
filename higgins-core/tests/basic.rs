@@ -2,6 +2,10 @@ mod common;
 
 use crate::common::{
     basic::can_achieve_basic_broker_functionality,
+    concurrency_tests::{
+        concurrent_produces_to_different_partitions_do_not_interfere,
+        concurrent_produces_to_same_partition_are_serialised,
+    },
     invariant_tests::{
         acknowledge_out_of_order_is_rejected, offsets_are_monotonically_increasing,
         partition_offsets_are_independent, produce_to_nonexistent_stream_does_not_crash_server,
@@ -109,4 +113,16 @@ fn nonexistent_offset_query_results_in_error() {
 fn subscription_visibility() {
     subscription_redelivers_after_visibility_timeout();
     subscription_does_not_redeliver_after_acknowledge();
+}
+
+// Concurrency.
+#[test]
+fn concurrent_same_partition_produces_are_serialised() {
+    concurrent_produces_to_same_partition_are_serialised();
+}
+
+#[test]
+// #[ignore = "fails: concurrent produces to different partitions cross-contaminate (partition isolation race in the produce path); sequential isolation passes"]
+fn concurrent_different_partition_produces_are_isolated() {
+    concurrent_produces_to_different_partitions_do_not_interfere();
 }

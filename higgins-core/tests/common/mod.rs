@@ -14,6 +14,7 @@ use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 
 pub mod client_utils;
+pub mod concurrency_tests;
 pub mod configuration;
 pub mod data;
 pub mod functions;

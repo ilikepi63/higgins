@@ -3,17 +3,102 @@
 
 use crate::storage::shared_log_segment::SharedLogSegment;
 use crate::utils::request_response::Response;
-use higgins_shared::HigginsError;
+use higgins_shared::{HigginsError, PartitionName, StreamName, UniqueCollection};
+use std::sync::Mutex;
 use std::time::Duration;
 
-use riskless::{
-    messages::{ProduceRequest, ProduceRequestCollection},
-    object_store::{self},
-};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{storage::batch_coordinate::BatchCoordinate, utils::request_response::Request};
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use dashmap::{DashMap, Entry, iter::IterMut};
+
+/// A collection of ProduceRequests.
+///
+///  This is primarily used to be converted into a SharedLogSegment.
+#[derive(Debug)]
+pub struct ProduceRequestCollection {
+    /// A concurrent data structure for handling produce requests for each topic/partition combination.
+    pub inner: DashMap<(StreamName, PartitionName), Vec<ProduceRequest>>,
+    /// The size in bytes for this collection.
+    pub size: AtomicU64,
+}
+
+impl Default for ProduceRequestCollection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ProduceRequestCollection {
+    /// Create a new intance of this struct.
+    pub fn new() -> Self {
+        Self {
+            inner: DashMap::new(),
+            size: AtomicU64::new(0),
+        }
+    }
+
+    /// Clear this struct.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+        self.size = AtomicU64::new(0);
+    }
+
+    /// Creates a new collection, swaps it with this instance and returns the given collection.
+    pub fn take(&mut self) -> Self {
+        let mut other = ProduceRequestCollection::new();
+
+        std::mem::swap(&mut *self, &mut other);
+
+        other
+    }
+
+    /// Collect a produce request into this struct.
+    pub fn collect(&self, req: ProduceRequest) -> Result<(), HigginsError> {
+        let topic_id_partition = (req.stream.clone(), req.partition.clone());
+
+        let entry = self.inner.entry(topic_id_partition);
+
+        match entry {
+            Entry::Occupied(mut occupied_entry) => {
+                self.size
+                    .fetch_add(TryInto::<u64>::try_into(req.data.len())?, Ordering::Relaxed);
+                occupied_entry.get_mut().push(req.clone());
+            }
+            Entry::Vacant(vacant_entry) => {
+                self.size
+                    .fetch_add(TryInto::<u64>::try_into(req.data.len())?, Ordering::Relaxed);
+                vacant_entry.insert(vec![req.clone()]);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get the size in bytes for this collection.
+    pub fn size(&self) -> u64 {
+        self.size.load(Ordering::Relaxed)
+    }
+
+    /// Iterate over the partitions of this structure.
+    pub fn iter_partitions(
+        &mut self,
+    ) -> IterMut<'_, (StreamName, PartitionName), Vec<ProduceRequest>> {
+        self.inner.iter_mut()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProduceRequest {
+    pub request_id: u64,
+    pub stream: StreamName,
+    pub partition: PartitionName,
+    pub data: Vec<u8>,
+}
 
 /// Represents the roles starting
 pub trait BackingStore: Send + Sync + std::fmt::Debug {
@@ -24,7 +109,12 @@ pub trait BackingStore: Send + Sync + std::fmt::Debug {
     fn get_object_store(&self) -> Arc<dyn ObjectStore>;
 
     /// Put data into this data store.
-    fn put(&self, request: ProduceRequest) -> Result<Response<BatchCoordinate>, Self::Error>;
+    fn put(
+        &self,
+        stream: StreamName,
+        partition: PartitionName,
+        data: Vec<u8>,
+    ) -> Result<Response<BatchCoordinate>, Self::Error>;
 }
 
 pub struct Flusher(pub tokio::sync::mpsc::Sender<()>);
@@ -43,6 +133,7 @@ pub struct ObjectBackingStore {
     object_store: Arc<dyn ObjectStore>,
     collection: MutableCollection,
     flush_tx: Option<tokio::sync::mpsc::Sender<()>>,
+    request_id_collection: Arc<Mutex<UniqueCollection<()>>>,
 }
 
 impl ObjectBackingStore {
@@ -54,6 +145,7 @@ impl ObjectBackingStore {
             object_store: store,
             collection,
             flush_tx: None,
+            request_id_collection: Arc::new(Mutex::new(UniqueCollection::empty())),
         }
     }
 }
@@ -65,7 +157,26 @@ impl BackingStore for ObjectBackingStore {
         self.object_store.clone()
     }
 
-    fn put(&self, request: ProduceRequest) -> Result<Response<BatchCoordinate>, Self::Error> {
+    fn put(
+        &self,
+        stream: StreamName,
+        partition: PartitionName,
+        data: Vec<u8>,
+    ) -> Result<Response<BatchCoordinate>, Self::Error> {
+        let request_id = {
+            let mut unique_collection = self.request_id_collection.lock().unwrap();
+            unique_collection.insert(()).ok_or(HigginsError::Arbitrary(
+                "Failed to retrieve request ID".to_string(),
+            ))?
+        };
+
+        let request = ProduceRequest {
+            request_id,
+            stream,
+            partition,
+            data,
+        };
+
         let (request, response) = Request::<ProduceRequest, BatchCoordinate>::new(request);
 
         let collection_ref = self.collection.clone();
@@ -105,6 +216,8 @@ impl BackingStore for ObjectBackingStore {
         let object_store_ref = object_store.clone();
         let buffer = self.collection.clone();
 
+        let request_id_collection = self.request_id_collection.clone();
+
         // Flusher task.
         tokio::task::spawn(async move {
             loop {
@@ -142,6 +255,8 @@ impl BackingStore for ObjectBackingStore {
                                     }
                                 };
 
+                                let request_id = res.inner().request_id.clone();
+
                                 if let Err(err) = res.respond(response) {
                                     tracing::error!(
                                         "Failed to respond to storage input: {:#?}",
@@ -149,6 +264,8 @@ impl BackingStore for ObjectBackingStore {
                                     );
                                     continue;
                                 };
+
+                                request_id_collection.lock().unwrap().remove(request_id);
                             }
                         }
                         Err(err) => {
