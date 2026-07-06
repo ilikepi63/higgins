@@ -164,7 +164,10 @@ impl BackingStore for ObjectBackingStore {
         data: Vec<u8>,
     ) -> Result<Response<BatchCoordinate>, Self::Error> {
         let request_id = {
-            let mut unique_collection = self.request_id_collection.lock().unwrap();
+            let mut unique_collection = self
+                .request_id_collection
+                .lock()
+                .map_err(|e| HigginsError::Arbitrary(e.to_string()))?;
             unique_collection.insert(()).ok_or(HigginsError::Arbitrary(
                 "Failed to retrieve request ID".to_string(),
             ))?
@@ -247,7 +250,7 @@ impl BackingStore for ObjectBackingStore {
                                         batch_coordinate.request.request_id == r.inner().request_id
                                     })
                                 {
-                                    let request_id = r.inner().request_id.clone();
+                                    let request_id = r.inner().request_id;
 
                                     if let Err(err) = r.respond(batch_coord.clone()) {
                                         tracing::error!(
@@ -257,7 +260,9 @@ impl BackingStore for ObjectBackingStore {
                                         continue;
                                     };
 
-                                    request_id_collection.lock().unwrap().remove(request_id);
+                                    if let Ok(mut collection) = request_id_collection.lock() {
+                                        collection.remove(request_id);
+                                    }
                                 } else {
                                     tracing::error!(
                                         "Couldn't find response for request id {}",
