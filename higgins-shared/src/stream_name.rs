@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Eq, Ord, PartialOrd, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone, Serialize, Deserialize, Hash)]
 pub struct StreamName(String);
 
 impl StreamName {
@@ -10,12 +10,6 @@ impl StreamName {
     }
     pub fn as_str(&self) -> &str {
         self.0.as_str()
-    }
-}
-
-impl PartialEq for StreamName {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
     }
 }
 
