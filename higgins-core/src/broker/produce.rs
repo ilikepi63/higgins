@@ -9,7 +9,6 @@ use arrow::array::RecordBatch;
 use higgins_codec::message::Type;
 use higgins_codec::{Message, TakeRecordsResponse};
 use higgins_shared::{PartitionName, StreamName};
-use riskless::messages::ProduceRequest;
 
 use crate::storage::{
     dereference::{Reference, S3Reference},
@@ -167,6 +166,10 @@ impl ProduceOperation {
                         if let Ok(offsets) = offsets.as_ref() {
                             subscription_guard
                                 .remove_client_count(&client_id, offsets.len() as u64);
+                            // Start the visibility-timeout clock for the offsets
+                            // delivered on this produce so they are redelivered
+                            // if never acknowledged.
+                            subscription_guard.mark_inflight(client_id, offsets);
                         }
 
                         if let Ok(offsets) = offsets {
@@ -230,7 +233,6 @@ impl ProduceOperation {
 impl Broker {
     /// Produce a data set onto the named stream.
     pub async fn produce(
-        // &mut self,
         stream_name: &StreamName,
         partition: &PartitionName,
         record_batch: RecordBatch,
@@ -272,14 +274,8 @@ impl Broker {
     ) -> Result<Reference, HigginsError> {
         let data = write_arrow(&data)?;
 
-        let request = ProduceRequest {
-            request_id: 1,
-            topic: stream,
-            partition: partition.to_vec(),
-            data,
-        };
-
-        let response = backing_store.put(request)?;
+        let response =
+            backing_store.put(StreamName::from(stream).clone(), partition.clone(), data)?;
 
         let response = response
             .recv()
@@ -311,18 +307,11 @@ impl Broker {
 
         let data = write_arrow(&data)?;
 
-        let request = ProduceRequest {
-            request_id: 1,
-            topic: stream,
-            partition: partition.to_vec(),
-            data,
-        };
-
         let response = self
             .backing_store
             .as_ref()
             .ok_or(HigginsError::ObjectStoreNotConfigured)?
-            .put(request)?;
+            .put(StreamName::from(stream).clone(), partition.clone(), data)?;
 
         let response = response
             .recv()

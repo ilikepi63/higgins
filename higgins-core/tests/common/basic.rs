@@ -11,9 +11,8 @@ use crate::common::{
 };
 
 fn get_dir() -> PathBuf {
-    // let mut dir = temp_dir();
-    let mut dir = PathBuf::new();
-    dir.push("basic");
+    let mut dir = std::env::temp_dir();
+    dir.push(uuid::Uuid::new_v4().to_string());
     dir
 }
 

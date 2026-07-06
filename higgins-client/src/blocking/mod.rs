@@ -72,8 +72,13 @@ impl Client {
         self.1.block_on(self.0.query_at(stream, partition, offset))
     }
 
-    pub fn create_subscription(&mut self, stream: &[u8]) -> Result<(), HigginsClientError> {
-        self.1.block_on(self.0.create_subscription(stream))
+    pub fn create_subscription(
+        &mut self,
+        stream: &[u8],
+        timeout_ms: Option<u64>,
+    ) -> Result<(), HigginsClientError> {
+        self.1
+            .block_on(self.0.create_subscription(stream, timeout_ms))
     }
 
     pub fn upload_module(&mut self, name: &str, module: &[u8]) -> Result<(), HigginsClientError> {

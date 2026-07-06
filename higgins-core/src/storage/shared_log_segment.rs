@@ -1,6 +1,6 @@
-use crate::storage::batch_coordinate::BatchCoordinate;
+use crate::storage::{backing_store::ProduceRequestCollection, batch_coordinate::BatchCoordinate};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use riskless::{error::RisklessError, messages::ProduceRequestCollection};
+use higgins_shared::HigginsError;
 
 static MAGIC_NUMBER: u32 = 522;
 static V1_VERSION_NUMBER: u32 = 1;
@@ -19,30 +19,30 @@ impl SharedLogSegmentHeader {
 }
 
 impl TryFrom<Bytes> for SharedLogSegmentHeader {
-    type Error = RisklessError;
+    type Error = HigginsError;
 
     fn try_from(mut value: Bytes) -> Result<Self, Self::Error> {
         let magic_number = value.try_get_u32().map_err(|err| {
-            RisklessError::UnableToPassHeaderError(format!(
-                "Failed to retrieve u32 from Header: {:#?}",
-                err
-            ))
+            HigginsError::Arbitrary(format!("Failed to retrieve u32 from Header: {:#?}", err))
         })?;
 
         if magic_number != MAGIC_NUMBER {
-            return Err(RisklessError::InvalidMagicNumberError(magic_number));
+            return Err(HigginsError::Arbitrary(format!(
+                "Invalid magic number: {}",
+                magic_number
+            )));
         }
 
         let version = value.try_get_u32().map_err(|err| {
-            RisklessError::UnableToPassHeaderError(format!(
-                "Failed to retrieve u32 from Header: {:#?}",
-                err
-            ))
+            HigginsError::Arbitrary(format!("Failed to retrieve u32 from Header: {:#?}", err))
         })?;
 
         match version {
             1 => Ok(SharedLogSegmentHeader::V1(SharedLogSegmentHeaderV1)),
-            _ => Err(RisklessError::InvalidSharedLogSegmentVersionNumber(version)),
+            _ => Err(HigginsError::Arbitrary(format!(
+                "Invalid version number: {}",
+                version
+            ))),
         }
     }
 }
@@ -76,7 +76,7 @@ pub struct SharedLogSegment(Vec<BatchCoordinate>, BytesMut);
 
 // TODO: ADD IN OBJECT NAME FOR COLLECTION?
 impl TryFrom<([u8; 16], ProduceRequestCollection)> for SharedLogSegment {
-    type Error = RisklessError;
+    type Error = HigginsError;
 
     fn try_from(
         (object_key, mut value): ([u8; 16], ProduceRequestCollection),
@@ -98,8 +98,8 @@ impl TryFrom<([u8; 16], ProduceRequestCollection)> for SharedLogSegment {
                 buf.put_slice(&req.data);
 
                 batch_coords.push(BatchCoordinate {
-                    topic: req.topic.clone(),
-                    partition: req.partition.clone(),
+                    topic: req.stream.clone().into(),
+                    partition: req.partition.clone().into(),
                     base_offset,
                     offset,
                     size: size.try_into()?,

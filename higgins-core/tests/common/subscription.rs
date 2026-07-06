@@ -46,7 +46,9 @@ pub fn can_retrieve_data_from_subscription() {
     };
 
     // Start a subscription on that stream.
-    client.create_subscription(STREAM_NAME.as_bytes()).unwrap();
+    client
+        .create_subscription(STREAM_NAME.as_bytes(), None)
+        .unwrap();
 
     let sub_id = match client.recv(None).unwrap().body {
         ResponseBody::CreateSubscription(create_subscription_response) => {
@@ -130,7 +132,7 @@ pub fn subscription_works_with_multiple_clients() {
     let mut second_consume_client =
         higgins_client::blocking::Client::connect(format!("127.0.0.1:{port}"), None).unwrap();
 
-    let sub_id = create_subscription(&mut consume_client, STREAM_NAME);
+    let sub_id = create_subscription(&mut consume_client, STREAM_NAME, None);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
@@ -361,7 +363,7 @@ pub fn can_update_subscription_with_multiple_values() {
 
     tracing::debug!("{}", "CREATE SUBSCRIPTION".blue());
 
-    let sub_id = create_subscription(&mut consume_client, STREAM_NAME);
+    let sub_id = create_subscription(&mut consume_client, STREAM_NAME, None);
 
     let subscription = get_subscription_data(STREAM_NAME, &sub_id, &mut consume_client);
 
@@ -652,7 +654,7 @@ pub fn can_update_subscription_after_created() {
 
     // Start a subscription on that stream.
     produce_client
-        .create_subscription("update_customer".as_bytes())
+        .create_subscription("update_customer".as_bytes(), None)
         .unwrap();
 
     let sub_id = match produce_client.recv(None).unwrap().body {

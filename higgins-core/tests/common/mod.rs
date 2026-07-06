@@ -1,15 +1,24 @@
 #![allow(unused)]
 
+use std::path::PathBuf;
+use std::time::Duration;
+
+use arrow_schema::SchemaRef;
 use bytes::BytesMut;
+use higgins::{ServerHandle, run_server_returning};
+use higgins_client::ResponseBody;
+use higgins_client::blocking::Client;
 use higgins_codec::frame::Frame;
 use higgins_codec::{Message, ProduceRequest, message::Type};
 use higgins_codec::{ProduceResponse, TakeRecordsRequest};
 use prost::Message as _;
 
 pub mod client_utils;
+pub mod concurrency_tests;
 pub mod configuration;
 pub mod data;
 pub mod functions;
+pub mod invariant_tests;
 pub mod join;
 pub mod ping;
 mod port;
@@ -17,60 +26,33 @@ pub mod query;
 pub mod schema;
 pub mod subscription;
 pub use port::get_random_port;
+
+pub fn init_tracing() {
+    use tracing_subscriber::EnvFilter;
+
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_test_writer()
+        .try_init();
+}
+
 pub mod basic;
 pub mod map;
 pub mod reduce;
 pub mod topography;
 pub mod windowing;
 
-/// produce to a stream without waiting for the response.
-///
-/// This is helpful in scenarios where you may want to produce concurrently.
-#[allow(dead_code)]
-pub fn produce<T: std::io::Read + std::io::Write>(stream: &[u8], payload: &[u8], socket: &mut T) {
-    let produce_request = ProduceRequest {
-        payload: payload.to_vec(),
-        stream_name: stream.to_vec(),
-    };
-
-    let mut write_buf = BytesMut::new();
-
-    Message {
-        r#type: Type::Producerequest as i32,
-        produce_request: Some(produce_request),
-        ..Default::default()
-    }
-    .encode(&mut write_buf)
-    .unwrap();
-
-    let frame = Frame::new(write_buf.to_vec());
-
-    frame.try_write(socket).unwrap();
-}
-
 /// Produce synchronously to a listener awaiting the response.
-#[allow(unused)]
-pub fn produce_sync<T: std::io::Read + std::io::Write>(
-    stream: &[u8],
-    payload: &[u8],
-    socket: &mut T,
-) -> Result<ProduceResponse, Box<dyn std::error::Error>> {
-    produce(stream, payload, socket);
-
-    let mut read_buf = BytesMut::zeroed(1024);
-
-    let frame = Frame::try_read(socket).unwrap();
-
-    let slice = frame.inner();
-
-    let message = Message::decode(slice).unwrap();
-
-    let result = match Type::try_from(message.r#type).unwrap() {
-        Type::Produceresponse => message.produce_response.unwrap(),
-        _ => panic!("Received incorrect response from server for Create Subscription request."),
-    };
-
-    Ok(result)
+pub fn produce_sync(client: &mut Client, stream: &str, json: &str, schema: SchemaRef) {
+    client
+        .produce_json(stream, json.as_bytes(), schema)
+        .unwrap();
+    match client.recv(Some(Duration::from_secs(5))).unwrap().body {
+        ResponseBody::Produce(_) => {}
+        other => panic!("expected Produce response, got {:?}", other),
+    }
 }
 
 #[allow(unused)]
@@ -121,4 +103,19 @@ pub fn consume<T: std::io::Read + std::io::Write>(
     };
 
     Ok(result)
+}
+
+// Utilities.
+pub fn setup_server(dir: PathBuf, port: u16) -> (ServerHandle, Client) {
+    let handle = run_server_returning(dir, port).unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    let client =
+        Client::connect(format!("127.0.0.1:{port}"), Some(Duration::from_secs(5))).unwrap();
+    (handle, client)
+}
+
+pub fn unique_dir() -> Option<PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    dir.push(format!("higgins-it-{}", uuid::Uuid::new_v4()));
+    Some(dir)
 }

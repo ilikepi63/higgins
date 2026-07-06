@@ -258,18 +258,25 @@ impl Topography {
 
         if let Some(streams) = configuration.streams.as_ref() {
             // Create the non-derived streams first.
-            for (stream_name, topic_defintion) in
+            for (stream_name, stream_definition) in
                 streams.iter().filter(|(_, def)| def.base.is_none())
             {
-                match &topic_defintion.base {
+                match &stream_definition.base {
                     Some(_derived_from) => {
                         unreachable!()
                     }
                     None => {
+                        if !self.schema.contains_key(&stream_definition.schema) {
+                            return Err(HigginsError::Arbitrary(format!(
+                                "Schema not found for stream: {}",
+                                stream_name
+                            )));
+                        }
+
                         tracing::trace!("Applying stream {}", stream_name);
                         let result = self.add_stream(
                             StreamName::from(stream_name.as_str()),
-                            topic_defintion.try_into()?,
+                            stream_definition.try_into()?,
                         );
 
                         tracing::trace!("Result from applying stream: {:#?}", result);
@@ -283,7 +290,24 @@ impl Topography {
                 streams.iter().filter(|(_, def)| def.base.is_some())
             {
                 match &stream_definition.base {
-                    Some(_derived_from) => {
+                    Some(derived_from) => {
+                        if !self.schema.contains_key(&stream_definition.schema) {
+                            return Err(HigginsError::Arbitrary(format!(
+                                "Schema not found for stream: {}",
+                                stream_name
+                            )));
+                        }
+
+                        if !self
+                            .streams
+                            .contains_key(&StreamName::from(derived_from.as_str()))
+                        {
+                            return Err(HigginsError::Arbitrary(format!(
+                                "Base stream {} not found for stream: {}",
+                                derived_from, stream_name
+                            )));
+                        }
+
                         tracing::trace!("Applying a derived stream: {stream_name}..");
 
                         let _ = self.add_stream(

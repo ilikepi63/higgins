@@ -14,6 +14,7 @@ message CreateSubscriptionRequest {
   ConsumerOffsetType offset_type = 2;
   optional uint64 timestamp = 3;
   optional uint64 offset = 4;
+  optional uint64 timeout_ms = 5;
 }
 
 message CreateSubscriptionResponse {

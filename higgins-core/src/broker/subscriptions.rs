@@ -6,7 +6,8 @@ use higgins_shared::{HigginsError, PartitionName, StreamName, SubscriptionError}
 use prost::Message as _;
 use std::{
     collections::BTreeMap,
-    sync::{Arc, atomic::Ordering},
+    sync::{Arc, Weak, atomic::Ordering},
+    time::Duration,
 };
 use tokio::sync::{Notify, RwLock};
 use uuid::Uuid;
@@ -103,15 +104,28 @@ impl Broker {
         Ok(())
     }
 
-    pub fn create_subscription(&mut self, stream: &StreamName) -> Result<Vec<u8>, HigginsError> {
+    pub fn create_subscription(
+        &mut self,
+        stream: &StreamName,
+        timeout: Duration,
+    ) -> Result<Vec<u8>, HigginsError> {
         let uuid = Uuid::new_v4();
 
         let mut path = self.dir.clone();
         path.push("subscriptions"); // TODO: move to const.
         path.push(uuid.to_string());
 
-        let subscription = Arc::new(RwLock::new(Subscription::new(&path)?));
+        let subscription = Arc::new(RwLock::new(Subscription::new_with_timeout(&path, timeout)?));
         let notify = Arc::new(Notify::new());
+
+        // Spawn the visibility-timeout reaper for this subscription so that any
+        // offsets that are taken but never acknowledged become available again
+        // for redelivery.
+        Self::spawn_visibility_reaper(
+            timeout,
+            Arc::downgrade(&subscription),
+            Arc::downgrade(&notify),
+        );
 
         // How do we get the list of partitions for a stream?
         // We need to also be able to update the subscriptions for every stream.
@@ -120,6 +134,52 @@ impl Broker {
         self.upsert_subscription(stream, uuid.as_bytes(), (notify, subscription))?;
 
         Ok(uuid.as_bytes().to_vec())
+    }
+
+    /// Spawns a background task that periodically resets in-flight offsets that
+    /// have exceeded the subscription's visibility timeout, making them
+    /// available for redelivery.
+    ///
+    /// The task holds only `Weak` references, so it exits automatically once the
+    /// broker (and therefore the subscription) is dropped, preventing leaked
+    /// tasks across server restarts.
+    fn spawn_visibility_reaper(
+        timeout: Duration,
+        subscription: Weak<RwLock<Subscription>>,
+        notify: Weak<Notify>,
+    ) {
+        // A maximal timeout disables the reaper entirely.
+        if timeout == Duration::MAX {
+            return;
+        }
+
+        // Check often enough that the deadline is honoured with reasonable
+        // promptness, but never so often that we busy-loop.
+        let interval = (timeout / 2).max(Duration::from_millis(25));
+
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(interval).await;
+
+                let (Some(subscription), Some(notify)) = (subscription.upgrade(), notify.upgrade())
+                else {
+                    // The broker has been dropped; stop reaping.
+                    break;
+                };
+
+                let did_reset = {
+                    let mut lock = subscription.write().await;
+                    lock.reset_expired()
+                };
+
+                if did_reset {
+                    tracing::trace!(
+                        "[VISIBILITY] In-flight offsets expired; notifying for redelivery."
+                    );
+                    notify.notify_waiters();
+                }
+            }
+        });
     }
 
     /// Creates a `non-reactive` subscription.
@@ -228,6 +288,9 @@ impl Broker {
 
                         if let Ok(offsets) = offsets.as_ref() {
                             lock.remove_client_count(&client_id, offsets.len() as u64);
+                            // Start the visibility-timeout clock for the offsets
+                            // we are about to hand out.
+                            lock.mark_inflight(client_id, offsets);
                         }
 
                         drop(lock);

@@ -24,7 +24,7 @@ use crate::{
 
 /// Data that every operation will need to complete.
 pub struct OperationData {
-    // passed in dynamically.
+    // passed in dynamically
     pub broker: Arc<RwLock<Broker>>,
     pub offsets: eventual::Eventual<Range<u64>>,
     pub records: eventual::Eventual<Vec<RecordBatch>>,
