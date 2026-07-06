@@ -139,10 +139,6 @@ impl Broker {
     /// Spawns a background task that periodically resets in-flight offsets that
     /// have exceeded the subscription's visibility timeout, making them
     /// available for redelivery.
-    ///
-    /// The task holds only `Weak` references, so it exits automatically once the
-    /// broker (and therefore the subscription) is dropped, preventing leaked
-    /// tasks across server restarts.
     fn spawn_visibility_reaper(
         timeout: Duration,
         subscription: Weak<RwLock<Subscription>>,
@@ -153,8 +149,6 @@ impl Broker {
             return;
         }
 
-        // Check often enough that the deadline is honoured with reasonable
-        // promptness, but never so often that we busy-loop.
         let interval = (timeout / 2).max(Duration::from_millis(25));
 
         tokio::spawn(async move {
@@ -163,7 +157,6 @@ impl Broker {
 
                 let (Some(subscription), Some(notify)) = (subscription.upgrade(), notify.upgrade())
                 else {
-                    // The broker has been dropped; stop reaping.
                     break;
                 };
 
@@ -288,8 +281,7 @@ impl Broker {
 
                         if let Ok(offsets) = offsets.as_ref() {
                             lock.remove_client_count(&client_id, offsets.len() as u64);
-                            // Start the visibility-timeout clock for the offsets
-                            // we are about to hand out.
+
                             lock.mark_inflight(client_id, offsets);
                         }
 

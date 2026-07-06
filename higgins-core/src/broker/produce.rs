@@ -166,9 +166,7 @@ impl ProduceOperation {
                         if let Ok(offsets) = offsets.as_ref() {
                             subscription_guard
                                 .remove_client_count(&client_id, offsets.len() as u64);
-                            // Start the visibility-timeout clock for the offsets
-                            // delivered on this produce so they are redelivered
-                            // if never acknowledged.
+
                             subscription_guard.mark_inflight(client_id, offsets);
                         }
 
