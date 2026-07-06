@@ -241,31 +241,29 @@ impl BackingStore for ObjectBackingStore {
 
                     match flush(new_ref, object_store_ref.clone()).await {
                         Ok(responses) => {
-                            let mut iter = new_collection_vec.into_iter();
-
-                            // We need to fix riskless here.
-                            for response in responses {
-                                // TODO: O(n^2) here
-                                let res = match iter
-                                    .find(|r| r.inner().request_id == response.request.request_id)
+                            while let Some(r) = new_collection_vec.pop() {
+                                if let Some(batch_coord) =
+                                    responses.iter().find(|batch_coordinate| {
+                                        batch_coordinate.request.request_id == r.inner().request_id
+                                    })
                                 {
-                                    Some(res) => res,
-                                    None => {
+                                    let request_id = r.inner().request_id.clone();
+
+                                    if let Err(err) = r.respond(batch_coord.clone()) {
+                                        tracing::error!(
+                                            "Failed to respond to storage input: {:#?}",
+                                            err
+                                        );
                                         continue;
-                                    }
-                                };
+                                    };
 
-                                let request_id = res.inner().request_id.clone();
-
-                                if let Err(err) = res.respond(response) {
+                                    request_id_collection.lock().unwrap().remove(request_id);
+                                } else {
                                     tracing::error!(
-                                        "Failed to respond to storage input: {:#?}",
-                                        err
+                                        "Couldn't find response for request id {}",
+                                        r.inner().request_id
                                     );
-                                    continue;
                                 };
-
-                                request_id_collection.lock().unwrap().remove(request_id);
                             }
                         }
                         Err(err) => {

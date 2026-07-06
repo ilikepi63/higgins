@@ -787,7 +787,8 @@ mod test {
         );
     }
 
-    // #[tokio::test]
+    // #[tokio::test
+    #[allow(unused)]
     async fn task_unique_name_retrievable() {
         let mut task_ptr = TaskPtr {
             name: "root".to_string(),

@@ -26,6 +26,18 @@ pub mod query;
 pub mod schema;
 pub mod subscription;
 pub use port::get_random_port;
+
+pub fn init_tracing() {
+    use tracing_subscriber::EnvFilter;
+
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_test_writer()
+        .try_init();
+}
+
 pub mod basic;
 pub mod map;
 pub mod reduce;
