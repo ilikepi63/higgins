@@ -41,9 +41,9 @@ fn record_count_at(
     partition: &PartitionName,
     offset: u64,
 ) -> usize {
-    let resp = query_at(client, stream, partition, offset).unwrap();
-
-    resp.records.len()
+    query_at(client, stream, partition, offset)
+        .map(|resp| resp.records.len())
+        .unwrap_or(0)
 }
 
 fn id_at(
