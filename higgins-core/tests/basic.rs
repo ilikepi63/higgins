@@ -18,6 +18,7 @@ use crate::common::{
     },
     join::run_basic_join_test,
     map::can_implement_basic_map,
+    pipeline_tests::every_stream_type_answers_its_subscription,
     reduce::can_implement_basic_reduce,
     subscription::*,
     topography::can_achieve_basic_topography_retrieval,
@@ -146,4 +147,10 @@ fn concurrent_same_partition_produces_are_serialised() {
 fn concurrent_different_partition_produces_are_isolated() {
     init_tracing();
     concurrent_produces_to_different_partitions_do_not_interfere();
+}
+
+#[test]
+fn full_pipeline_subscriptions_are_answered() {
+    init_tracing();
+    every_stream_type_answers_its_subscription();
 }
