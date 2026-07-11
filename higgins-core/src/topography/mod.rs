@@ -266,6 +266,7 @@ impl Topography {
                         unreachable!()
                     }
                     None => {
+                        // Schema are registered before streams are created.
                         if !self.schema.contains_key(&stream_definition.schema) {
                             return Err(HigginsError::Arbitrary(format!(
                                 "Schema not found for stream: {}",
@@ -301,6 +302,7 @@ impl Topography {
                         if !self
                             .streams
                             .contains_key(&StreamName::from(derived_from.as_str()))
+                            && !streams.contains_key(derived_from)
                         {
                             return Err(HigginsError::Arbitrary(format!(
                                 "Base stream {} not found for stream: {}",
