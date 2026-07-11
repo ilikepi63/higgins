@@ -41,12 +41,16 @@ pub async fn handle_create_subscription(
         Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_SUBSCRIPTION_TIMEOUT)),
     )?;
 
+    tracing::debug!("Sending back Creation Subscription response.");
+
     let resp = CreateSubscriptionResponse {
         errors: vec![],
         subscription_id: Some(subscription_id),
     };
 
     let mut result = BytesMut::new();
+
+    tracing::debug!("Sent: {:#?}", resp);
 
     Message {
         correlation_id: message.correlation_id,

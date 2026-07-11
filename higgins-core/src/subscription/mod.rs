@@ -303,6 +303,8 @@ impl Subscription {
             self.partitions
         );
 
+        tracing::debug!("Subscription state: {:#?}", self);
+
         let mut partition_offset_index = 0;
         let mut offset_count = count;
 
@@ -343,6 +345,8 @@ impl Subscription {
 
             partition_offset_index += 1;
         }
+
+        tracing::debug!("Subscription state after take: {:#?}", self);
 
         tracing::debug!("returning offsets taken from subscription: {:#?}", results);
 

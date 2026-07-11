@@ -48,8 +48,8 @@ pub fn upload_configuration_sync(config: &str, client: &mut higgins_client::bloc
     client.upload_configuration(config.as_bytes()).unwrap();
 
     match client.recv(Some(Duration::from_secs(5))).unwrap().body {
-        higgins_client::ResponseBody::CreateConfiguration(_) => {
-            tracing::info!("Retrieved create configuration!");
+        higgins_client::ResponseBody::CreateConfiguration(response) => {
+            tracing::info!("Retrieved create configuration: {:#?}", response);
         } //create_subscription_response.subscription_id.unwrap(),
         _ => panic!("Retrieved unexpected result."),
     };

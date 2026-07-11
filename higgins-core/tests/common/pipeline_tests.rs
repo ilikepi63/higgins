@@ -1,21 +1,3 @@
-//! End-to-end pipeline test: every stream type in one dependency graph, each
-//! with its own subscription.
-//!
-//! The topography wires all five kinds of stream so that each derivation feeds
-//! off another:
-//!
-//! ```text
-//!   readings (base)
-//!     ├── doubled        = map(readings)          // ×2 on `data`
-//!     │     └── running_total = reduce(doubled)   // running sum
-//!     │            └── recent = window(running_total)  // last 5
-//!     └── enriched       = join(readings, doubled)
-//! ```
-//!
-//! A subscription is registered on every stream, then a single record is
-//! produced to the base. The derivation must ripple through the whole graph and
-//! each subscription must be answered with a delivery.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -74,7 +56,7 @@ base = "readings"
 type = "join"
 schema = "enriched"
 partition_key = "id"
-join = { type = "inner", stream = "doubled" }
+join = ["doubled"]
 map = { id = "readings.id", data = "readings.data", doubled = "doubled.data" }
 "#;
 
@@ -90,7 +72,6 @@ pub fn every_stream_type_answers_its_subscription() {
         // Upload configuration.
         upload_configuration_sync(CONFIG, &mut client);
 
-        // Upload map + reduce modules.
         upload_module_sync(
             "map",
             &std::fs::read("tests/functions/basic_map.wasm").unwrap(),
@@ -102,15 +83,29 @@ pub fn every_stream_type_answers_its_subscription() {
             &mut client,
         );
 
-        // Setup all subscriptions for these different streams.
         let mut subscriptions = Vec::new();
+
         for stream in STREAMS {
             let sub_id = create_subscription(&mut client, stream, None);
+
             client.take(sub_id.clone(), stream.as_bytes(), 1).unwrap();
-            subscriptions.push((stream, sub_id));
+
+            std::thread::sleep(Duration::from_secs(1));
+
+            subscriptions.push((stream, sub_id.clone()));
+
+            client.get_subscription(stream, &sub_id).unwrap();
+
+            match client.recv(Some(Duration::from_mins(1))).unwrap().body {
+                ResponseBody::GetSubscription(subscription) => {
+                    tracing::debug!("Received subscription for {stream}: {:#?}", subscription);
+                }
+                _ => panic!("Retrieved unexpected result."),
+            };
         }
 
-        // produce to base stream.
+        tracing::debug!("Producing to readings stream");
+
         client
             .produce_json(
                 "readings",
@@ -119,10 +114,10 @@ pub fn every_stream_type_answers_its_subscription() {
             )
             .unwrap();
 
-        if let Ok(produce_response) = client.recv(Some(Duration::from_secs(60))) {
-            tracing::debug!("Successfully produced the json!");
-            tracing::debug!("{:#?}", produce_response);
-        }
+        std::thread::sleep(Duration::from_secs(5));
+        tracing::debug!("Producing to readings stream after ");
+
+        tracing::debug!("We passed the produce response region");
 
         let mut answered: HashMap<String, bool> =
             HashMap::from(STREAMS.map(|name| (name.to_owned(), false)));

@@ -34,6 +34,8 @@ pub async fn handle_produce(
 
     let broker = broker.write().await;
 
+    tracing::info!("[PRODUCE] Took the broker lock..");
+
     let stream_name = StreamName::from(stream_name);
 
     let (schema, _tx, _rx) = broker
@@ -42,7 +44,12 @@ pub async fn handle_produce(
             "Stream not found for stream name.".to_string(),
         ))?;
 
-    let batch = read_arrow(&payload)?
+    tracing::info!("[PRODUCE] Retrieved the schema.");
+
+    let batch = read_arrow(&payload)
+        .inspect_err(|err| {
+            tracing::error!("[PRODUCE] Failed to read arrow: {:#?}", err);
+        })?
         .next()
         .ok_or(HigginsError::Arbitrary(
             "No batch found in payload.".to_string(),
