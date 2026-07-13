@@ -1,7 +1,7 @@
 use super::utils::put_default_index_at_range;
-use crate::broker::Broker;
 use crate::derive::operation::OperationData;
 use crate::functions::reduce::run_reduce_function;
+use crate::{broker::Broker, subscription::helpers::push_subscriptions};
 use higgins_shared::{HigginsError, read_arrow};
 
 #[derive(Debug)]
@@ -167,6 +167,14 @@ impl ReduceOperation {
                     offsets.clone(),
                     &mut broker_guard,
                     references,
+                )
+                .await?;
+
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets.clone(),
+                    &mut broker_guard,
                 )
                 .await?;
             }

@@ -1,6 +1,7 @@
 use super::utils::ColumnName;
 use crate::broker::Broker;
 use crate::derive::operation::OperationData;
+use crate::subscription::helpers::push_subscriptions;
 use crate::{
     derive::utils::{get_partition_key_from_record_batch, put_default_index_at_range},
     functions::map::run_map_function,
@@ -109,6 +110,14 @@ impl MapOperation {
                     offsets.clone(),
                     &mut broker_guard,
                     references,
+                )
+                .await?;
+
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets,
+                    &mut broker_guard,
                 )
                 .await?;
 

@@ -5,6 +5,7 @@ use crate::derive::operation::OperationData;
 use crate::derive::windowed::definition::WindowValue;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
 use crate::storage::windowing::assign_sliding_windows_range;
+use crate::subscription::helpers::push_subscriptions;
 use definition::WindowedStreamDefinition;
 use higgins_shared::{HigginsError, PartitionName, StreamName};
 use std::sync::Arc;
@@ -57,21 +58,31 @@ impl WindowOperation {
 
                 windowed_index_file.put_ranges(&mut new_ranges)?;
 
-                // acknowledge me!
-                {
-                    let mut guard = self
-                        .0
-                        .subscription
-                        .as_ref()
-                        .ok_or(HigginsError::Arbitrary(
-                            "Failed to retrieve subscription for given acknoweledgement"
-                                .to_string(),
-                        ))?
-                        .write()
-                        .await;
-                    tracing::info!("Acknowledging ranges {:#?}.", offsets);
-                    guard.acknowledge(&self.0.partition, &offsets)?;
-                }
+                let mut broker_guard = self.0.broker.write().await;
+
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets,
+                    &mut broker_guard,
+                )
+                .await?;
+
+                // // acknowledge me!
+                // {
+                //     let mut guard = self
+                //         .0
+                //         .subscription
+                //         .as_ref()
+                //         .ok_or(HigginsError::Arbitrary(
+                //             "Failed to retrieve subscription for given acknoweledgement"
+                //                 .to_string(),
+                //         ))?
+                //         .write()
+                //         .await;
+                //     tracing::info!("Acknowledging ranges {:#?}.", offsets);
+                //     guard.acknowledge(&self.0.partition, &offsets)?;
+                // }
 
                 tracing::info!("Successfully applied ranges to windowed function.");
             }
