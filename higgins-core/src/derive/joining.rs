@@ -23,6 +23,7 @@ use crate::utils::epoch;
 use higgins_shared::HigginsError;
 use opts::amalgamate_join;
 
+#[derive(Debug)]
 pub struct JoinOperation {
     pub data: OperationData,
     pub definition: JoinDefinition,

@@ -4,6 +4,7 @@ use crate::derive::operation::OperationData;
 use crate::functions::reduce::run_reduce_function;
 use higgins_shared::{HigginsError, read_arrow};
 
+#[derive(Debug)]
 pub struct ReduceOperation(pub OperationData);
 
 impl ReduceOperation {

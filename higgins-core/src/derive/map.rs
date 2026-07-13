@@ -7,6 +7,7 @@ use crate::{
 };
 use higgins_shared::{HigginsError, PartitionName};
 
+#[derive(Debug)]
 pub struct MapOperation(pub OperationData);
 
 impl MapOperation {

@@ -12,6 +12,7 @@ use tokio::sync::RwLock;
 
 pub mod definition;
 
+#[derive(Debug)]
 pub struct WindowOperation(pub OperationData);
 
 impl WindowOperation {

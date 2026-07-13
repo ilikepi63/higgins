@@ -29,6 +29,7 @@ impl<T: Clone> Eventual<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct Setter<T>(Arc<(Mutex<Option<T>>, Notify)>);
 
 impl<T> Setter<T> {

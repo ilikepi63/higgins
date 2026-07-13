@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tokio::sync::RwLock;
 
+#[derive(Debug)]
 pub struct ProduceOperation(pub OperationData);
 
 impl ProduceOperation {
