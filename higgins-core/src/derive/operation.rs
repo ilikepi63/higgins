@@ -265,8 +265,6 @@ pub async fn generate_relation_tasks_from_stream(
 
                 // Then we run the task.
                 tokio::spawn(async move {
-                    tracing::debug!("Spawning operation for {:#?}", relation);
-
                     let (
                         broker,
                         definition,
@@ -490,7 +488,6 @@ impl Operation {
     }
 
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        tracing::debug!("Initting for {:#?}", self);
         match self {
             Self::Map(o) => o.init().await,
             Self::Join(o) => o.init().await,
@@ -502,7 +499,6 @@ impl Operation {
         Ok(())
     }
     pub async fn prepare(&mut self) -> Result<(), HigginsError> {
-        tracing::debug!("Preparing for {:#?}", self);
         match self {
             Self::Map(o) => o.prepare().await,
             Self::Join(o) => o.prepare().await,
@@ -512,7 +508,6 @@ impl Operation {
         }
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
-        tracing::debug!("Committing for {:#?}", self);
         match self {
             Self::Map(o) => o.commit().await,
             Self::Join(o) => o.commit().await,

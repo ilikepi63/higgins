@@ -112,13 +112,12 @@ impl MapOperation {
                 )
                 .await?;
 
-                if let Some(subscription) = self.0.subscription.as_mut() {
-                    let mut lock = subscription.write().await;
+                // if let Some(subscription) = self.0.subscription.as_mut() {
+                //     let mut lock = subscription.write().await;
+                //     lock.acknowledge(&self.0.partition, &offsets)?;
 
-                    lock.acknowledge(&self.0.partition, &offsets)?;
-
-                    drop(lock);
-                }
+                //     drop(lock);
+                // }
 
                 Ok(())
             }

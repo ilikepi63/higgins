@@ -14,6 +14,7 @@ pub fn recv_until_take(
     loop {
         match consume_client.recv(Some(Duration::from_secs(10)))?.body {
             ResponseBody::TakeRecords(response) => {
+                tracing::debug!("We received a take response: {:#?}", response);
                 return Ok(response);
             }
             ResponseBody::Produce(response) => {

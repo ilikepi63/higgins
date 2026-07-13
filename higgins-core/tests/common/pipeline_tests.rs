@@ -122,13 +122,24 @@ pub fn every_stream_type_answers_its_subscription() {
         let mut answered: HashMap<String, bool> =
             HashMap::from(STREAMS.map(|name| (name.to_owned(), false)));
 
-        while answered.len() < STREAMS.len() {
+        let time = std::time::SystemTime::now();
+
+        while answered
+            .iter()
+            .filter(|answered| answered.1.clone())
+            .count()
+            < STREAMS.len()
+        {
             let take = match recv_until_take(&mut client) {
                 Ok(t) => t,
                 _ => {
                     break;
                 }
             };
+
+            if time.elapsed().unwrap() > Duration::from_mins(1) {
+                break;
+            }
 
             tracing::debug!("We did return a take response!");
 

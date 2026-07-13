@@ -176,11 +176,11 @@ impl ReduceOperation {
                 references
             );
 
-            if let Some(subscription) = self.0.subscription.as_ref() {
-                let mut lock = subscription.write().await;
+            // if let Some(subscription) = self.0.subscription.as_ref() {
+            //     let mut lock = subscription.write().await;
 
-                lock.acknowledge(&self.0.partition, &offsets)?;
-            }
+            //     lock.acknowledge(&self.0.partition, &offsets)?;
+            // }
         } else {
             tracing::error!("Attempt to commit without any referencs on Reduce stream.")
         }
