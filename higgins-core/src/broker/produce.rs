@@ -4,6 +4,7 @@ use crate::derive::operation::{OperationData, produce_operation};
 use crate::storage::backing_store::BackingStore;
 use crate::storage::index::IndexType;
 use crate::storage::index::default::DefaultIndex;
+use crate::subscription::helpers::push_subscriptions;
 use crate::utils::epoch;
 use arrow::array::RecordBatch;
 use higgins_codec::message::Type;
@@ -93,134 +94,15 @@ impl ProduceOperation {
                 &mut buf,
             )?;
 
-            self.0.offsets_setter.set(setter_offset).await;
+            self.0.offsets_setter.set(setter_offset.clone()).await;
 
-            // get the subscriptions for the stream.
-            let subscription = broker.get_subscriptions_for_stream(&self.0.stream);
-
-            let stream_name = self.0.stream.clone();
-
-            // If there are subscriptions, produce to them.
-            if let Some(subscriptions) = subscription {
-                for (_, subscription) in subscriptions.values() {
-                    let mut subscription_guard = subscription.write().await;
-
-                    tracing::trace!(
-                        "[PRODUCE] Found a subscription for this produce request: {:#?}",
-                        subscription_guard
-                    );
-
-                    if subscription_guard
-                        .partitions
-                        .iter()
-                        .find(|sub_key| sub_key.partition_id == self.0.partition)
-                        .is_some()
-                    {
-                        subscription_guard.set_end(&self.0.partition, offset.end as u64)?;
-                    } else {
-                        subscription_guard.add_partition(
-                            &self.0.partition,
-                            0,
-                            offset.end as u64,
-                        )?;
-                    };
-
-                    tracing::trace!(
-                        "Set the end of this given subscription: {:#?}",
-                        subscription_guard
-                    );
-
-                    let client_ids = subscription_guard
-                        .client_counts
-                        .iter()
-                        .map(|(client_id, _)| *client_id)
-                        .collect::<Vec<_>>();
-
-                    tracing::trace!("Clients: {:#?}", client_ids);
-
-                    for client_id in client_ids {
-                        let client_ref = if let Some(r) = broker.get_client_by_id(client_id) {
-                            r
-                        } else {
-                            continue;
-                        };
-
-                        tracing::trace!("Retrieved client ref: {:#?}", client_ref);
-
-                        let n = match subscription_guard
-                            .client_counts
-                            .binary_search_by(|(id, _)| client_id.cmp(id))
-                            .map(|index| subscription_guard.client_counts.get(index))
-                            .ok()
-                            .flatten()
-                        {
-                            Some(c) => c.1.load(Ordering::Relaxed),
-                            None => continue,
-                        };
-
-                        tracing::trace!("[TAKE] Taking the amount: {n}");
-
-                        let offsets = subscription_guard.take(n);
-
-                        tracing::trace!("{:#?}", &offsets);
-
-                        if let Ok(offsets) = offsets.as_ref() {
-                            subscription_guard
-                                .remove_client_count(&client_id, offsets.len() as u64);
-
-                            subscription_guard.mark_inflight(client_id, offsets);
-                        }
-
-                        if let Ok(offsets) = offsets {
-                            //Get payloads from offsets.
-                            for (partition, offset) in offsets {
-                                let consumption = {
-                                    let mut results = vec![];
-
-                                    let consumption = broker
-                                        .consume(&stream_name, &partition, offset, 50_000)
-                                        .await;
-
-                                    if let Ok(consumption) = consumption {
-                                        for result in consumption.into_iter().flatten() {
-                                            results.push(OffsetPayload {
-                                                stream: stream_name.clone(),
-                                                key: partition.clone(),
-                                                offset,
-                                                bytes: result, // TODO: wrap this in a conversion function and filter out errors.
-                                            });
-                                        }
-                                    }
-
-                                    results
-                                };
-
-                                for val in consumption {
-                                    let resp = TakeRecordsResponse {
-                                        records: vec![{ val.into() }],
-                                    };
-
-                                    tracing::trace!("[TAKE] Writing the amount back to client.");
-
-                                    client_ref
-                                        .send(Message {
-                                            r#type: Type::Takerecordsresponse as i32,
-                                            take_records_response: Some(resp),
-                                            ..Default::default()
-                                        })
-                                        .await
-                                        .map_err(|err| {
-                                            HigginsError::Arbitrary(format!(
-                                                "Failed to write offsets to client: {:#?}",
-                                                err
-                                            ))
-                                        })?;
-                                }
-                            }
-                        };
-                    }
-                }
-            }
+            push_subscriptions(
+                self.0.stream.clone(),
+                self.0.partition.clone(),
+                setter_offset.clone(),
+                &mut broker,
+            )
+            .await?;
         } else {
             tracing::error!("Attempt to place without errors.");
         }

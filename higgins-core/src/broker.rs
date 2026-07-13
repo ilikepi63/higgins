@@ -4,7 +4,7 @@ mod indexes;
 mod instantiate;
 mod produce;
 mod streams;
-mod subscriptions;
+pub mod subscriptions;
 pub mod utils;
 
 use crate::subscription::SubscriptionId;

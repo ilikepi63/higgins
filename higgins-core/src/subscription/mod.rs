@@ -17,6 +17,7 @@
 //! - 0..1 -> you can read 0..=1 from this Partition.
 //! - 1..0 -> This partition is `complete`. When a partition gets acknowledged at u64::Max, there should possibly be some form of tomb stoning.
 pub mod file;
+pub mod helpers;
 
 use file::SubscriptionFile;
 use std::ops::Range;

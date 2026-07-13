@@ -137,7 +137,7 @@ pub fn every_stream_type_answers_its_subscription() {
                 }
             };
 
-            if time.elapsed().unwrap() > Duration::from_mins(1) {
+            if time.elapsed().unwrap() > Duration::from_secs(10) {
                 break;
             }
 
