@@ -16,8 +16,14 @@ impl MapOperation {
         tracing::trace!("[MAP] Retrieved records: {:#?}", self.0.records);
 
         let mut references = vec![];
+        {
+            let offsets = self.0.offsets.get().await?;
+
+            self.0.offsets_setter.set(offsets.clone()).await;
+        }
 
         let records = self.0.records.get().await?;
+        let mut sent_records = vec![];
 
         tracing::debug!("[MAP] Received records: {:#?}", records);
 
@@ -76,16 +82,19 @@ impl MapOperation {
                         backing_store,
                         stream,
                         partition,
-                        mapped_record_batch,
+                        mapped_record_batch.clone(),
                     )
                     .await?;
 
+                    sent_records.push(mapped_record_batch);
                     references.push(reference);
                 }
             }
 
             drop(broker_lock);
         }
+
+        self.0.records_setter.set(sent_records).await;
 
         self.0.references = Some(references);
 

@@ -18,13 +18,23 @@ pub struct Eventual<T>(Arc<(Mutex<Option<T>>, Notify)>);
 impl<T: Clone> Eventual<T> {
     pub async fn get(&self) -> Result<T, HigginsError> {
         loop {
-            let notified = self.0.1.notified();
+            tracing::debug!("Retrieving guard..");
+            let guard = self.0.0.lock().await;
+            tracing::debug!("Retrieved guard.");
 
-            if let Some(val) = self.0.0.lock().await.as_ref() {
+            if let Some(val) = guard.as_ref() {
+                tracing::debug!("Returning value..");
+
                 return Ok(val.clone());
             }
 
+            drop(guard);
+
+            let notified = self.0.1.notified();
+
             notified.await;
+
+            tracing::debug!("Get value has been notified..");
         }
     }
 }
@@ -35,6 +45,8 @@ pub struct Setter<T>(Arc<(Mutex<Option<T>>, Notify)>);
 impl<T> Setter<T> {
     pub async fn set(&self, val: T) {
         *self.0.0.lock().await = Some(val);
+        tracing::debug!("Notifying waiters..");
+
         self.0.1.notify_waiters();
     }
 }

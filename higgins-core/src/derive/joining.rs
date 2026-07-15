@@ -60,6 +60,8 @@ impl JoinOperation {
         // Create the index.
         let mut optimistic_index = vec![0_u8; JoinedIndex::size_of(n_offsets)];
 
+        tracing::debug!("Waiting for the offsets..");
+
         let offsets = self.data.offsets.get().await?;
 
         tracing::debug!("We retrieved the offsets: {:#?}", offsets);

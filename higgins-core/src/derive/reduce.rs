@@ -9,9 +9,10 @@ pub struct ReduceOperation(pub OperationData);
 
 impl ReduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        // tracing::debug!("Retrieved {} records for reduction.", self.records.len());
+        tracing::debug!("Iniating reduce operation : {}", self.0.stream.as_str());
 
         let offsets = self.0.offsets.get().await?;
+        tracing::debug!("Got offsets : {}", self.0.stream.as_str());
 
         self.0.offsets_setter.set(offsets.clone()).await;
         // In order to begin the reduction for these records, we need to
@@ -52,7 +53,14 @@ impl ReduceOperation {
 
         let mut references = vec![];
 
+        tracing::debug!(
+            "Awaiting records for reduce operation : {}",
+            self.0.stream.as_str()
+        );
+
         let records = self.0.records.get().await?;
+        tracing::debug!("Got records : {}", self.0.stream.as_str());
+
         self.0.records_setter.set(records.clone()).await;
 
         for batch in records.iter() {

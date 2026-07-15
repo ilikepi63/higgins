@@ -12,19 +12,16 @@ pub fn recv_until_take(
     consume_client: &mut higgins_client::blocking::Client,
 ) -> Result<TakeRecordsResponse, Box<dyn std::error::Error>> {
     loop {
-        match consume_client.recv(Some(Duration::from_secs(10)))?.body {
+        match consume_client.recv(Some(Duration::from_secs(1)))?.body {
             ResponseBody::TakeRecords(response) => {
-                tracing::debug!("We received a take response: {:#?}", response);
+                tracing::debug!("Received TAKE");
                 return Ok(response);
             }
             ResponseBody::Produce(response) => {
                 tracing::info!("Received produce response: {:#?}", response);
             }
-            _ => {
-                tracing::error!("Received unexpected response message.");
-                return Err(Box::new(HigginsError::Arbitrary(
-                    "Unexpected response message".to_string(),
-                )));
+            message => {
+                tracing::error!("Received unexpected response message: {:#?}", message);
             }
         }
     }

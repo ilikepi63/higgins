@@ -231,11 +231,14 @@ pub async fn generate_relation_tasks_from_stream(
 
         if let Some(current_relations) = current_relations {
             for relation in current_relations {
+                tracing::trace!("Spawning for relation: {:#?}", relation.3);
                 // First get the relations for this stream and push it into our ring buffer.
                 let current_relations = {
                     let broker_guard = broker.write().await;
                     broker_guard.get_relation_for_stream(&relation.3).clone()
                 };
+
+                tracing::trace!("Retrieved current relations: {:#?}", current_relations);
 
                 // Create the consumer for this task.
                 let mut consumer_step_sync = ConsumerStepSync::new();
@@ -295,8 +298,19 @@ pub async fn generate_relation_tasks_from_stream(
                     .await
                     {
                         Ok(mut operation) => {
+                            tracing::debug!(
+                                "{} operation, stream type: {}",
+                                stream.as_str(),
+                                match operation {
+                                    Operation::Map(_) => "map",
+                                    Operation::Reduce(_) => "reduce",
+                                    Operation::Join(_) => "join",
+                                    Operation::Produce(_) => "produce",
+                                    Operation::Window(_) => "window",
+                                }
+                            );
                             producer_step_sync.await_step(Step::Prepare).await;
-                            tracing::debug!("Preparing..");
+                            tracing::debug!("Preparing for {}", stream.as_str());
                             match stream_type {
                                 Some(FunctionType::Window | FunctionType::Join) => {}
                                 _ => {
@@ -312,7 +326,7 @@ pub async fn generate_relation_tasks_from_stream(
                             tracing::debug!("Awaiting Commit step..");
 
                             producer_step_sync.await_step(Step::Commit).await;
-                            tracing::debug!(" Committing..");
+                            tracing::debug!(" Committing for {}", stream.as_str());
 
                             if let Some(FunctionType::Window | FunctionType::Join) = stream_type {
                                 #[allow(clippy::unwrap_used)]
@@ -323,7 +337,7 @@ pub async fn generate_relation_tasks_from_stream(
 
                             #[allow(clippy::unwrap_used)]
                             operation.commit().await.unwrap();
-                            tracing::debug!("Committed..");
+                            tracing::debug!("Committed for {}", stream.as_str());
 
                             consumer_step_sync.set_step(Step::Commit);
                         }

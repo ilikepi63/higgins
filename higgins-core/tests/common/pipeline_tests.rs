@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use higgins_client::ResponseBody;
+use higgins_shared::PartitionName;
 
 use crate::common::{
     client_utils::{create_subscription, recv_until_take},
@@ -67,6 +68,8 @@ pub fn every_stream_type_answers_its_subscription() {
     let dir = unique_dir().unwrap();
 
     let result = std::panic::catch_unwind(|| {
+        let mut stream_to_sub = HashMap::new();
+
         let (handle, mut client) = setup_server(dir.clone(), port);
 
         // Upload configuration.
@@ -86,8 +89,8 @@ pub fn every_stream_type_answers_its_subscription() {
         let mut subscriptions = Vec::new();
 
         for stream in STREAMS {
-            let sub_id = create_subscription(&mut client, stream, None);
-
+            let sub_id = create_subscription(&mut client, stream, Some(30_000));
+            stream_to_sub.insert(stream.to_string(), sub_id.clone());
             client.take(sub_id.clone(), stream.as_bytes(), 1).unwrap();
 
             std::thread::sleep(Duration::from_secs(1));
@@ -114,7 +117,6 @@ pub fn every_stream_type_answers_its_subscription() {
             )
             .unwrap();
 
-        std::thread::sleep(Duration::from_secs(5));
         tracing::debug!("Producing to readings stream after ");
 
         tracing::debug!("We passed the produce response region");
@@ -132,16 +134,11 @@ pub fn every_stream_type_answers_its_subscription() {
         {
             let take = match recv_until_take(&mut client) {
                 Ok(t) => t,
-                _ => {
+                val => {
+                    tracing::debug!("From take: {:#?}", val);
                     break;
                 }
             };
-
-            if time.elapsed().unwrap() > Duration::from_secs(10) {
-                break;
-            }
-
-            tracing::debug!("We did return a take response!");
 
             let record = match take.records.first() {
                 Some(r) => r,
@@ -151,8 +148,19 @@ pub fn every_stream_type_answers_its_subscription() {
             };
 
             let stream = String::from_utf8_lossy(&record.stream).to_string();
-            if let Some(stream) = answered.get_mut(&stream) {
-                *stream = true;
+            tracing::debug!("Returned TAKE response for: {}", stream);
+
+            if let Some(stream_answered) = answered.get_mut(&stream) {
+                *stream_answered = true;
+                let sub_id = stream_to_sub.get(&stream).unwrap();
+                client.acknowledge(
+                    &stream,
+                    sub_id,
+                    vec![(
+                        PartitionName::try_from(record.partition.as_slice()).unwrap(),
+                        record.offset..record.offset,
+                    )],
+                );
             };
         }
 
