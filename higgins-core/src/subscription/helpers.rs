@@ -34,9 +34,9 @@ pub async fn push_subscriptions(
                 .find(|sub_key| sub_key.partition_id == partition)
                 .is_some()
             {
-                subscription_guard.set_end(&partition, offset.end as u64)?;
+                subscription_guard.set_end(&partition, offset.end)?;
             } else {
-                subscription_guard.add_partition(&partition, 0, offset.end as u64)?;
+                subscription_guard.add_partition(&partition, 0, offset.end)?;
             };
 
             tracing::trace!(

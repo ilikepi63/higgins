@@ -302,6 +302,7 @@ fn add_to_builder<T, F: Fn(AmazonS3Builder, T) -> AmazonS3Builder>(
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use std::{collections::BTreeMap, path::PathBuf};
 
     use crate::topography::{
@@ -483,7 +484,7 @@ mod test {
     impl TestDir {
         pub fn new() -> Self {
             let path = PathBuf::new().join(uuid::Uuid::new_v4().to_string());
-            std::fs::create_dir(&path);
+            std::fs::create_dir(&path).unwrap();
             Self(path)
         }
         pub fn path(&self) -> &std::path::PathBuf {
@@ -503,9 +504,11 @@ mod test {
 
         let file = TestDir::new();
 
-        let mut topography = Topography::from_file(PathBuf::new().join(&file.path())).unwrap();
+        let mut topography = Topography::from_file(PathBuf::new().join(file.path())).unwrap();
 
-        dbg!(topography.apply_configuration_to_topography(&config));
+        topography
+            .apply_configuration_to_topography(&config)
+            .unwrap();
 
         dbg!(&topography);
 

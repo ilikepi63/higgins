@@ -128,7 +128,7 @@ pub fn every_stream_type_answers_its_subscription() {
 
         while answered
             .iter()
-            .filter(|answered| answered.1.clone())
+            .filter(|answered| *answered.1)
             .count()
             < STREAMS.len()
         {
@@ -166,7 +166,7 @@ pub fn every_stream_type_answers_its_subscription() {
 
         tracing::info!("Result: {:#?}", answered);
 
-        if answered.values().any(|b| !b.clone()) {
+        if answered.values().any(|b| !*b) {
             panic!("Some values weren't answered :<");
         }
 

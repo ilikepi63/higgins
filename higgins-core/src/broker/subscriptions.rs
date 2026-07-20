@@ -300,6 +300,7 @@ impl Broker {
                                         .await;
 
                                     if let Ok(consumption) = consumption {
+                                        #[allow(clippy::manual_flatten)]
                                         for result in consumption {
                                             if let Ok(result) = result {
                                                 results.push(OffsetPayload {
