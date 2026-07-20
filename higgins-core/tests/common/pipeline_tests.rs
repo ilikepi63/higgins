@@ -126,12 +126,7 @@ pub fn every_stream_type_answers_its_subscription() {
 
         let time = std::time::SystemTime::now();
 
-        while answered
-            .iter()
-            .filter(|answered| *answered.1)
-            .count()
-            < STREAMS.len()
-        {
+        while answered.iter().filter(|answered| *answered.1).count() < STREAMS.len() {
             let take = match recv_until_take(&mut client) {
                 Ok(t) => t,
                 val => {
