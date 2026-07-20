@@ -1,12 +1,14 @@
 use super::utils::ColumnName;
 use crate::broker::Broker;
 use crate::derive::operation::OperationData;
+use crate::subscription::helpers::push_subscriptions;
 use crate::{
     derive::utils::{get_partition_key_from_record_batch, put_default_index_at_range},
     functions::map::run_map_function,
 };
 use higgins_shared::{HigginsError, PartitionName};
 
+#[derive(Debug)]
 pub struct MapOperation(pub OperationData);
 
 impl MapOperation {
@@ -14,8 +16,14 @@ impl MapOperation {
         tracing::trace!("[MAP] Retrieved records: {:#?}", self.0.records);
 
         let mut references = vec![];
+        {
+            let offsets = self.0.offsets.get().await?;
+
+            self.0.offsets_setter.set(offsets.clone()).await;
+        }
 
         let records = self.0.records.get().await?;
+        let mut sent_records = vec![];
 
         tracing::debug!("[MAP] Received records: {:#?}", records);
 
@@ -74,16 +82,19 @@ impl MapOperation {
                         backing_store,
                         stream,
                         partition,
-                        mapped_record_batch,
+                        mapped_record_batch.clone(),
                     )
                     .await?;
 
+                    sent_records.push(mapped_record_batch);
                     references.push(reference);
                 }
             }
 
             drop(broker_lock);
         }
+
+        self.0.records_setter.set(sent_records).await;
 
         self.0.references = Some(references);
 
@@ -111,13 +122,20 @@ impl MapOperation {
                 )
                 .await?;
 
-                if let Some(subscription) = self.0.subscription.as_mut() {
-                    let mut lock = subscription.write().await;
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets,
+                    &mut broker_guard,
+                )
+                .await?;
 
-                    lock.acknowledge(&self.0.partition, &offsets)?;
+                // if let Some(subscription) = self.0.subscription.as_mut() {
+                //     let mut lock = subscription.write().await;
+                //     lock.acknowledge(&self.0.partition, &offsets)?;
 
-                    drop(lock);
-                }
+                //     drop(lock);
+                // }
 
                 Ok(())
             }

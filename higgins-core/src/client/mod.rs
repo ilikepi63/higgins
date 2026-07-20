@@ -13,6 +13,12 @@ impl ClientRef {
     pub async fn send(&self, message: Message) -> Result<(), HigginsError> {
         let mut result = BytesMut::new();
 
+        tracing::debug!(
+            "Writing to client: {:#?}. Message: {:#?}",
+            self,
+            message.r#type
+        );
+
         message.encode(&mut result)?; // TODO: Make this catchable from HigginsError.
 
         match self {

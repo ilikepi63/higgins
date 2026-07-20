@@ -19,10 +19,12 @@ use crate::derive::joining::join::JoinDefinition;
 use crate::derive::operation::OperationData;
 use crate::storage::dereference::Reference;
 use crate::storage::index::joined_index::JoinedIndex;
+use crate::subscription::helpers::push_subscriptions;
 use crate::utils::epoch;
 use higgins_shared::HigginsError;
 use opts::amalgamate_join;
 
+#[derive(Debug)]
 pub struct JoinOperation {
     pub data: OperationData,
     pub definition: JoinDefinition,
@@ -57,6 +59,8 @@ impl JoinOperation {
 
         // Create the index.
         let mut optimistic_index = vec![0_u8; JoinedIndex::size_of(n_offsets)];
+
+        tracing::debug!("Waiting for the offsets..");
 
         let offsets = self.data.offsets.get().await?;
 
@@ -166,10 +170,18 @@ impl JoinOperation {
                     .inspect_err(|err| {
                         tracing::error!("{:#?}", err);
                     })?;
-                self.data
-                    .offsets_setter
-                    .set(*optimistic_offset as u64..optimistic_offset.saturating_add(1) as u64)
-                    .await;
+
+                let offsets = *optimistic_offset as u64..optimistic_offset.saturating_add(1) as u64;
+                self.data.offsets_setter.set(offsets.clone()).await;
+
+                let mut broker_guard = self.data.broker.write().await;
+                push_subscriptions(
+                    self.data.stream.clone(),
+                    self.data.partition.clone(),
+                    offsets,
+                    &mut broker_guard,
+                )
+                .await?;
 
                 tracing::debug!("Completed join. Length: {:#?}", index_file_guard.len());
             }

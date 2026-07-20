@@ -300,12 +300,8 @@ impl Broker {
                                         .await;
 
                                     if let Ok(consumption) = consumption {
+                                        #[allow(clippy::manual_flatten)]
                                         for result in consumption {
-                                            tracing::trace!(
-                                                "RECEIVED DATA FOR SUBSCRIPTION: {:#?}",
-                                                result
-                                            );
-
                                             if let Ok(result) = result {
                                                 results.push(OffsetPayload {
                                                     stream: task_stream_name.clone(),

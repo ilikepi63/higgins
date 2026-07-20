@@ -21,6 +21,7 @@ pub mod functions;
 pub mod invariant_tests;
 pub mod join;
 pub mod ping;
+pub mod pipeline_tests;
 mod port;
 pub mod query;
 pub mod schema;

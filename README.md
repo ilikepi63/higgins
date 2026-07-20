@@ -1,4 +1,8 @@
-# higgins
+
+<p align="center">
+  <a href="https://higgins-data.io"><img src="docs/higgins.svg" alt="higgins logo" width="50" /></a>
+</p>
+<h1 align="center">Higgins</h1>
 
 higgins is an experimental streaming platform that offers some quality of life changes to existing offerings. You declare *streams* with typed schemas, extend them with derived streams, and publish, subscribe, and query them. Higgins keeps the derived streams continuously in sync as new records arrive, and lets you query any stream by partition key and offset or consume it reactively via subscriptions.
 
@@ -276,7 +280,7 @@ type          = "join"
 schema        = "customer_address"
 partition_key = "customer_id"
 base          = "customer"
-join          = { type = "inner", stream = "address" }
+join          = ["address"]
 # How the derivative stream is constructed.
 map = {
     customer_id         = "customer.id",

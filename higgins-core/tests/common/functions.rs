@@ -1,3 +1,6 @@
+use std::time::Duration;
+
+use higgins_client::ResponseBody;
 use prost::Message as _;
 
 use bytes::BytesMut;
@@ -24,20 +27,17 @@ pub fn upload_module(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) 
     frame.try_write(socket).unwrap();
 }
 
-#[allow(unused)]
-pub fn upload_module_sync(name: &str, wasm: &[u8], socket: &mut std::net::TcpStream) {
-    let mut read_buf = BytesMut::zeroed(20);
+pub fn upload_module_sync(
+    name: &str,
+    module: &[u8],
+    client: &mut higgins_client::blocking::Client,
+) {
+    client.upload_module(name, module).unwrap();
 
-    upload_module(name, wasm, socket);
-
-    let frame = Frame::try_read(socket).unwrap();
-
-    let slice = frame.inner();
-
-    let message = Message::decode(slice).unwrap();
-
-    match Type::try_from(message.r#type).unwrap() {
-        Type::Uploadmoduleresponse => {}
-        _ => panic!("Received incorrect response from server for ping request."),
+    if !matches!(
+        client.recv(Some(Duration::from_secs(60))).unwrap().body,
+        ResponseBody::UploadModule(_)
+    ) {
+        panic!("Unexpected response. Expected Upload Module.");
     }
 }

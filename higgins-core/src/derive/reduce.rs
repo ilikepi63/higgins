@@ -1,16 +1,18 @@
 use super::utils::put_default_index_at_range;
-use crate::broker::Broker;
 use crate::derive::operation::OperationData;
 use crate::functions::reduce::run_reduce_function;
+use crate::{broker::Broker, subscription::helpers::push_subscriptions};
 use higgins_shared::{HigginsError, read_arrow};
 
+#[derive(Debug)]
 pub struct ReduceOperation(pub OperationData);
 
 impl ReduceOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
-        // tracing::debug!("Retrieved {} records for reduction.", self.records.len());
+        tracing::debug!("Iniating reduce operation : {}", self.0.stream.as_str());
 
         let offsets = self.0.offsets.get().await?;
+        tracing::debug!("Got offsets : {}", self.0.stream.as_str());
 
         self.0.offsets_setter.set(offsets.clone()).await;
         // In order to begin the reduction for these records, we need to
@@ -51,7 +53,14 @@ impl ReduceOperation {
 
         let mut references = vec![];
 
+        tracing::debug!(
+            "Awaiting records for reduce operation : {}",
+            self.0.stream.as_str()
+        );
+
         let records = self.0.records.get().await?;
+        tracing::debug!("Got records : {}", self.0.stream.as_str());
+
         self.0.records_setter.set(records.clone()).await;
 
         for batch in records.iter() {
@@ -168,6 +177,14 @@ impl ReduceOperation {
                     references,
                 )
                 .await?;
+
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets.clone(),
+                    &mut broker_guard,
+                )
+                .await?;
             }
             tracing::trace!(
                 "Wrote the offsets to {:#?}. References: {:#?}",
@@ -175,11 +192,11 @@ impl ReduceOperation {
                 references
             );
 
-            if let Some(subscription) = self.0.subscription.as_ref() {
-                let mut lock = subscription.write().await;
+            // if let Some(subscription) = self.0.subscription.as_ref() {
+            //     let mut lock = subscription.write().await;
 
-                lock.acknowledge(&self.0.partition, &offsets)?;
-            }
+            //     lock.acknowledge(&self.0.partition, &offsets)?;
+            // }
         } else {
             tracing::error!("Attempt to commit without any referencs on Reduce stream.")
         }

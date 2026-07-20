@@ -5,6 +5,7 @@ use crate::derive::operation::OperationData;
 use crate::derive::windowed::definition::WindowValue;
 use crate::storage::index::file::windowed_index_file::WindowedIndexFile;
 use crate::storage::windowing::assign_sliding_windows_range;
+use crate::subscription::helpers::push_subscriptions;
 use definition::WindowedStreamDefinition;
 use higgins_shared::{HigginsError, PartitionName, StreamName};
 use std::sync::Arc;
@@ -12,16 +13,21 @@ use tokio::sync::RwLock;
 
 pub mod definition;
 
+#[derive(Debug)]
 pub struct WindowOperation(pub OperationData);
 
 impl WindowOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
+        tracing::debug!("Initing window operation : {}", self.0.stream.as_str());
+
         Ok(())
     }
     pub async fn prepare(&mut self) -> Result<(), HigginsError> {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
+        tracing::debug!("Committing window operation : {}", self.0.stream.as_str());
+
         // let stream_key: Key = self.0.stream.clone().into();
         let definition = WindowedStreamDefinition::try_from(self.0.definition.clone())?;
 
@@ -56,21 +62,38 @@ impl WindowOperation {
 
                 windowed_index_file.put_ranges(&mut new_ranges)?;
 
-                // acknowledge me!
-                {
-                    let mut guard = self
-                        .0
-                        .subscription
-                        .as_ref()
-                        .ok_or(HigginsError::Arbitrary(
-                            "Failed to retrieve subscription for given acknoweledgement"
-                                .to_string(),
-                        ))?
-                        .write()
-                        .await;
-                    tracing::info!("Acknowledging ranges {:#?}.", offsets);
-                    guard.acknowledge(&self.0.partition, &offsets)?;
-                }
+                tracing::debug!(
+                    "Retrieving broker lock for subscription pushing for windowed operation."
+                );
+
+                let mut broker_guard = self.0.broker.write().await;
+                tracing::debug!("Retrieving the broker lock.");
+
+                push_subscriptions(
+                    self.0.stream.clone(),
+                    self.0.partition.clone(),
+                    offsets,
+                    &mut broker_guard,
+                )
+                .await?;
+
+                tracing::debug!("Pushed the subscriptions.");
+
+                // // acknowledge me!
+                // {
+                //     let mut guard = self
+                //         .0
+                //         .subscription
+                //         .as_ref()
+                //         .ok_or(HigginsError::Arbitrary(
+                //             "Failed to retrieve subscription for given acknoweledgement"
+                //                 .to_string(),
+                //         ))?
+                //         .write()
+                //         .await;
+                //     tracing::info!("Acknowledging ranges {:#?}.", offsets);
+                //     guard.acknowledge(&self.0.partition, &offsets)?;
+                // }
 
                 tracing::info!("Successfully applied ranges to windowed function.");
             }

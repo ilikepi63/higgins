@@ -17,6 +17,7 @@
 //! - 0..1 -> you can read 0..=1 from this Partition.
 //! - 1..0 -> This partition is `complete`. When a partition gets acknowledged at u64::Max, there should possibly be some form of tomb stoning.
 pub mod file;
+pub mod helpers;
 
 use file::SubscriptionFile;
 use std::ops::Range;
@@ -303,6 +304,8 @@ impl Subscription {
             self.partitions
         );
 
+        tracing::debug!("Subscription state: {:#?}", self);
+
         let mut partition_offset_index = 0;
         let mut offset_count = count;
 
@@ -343,6 +346,8 @@ impl Subscription {
 
             partition_offset_index += 1;
         }
+
+        tracing::debug!("Subscription state after take: {:#?}", self);
 
         tracing::debug!("returning offsets taken from subscription: {:#?}", results);
 
