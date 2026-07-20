@@ -18,12 +18,16 @@ pub struct WindowOperation(pub OperationData);
 
 impl WindowOperation {
     pub async fn init(&mut self) -> Result<(), HigginsError> {
+        tracing::debug!("Initing window operation : {}", self.0.stream.as_str());
+
         Ok(())
     }
     pub async fn prepare(&mut self) -> Result<(), HigginsError> {
         Ok(())
     }
     pub async fn commit(&mut self) -> Result<(), HigginsError> {
+        tracing::debug!("Committing window operation : {}", self.0.stream.as_str());
+
         // let stream_key: Key = self.0.stream.clone().into();
         let definition = WindowedStreamDefinition::try_from(self.0.definition.clone())?;
 
@@ -58,7 +62,12 @@ impl WindowOperation {
 
                 windowed_index_file.put_ranges(&mut new_ranges)?;
 
+                tracing::debug!(
+                    "Retrieving broker lock for subscription pushing for windowed operation."
+                );
+
                 let mut broker_guard = self.0.broker.write().await;
+                tracing::debug!("Retrieving the broker lock.");
 
                 push_subscriptions(
                     self.0.stream.clone(),
@@ -67,6 +76,8 @@ impl WindowOperation {
                     &mut broker_guard,
                 )
                 .await?;
+
+                tracing::debug!("Pushed the subscriptions.");
 
                 // // acknowledge me!
                 // {

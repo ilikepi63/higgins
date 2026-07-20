@@ -50,7 +50,7 @@ base = "running_total"
 type = "window"
 schema = "reading"
 partition_key = "id"
-window = { type = "count", interval = "5" }
+window = { type = "count", interval = "1" }
 
 [streams.enriched]
 base = "readings"

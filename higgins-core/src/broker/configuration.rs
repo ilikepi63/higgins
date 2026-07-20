@@ -73,6 +73,10 @@ impl Broker {
         tracing::debug!("Derived: {:#?}", derived_streams);
 
         for (derived_stream_key, derived_stream_definition) in derived_streams {
+            println!(
+                "{:#?} - {:#?}",
+                derived_stream_key, derived_stream_definition
+            );
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
                     tracing::trace!("Creating Joined stream definition.");
@@ -160,7 +164,7 @@ impl Broker {
                     self.relations.push((base_key, relation));
                 }
                 Some(FunctionType::Window) => {
-                    tracing::trace!("Creating Window stream definition.");
+                    println!("Creating Window stream definition.");
 
                     let stream_name = derived_stream_key.clone();
 
@@ -298,11 +302,14 @@ fn add_to_builder<T, F: Fn(AmazonS3Builder, T) -> AmazonS3Builder>(
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, path::PathBuf};
 
-    use crate::topography::config::{
-        AwsS3Storage, Configuration, ConfigurationStreamDefinition, Storage, WindowDefinition,
-        from_toml,
+    use crate::topography::{
+        Topography,
+        config::{
+            AwsS3Storage, Configuration, ConfigurationStreamDefinition, Storage, WindowDefinition,
+            from_toml,
+        },
     };
 
     const CONFIG: &str = r#"
@@ -469,5 +476,42 @@ mod test {
                 )]))
             }
         );
+    }
+
+    struct TestDir(std::path::PathBuf);
+
+    impl TestDir {
+        pub fn new() -> Self {
+            let path = PathBuf::new().join(uuid::Uuid::new_v4().to_string());
+            std::fs::create_dir(&path);
+            Self(path)
+        }
+        pub fn path(&self) -> &std::path::PathBuf {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    pub fn config_is_applied_correctly_to_topography() {
+        let config = from_toml(CONFIG.as_bytes()).unwrap();
+
+        let file = TestDir::new();
+
+        let mut topography = Topography::from_file(PathBuf::new().join(&file.path())).unwrap();
+
+        dbg!(topography.apply_configuration_to_topography(&config));
+
+        dbg!(&topography);
+
+        assert!(topography.get_streams().iter().all(|stream| {
+            ["readings", "doubled", "enriched", "running_total", "recent"]
+                .contains(&stream.0.as_str())
+        }),);
     }
 }

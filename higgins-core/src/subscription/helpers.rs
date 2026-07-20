@@ -14,6 +14,8 @@ pub async fn push_subscriptions(
     offset: std::ops::Range<u64>,
     broker: &mut Broker,
 ) -> Result<(), HigginsError> {
+    tracing::debug!("Pushing Subscriptions for stream {}", stream_name.as_str());
+
     let subscription = broker.get_subscriptions_for_stream(&stream_name);
 
     // If there are subscriptions, produce to them.

@@ -10,7 +10,7 @@ use crate::{
 
 use super::FunctionType;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StreamDefinition {
     /// From which this topic is derived.
     pub base: Option<StreamName>,

@@ -238,7 +238,11 @@ pub async fn generate_relation_tasks_from_stream(
                     broker_guard.get_relation_for_stream(&relation.3).clone()
                 };
 
-                tracing::trace!("Retrieved current relations: {:#?}", current_relations);
+                tracing::trace!(
+                    "[{}] Retrieved current relations: {:#?}",
+                    relation.3.as_str(),
+                    current_relations
+                );
 
                 // Create the consumer for this task.
                 let mut consumer_step_sync = ConsumerStepSync::new();
@@ -279,6 +283,8 @@ pub async fn generate_relation_tasks_from_stream(
                         records,
                         offsets,
                     ) = relation;
+
+                    tracing::trace!("Running operation for stream {}", stream.as_str());
 
                     let stream_type = definition.stream_type.clone();
 

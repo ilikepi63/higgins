@@ -49,6 +49,13 @@ pub enum TopographyUnit {
 }
 
 impl Topography {
+    #[cfg(test)]
+    pub fn same_shape_as(&self, other: Self) -> bool {
+        other.schema.eq(&self.schema)
+            && self.storage.eq(&other.storage)
+            && self.streams.eq(&other.streams)
+    }
+
     pub fn from_file(file: std::path::PathBuf) -> Result<Self, TopographyError> {
         let file = TopographyFile::new(file);
 
@@ -157,8 +164,12 @@ impl Topography {
         key: StreamName,
         stream: StreamDefinition,
     ) -> Result<(), TopographyError> {
+        tracing::trace!("Attempting to apply {}", key);
+
         // Check the schema exists.
         if !self.schema.contains_key(&stream.schema) {
+            tracing::trace!("Failed to apply with wrong schema {}", key);
+
             return Err(TopographyError::SchemaNotFound(format!(
                 "{:#?}",
                 stream.schema
@@ -166,23 +177,11 @@ impl Topography {
         }
 
         // Check if the derivations exist inside of this topography.
-        if let Some(base_key) = stream.base.as_ref()
-            && !self.streams.contains_key(base_key)
-        {
-            return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
-        }
-
-        // Check if the function exists.
-        if let Some(key) = stream.base.as_ref()
-            && !self.streams.contains_key(key)
-        {
-            return Err(TopographyError::DerivativeNotFound(format!("{key:#?}")));
-        }
-
         let entry = self.streams.entry(key.clone());
 
         match entry {
             Entry::Vacant(vacant_entry) => {
+                tracing::trace!("Adding {}", key);
                 self.file
                     .add_item(TopographyUnit::Stream((key.into(), stream.clone())))?;
                 vacant_entry.insert(stream);
@@ -290,6 +289,8 @@ impl Topography {
             for (stream_name, stream_definition) in
                 streams.iter().filter(|(_, def)| def.base.is_some())
             {
+                tracing::trace!("{:#?} - {:#?}", stream_name, stream_definition);
+
                 match &stream_definition.base {
                     Some(derived_from) => {
                         if !self.schema.contains_key(&stream_definition.schema) {
@@ -329,7 +330,7 @@ impl Topography {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub enum FunctionType {
     Reduce,
     Map,
