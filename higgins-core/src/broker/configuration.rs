@@ -70,6 +70,8 @@ impl Broker {
             .filter_map(|(key, def)| def.base.as_ref().map(|_| (key.to_owned(), def.to_owned())))
             .collect::<Vec<_>>();
 
+        tracing::debug!("Derived: {:#?}", derived_streams);
+
         for (derived_stream_key, derived_stream_definition) in derived_streams {
             match derived_stream_definition.stream_type {
                 Some(FunctionType::Join) => {
@@ -182,7 +184,7 @@ impl Broker {
 
                     self.relations.push((base_key, relation));
                 }
-                Some(_) => todo!(),
+                Some(FunctionType::Aggregate) => todo!(),
                 None => {
                     panic!("There should be a type associated with a derived stream.");
                 }
@@ -291,5 +293,181 @@ fn add_to_builder<T, F: Fn(AmazonS3Builder, T) -> AmazonS3Builder>(
         f(builder, val)
     } else {
         builder
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::BTreeMap;
+
+    use crate::topography::config::{
+        AwsS3Storage, Configuration, ConfigurationStreamDefinition, Storage, WindowDefinition,
+        from_toml,
+    };
+
+    const CONFIG: &str = r#"
+    [storage.memory]
+    type = "memory"
+
+    [schema.reading]
+    id = "string"
+    data = "int32"
+
+    [schema.enriched]
+    id = "string"
+    data = "int32"
+    doubled = "int32"
+
+    [streams.readings]
+    schema = "reading"
+    partition_key = "id"
+
+    [streams.doubled]
+    base = "readings"
+    type = "map"
+    schema = "reading"
+    partition_key = "id"
+    fn = "map"
+
+    [streams.running_total]
+    base = "doubled"
+    type = "reduce"
+    schema = "reading"
+    partition_key = "id"
+    fn = "reduce"
+
+    [streams.recent]
+    base = "running_total"
+    type = "window"
+    schema = "reading"
+    partition_key = "id"
+    window = { type = "count", interval = "1" }
+
+    [streams.enriched]
+    base = "readings"
+    type = "join"
+    schema = "enriched"
+    partition_key = "id"
+    join = ["doubled"]
+    map = { id = "readings.id", data = "readings.data", doubled = "doubled.data" }
+    "#;
+
+    #[test]
+    pub fn can_deserialize_multiple_streams_correctly() {
+        let config = from_toml(CONFIG.as_bytes()).unwrap();
+
+        assert_eq!(
+            config,
+            Configuration {
+                streams: Some(BTreeMap::from([
+                    (
+                        "doubled".to_string(),
+                        ConfigurationStreamDefinition {
+                            base: Some("readings".to_string()),
+                            stream_type: Some("map".to_string()),
+                            partition_key: "id".to_string(),
+                            schema: "reading".to_string(),
+                            join: None,
+                            map: None,
+                            function_name: Some("map".to_string()),
+                            window: None
+                        }
+                    ),
+                    (
+                        "enriched".to_string(),
+                        ConfigurationStreamDefinition {
+                            base: Some("readings".to_string()),
+                            stream_type: Some("join".to_string()),
+                            partition_key: "id".to_string(),
+                            schema: "enriched".to_string(),
+                            join: Some(vec!["doubled".to_string()]),
+                            map: Some(BTreeMap::from([
+                                ("data".to_string(), "readings.data".to_string()),
+                                ("doubled".to_string(), "doubled.data".to_string()),
+                                ("id".to_string(), "readings.id".to_string())
+                            ])),
+                            function_name: None,
+                            window: None
+                        }
+                    ),
+                    (
+                        "readings".to_string(),
+                        ConfigurationStreamDefinition {
+                            base: None,
+                            stream_type: None,
+                            partition_key: "id".to_string(),
+                            schema: "reading".to_string(),
+                            join: None,
+                            map: None,
+                            function_name: None,
+                            window: None
+                        }
+                    ),
+                    (
+                        "recent".to_string(),
+                        ConfigurationStreamDefinition {
+                            base: Some("running_total".to_string()),
+                            stream_type: Some("window".to_string()),
+                            partition_key: "id".to_string(),
+                            schema: "reading".to_string(),
+                            join: None,
+                            map: None,
+                            function_name: None,
+                            window: Some(WindowDefinition {
+                                window_type: "count".to_string(),
+                                interval: "1".to_string(),
+                                slide: None
+                            })
+                        }
+                    ),
+                    (
+                        "running_total".to_string(),
+                        ConfigurationStreamDefinition {
+                            base: Some("doubled".to_string()),
+                            stream_type: Some("reduce".to_string()),
+                            partition_key: "id".to_string(),
+                            schema: "reading".to_string(),
+                            join: None,
+                            map: None,
+                            function_name: Some("reduce".to_string()),
+                            window: None
+                        }
+                    )
+                ])),
+                schema: Some(BTreeMap::from([
+                    (
+                        "enriched".to_string(),
+                        BTreeMap::from([
+                            ("data".to_string(), "int32".to_string()),
+                            ("doubled".to_string(), "int32".to_string()),
+                            ("id".to_string(), "string".to_string())
+                        ])
+                    ),
+                    (
+                        "reading".to_string(),
+                        BTreeMap::from([
+                            ("data".to_string(), "int32".to_string()),
+                            ("id".to_string(), "string".to_string())
+                        ])
+                    )
+                ])),
+                storage: Some(BTreeMap::from([(
+                    "memory".to_string(),
+                    Storage {
+                        storage_type: crate::topography::config::StorageType::Memory,
+                        aws_s3_config: AwsS3Storage {
+                            aws_access_key_id: None,
+                            aws_secret_access_key: None,
+                            aws_region: None,
+                            aws_endpoint: None,
+                            aws_token: None,
+                            aws_container_credentials_relative_uri: None,
+                            aws_allow_http: None,
+                            bucket_name: None
+                        }
+                    }
+                )]))
+            }
+        );
     }
 }
