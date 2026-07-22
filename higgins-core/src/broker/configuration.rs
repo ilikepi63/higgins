@@ -305,11 +305,14 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use std::{collections::BTreeMap, path::PathBuf};
 
-    use crate::topography::{
-        Topography,
-        config::{
-            AwsS3Storage, Configuration, ConfigurationStreamDefinition, Storage, WindowDefinition,
-            from_toml,
+    use crate::{
+        derive::utils::ColumnName,
+        topography::{
+            Topography,
+            config::{
+                AwsS3Storage, Configuration, ConfigurationStreamDefinition, Storage,
+                WindowDefinition, from_toml,
+            },
         },
     };
 
@@ -373,7 +376,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: Some("readings".to_string()),
                             stream_type: Some("map".to_string()),
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "reading".to_string(),
                             join: None,
                             map: None,
@@ -386,7 +389,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: Some("readings".to_string()),
                             stream_type: Some("join".to_string()),
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "enriched".to_string(),
                             join: Some(vec!["doubled".to_string()]),
                             map: Some(BTreeMap::from([
@@ -403,7 +406,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: None,
                             stream_type: None,
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "reading".to_string(),
                             join: None,
                             map: None,
@@ -416,7 +419,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: Some("running_total".to_string()),
                             stream_type: Some("window".to_string()),
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "reading".to_string(),
                             join: None,
                             map: None,
@@ -433,7 +436,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: Some("doubled".to_string()),
                             stream_type: Some("reduce".to_string()),
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "reading".to_string(),
                             join: None,
                             map: None,

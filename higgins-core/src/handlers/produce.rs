@@ -60,9 +60,9 @@ pub async fn handle_produce(
 
     let key = &stream_definition.key;
 
-    let key_type = schema.field_with_name(&key)?.data_type();
+    let key_type = schema.field_with_name(key.as_str())?.data_type();
 
-    let array = batch.column(batch.schema().index_of(&key)?);
+    let array = batch.column(batch.schema().index_of(key.as_str())?);
 
     tracing::trace!("[PRODUCE] Array: {:#?}", array);
 

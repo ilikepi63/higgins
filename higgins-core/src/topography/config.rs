@@ -4,7 +4,10 @@ use arrow::datatypes::{DataType, Field};
 use higgins_shared::{HigginsError, StreamName};
 use serde::{Deserialize, Serialize};
 
-use crate::topography::{FunctionType, StreamDefinition};
+use crate::{
+    derive::utils::ColumnName,
+    topography::{FunctionType, StreamDefinition},
+};
 
 /// A Configuration is a serializable value that corresponds to a
 /// unit of implementation. These implementations aggregate to become a
@@ -24,7 +27,7 @@ pub struct ConfigurationStreamDefinition {
     #[serde(rename = "type")]
     pub stream_type: Option<String>,
     /// The partition key for this topic.
-    pub partition_key: String,
+    pub partition_key: ColumnName,
     /// The schema for this, references a key in schema.
     pub schema: String,
 
@@ -193,7 +196,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: Some("update_customer".to_string()),
                             stream_type: Some("reduce".to_string()),
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "customer".to_string(),
                             join: None,
                             map: None,
@@ -206,7 +209,7 @@ mod test {
                         ConfigurationStreamDefinition {
                             base: None,
                             stream_type: None,
-                            partition_key: "id".to_string(),
+                            partition_key: ColumnName::from("id".to_string()),
                             schema: "update_customer_event".to_string(),
                             join: None,
                             map: None,
@@ -248,7 +251,7 @@ mod test {
         );
         assert_eq!(
             config_streams.get("customer").unwrap().partition_key,
-            "id",
+            ColumnName::from("id".to_string()),
             "Customer stream partition key should be id"
         );
         assert_eq!(
@@ -367,7 +370,7 @@ mod test {
                     ConfigurationStreamDefinition {
                         base: None,
                         stream_type: None,
-                        partition_key: "id".to_string(),
+                        partition_key: ColumnName::from("id".to_string()),
                         schema: "customer".to_string(),
                         join: None,
                         map: None,
@@ -380,7 +383,7 @@ mod test {
                     ConfigurationStreamDefinition {
                         base: None,
                         stream_type: None,
-                        partition_key: "id".to_string(),
+                        partition_key: ColumnName::from("id".to_string()),
                         schema: "address".to_string(),
                         join: None,
                         map: None,
@@ -393,7 +396,7 @@ mod test {
                     ConfigurationStreamDefinition {
                         base: None,
                         stream_type: Some("join".to_string()),
-                        partition_key: "customer_id".to_string(),
+                        partition_key: ColumnName::from("customer_id".to_string()),
                         schema: "customer_address".to_string(),
                         join: Some(vec!["customer".to_string(), "address".to_string()]),
                         map: Some(BTreeMap::from([
@@ -540,7 +543,7 @@ mod test {
                     ConfigurationStreamDefinition {
                         base: None,
                         stream_type: None,
-                        partition_key: "id".to_string(),
+                        partition_key: ColumnName::from("id".to_string()),
                         schema: "value".to_string(),
                         join: None,
                         map: None,
@@ -553,7 +556,7 @@ mod test {
                     ConfigurationStreamDefinition {
                         base: Some("value".to_string()),
                         stream_type: Some("window".to_string()),
-                        partition_key: "id".to_string(),
+                        partition_key: ColumnName::from("id".to_string()),
                         schema: "value".to_string(),
                         join: None,
                         map: None,

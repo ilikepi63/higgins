@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt::Debug};
 
 use crate::{
+    derive::utils::ColumnName,
     storage::index::{IndexType, index_size_from_index_type_and_definition},
     topography::config::ConfigurationStreamDefinition,
 };
@@ -18,7 +19,7 @@ pub struct StreamDefinition {
     #[serde(rename = "type")]
     pub stream_type: Option<FunctionType>,
     /// The partition key for this topic.
-    pub key: String,
+    pub key: ColumnName,
     /// The schema for this, references a key in schema.
     pub schema: String,
     /// The Join for this stream definition.
