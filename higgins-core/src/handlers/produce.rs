@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use crate::broker::Broker;
+use crate::topography::StreamDefinition;
+use arrow::array::RecordBatch;
 use arrow_schema::DataType;
+use arrow_schema::SchemaRef;
 use bytes::BytesMut;
 use higgins_codec::{Message, ProduceRequest, ProduceResponse, message::Type};
 use higgins_shared::HigginsError;
@@ -58,35 +61,11 @@ pub async fn handle_produce(
 
     let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone())?;
 
-    let key = &stream_definition.key;
-
-    let key_type = schema.field_with_name(key.as_str())?.data_type();
-
-    let array = batch.column(batch.schema().index_of(key.as_str())?);
-
-    tracing::trace!("[PRODUCE] Array: {:#?}", array);
-
-    let key = match key_type {
-        DataType::Utf8 => arrow::array::as_string_array(array)
-            .value(0)
-            .as_bytes()
-            .to_owned(),
-        _ => unimplemented!(),
-    };
-
-    tracing::trace!("[PRODUCE] Key: {:#?}", key);
-
-    tracing::trace!("[PRODUCE] Read the batch, producing..");
+    let key = key_from(stream_definition, schema.clone(), &batch)?;
 
     drop(broker);
 
-    let result = Broker::produce(
-        &stream_name,
-        &PartitionName::try_from(key.as_slice())?,
-        batch,
-        broker_ref,
-    )
-    .await;
+    let result = Broker::produce(&stream_name, &key, batch, broker_ref).await;
 
     tracing::trace!("Result from producing to {}: {:#?}", stream_name, result);
 
@@ -108,4 +87,26 @@ pub async fn handle_produce(
         .map_err(|err| HigginsError::Arbitrary(err.to_string()))?;
 
     Ok(())
+}
+
+fn key_from(
+    stream_definition: &StreamDefinition,
+    schema: SchemaRef,
+    batch: &RecordBatch,
+) -> Result<PartitionName, HigginsError> {
+    let key = &stream_definition.key;
+
+    let key_type = schema.field_with_name(key.as_str())?.data_type();
+
+    let array = batch.column(batch.schema().index_of(key.as_str())?);
+
+    let key = match key_type {
+        DataType::Utf8 => arrow::array::as_string_array(array)
+            .value(0)
+            .as_bytes()
+            .to_owned(),
+        _ => return Err(HigginsError::NonStringTypeForColumnName),
+    };
+
+    Ok(PartitionName::try_from(key.as_slice())?)
 }

@@ -83,6 +83,9 @@ pub enum HigginsError {
 
     #[error("TaskError")]
     TaskError(#[from] HigginsTaskError),
+
+    #[error("You use a non-string type for a column name.")]
+    NonStringTypeForColumnName,
 }
 
 use std::array::TryFromSliceError;
