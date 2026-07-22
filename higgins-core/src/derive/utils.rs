@@ -42,9 +42,7 @@ impl ColumnName {
 impl TryFrom<&StreamDefinition> for ColumnName {
     type Error = HigginsError;
     fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
-        Ok(Self(value.partition_key.to_string().ok_or(
-            HigginsError::Arbitrary("Could not convert key to a ColumnName".to_string()),
-        )?)) // TODO: Remove this when we enforce stream keys to be strings.
+        Ok(Self(value.key.clone()))
     }
 }
 

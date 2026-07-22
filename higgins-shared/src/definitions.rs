@@ -3,6 +3,7 @@ use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use std::ffi::CStr;
 use thiserror::Error;
+
 /// Name of the partition.
 ///
 /// The reason for choosing 32 is because:

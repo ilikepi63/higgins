@@ -1,5 +1,5 @@
 use super::config::WindowDefinition;
-use higgins_shared::{HigginsError, PartitionName, StreamName};
+use higgins_shared::{HigginsError, StreamName};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt::Debug};
 
@@ -18,7 +18,7 @@ pub struct StreamDefinition {
     #[serde(rename = "type")]
     pub stream_type: Option<FunctionType>,
     /// The partition key for this topic.
-    pub partition_key: PartitionName,
+    pub key: String,
     /// The schema for this, references a key in schema.
     pub schema: String,
     /// The Join for this stream definition.
@@ -58,7 +58,7 @@ impl Debug for StreamDefinition {
         f.debug_struct("StreamDefinition")
             .field("base", &self.base.as_ref())
             .field("stream_type", &self.stream_type)
-            .field("partition_key", &self.partition_key.to_vec())
+            .field("partition_key", &self.key)
             .field("schema", &self.schema)
             .field("join", &self.join)
             .field("map", &self.map)
@@ -73,7 +73,7 @@ impl TryFrom<&ConfigurationStreamDefinition> for StreamDefinition {
         Ok(StreamDefinition {
             base: value.base.as_ref().map(|s| s.as_str().into()),
             stream_type: value.stream_type.as_ref().map(|s| s.as_str().into()),
-            partition_key: PartitionName::try_from(value.partition_key.as_str())?,
+            key: value.partition_key.clone(),
             schema: value.schema.as_str().into(),
             join: value.join.as_ref().map(|s| {
                 s.iter()

@@ -56,12 +56,7 @@ impl TryFrom<StreamDefinition> for ConfigurationStreamDefinition {
         Ok(ConfigurationStreamDefinition {
             base: value.base.map(StreamName::into),
             stream_type: value.stream_type.map(FunctionType::into),
-            partition_key: value
-                .partition_key
-                .to_string()
-                .ok_or(HigginsError::Arbitrary(
-                    "Failed to convert partition key to string.".to_string(),
-                ))?,
+            partition_key: value.key,
             schema: value.schema,
             join: value.join.map(|join| {
                 join.iter()

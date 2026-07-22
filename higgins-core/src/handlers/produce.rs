@@ -11,7 +11,6 @@ use higgins_shared::read_arrow;
 use prost::Message as _;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::Sender;
-use zerocopy::IntoBytes;
 
 pub async fn handle_produce(
     message: Message,
@@ -55,18 +54,11 @@ pub async fn handle_produce(
             "No batch found in payload.".to_string(),
         ))??;
 
-    tracing::info!("[PRODUCE] Retrieved the broker lock.");
+    tracing::info!("[PRODUCE] Successfully read the arrow.");
 
     let (_, stream_definition) = broker.get_topography_stream(&stream_name.clone())?;
 
-    let key = &stream_definition.partition_key;
-
-    tracing::trace!("[PRODUCE] Key for stream produce: {:#?}", key);
-
-    #[allow(clippy::unwrap_used)]
-    let key = key.to_string().unwrap();
-
-    tracing::trace!("[PRODUCE] Key for stream produce: {}", key);
+    let key = &stream_definition.key;
 
     let key_type = schema.field_with_name(&key)?.data_type();
 
@@ -75,36 +67,10 @@ pub async fn handle_produce(
     tracing::trace!("[PRODUCE] Array: {:#?}", array);
 
     let key = match key_type {
-        // DataType::Int8 => {
-        //     let arr = as_primitive_array::<i8>(array); /* ... */
-        // }
-        // DataType::Int16 => {
-        //     let arr = as_primitive_array::<i16>(array); /* ... */
-        // }
-        // DataType::Int32 => {
-        //     let arr = as_primitive_array::<i32>(array); /* ... */
-        // }
-        // DataType::Int64 => {
-        //     let arr = as_primitive_array::<i64>(array); /* ... */
-        // }
-        // DataType::UInt32 => {
-        //     let arr = as_primitive_array::<u32>(array); /* ... */
-        // }
-        // DataType::Float32 => {
-        //     let arr = as_primitive_array::<f32>(array); /* ... */
-        // }
-        // DataType::Float64 => {
-        //     let arr = as_primitive_array::<f64>(array); /* ... */
-        // }
         DataType::Utf8 => arrow::array::as_string_array(array)
             .value(0)
             .as_bytes()
             .to_owned(),
-        DataType::Boolean => {
-            let arr = arrow::array::as_boolean_array(array);
-            let value = arr.value(0);
-            value.as_bytes().to_owned()
-        }
         _ => unimplemented!(),
     };
 
@@ -116,7 +82,7 @@ pub async fn handle_produce(
 
     let result = Broker::produce(
         &stream_name,
-        &PartitionName::try_from(key.as_bytes())?,
+        &PartitionName::try_from(key.as_slice())?,
         batch,
         broker_ref,
     )
