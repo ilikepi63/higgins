@@ -4,6 +4,7 @@ use arrow::{
     util::display::array_value_to_string,
 };
 use higgins_shared::{PartitionName, StreamName};
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use tokio::sync::RwLockWriteGuard;
 
@@ -31,6 +32,7 @@ pub fn col_name_to_field_and_col(
 }
 
 /// Represents a column name of an apache arrow record batch.
+#[derive(Deserialize, PartialEq, Debug, Serialize, Clone, Eq)]
 pub struct ColumnName(String);
 
 impl ColumnName {
@@ -39,12 +41,16 @@ impl ColumnName {
     }
 }
 
+impl From<String> for ColumnName {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
 impl TryFrom<&StreamDefinition> for ColumnName {
     type Error = HigginsError;
     fn try_from(value: &StreamDefinition) -> Result<Self, Self::Error> {
-        Ok(Self(value.partition_key.to_string().ok_or(
-            HigginsError::Arbitrary("Could not convert key to a ColumnName".to_string()),
-        )?)) // TODO: Remove this when we enforce stream keys to be strings.
+        Ok(value.key.clone())
     }
 }
 
