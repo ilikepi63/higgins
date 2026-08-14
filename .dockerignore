@@ -1,1 +1,28 @@
+# Build artifacts
 /target
+**/target
+
+# Git
+.git
+.gitignore
+
+# Local runtime data
+/data
+**/*.jsonl
+
+# Python test harness (higgins-tests)
+**/.venv
+**/__pycache__
+**/.python-version
+**/uv.lock
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# Docs & meta (not needed for the build)
+docs
+*.md
+# ...but keep LICENSE.md — Cargo.toml references it via license-file
+!LICENSE.md
