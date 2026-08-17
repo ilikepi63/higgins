@@ -198,7 +198,7 @@ impl ServerHandle {
 pub async fn run_server(dir: PathBuf, port: u16) -> Result<(), HigginsError> {
     let broker = Arc::new(RwLock::new(Broker::new(dir)?));
 
-    let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
+    let listener = TcpListener::bind(format!("0.0.0.0:{port}")).await?;
 
     tracing::info!("Connected on {}", port);
 
