@@ -67,7 +67,11 @@ impl Broker {
             .topography
             .get_streams()
             .iter()
-            .filter_map(|(key, def)| def.base.as_ref().map(|_| (key.to_owned(), def.to_owned())))
+            .filter_map(|(key, def)| {
+                def.stream_type
+                    .as_ref()
+                    .map(|_| (key.to_owned(), def.to_owned()))
+            })
             .collect::<Vec<_>>();
 
         tracing::debug!("Derived: {:#?}", derived_streams);
