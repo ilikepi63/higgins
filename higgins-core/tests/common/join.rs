@@ -45,7 +45,6 @@ partition_key = "customer_id"
 type = "join"
 schema = "customer_address"
 partition_key = "customer_id"
-base = "customer"
 join = [
     "customer", "address"
 ]
