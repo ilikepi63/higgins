@@ -93,7 +93,6 @@ ignore = [
 
     { id = "RUSTSEC-2026-0098", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0099", reason = "Requires further investigation." },
-    { id = "RUSTSEC-2026-0104", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0114", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0122", reason = "Requires further investigation." },
     { id = "RUSTSEC-2026-0186", reason = "Requires further investigation." },
